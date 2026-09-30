@@ -1,6 +1,5 @@
 <?php
 
-use App\Http\Middleware\CheckPermission;
 use App\Models\Module;
 use App\Models\Permission;
 use App\Models\Role;

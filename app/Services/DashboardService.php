@@ -8,8 +8,7 @@ class DashboardService
 {
     public function __construct(
         protected AuthorizationService $authorization,
-    ) {
-    }
+    ) {}
 
     /**
      * Build the data required by the ERP dashboard.

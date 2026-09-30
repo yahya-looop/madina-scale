@@ -14,8 +14,7 @@ class LoginController extends Controller
 {
     public function __construct(
         protected AuthenticationService $authentication,
-    ) {
-    }
+    ) {}
 
     /**
      * Show the login page.

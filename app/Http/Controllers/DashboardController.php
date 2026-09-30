@@ -11,8 +11,7 @@ class DashboardController extends Controller
 {
     public function __construct(
         protected DashboardService $dashboard,
-    ) {
-    }
+    ) {}
 
     /**
      * Display the ERP dashboard.

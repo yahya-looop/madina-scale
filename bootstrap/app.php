@@ -3,8 +3,8 @@
 use App\Http\Middleware\CheckPermission;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Services\AccountSecurityService;
-use App\Services\AuthorizationService;
 use App\Services\AuthenticationService;
+use App\Services\AuthorizationService;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;

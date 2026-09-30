@@ -11,8 +11,7 @@ class AuthenticationService
 {
     public function __construct(
         protected AccountSecurityService $accountSecurity,
-    ) {
-    }
+    ) {}
 
     /**
      * Authenticate a user using email and password.
