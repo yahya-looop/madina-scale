@@ -43,6 +43,8 @@ class User extends Authenticatable
 
     /**
      * Get the roles assigned to this user.
+     *
+     * @return BelongsToMany<Role, $this>
      */
     public function roles(): BelongsToMany
     {

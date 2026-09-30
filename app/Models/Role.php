@@ -3,7 +3,6 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Attributes\Fillable;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
@@ -24,11 +23,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 ])]
 class Role extends Model
 {
-    /** @use HasFactory */
-    use HasFactory;
-
     /**
      * Get the users assigned to this role.
+     *
+     * @return BelongsToMany<User, $this>
      */
     public function users(): BelongsToMany
     {
@@ -42,6 +40,8 @@ class Role extends Model
 
     /**
      * Get the permissions assigned to this role.
+     *
+     * @return BelongsToMany<Permission, $this>
      */
     public function permissions(): BelongsToMany
     {
