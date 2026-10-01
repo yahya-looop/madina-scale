@@ -31,6 +31,12 @@ use Illuminate\Support\Carbon;
     'name',
     'email',
     'password',
+    'status',
+    'last_login_at',
+    'last_login_ip',
+    'failed_login_attempts',
+    'locked_until',
+    'password_changed_at',
 ])]
 #[Hidden([
     'password',

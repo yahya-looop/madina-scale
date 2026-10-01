@@ -4,6 +4,7 @@ use App\Models\Module;
 use App\Models\Permission;
 use App\Models\Role;
 use App\Models\User;
+use App\Services\AuthorizationService;
 use Illuminate\Support\Facades\Gate;
 
 function createAuthorizationFixture(): array
@@ -34,7 +35,12 @@ function createAuthorizationFixture(): array
         'description' => 'Temporary permission for authorization feature tests.',
     ]);
 
-    return compact('user', 'role', 'module', 'permission');
+    return compact(
+        'user',
+        'role',
+        'module',
+        'permission',
+    );
 }
 
 test('user without permission is denied', function () {
@@ -102,5 +108,98 @@ test('role without permission is denied', function () {
 
     expect(
         Gate::forUser($user)->allows($permission->slug)
+    )->toBeFalse();
+});
+
+test('inactive user is denied even with an assigned permission', function () {
+    $fixture = createAuthorizationFixture();
+
+    $user = $fixture['user'];
+    $role = $fixture['role'];
+    $permission = $fixture['permission'];
+
+    $role->permissions()->attach($permission->id);
+    $user->roles()->attach($role->id);
+
+    $user->update([
+        'status' => 'inactive',
+    ]);
+
+    expect(
+        Gate::forUser($user)->allows($permission->slug)
+    )->toBeFalse();
+});
+
+test('blank permission is denied by authorization service', function () {
+    $user = User::factory()->create();
+
+    $authorization = app(AuthorizationService::class);
+
+    expect(
+        $authorization->can($user, '')
+    )->toBeFalse();
+
+    expect(
+        $authorization->can($user, '   ')
+    )->toBeFalse();
+});
+
+test('canAll requires every permission', function () {
+    $fixture = createAuthorizationFixture();
+
+    $user = $fixture['user'];
+    $role = $fixture['role'];
+    $permission = $fixture['permission'];
+
+    $role->permissions()->attach($permission->id);
+    $user->roles()->attach($role->id);
+
+    $authorization = app(AuthorizationService::class);
+
+    expect(
+        $authorization->canAll($user, [
+            $permission->slug,
+            'permission-that-does-not-exist',
+        ])
+    )->toBeFalse();
+
+    expect(
+        $authorization->canAll($user, [
+            $permission->slug,
+        ])
+    )->toBeTrue();
+
+    expect(
+        $authorization->canAll($user, [])
+    )->toBeTrue();
+});
+
+test('canAny requires at least one valid permission', function () {
+    $fixture = createAuthorizationFixture();
+
+    $user = $fixture['user'];
+    $role = $fixture['role'];
+    $permission = $fixture['permission'];
+
+    $role->permissions()->attach($permission->id);
+    $user->roles()->attach($role->id);
+
+    $authorization = app(AuthorizationService::class);
+
+    expect(
+        $authorization->canAny($user, [
+            'permission-that-does-not-exist',
+            $permission->slug,
+        ])
+    )->toBeTrue();
+
+    expect(
+        $authorization->canAny($user, [
+            'permission-that-does-not-exist',
+        ])
+    )->toBeFalse();
+
+    expect(
+        $authorization->canAny($user, [])
     )->toBeFalse();
 });

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Permission;
 use App\Models\User;
 
 class AuthorizationService
@@ -9,19 +10,38 @@ class AuthorizationService
     /**
      * Determine whether a user has a specific permission.
      *
+     * Authorization requires:
+     * - an active user
+     * - an active role assigned to that user
+     * - the requested permission assigned to that role
+     * - an active module owning that permission
+     *
      * Permission slugs are expected to be globally unique.
      */
     public function can(
         User $user,
         string $permissionSlug,
     ): bool {
-        return $user->roles()
-            ->where('roles.is_active', true)
-            ->whereHas('permissions', function ($query) use ($permissionSlug): void {
+        $permissionSlug = trim($permissionSlug);
+
+        if ($permissionSlug === '') {
+            return false;
+        }
+
+        if ($user->status !== 'active') {
+            return false;
+        }
+
+        return Permission::query()
+            ->where('permissions.slug', $permissionSlug)
+            ->whereHas('module', function ($query): void {
+                $query->where('modules.is_active', true);
+            })
+            ->whereHas('roles', function ($query) use ($user): void {
                 $query
-                    ->where('permissions.slug', $permissionSlug)
-                    ->whereHas('module', function ($moduleQuery): void {
-                        $moduleQuery->where('modules.is_active', true);
+                    ->where('roles.is_active', true)
+                    ->whereHas('users', function ($userQuery) use ($user): void {
+                        $userQuery->where('users.id', $user->id);
                     });
             })
             ->exists();
