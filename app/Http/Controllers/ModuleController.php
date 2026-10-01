@@ -36,13 +36,22 @@ class ModuleController extends Controller
     }
 
     /**
-     * Store a newly created non-system module.
+     * Store a newly created module.
      */
     public function store(StoreModuleRequest $request): JsonResponse
     {
-        $module = $this->modules->create(
-            $request->validated(),
-        );
+        /** @var array{
+         *     name: string,
+         *     slug: string,
+         *     description?: string|null,
+         *     icon?: string|null,
+         *     sort_order?: int,
+         *     is_active?: bool
+         * } $attributes
+         */
+        $attributes = $request->validated();
+
+        $module = $this->modules->create($attributes);
 
         return response()->json([
             'data' => $module,
@@ -50,15 +59,26 @@ class ModuleController extends Controller
     }
 
     /**
-     * Update an existing non-system module.
+     * Update an existing module.
      */
     public function update(
         UpdateModuleRequest $request,
         Module $module,
     ): JsonResponse {
+        /** @var array{
+         *     name: string,
+         *     slug: string,
+         *     description?: string|null,
+         *     icon?: string|null,
+         *     sort_order?: int,
+         *     is_active?: bool
+         * } $attributes
+         */
+        $attributes = $request->validated();
+
         $module = $this->modules->update(
             $module,
-            $request->validated(),
+            $attributes,
         );
 
         return response()->json([

@@ -42,9 +42,16 @@ class PermissionController extends Controller
      */
     public function store(StorePermissionRequest $request): JsonResponse
     {
-        $permission = $this->permissions->create(
-            $request->validated(),
-        );
+        /** @var array{
+         *     module_id: int,
+         *     name: string,
+         *     slug: string,
+         *     description?: string|null
+         * } $attributes
+         */
+        $attributes = $request->validated();
+
+        $permission = $this->permissions->create($attributes);
 
         $permission->load('module');
 
@@ -60,9 +67,18 @@ class PermissionController extends Controller
         UpdatePermissionRequest $request,
         Permission $permission,
     ): JsonResponse {
+        /** @var array{
+         *     module_id: int,
+         *     name: string,
+         *     slug: string,
+         *     description?: string|null
+         * } $attributes
+         */
+        $attributes = $request->validated();
+
         $permission = $this->permissions->update(
             $permission,
-            $request->validated(),
+            $attributes,
         );
 
         $permission->load('module');
