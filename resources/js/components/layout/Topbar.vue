@@ -131,11 +131,7 @@ onBeforeUnmount(() => {
             </button>
 
             <!-- Calendar -->
-            <button
-                class="icon-btn"
-                type="button"
-                aria-label="Calendar"
-            >
+            <button class="icon-btn" type="button" aria-label="Calendar">
                 <Icon name="calendar" :size="19" />
             </button>
 
@@ -160,10 +156,7 @@ onBeforeUnmount(() => {
                     </span>
 
                     <span class="dashboard-theme-chevron" aria-hidden="true">
-                        <Icon
-                            name="chevron-down"
-                            :size="13"
-                        />
+                        <Icon name="chevron-down" :size="13" />
                     </span>
                 </button>
 
@@ -220,9 +213,7 @@ onBeforeUnmount(() => {
                             <Icon name="moon" :size="17" />
                         </span>
 
-                        <span class="dashboard-theme-option-label">
-                            Dark
-                        </span>
+                        <span class="dashboard-theme-option-label"> Dark </span>
 
                         <span
                             v-if="props.theme === 'dark'"
@@ -265,11 +256,7 @@ onBeforeUnmount(() => {
             </div>
 
             <!-- Fullscreen -->
-            <button
-                class="icon-btn"
-                type="button"
-                aria-label="Fullscreen"
-            >
+            <button class="icon-btn" type="button" aria-label="Fullscreen">
                 <Icon name="expand" :size="18" />
             </button>
 
@@ -295,10 +282,7 @@ onBeforeUnmount(() => {
                         </small>
                     </span>
 
-                    <Icon
-                        name="chevron-down"
-                        :size="14"
-                    />
+                    <Icon name="chevron-down" :size="14" />
                 </button>
 
                 <div
@@ -310,19 +294,9 @@ onBeforeUnmount(() => {
                     <strong>{{ userName }}</strong>
                     <span>{{ userEmail }}</span>
 
-                    <button
-                        type="button"
-                        role="menuitem"
-                    >
-                        Profile
-                    </button>
+                    <button type="button" role="menuitem">Profile</button>
 
-                    <button
-                        type="button"
-                        role="menuitem"
-                    >
-                        Logout
-                    </button>
+                    <button type="button" role="menuitem">Logout</button>
                 </div>
             </div>
         </div>
@@ -393,8 +367,7 @@ onBeforeUnmount(() => {
 
     color: var(--text-primary, #142033);
 
-    box-shadow:
-        0 4px 14px rgba(15, 23, 42, 0.08);
+    box-shadow: 0 4px 14px rgba(15, 23, 42, 0.08);
 }
 
 .dashboard-theme-trigger:active {
@@ -408,8 +381,7 @@ onBeforeUnmount(() => {
 
     color: var(--text-primary, #142033);
 
-    box-shadow:
-        0 5px 16px rgba(15, 23, 42, 0.09);
+    box-shadow: 0 5px 16px rgba(15, 23, 42, 0.09);
 }
 
 /* Theme icon container */
@@ -425,7 +397,7 @@ onBeforeUnmount(() => {
 
     border-radius: 7px;
 
-    background: rgba(19, 164, 108, 0.10);
+    background: rgba(19, 164, 108, 0.1);
     color: var(--primary, #13a46c);
 }
 
@@ -463,8 +435,7 @@ onBeforeUnmount(() => {
         opacity 0.18s ease;
 }
 
-.dashboard-theme-trigger[aria-expanded='true']
-    .dashboard-theme-chevron {
+.dashboard-theme-trigger[aria-expanded='true'] .dashboard-theme-chevron {
     transform: rotate(180deg);
     opacity: 1;
 }
@@ -488,24 +459,15 @@ onBeforeUnmount(() => {
     border: 1px solid var(--border, #dce3ec);
     border-radius: 13px;
 
-    background: var(
-        --surface-elevated,
-        var(--surface, #ffffff)
-    );
+    background: var(--surface-elevated, var(--surface, #ffffff));
 
-    color: var(
-        --text-primary,
-        #142033
-    );
+    color: var(--text-primary, #142033);
 
     box-shadow:
         0 18px 40px rgba(15, 23, 42, 0.16),
         0 3px 10px rgba(15, 23, 42, 0.06);
 
-    animation:
-        dashboard-theme-menu-in
-        0.14s
-        ease-out;
+    animation: dashboard-theme-menu-in 0.14s ease-out;
 }
 
 @keyframes dashboard-theme-menu-in {
@@ -543,10 +505,7 @@ onBeforeUnmount(() => {
      * Explicit text color is used here so dark-mode hover
      * never turns the label white-on-white.
      */
-    color: var(
-        --text-secondary,
-        #526173
-    );
+    color: var(--text-secondary, #526173);
 
     font-family: inherit;
     font-size: 12px;
@@ -564,12 +523,9 @@ onBeforeUnmount(() => {
 
 /* Hover */
 .dashboard-theme-menu button:hover {
-    background: rgba(19, 164, 108, 0.10);
+    background: rgba(19, 164, 108, 0.1);
 
-    color: var(
-        --text-primary,
-        #142033
-    );
+    color: var(--text-primary, #142033);
 }
 
 /* Keyboard focus */
@@ -579,30 +535,21 @@ onBeforeUnmount(() => {
 
     background: rgba(19, 164, 108, 0.08);
 
-    color: var(
-        --text-primary,
-        #142033
-    );
+    color: var(--text-primary, #142033);
 }
 
 /* Selected */
 .dashboard-theme-menu button.selected {
     background: rgba(19, 164, 108, 0.12);
 
-    color: var(
-        --text-primary,
-        #142033
-    );
+    color: var(--text-primary, #142033);
 }
 
 /* Selected + hover */
 .dashboard-theme-menu button.selected:hover {
     background: rgba(19, 164, 108, 0.16);
 
-    color: var(
-        --text-primary,
-        #142033
-    );
+    color: var(--text-primary, #142033);
 }
 
 /* Prevent text disappearing in dark theme */
@@ -636,7 +583,7 @@ onBeforeUnmount(() => {
 
 .theme-light-icon {
     color: #d99a00;
-    background: rgba(245, 158, 11, 0.10);
+    background: rgba(245, 158, 11, 0.1);
 }
 
 .theme-dark-icon {
@@ -646,7 +593,7 @@ onBeforeUnmount(() => {
 
 .theme-system-icon {
     color: #64748b;
-    background: rgba(100, 116, 139, 0.10);
+    background: rgba(100, 116, 139, 0.1);
 }
 
 /* Check mark */
@@ -662,10 +609,7 @@ onBeforeUnmount(() => {
 
     flex: 0 0 18px;
 
-    color: var(
-        --primary,
-        #13a46c
-    );
+    color: var(--primary, #13a46c);
 }
 
 /* ============================================================
@@ -686,11 +630,10 @@ onBeforeUnmount(() => {
 :global(.dark) .dashboard-theme-trigger:hover,
 :global(.dark) .dashboard-theme-trigger[aria-expanded='true'],
 :global([data-theme='dark']) .dashboard-theme-trigger:hover,
-:global([data-theme='dark'])
-    .dashboard-theme-trigger[aria-expanded='true'] {
+:global([data-theme='dark']) .dashboard-theme-trigger[aria-expanded='true'] {
     border-color: rgba(19, 164, 108, 0.55);
 
-    background: rgba(19, 164, 108, 0.10);
+    background: rgba(19, 164, 108, 0.1);
 
     color: #f5f8fc;
 }
@@ -727,12 +670,8 @@ onBeforeUnmount(() => {
     color: #ffffff;
 }
 
-:global(.dark)
-    .dashboard-theme-menu
-    button.selected:hover,
-:global([data-theme='dark'])
-    .dashboard-theme-menu
-    button.selected:hover {
+:global(.dark) .dashboard-theme-menu button.selected:hover,
+:global([data-theme='dark']) .dashboard-theme-menu button.selected:hover {
     background: rgba(19, 164, 108, 0.22);
 
     color: #ffffff;
@@ -761,7 +700,7 @@ onBeforeUnmount(() => {
 :global([data-theme='dark']) .theme-system-icon {
     color: #cbd5e1;
 
-    background: rgba(203, 213, 225, 0.10);
+    background: rgba(203, 213, 225, 0.1);
 }
 
 /* ============================================================
@@ -790,18 +729,11 @@ onBeforeUnmount(() => {
     border: 1px solid var(--border, #dce3ec);
     border-radius: 13px;
 
-    background: var(
-        --surface-elevated,
-        var(--surface, #ffffff)
-    );
+    background: var(--surface-elevated, var(--surface, #ffffff));
 
-    color: var(
-        --text-primary,
-        #142033
-    );
+    color: var(--text-primary, #142033);
 
-    box-shadow:
-        0 18px 40px rgba(15, 23, 42, 0.16);
+    box-shadow: 0 18px 40px rgba(15, 23, 42, 0.16);
 }
 
 .profile-menu strong {
@@ -820,10 +752,7 @@ onBeforeUnmount(() => {
 
     margin-bottom: 10px;
 
-    color: var(
-        --text-secondary,
-        #64748b
-    );
+    color: var(--text-secondary, #64748b);
 
     font-size: 11px;
 }
@@ -838,10 +767,7 @@ onBeforeUnmount(() => {
 
     background: transparent;
 
-    color: var(
-        --text-secondary,
-        #526173
-    );
+    color: var(--text-secondary, #526173);
 
     font-family: inherit;
     font-size: 12px;
@@ -854,10 +780,7 @@ onBeforeUnmount(() => {
 .profile-menu button:hover {
     background: rgba(19, 164, 108, 0.09);
 
-    color: var(
-        --text-primary,
-        #142033
-    );
+    color: var(--text-primary, #142033);
 }
 
 /* ============================================================

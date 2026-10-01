@@ -57,10 +57,7 @@ const submit = () => {
                             autofocus
                         />
 
-                        <span
-                            v-if="form.errors.email"
-                            class="form-error"
-                        >
+                        <span v-if="form.errors.email" class="form-error">
                             {{ form.errors.email }}
                         </span>
                     </div>
@@ -78,10 +75,7 @@ const submit = () => {
                             required
                         />
 
-                        <span
-                            v-if="form.errors.password"
-                            class="form-error"
-                        >
+                        <span v-if="form.errors.password" class="form-error">
                             {{ form.errors.password }}
                         </span>
                     </div>
@@ -108,13 +102,9 @@ const submit = () => {
                         class="login-button"
                         :disabled="form.processing"
                     >
-                        <span v-if="form.processing">
-                            Signing in...
-                        </span>
+                        <span v-if="form.processing"> Signing in... </span>
 
-                        <span v-else>
-                            Sign in to dashboard
-                        </span>
+                        <span v-else> Sign in to dashboard </span>
                     </button>
                 </form>
             </section>

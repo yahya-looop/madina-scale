@@ -71,9 +71,8 @@ const quickActions = [
 ];
 
 const chartBars = [
-    38, 55, 42, 68, 58, 76, 50, 62, 72, 48,
-    82, 60, 68, 54, 75, 64, 86, 58, 69, 50,
-    77, 66, 73, 61, 80, 72, 86, 70, 90, 78,
+    38, 55, 42, 68, 58, 76, 50, 62, 72, 48, 82, 60, 68, 54, 75, 64, 86, 58, 69,
+    50, 77, 66, 73, 61, 80, 72, 86, 70, 90, 78,
 ];
 
 const chatItems = computed(() => {
@@ -85,7 +84,13 @@ const chatItems = computed(() => {
             activeChatFilter.value === 'All' ||
             (activeChatFilter.value === 'Customers' && type === 'Customers') ||
             (activeChatFilter.value === 'Team' && type === 'Team') ||
-            (activeChatFilter.value === 'Unread' && ['Rahim Ahmed', 'Nusrat Jahan', 'Sales Team', 'Visitor #1283'].includes(chat[0]));
+            (activeChatFilter.value === 'Unread' &&
+                [
+                    'Rahim Ahmed',
+                    'Nusrat Jahan',
+                    'Sales Team',
+                    'Visitor #1283',
+                ].includes(chat[0]));
 
         const searchMatch =
             !query ||
@@ -245,14 +250,8 @@ function viewStore(): void {
                                 d="M74 145h267l-28 19H102z"
                                 fill="url(#scaleMetal)"
                             />
-                            <path
-                                d="M91 137h233l17 8H74z"
-                                fill="#dce5ed"
-                            />
-                            <path
-                                d="M116 121h183l25 16H91z"
-                                fill="#f4f7fa"
-                            />
+                            <path d="M91 137h233l17 8H74z" fill="#dce5ed" />
+                            <path d="M116 121h183l25 16H91z" fill="#f4f7fa" />
                             <path
                                 d="M149 73h112v55H149z"
                                 fill="url(#scaleBody)"
@@ -373,9 +372,7 @@ function viewStore(): void {
                                     :aria-selected="
                                         activeAnalyticsTab === tab.label
                                     "
-                                    @click="
-                                        activeAnalyticsTab = tab.label
-                                    "
+                                    @click="activeAnalyticsTab = tab.label"
                                 >
                                     <Icon :name="tab.icon" :size="13" />
                                     <span>{{ tab.label }}</span>
@@ -469,7 +466,10 @@ function viewStore(): void {
                             <div class="chart-tooltip">
                                 <small>20 Oct 2024</small>
                                 <span><i></i> Revenue <b>৳ 3,48,250</b></span>
-                                <span><i class="tooltip-order"></i> Orders <b>412</b></span>
+                                <span
+                                    ><i class="tooltip-order"></i> Orders
+                                    <b>412</b></span
+                                >
                             </div>
 
                             <div class="x-axis">
@@ -510,10 +510,7 @@ function viewStore(): void {
                         />
 
                         <div class="legend-list">
-                            <div
-                                v-for="item in orderStatus"
-                                :key="item.label"
-                            >
+                            <div v-for="item in orderStatus" :key="item.label">
                                 <i :class="`legend-${item.tone}`"></i>
                                 <span>{{ item.label }}</span>
                                 <strong>{{ item.value }}</strong>
@@ -555,7 +552,9 @@ function viewStore(): void {
                                     :key="item[0]"
                                 >
                                     <td>
-                                        <span class="rank">{{ index + 1 }}</span>
+                                        <span class="rank">{{
+                                            index + 1
+                                        }}</span>
                                     </td>
                                     <td>
                                         <strong>{{ item[0] }}</strong>
@@ -593,10 +592,7 @@ function viewStore(): void {
                                 </tr>
                             </thead>
                             <tbody>
-                                <tr
-                                    v-for="item in recentOrders"
-                                    :key="item[0]"
-                                >
+                                <tr v-for="item in recentOrders" :key="item[0]">
                                     <td>
                                         <button
                                             type="button"
@@ -800,7 +796,9 @@ function viewStore(): void {
                             <h2>Quick Actions</h2>
                             <small>Common tasks</small>
                         </div>
-                        <button type="button" class="panel-link">Customize</button>
+                        <button type="button" class="panel-link">
+                            Customize
+                        </button>
                     </div>
 
                     <div class="quick-grid">
@@ -903,7 +901,12 @@ function viewStore(): void {
 
                     <div class="chat-tabs">
                         <button
-                            v-for="filter in ['All', 'Customers', 'Team', 'Unread']"
+                            v-for="filter in [
+                                'All',
+                                'Customers',
+                                'Team',
+                                'Unread',
+                            ]"
                             :key="filter"
                             type="button"
                             :class="{ active: activeChatFilter === filter }"
@@ -971,7 +974,11 @@ function viewStore(): void {
                 </span>
 
                 <div class="footer-meta">
-                    <span>{{ capabilities.canViewReports ? 'Reports enabled' : 'Reports restricted' }}</span>
+                    <span>{{
+                        capabilities.canViewReports
+                            ? 'Reports enabled'
+                            : 'Reports restricted'
+                    }}</span>
                     <button type="button" @click="logout">Sign out</button>
                 </div>
             </footer>
@@ -988,8 +995,7 @@ function viewStore(): void {
 .dashboard-page {
     --dash-radius: 14px;
     --dash-shadow:
-        0 10px 32px rgba(18, 40, 67, 0.055),
-        0 1px 2px rgba(18, 40, 67, 0.035);
+        0 10px 32px rgba(18, 40, 67, 0.055), 0 1px 2px rgba(18, 40, 67, 0.035);
     position: relative;
     min-width: 0;
     padding-bottom: 34px;
@@ -1012,7 +1018,11 @@ function viewStore(): void {
     border: 1px solid color-mix(in srgb, var(--border) 86%, #8fb2d1);
     border-radius: var(--dash-radius);
     background:
-        radial-gradient(circle at 64% 45%, rgba(255, 255, 255, 0.92), transparent 38%),
+        radial-gradient(
+            circle at 64% 45%,
+            rgba(255, 255, 255, 0.92),
+            transparent 38%
+        ),
         linear-gradient(110deg, #eef5fb 0%, #e9f1f8 46%, #dce8f2 100%);
     box-shadow: var(--dash-shadow);
 }
@@ -2268,7 +2278,11 @@ td strong {
 :global(:root[data-theme='dark']) .dashboard-hero {
     border-color: #26384b;
     background:
-        radial-gradient(circle at 64% 45%, rgba(49, 72, 96, 0.72), transparent 38%),
+        radial-gradient(
+            circle at 64% 45%,
+            rgba(49, 72, 96, 0.72),
+            transparent 38%
+        ),
         linear-gradient(110deg, #172332 0%, #172736 48%, #13202d 100%);
 }
 
