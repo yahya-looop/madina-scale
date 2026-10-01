@@ -13,15 +13,13 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        $developerRole = Role::updateOrCreate(
-            ['slug' => 'developer'],
-            [
-                'name' => 'Developer',
-                'description' => 'System-level developer role with highest administrative trust.',
-                'is_system' => true,
-                'is_active' => true,
-            ],
-        );
+        $this->call([
+            SystemAuthorizationSeeder::class,
+        ]);
+
+        $developerRole = Role::query()
+            ->where('slug', 'developer')
+            ->firstOrFail();
 
         $user = User::updateOrCreate(
             ['email' => 'test@example.com'],
