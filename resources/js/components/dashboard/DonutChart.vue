@@ -1,19 +1,43 @@
 <script setup lang="ts">
+import { computed } from 'vue';
+
+interface Segment {
+    value: number;
+    tone: string;
+}
+
 const props = defineProps<{
     total: string;
     centerLabel: string;
-    segments: { value: number; tone: string }[];
+    segments: Segment[];
 }>();
+
 const circumference = 2 * Math.PI * 38;
-let cursor = 0;
-function dash(value: number) {
-    const length =
-        (circumference * value) /
-        props.segments.reduce((a, s) => a + s.value, 0);
-    const offset = -cursor;
-    cursor += length;
-    return `${length} ${circumference - length} ${offset}`;
-}
+
+const totalValue = computed(() =>
+    props.segments.reduce((sum, segment) => sum + segment.value, 0),
+);
+
+const segmentStyles = computed(() => {
+    let cursor = 0;
+
+    return props.segments.map((segment) => {
+        const length =
+            totalValue.value > 0
+                ? (circumference * segment.value) / totalValue.value
+                : 0;
+
+        const offset = -cursor;
+
+        cursor += length;
+
+        return {
+            ...segment,
+            dasharray: `${length} ${circumference - length}`,
+            offset,
+        };
+    });
+});
 </script>
 
 <template>
@@ -27,8 +51,9 @@ function dash(value: number) {
                 stroke="var(--chart-track)"
                 stroke-width="13"
             />
+
             <circle
-                v-for="(segment, index) in segments"
+                v-for="(segment, index) in segmentStyles"
                 :key="index"
                 cx="50"
                 cy="50"
@@ -36,13 +61,15 @@ function dash(value: number) {
                 fill="none"
                 :class="`chart-${segment.tone}`"
                 stroke-width="13"
-                :stroke-dasharray="dash(segment.value)"
+                :stroke-dasharray="segment.dasharray"
+                :stroke-dashoffset="segment.offset"
                 transform="rotate(-90 50 50)"
             />
         </svg>
+
         <div class="donut-center">
-            <strong>{{ total }}</strong
-            ><span>{{ centerLabel }}</span>
+            <strong>{{ total }}</strong>
+            <span>{{ centerLabel }}</span>
         </div>
     </div>
 </template>
