@@ -17,7 +17,7 @@ class RoleController extends Controller
     ) {}
 
     /**
-     * Display the roles available for management.
+     * Display all roles available for management.
      */
     public function index(): JsonResponse
     {
@@ -31,6 +31,8 @@ class RoleController extends Controller
      */
     public function show(Role $role): JsonResponse
     {
+        $role->load('permissions');
+
         return response()->json([
             'data' => $role,
         ]);
@@ -41,9 +43,16 @@ class RoleController extends Controller
      */
     public function store(StoreRoleRequest $request): JsonResponse
     {
-        $role = $this->roles->create(
-            $request->validated(),
-        );
+        /** @var array{
+         *     name: string,
+         *     slug: string,
+         *     description?: string|null,
+         *     is_active?: bool
+         * } $attributes
+         */
+        $attributes = $request->validated();
+
+        $role = $this->roles->create($attributes);
 
         return response()->json([
             'data' => $role,
@@ -51,15 +60,24 @@ class RoleController extends Controller
     }
 
     /**
-     * Update an existing non-system role.
+     * Update an existing role.
      */
     public function update(
         UpdateRoleRequest $request,
         Role $role,
     ): JsonResponse {
+        /** @var array{
+         *     name: string,
+         *     slug: string,
+         *     description?: string|null,
+         *     is_active?: bool
+         * } $attributes
+         */
+        $attributes = $request->validated();
+
         $role = $this->roles->update(
             $role,
-            $request->validated(),
+            $attributes,
         );
 
         return response()->json([
