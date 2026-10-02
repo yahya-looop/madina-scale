@@ -4,6 +4,7 @@ export type NavigationItem = {
     icon: string;
     badge?: string;
     expandable?: boolean;
+    children?: NavigationItem[];
 };
 
 export const primaryNavigation: NavigationItem[] = [
@@ -23,7 +24,18 @@ export const primaryNavigation: NavigationItem[] = [
     { label: 'Reports', icon: 'reports' },
     { label: 'Content (CMS)', icon: 'cms' },
     { label: 'SEO', icon: 'seo' },
-    { label: 'Team & Users', icon: 'users' },
-    { label: 'Settings', icon: 'settings' },
+    { label: 'Team & Users', icon: 'users', expandable: true },
+    {
+        label: 'Settings',
+        icon: 'settings',
+        expandable: true,
+        children: [
+            {
+                label: 'Role & Permissions',
+                href: '/settings/roles-permissions',
+                icon: 'users',
+            },
+        ],
+    },
     { label: 'Developer', icon: 'developer' },
 ];

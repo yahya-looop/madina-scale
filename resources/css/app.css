@@ -20,7 +20,7 @@
     --danger: #f04c61;
     --chart-track: #edf1f6;
     --shadow: 0 5px 22px rgba(25, 52, 85, 0.055);
-    --sidebar-width: 254px;
+    --sidebar-width: 230px;
     --topbar-height: 58px;
 }
 :root[data-theme='dark'] {
@@ -91,24 +91,53 @@ a {
     overflow: hidden;
 }
 .sidebar-brand {
-    height: 58px;
+    /*
+     * The entire brand/header is now the sidebar toggle target.
+     * No separate collapse button is needed.
+     */
+    width: 100%;
+    height: 56px;
+    min-height: 56px;
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 0 14px;
+    gap: 9px;
+    padding: 0 12px;
+    border: 0;
     border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    appearance: none;
+    -webkit-appearance: none;
+    cursor: pointer;
+    user-select: none;
+    transition: background-color 0.16s ease;
 }
+.sidebar-brand:hover {
+    background: rgba(255, 255, 255, 0.035);
+}
+.sidebar-brand:focus-visible {
+    outline: 2px solid rgba(19, 200, 121, 0.55);
+    outline-offset: -2px;
+}
+.sidebar-brand:active {
+    background: rgba(255, 255, 255, 0.055);
+}
+
 .brand-mark {
-    width: 38px;
-    height: 38px;
+    width: 36px;
+    height: 36px;
     border-radius: 10px;
     display: grid;
     place-items: center;
     background: linear-gradient(145deg, #14bd7b, #087e57);
     color: #fff;
-    font-size: 20px;
+    font-size: 19px;
     font-weight: 800;
     position: relative;
+    flex: 0 0 36px;
 }
 .brand-mark span {
     position: absolute;
@@ -122,46 +151,136 @@ a {
     min-width: 0;
 }
 .brand-copy strong {
-    font-size: 15px;
+    font-size: 14px;
 }
 .brand-copy small {
-    margin-top: 5px;
-    font-size: 6px;
+    margin-top: 4px;
+    font-size: 5.5px;
     letter-spacing: 0.45px;
     color: #9fb0c3;
     white-space: nowrap;
 }
-.sidebar-toggle {
-    margin-left: auto;
-    width: 27px;
-    height: 27px;
-    display: grid;
-    place-items: center;
-    color: #a8b5c4;
-    border: 0;
-    border-radius: 7px;
-    background: #172433;
-    cursor: pointer;
-}
+
+/* ============================================================
+   SIDEBAR NAVIGATION SCROLLBAR
+   ------------------------------------------------------------
+   Designed to match the Madina Scale dashboard:
+   - dark navy sidebar
+   - Madina green accent
+   - soft enterprise UI
+   - compact, low-visual-noise scrollbar
+   ============================================================ */
+
 .sidebar-nav {
-    flex: 1;
+    flex: 1 1 auto;
+    min-height: 0;
+    min-width: 0;
+
+    overflow-x: hidden;
     overflow-y: auto;
-    padding: 12px 10px;
+    overscroll-behavior: contain;
+
+    /*
+     * Do not reserve a permanent scrollbar gutter.
+     * The navigation keeps its full visual width.
+     */
+    scrollbar-gutter: auto;
+
+    padding: 8px 5px 10px 8px;
+
+    /* Keep the scroll area visually continuous with the sidebar. */
+    background: #07111d;
+
+    /* Firefox: compact native scrollbar using the active-nav green. */
+    scrollbar-width: thin;
+    scrollbar-color: #09a96e #07111d;
+}
+
+/*
+ * Chromium browsers:
+ * Turn the scrollbar into a small vertical "accent rail"
+ * rather than a generic browser scrollbar.
+ */
+.sidebar-nav::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+/* No browser arrow buttons. */
+.sidebar-nav::-webkit-scrollbar-button {
+    display: none;
+    width: 0;
+    height: 0;
+}
+
+/*
+ * Invisible track.
+ * The sidebar itself remains the visual background.
+ */
+.sidebar-nav::-webkit-scrollbar-track {
+    margin: 2px 0;
+    border-radius: 999px;
+    background: #07111d;
+}
+
+/*
+ * Theme-matched thumb:
+ * dark navy base + Madina green accent + subtle inner highlight.
+ */
+.sidebar-nav::-webkit-scrollbar-thumb {
+    min-height: 34px;
+    border: 1px solid #07111d;
+    border-radius: 999px;
+    background: #09a96e;
+    box-shadow: none;
+    transition:
+        background-color 0.15s ease,
+        box-shadow 0.15s ease;
+}
+
+/* Match the sidebar's active navigation state. */
+.sidebar-nav::-webkit-scrollbar-thumb:hover {
+    background: #0bb271;
+    box-shadow: 0 0 0 1px rgba(9, 169, 110, 0.18);
+}
+
+.sidebar-nav::-webkit-scrollbar-thumb:active {
+    background: #07875a;
+    box-shadow: 0 0 0 1px rgba(9, 169, 110, 0.24);
+}
+
+.sidebar-nav::-webkit-scrollbar-corner {
+    background: transparent;
 }
 .nav-item {
     display: flex;
     align-items: center;
-    gap: 12px;
-    min-height: 39px;
-    padding: 0 11px;
-    margin: 2px 0;
+    gap: 10px;
+    min-height: 36px;
+    padding: 0 9px;
+    margin: 1px 0;
     border-radius: 8px;
     color: #b9c5d3;
-    font-size: 13px;
+    font-size: 12px;
+    font-weight: 550;
+    line-height: 1.2;
+    transition:
+        background-color 0.15s ease,
+        color 0.15s ease,
+        transform 0.12s ease;
 }
 .nav-item:hover {
     background: #122031;
     color: #fff;
+}
+
+.nav-item:focus-visible {
+    outline: 2px solid rgba(19, 200, 121, 0.55);
+    outline-offset: -2px;
+}
+
+.nav-item:active {
+    transform: translateY(1px);
 }
 .nav-item.active {
     color: #fff;
@@ -173,59 +292,64 @@ a {
     white-space: nowrap;
 }
 .nav-badge {
-    min-width: 21px;
-    padding: 2px 6px;
+    min-width: 20px;
+    padding: 2px 5px;
     border-radius: 999px;
     text-align: center;
     background: #ff4f63;
     color: #fff;
-    font-size: 10px;
+    font-size: 9px;
     font-weight: 700;
 }
 .sidebar-status {
-    margin: 8px 10px;
-    padding: 13px;
+    flex: 0 0 auto;
+    margin: 6px 8px;
+    padding: 10px;
     border: 1px solid #1d3042;
     border-radius: 10px;
     display: flex;
-    gap: 9px;
+    gap: 8px;
     background: #0a1724;
 }
 .status-dot {
-    width: 10px;
-    height: 10px;
+    width: 8px;
+    height: 8px;
     margin-top: 3px;
     border-radius: 50%;
     background: #13c879;
+    flex: 0 0 8px;
 }
 .sidebar-status strong,
 .sidebar-status span {
     display: block;
 }
 .sidebar-status strong {
-    font-size: 11px;
+    font-size: 10px;
 }
 .sidebar-status div span {
-    margin-top: 4px;
-    font-size: 10px;
+    margin-top: 3px;
+    font-size: 9px;
     color: #12c77a;
 }
 .sidebar-footer {
-    padding: 12px;
+    flex: 0 0 auto;
+    padding: 9px 10px;
     display: flex;
-    gap: 9px;
+    gap: 8px;
     align-items: center;
     border-top: 1px solid rgba(255, 255, 255, 0.06);
 }
 .footer-mark {
-    width: 35px;
-    height: 35px;
+    width: 32px;
+    height: 32px;
     border: 2px solid #0cbb76;
     border-radius: 50%;
     display: grid;
     place-items: center;
     color: #0fd080;
     font-weight: 800;
+    font-size: 12px;
+    flex: 0 0 32px;
 }
 .footer-copy {
     min-width: 0;
@@ -233,10 +357,12 @@ a {
 }
 .footer-copy strong,
 .footer-copy span {
-    display: block;
+    margin-top: 2px;
+    font-size: 8px;
+    color: #8fa0b2;
 }
 .footer-copy strong {
-    font-size: 11px;
+    font-size: 10px;
     color: #f2f6fa;
 }
 .footer-copy span {
@@ -246,7 +372,7 @@ a {
 }
 .sidebar-footer small {
     color: #718197;
-    font-size: 9px;
+    font-size: 8px;
 }
 .erp-sidebar.is-collapsed {
     width: 78px;
@@ -265,8 +391,31 @@ a {
 .erp-sidebar.is-collapsed .sidebar-footer {
     justify-content: center;
 }
-.erp-sidebar.is-collapsed .sidebar-toggle {
-    margin-left: 0;
+
+.erp-sidebar.is-collapsed .sidebar-brand {
+    padding-inline: 0;
+    gap: 0;
+}
+/* ============================================================
+   SIDEBAR COMPACT MODE
+   ============================================================ */
+
+.erp-sidebar.is-collapsed .sidebar-nav {
+    padding-inline: 5px 3px;
+}
+
+.erp-sidebar.is-collapsed .sidebar-nav::-webkit-scrollbar {
+    width: 5px;
+}
+
+.erp-sidebar.is-collapsed .nav-item {
+    min-height: 36px;
+    padding-inline: 8px;
+}
+
+.erp-sidebar.is-collapsed .sidebar-status {
+    margin-inline: 7px;
+    padding: 9px;
 }
 .topbar {
     height: var(--topbar-height);
@@ -1435,5 +1584,117 @@ td strong {
     }
     .right-rail {
         display: none;
+    }
+}
+
+/* ========================================================================
+   MADINA SCALE — FINAL SIDEBAR SCROLLBAR OVERRIDE
+   ------------------------------------------------------------------------
+   Purpose:
+   - Applies ONLY to the sidebar menu scroll container.
+   - Track = exact sidebar background.
+   - Thumb = same green family as the active menu item.
+   - Chromium/Brave/Edge/Safari width = 4px.
+   - Removes native scrollbar arrow buttons.
+   - Keeps the scrollbar visually compact and low-noise.
+
+   IMPORTANT:
+   Chrome/Brave can let the standardized `scrollbar-color` property
+   override WebKit scrollbar pseudo-elements. We explicitly reset it to
+   `auto` for WebKit browsers so the custom 4px design below is actually
+   rendered.
+   ======================================================================== */
+
+/* Chromium / Brave / Edge / Safari */
+@supports selector(.sidebar-nav::-webkit-scrollbar) {
+    .erp-sidebar .sidebar-nav {
+        /* Let the WebKit pseudo-elements below control the appearance. */
+        scrollbar-color: auto !important;
+        scrollbar-width: auto !important;
+        background: #07111d !important;
+        overflow-x: hidden !important;
+        overflow-y: auto !important;
+    }
+
+    /* 4px: deliberately compact — do not increase unless required. */
+    .erp-sidebar .sidebar-nav::-webkit-scrollbar {
+        width: 4px !important;
+        height: 4px !important;
+        background: #07111d !important;
+    }
+
+    /* Remove all native arrow/button areas. */
+    .erp-sidebar .sidebar-nav::-webkit-scrollbar-button,
+    .erp-sidebar .sidebar-nav::-webkit-scrollbar-button:single-button,
+    .erp-sidebar
+        .sidebar-nav::-webkit-scrollbar-button:vertical:start:decrement,
+    .erp-sidebar .sidebar-nav::-webkit-scrollbar-button:vertical:end:increment,
+    .erp-sidebar
+        .sidebar-nav::-webkit-scrollbar-button:horizontal:start:decrement,
+    .erp-sidebar
+        .sidebar-nav::-webkit-scrollbar-button:horizontal:end:increment {
+        width: 0 !important;
+        height: 0 !important;
+        min-width: 0 !important;
+        min-height: 0 !important;
+        display: none !important;
+        visibility: hidden !important;
+        background: transparent !important;
+        border: 0 !important;
+    }
+
+    /* Track = exact sidebar background. */
+    .erp-sidebar .sidebar-nav::-webkit-scrollbar-track,
+    .erp-sidebar .sidebar-nav::-webkit-scrollbar-track-piece {
+        margin: 0 !important;
+        border: 0 !important;
+        border-radius: 999px !important;
+        background: #07111d !important;
+        box-shadow: none !important;
+    }
+
+    /* Thumb = active sidebar menu green. */
+    .erp-sidebar .sidebar-nav::-webkit-scrollbar-thumb {
+        min-height: 30px !important;
+        border: 0 !important;
+        border-radius: 999px !important;
+        background: linear-gradient(
+            180deg,
+            #09a96e 0%,
+            #07875a 100%
+        ) !important;
+        box-shadow: none !important;
+    }
+
+    .erp-sidebar .sidebar-nav::-webkit-scrollbar-thumb:hover {
+        background: linear-gradient(
+            180deg,
+            #0bb271 0%,
+            #078f60 100%
+        ) !important;
+        box-shadow: 0 0 0 1px rgba(9, 169, 110, 0.16) !important;
+    }
+
+    .erp-sidebar .sidebar-nav::-webkit-scrollbar-thumb:active {
+        background: linear-gradient(
+            180deg,
+            #13bd7a 0%,
+            #07875a 100%
+        ) !important;
+        box-shadow: none !important;
+    }
+
+    .erp-sidebar .sidebar-nav::-webkit-scrollbar-corner {
+        background: #07111d !important;
+    }
+}
+
+/* Firefox: Firefox does not support a pixel scrollbar width. `thin` is its
+   compact native option, while the same green/sidebar colors are preserved. */
+@-moz-document url-prefix() {
+    .erp-sidebar .sidebar-nav {
+        scrollbar-width: thin !important;
+        scrollbar-color: #09a96e #07111d !important;
+        background: #07111d !important;
     }
 }
