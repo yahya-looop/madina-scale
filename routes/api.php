@@ -3,9 +3,29 @@
 use App\Http\Controllers\ModuleController;
 use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\RoleController;
+use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['web', 'auth'])->group(function () {
+    /*
+    |--------------------------------------------------------------------------
+    | Users
+    |--------------------------------------------------------------------------
+    */
+
+    Route::get('/users', [UserController::class, 'index'])
+        ->middleware('permission:system.users.view');
+
+    Route::get('/users/{user}', [UserController::class, 'show'])
+        ->middleware('permission:system.users.view');
+
+    Route::post('/users', [UserController::class, 'store'])
+        ->middleware('permission:system.users.create');
+
+    Route::put('/users/{user}', [UserController::class, 'update'])
+        ->middleware('permission:system.users.update');
+
+
     /*
     |--------------------------------------------------------------------------
     | Roles

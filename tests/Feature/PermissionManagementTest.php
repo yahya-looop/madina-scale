@@ -51,7 +51,7 @@ function createPermissionManagementUser(
 }
 
 test('unauthenticated user cannot access permissions', function () {
-    $response = $this->getJson('/permissions');
+    $response = $this->getJson('/api/permissions');
 
     $response->assertUnauthorized();
 });
@@ -63,7 +63,7 @@ test('authenticated user without permission view permission is forbidden', funct
 
     $response = $this
         ->actingAs($user)
-        ->getJson('/permissions');
+        ->getJson('/api/permissions');
 
     $response->assertForbidden();
 });
@@ -83,7 +83,7 @@ test('user with permission view permission can list permissions', function () {
 
     $response = $this
         ->actingAs($fixture['user'])
-        ->getJson('/permissions');
+        ->getJson('/api/permissions');
 
     $response
         ->assertOk()
@@ -113,7 +113,7 @@ test('authenticated user without permission create permission is forbidden', fun
 
     $response = $this
         ->actingAs($user)
-        ->postJson('/permissions', [
+        ->postJson('/api/permissions', [
             'module_id' => $module->id,
             'name' => 'Unauthorized Permission',
             'slug' => 'unauthorized.permission',
@@ -130,7 +130,7 @@ test('user with permission create permission can create a permission', function 
 
     $response = $this
         ->actingAs($fixture['user'])
-        ->postJson('/permissions', [
+        ->postJson('/api/permissions', [
             'module_id' => $fixture['module']->id,
             'name' => 'Manage Roles',
             'slug' => 'system.roles.manage',
@@ -174,7 +174,7 @@ test('duplicate permission slug is rejected', function () {
 
     $response = $this
         ->actingAs($fixture['user'])
-        ->postJson('/permissions', [
+        ->postJson('/api/permissions', [
             'module_id' => $fixture['module']->id,
             'name' => 'Another Permission',
             'slug' => 'existing.permission',
@@ -199,7 +199,7 @@ test('permission cannot be created for an inactive module', function () {
 
     $response = $this
         ->actingAs($fixture['user'])
-        ->postJson('/permissions', [
+        ->postJson('/api/permissions', [
             'module_id' => $inactiveModule->id,
             'name' => 'Invalid Permission',
             'slug' => 'invalid.permission',
@@ -227,7 +227,7 @@ test('user with permission view permission can view a single permission', functi
 
     $response = $this
         ->actingAs($fixture['user'])
-        ->getJson("/permissions/{$permission->id}");
+        ->getJson("/api/permissions/{$permission->id}");
 
     $response
         ->assertOk()
@@ -260,7 +260,7 @@ test('authenticated user without permission update permission is forbidden', fun
 
     $response = $this
         ->actingAs($fixture['user'])
-        ->putJson("/permissions/{$permission->id}", [
+        ->putJson("/api/permissions/{$permission->id}", [
             'module_id' => $fixture['module']->id,
             'name' => 'Updated Permission',
             'slug' => 'updated.permission',
@@ -285,7 +285,7 @@ test('user with permission update permission can update a permission', function 
 
     $response = $this
         ->actingAs($fixture['user'])
-        ->putJson("/permissions/{$permission->id}", [
+        ->putJson("/api/permissions/{$permission->id}", [
             'module_id' => $fixture['module']->id,
             'name' => 'Updated Permission',
             'slug' => 'updated.permission',
@@ -347,7 +347,7 @@ test('duplicate permission slug is rejected when updating a permission', functio
 
     $response = $this
         ->actingAs($fixture['user'])
-        ->putJson("/permissions/{$permission->id}", [
+        ->putJson("/api/permissions/{$permission->id}", [
             'module_id' => $fixture['module']->id,
             'name' => 'Updated Permission',
             'slug' => 'existing.permission',
@@ -382,7 +382,7 @@ test('duplicate permission name is rejected when updating within the same module
 
     $response = $this
         ->actingAs($fixture['user'])
-        ->putJson("/permissions/{$permission->id}", [
+        ->putJson("/api/permissions/{$permission->id}", [
             'module_id' => $fixture['module']->id,
             'name' => 'Existing Permission',
             'slug' => 'updated.permission',
@@ -414,7 +414,7 @@ test('permission cannot be updated to an inactive module', function () {
 
     $response = $this
         ->actingAs($fixture['user'])
-        ->putJson("/permissions/{$permission->id}", [
+        ->putJson("/api/permissions/{$permission->id}", [
             'module_id' => $inactiveModule->id,
             'name' => 'Updated Permission',
             'slug' => 'updated.permission',
@@ -445,7 +445,7 @@ test('duplicate permission name is rejected when creating within the same module
 
     $response = $this
         ->actingAs($fixture['user'])
-        ->postJson('/permissions', [
+        ->postJson('/api/permissions', [
             'module_id' => $fixture['module']->id,
             'name' => 'Existing Permission',
             'slug' => 'another.permission',

@@ -60,7 +60,7 @@ function createModuleManagementUser(
 }
 
 test('unauthenticated user cannot access modules', function () {
-    $response = $this->getJson('/modules');
+    $response = $this->getJson('/api/modules');
 
     $response->assertUnauthorized();
 });
@@ -70,7 +70,7 @@ test('authenticated user without module view permission is forbidden', function 
 
     $response = $this
         ->actingAs($user)
-        ->getJson('/modules');
+        ->getJson('/api/modules');
 
     $response->assertForbidden();
 });
@@ -92,7 +92,7 @@ test('user with module view permission can list modules', function () {
 
     $response = $this
         ->actingAs($fixture['user'])
-        ->getJson('/modules');
+        ->getJson('/api/modules');
 
     $response
         ->assertOk()
@@ -110,7 +110,7 @@ test('authenticated user without module create permission is forbidden', functio
 
     $response = $this
         ->actingAs($user)
-        ->postJson('/modules', [
+        ->postJson('/api/modules', [
             'name' => 'Unauthorized Module',
             'slug' => 'unauthorized-module',
         ]);
@@ -126,7 +126,7 @@ test('user with module create permission can create a module', function () {
 
     $response = $this
         ->actingAs($fixture['user'])
-        ->postJson('/modules', [
+        ->postJson('/api/modules', [
             'name' => 'Operations Module',
             'slug' => 'operations-module',
             'description' => 'Operations management module.',
@@ -168,7 +168,7 @@ test('duplicate module slug is rejected', function () {
 
     $response = $this
         ->actingAs($fixture['user'])
-        ->postJson('/modules', [
+        ->postJson('/api/modules', [
             'name' => 'Another Module',
             'slug' => 'existing-module',
         ]);
@@ -188,7 +188,7 @@ test('module cannot be created with a negative sort order', function () {
 
     $response = $this
         ->actingAs($fixture['user'])
-        ->postJson('/modules', [
+        ->postJson('/api/modules', [
             'name' => 'Invalid Module',
             'slug' => 'invalid-module',
             'sort_order' => -1,
@@ -216,7 +216,7 @@ test('user with module view permission can view a single module', function () {
 
     $response = $this
         ->actingAs($fixture['user'])
-        ->getJson("/modules/{$module->id}");
+        ->getJson("/api/modules/{$module->id}");
 
     $response
         ->assertOk()
@@ -240,7 +240,7 @@ test('authenticated user without module update permission is forbidden', functio
 
     $response = $this
         ->actingAs($user)
-        ->putJson("/modules/{$module->id}", [
+        ->putJson("/api/modules/{$module->id}", [
             'name' => 'Unauthorized Update',
             'slug' => 'unauthorized-update',
         ]);
@@ -266,7 +266,7 @@ test('user with module update permission can update a module', function () {
 
     $response = $this
         ->actingAs($fixture['user'])
-        ->putJson("/modules/{$module->id}", [
+        ->putJson("/api/modules/{$module->id}", [
             'name' => 'Updated Module',
             'slug' => 'updated-module',
             'description' => 'Updated description.',
@@ -317,7 +317,7 @@ test('duplicate module slug is rejected when updating a module', function () {
 
     $response = $this
         ->actingAs($fixture['user'])
-        ->putJson("/modules/{$module->id}", [
+        ->putJson("/api/modules/{$module->id}", [
             'name' => 'Updated First Module',
             'slug' => 'second-module',
         ]);
@@ -344,7 +344,7 @@ test('system module cannot be updated', function () {
 
     $response = $this
         ->actingAs($fixture['user'])
-        ->putJson("/modules/{$module->id}", [
+        ->putJson("/api/modules/{$module->id}", [
             'name' => 'Attempted System Update',
             'slug' => 'attempted-system-update',
         ]);
