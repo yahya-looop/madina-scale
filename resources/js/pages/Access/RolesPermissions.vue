@@ -43,7 +43,11 @@ interface Role {
 interface Capabilities {
     canCreateRole: boolean;
     canUpdateRole: boolean;
+    canDeleteRole?: boolean;
     canManagePermissions: boolean;
+    canViewPermissions?: boolean;
+    canManageModules?: boolean;
+    isDeveloper?: boolean;
 }
 
 interface Props {
@@ -64,8 +68,152 @@ interface RoleForm {
     isActive: boolean;
 }
 
+interface ApiErrorPayload {
+    message?: string;
+    errors?: Record<string, string | string[]>;
+}
+
+interface ApiSuccessPayload<T> {
+    data: T;
+}
+
+class ApiRequestError extends Error {
+    readonly status: number;
+    readonly validationErrors: Record<string, string>;
+
+    constructor(
+        message: string,
+        status: number,
+        validationErrors: Record<string, string> = {},
+    ) {
+        super(message);
+
+        this.name = 'ApiRequestError';
+        this.status = status;
+        this.validationErrors = validationErrors;
+    }
+}
+
 const page = usePage();
 const props = defineProps<Props>();
+
+/* -------------------------------------------------------------------------- */
+/* API helper                                                                 */
+/* -------------------------------------------------------------------------- */
+
+async function apiRequest<T>(
+    url: string,
+    method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
+    body?: unknown,
+): Promise<T> {
+    const headers: Record<string, string> = {
+        Accept: 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
+    };
+
+    const csrfToken = document
+        .querySelector<HTMLMetaElement>('meta[name="csrf-token"]')
+        ?.getAttribute('content');
+
+    if (csrfToken) {
+        headers['X-CSRF-TOKEN'] = csrfToken;
+    }
+
+    if (body !== undefined) {
+        headers['Content-Type'] = 'application/json';
+    }
+
+    const response = await fetch(url, {
+        method,
+        headers,
+        credentials: 'same-origin',
+        body: body === undefined ? undefined : JSON.stringify(body),
+    });
+
+    const responseText = await response.text();
+
+    let payload: unknown = null;
+
+    if (responseText.trim() !== '') {
+        try {
+            payload = JSON.parse(responseText) as unknown;
+        } catch {
+            payload = null;
+        }
+    }
+
+    if (!response.ok) {
+        const errorPayload = (
+            payload && typeof payload === 'object'
+                ? payload
+                : {}
+        ) as ApiErrorPayload;
+
+        const validationErrors: Record<string, string> = {};
+
+        if (errorPayload.errors) {
+            for (const [field, messages] of Object.entries(
+                errorPayload.errors,
+            )) {
+                validationErrors[field] = Array.isArray(messages)
+                    ? messages.join(' ')
+                    : messages;
+            }
+        }
+
+        throw new ApiRequestError(
+            errorPayload.message ||
+                `Request failed with status ${response.status}.`,
+            response.status,
+            validationErrors,
+        );
+    }
+
+    /*
+     * Laravel controllers return:
+     *
+     * {
+     *     data: ...
+     * }
+     *
+     * Automatically unwrap the data property so callers can use:
+     *
+     * const role = await apiRequest<Role>(...)
+     *
+     * instead of:
+     *
+     * const response = await ...
+     * response.data
+     */
+    if (
+        payload &&
+        typeof payload === 'object' &&
+        'data' in payload
+    ) {
+        return (payload as ApiSuccessPayload<T>).data;
+    }
+
+    return payload as T;
+}
+
+function errorMessage(
+    error: unknown,
+    fallback: string,
+): string {
+    if (error instanceof ApiRequestError && error.message) {
+        return error.message;
+    }
+
+    if (error instanceof Error && error.message) {
+        return error.message;
+    }
+
+    return fallback;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Auth user                                                                  */
+/* -------------------------------------------------------------------------- */
 
 const authUser = computed<User>(() => {
     const user = page.props.auth?.user as User | undefined;
@@ -99,8 +247,11 @@ const isSavingRole = ref(false);
 const isSavingPermissions = ref(false);
 
 const roleFormErrors = ref<Record<string, string>>({});
+
 const operationMessage = ref('');
-const operationMessageType = ref<'success' | 'error' | 'info'>('info');
+const operationMessageType = ref<
+    'success' | 'error' | 'info'
+>('info');
 
 const permissionDirty = ref(false);
 
@@ -136,10 +287,15 @@ const moduleIconMap: Record<string, string> = {
 
 const roles = computed<Role[]>(() => props.roles ?? []);
 
-const modules = computed<PermissionModule[]>(() => props.modules ?? []);
+const modules = computed<PermissionModule[]>(
+    () => props.modules ?? [],
+);
 
 const selectedRoleId = computed<number | null>(() => {
-    if (props.selectedRoleId !== null && props.selectedRoleId !== undefined) {
+    if (
+        props.selectedRoleId !== null &&
+        props.selectedRoleId !== undefined
+    ) {
         return props.selectedRoleId;
     }
 
@@ -151,16 +307,16 @@ const selectedRole = computed<Role | null>(() => {
         return null;
     }
 
-    return props.roles.find((role) => role.id === selectedRoleId.value) ?? null;
+    return (
+        props.roles.find(
+            (role) => role.id === selectedRoleId.value,
+        ) ?? null
+    );
 });
 
-/*
- * Keep nullable state out of the template.
- * This prevents TS18047 errors such as:
- *
- * selectedRole.isSystem is possibly null
- */
-const hasSelectedRole = computed<boolean>(() => selectedRole.value !== null);
+const hasSelectedRole = computed<boolean>(
+    () => selectedRole.value !== null,
+);
 
 const selectedRoleIsSystem = computed<boolean>(
     () => selectedRole.value?.isSystem === true,
@@ -200,17 +356,24 @@ const filteredRoles = computed<Role[]>(() => {
     const query = search.value.trim().toLowerCase();
 
     return roles.value.filter((role) => {
-        const searchableText = [role.name, role.slug, role.description ?? '']
+        const searchableText = [
+            role.name,
+            role.slug,
+            role.description ?? '',
+        ]
             .join(' ')
             .toLowerCase();
 
         const matchesSearch =
-            query.length === 0 || searchableText.includes(query);
+            query.length === 0 ||
+            searchableText.includes(query);
 
         const matchesStatus =
             statusFilter.value === 'all' ||
-            (statusFilter.value === 'active' && role.isActive) ||
-            (statusFilter.value === 'inactive' && !role.isActive);
+            (statusFilter.value === 'active' &&
+                role.isActive) ||
+            (statusFilter.value === 'inactive' &&
+                !role.isActive);
 
         return matchesSearch && matchesStatus;
     });
@@ -220,8 +383,12 @@ const filteredRoles = computed<Role[]>(() => {
 /* Permission state                                                           */
 /* -------------------------------------------------------------------------- */
 
-function isPermissionEnabled(permissionId: number): boolean {
-    return localPermissionState.value[permissionId] === true;
+function isPermissionEnabled(
+    permissionId: number,
+): boolean {
+    return (
+        localPermissionState.value[permissionId] === true
+    );
 }
 
 function initializePermissionState(): void {
@@ -257,24 +424,33 @@ const filteredModules = computed<PermissionModule[]>(() => {
 
     return modules.value
         .map((module) => {
-            const moduleMatches = [module.name, module.slug, module.icon ?? '']
+            const moduleMatches = [
+                module.name,
+                module.slug,
+                module.icon ?? '',
+            ]
                 .join(' ')
                 .toLowerCase()
                 .includes(query);
 
             const permissions = moduleMatches
                 ? module.permissions
-                : module.permissions.filter((permission) => {
-                      const searchableText = [
-                          permission.name,
-                          permission.slug,
-                          permission.description ?? '',
-                      ]
-                          .join(' ')
-                          .toLowerCase();
+                : module.permissions.filter(
+                      (permission) => {
+                          const searchableText = [
+                              permission.name,
+                              permission.slug,
+                              permission.description ??
+                                  '',
+                          ]
+                              .join(' ')
+                              .toLowerCase();
 
-                      return searchableText.includes(query);
-                  });
+                          return searchableText.includes(
+                              query,
+                          );
+                      },
+                  );
 
             return {
                 ...module,
@@ -284,7 +460,9 @@ const filteredModules = computed<PermissionModule[]>(() => {
         .filter(
             (module) =>
                 module.permissions.length > 0 ||
-                module.name.toLowerCase().includes(query),
+                module.name
+                    .toLowerCase()
+                    .includes(query),
         );
 });
 
@@ -292,15 +470,21 @@ const filteredModules = computed<PermissionModule[]>(() => {
 /* Dynamic KPI calculations                                                   */
 /* -------------------------------------------------------------------------- */
 
-const totalRoles = computed<number>(() => roles.value.length);
+const totalRoles = computed<number>(
+    () => roles.value.length,
+);
 
 const activeRoles = computed<number>(
-    () => roles.value.filter((role) => role.isActive).length,
+    () =>
+        roles.value.filter(
+            (role) => role.isActive,
+        ).length,
 );
 
 const totalPermissions = computed<number>(() =>
     modules.value.reduce(
-        (total, module) => total + module.permissions.length,
+        (total, module) =>
+            total + module.permissions.length,
         0,
     ),
 );
@@ -309,29 +493,40 @@ const enabledPermissions = computed<number>(() =>
     modules.value.reduce(
         (total, module) =>
             total +
-            module.permissions.filter((permission) =>
-                isPermissionEnabled(permission.id),
+            module.permissions.filter(
+                (permission) =>
+                    isPermissionEnabled(permission.id),
             ).length,
         0,
     ),
 );
 
 const permissionCoverage = computed<number>(() => {
-    if (!totalPermissions.value || !hasSelectedRole.value) {
+    if (
+        !totalPermissions.value ||
+        !hasSelectedRole.value
+    ) {
         return 0;
     }
 
     return Math.min(
         100,
-        Math.round((enabledPermissions.value / totalPermissions.value) * 100),
+        Math.round(
+            (enabledPermissions.value /
+                totalPermissions.value) *
+                100,
+        ),
     );
 });
 
 const enabledModuleCount = computed<number>(
     () =>
         modules.value.filter((module) =>
-            module.permissions.some((permission) =>
-                isPermissionEnabled(permission.id),
+            module.permissions.some(
+                (permission) =>
+                    isPermissionEnabled(
+                        permission.id,
+                    ),
             ),
         ).length,
 );
@@ -371,32 +566,52 @@ const kpiCards = computed(() => [
 /* Module helpers                                                             */
 /* -------------------------------------------------------------------------- */
 
-function isModuleExpanded(moduleId: number): boolean {
+function isModuleExpanded(
+    moduleId: number,
+): boolean {
     return expandedModules.value.includes(moduleId);
 }
 
 function toggleModule(moduleId: number): void {
-    expandedModules.value = isModuleExpanded(moduleId)
-        ? expandedModules.value.filter((id) => id !== moduleId)
-        : [...expandedModules.value, moduleId];
+    expandedModules.value =
+        isModuleExpanded(moduleId)
+            ? expandedModules.value.filter(
+                  (id) => id !== moduleId,
+              )
+            : [
+                  ...expandedModules.value,
+                  moduleId,
+              ];
 }
 
 function expandAllModules(): void {
-    expandedModules.value = filteredModules.value.map((module) => module.id);
+    expandedModules.value =
+        filteredModules.value.map(
+            (module) => module.id,
+        );
 }
 
 function collapseAllModules(): void {
     expandedModules.value = [];
 }
 
-function moduleEnabledCount(module: PermissionModule): number {
-    return module.permissions.filter((permission) =>
-        isPermissionEnabled(permission.id),
+function moduleEnabledCount(
+    module: PermissionModule,
+): number {
+    return module.permissions.filter(
+        (permission) =>
+            isPermissionEnabled(permission.id),
     ).length;
 }
 
-function moduleIcon(module: PermissionModule): string {
-    return module.icon || moduleIconMap[module.slug] || 'settings';
+function moduleIcon(
+    module: PermissionModule,
+): string {
+    return (
+        module.icon ||
+        moduleIconMap[module.slug] ||
+        'settings'
+    );
 }
 
 /* -------------------------------------------------------------------------- */
@@ -406,6 +621,19 @@ function moduleIcon(module: PermissionModule): string {
 function selectRole(roleId: number): void {
     if (roleId === selectedRoleId.value) {
         return;
+    }
+
+    /*
+     * Never silently discard permission changes.
+     */
+    if (permissionDirty.value) {
+        const shouldDiscard = window.confirm(
+            'You have unsaved permission changes. Discard them and switch roles?',
+        );
+
+        if (!shouldDiscard) {
+            return;
+        }
     }
 
     activeTab.value = 'permissions';
@@ -424,7 +652,12 @@ function selectRole(roleId: number): void {
             preserveState: true,
             preserveScroll: true,
             replace: true,
-            only: ['roles', 'modules', 'selectedRoleId', 'capabilities'],
+            only: [
+                'roles',
+                'modules',
+                'selectedRoleId',
+                'capabilities',
+            ],
             onFinish: () => {
                 isSelectingRole.value = false;
             },
@@ -433,34 +666,71 @@ function selectRole(roleId: number): void {
 }
 
 /* -------------------------------------------------------------------------- */
+/* Inertia page refresh                                                       */
+/* -------------------------------------------------------------------------- */
+
+function reloadAccessPage(): void {
+    router.get(
+        '/settings/roles-permissions',
+        selectedRoleId.value !== null
+            ? {
+                  role: selectedRoleId.value,
+              }
+            : {},
+        {
+            only: [
+                'roles',
+                'modules',
+                'selectedRoleId',
+                'capabilities',
+            ],
+            preserveScroll: true,
+            preserveState: true,
+            replace: true,
+        },
+    );
+}
+
+/* -------------------------------------------------------------------------- */
 /* Permission mutation                                                        */
 /* -------------------------------------------------------------------------- */
 
-function togglePermission(permission: Permission): void {
+function togglePermission(
+    permission: Permission,
+): void {
     if (!canManageSelectedPermissions.value) {
         return;
     }
 
     localPermissionState.value = {
         ...localPermissionState.value,
-        [permission.id]: !isPermissionEnabled(permission.id),
+        [permission.id]:
+            !isPermissionEnabled(permission.id),
     };
 
     permissionDirty.value = true;
     operationMessage.value = '';
 }
 
-const selectedPermissionIds = computed<number[]>(() =>
-    Object.entries(localPermissionState.value)
-        .filter(([, enabled]) => enabled)
-        .map(([permissionId]) => Number(permissionId)),
+const selectedPermissionIds = computed<number[]>(
+    () =>
+        Object.entries(
+            localPermissionState.value,
+        )
+            .filter(([, enabled]) => enabled)
+            .map(([permissionId]) =>
+                Number(permissionId),
+            ),
 );
 
 function resetPermissions(): void {
     initializePermissionState();
+
+    operationMessage.value = '';
+    operationMessageType.value = 'info';
 }
 
-function savePermissions(): void {
+async function savePermissions(): Promise<void> {
     if (
         !selectedRole.value ||
         !canManageSelectedPermissions.value ||
@@ -472,29 +742,33 @@ function savePermissions(): void {
     isSavingPermissions.value = true;
     operationMessage.value = '';
 
-    router.put(
-        `/roles/${selectedRole.value.id}/permissions`,
-        {
-            permission_ids: selectedPermissionIds.value,
-        },
-        {
-            preserveScroll: true,
-            preserveState: true,
-            onSuccess: () => {
-                permissionDirty.value = false;
-                operationMessageType.value = 'success';
-                operationMessage.value = 'Permissions updated successfully.';
+    try {
+        await apiRequest<Permission[]>(
+            `/api/roles/${selectedRole.value.id}/permissions`,
+            'PUT',
+            {
+                permission_ids:
+                    selectedPermissionIds.value,
             },
-            onError: () => {
-                operationMessageType.value = 'error';
-                operationMessage.value =
-                    'Unable to update permissions. Please try again.';
-            },
-            onFinish: () => {
-                isSavingPermissions.value = false;
-            },
-        },
-    );
+        );
+
+        permissionDirty.value = false;
+
+        operationMessageType.value = 'success';
+        operationMessage.value =
+            'Permissions updated successfully.';
+
+        reloadAccessPage();
+    } catch (error) {
+        operationMessageType.value = 'error';
+
+        operationMessage.value = errorMessage(
+            error,
+            'Unable to update permissions. Please try again.',
+        );
+    } finally {
+        isSavingPermissions.value = false;
+    }
 }
 
 /* -------------------------------------------------------------------------- */
@@ -518,6 +792,21 @@ function slugify(value: string): string {
         .replace(/^-+|-+$/g, '');
 }
 
+function handleRoleNameInput(): void {
+    if (roleModalMode.value === 'create') {
+        roleForm.slug = slugify(roleForm.name);
+    }
+}
+
+watch(
+    () => roleForm.name,
+    (name) => {
+        if (roleModalMode.value === 'create') {
+            roleForm.slug = slugify(name);
+        }
+    },
+);
+
 function openCreateRole(): void {
     if (!props.capabilities.canCreateRole) {
         return;
@@ -530,14 +819,19 @@ function openCreateRole(): void {
 }
 
 function openEditRole(): void {
-    if (!selectedRole.value || !canEditSelectedRole.value) {
+    if (
+        !selectedRole.value ||
+        !canEditSelectedRole.value
+    ) {
         return;
     }
 
     roleForm.name = selectedRole.value.name;
     roleForm.slug = selectedRole.value.slug;
-    roleForm.description = selectedRole.value.description ?? '';
-    roleForm.isActive = selectedRole.value.isActive;
+    roleForm.description =
+        selectedRole.value.description ?? '';
+    roleForm.isActive =
+        selectedRole.value.isActive;
 
     roleFormErrors.value = {};
     roleModalMode.value = 'edit';
@@ -562,32 +856,60 @@ function closeRoleModal(): void {
     roleFormErrors.value = {};
 }
 
-function submitRole(): void {
+async function submitRole(): Promise<void> {
     if (roleModalMode.value === 'show') {
         return;
     }
 
-    if (roleModalMode.value === 'create' && !props.capabilities.canCreateRole) {
+    if (
+        roleModalMode.value === 'create' &&
+        !props.capabilities.canCreateRole
+    ) {
         return;
     }
 
-    if (roleModalMode.value === 'edit' && !canEditSelectedRole.value) {
+    if (
+        roleModalMode.value === 'edit' &&
+        !canEditSelectedRole.value
+    ) {
         return;
     }
 
     const name = roleForm.name.trim();
-    const slug = roleForm.slug.trim() || slugify(name);
-    const description = roleForm.description.trim();
+    const slug =
+        roleForm.slug.trim() || slugify(name);
+    const description =
+        roleForm.description.trim();
 
     roleFormErrors.value = {};
 
     if (!name) {
-        roleFormErrors.value.name = 'Role name is required.';
+        roleFormErrors.value.name =
+            'Role name is required.';
         return;
     }
 
     if (!slug) {
-        roleFormErrors.value.slug = 'Role slug is required.';
+        roleFormErrors.value.slug =
+            'Role slug is required.';
+        return;
+    }
+
+    /*
+     * Keep frontend validation aligned with:
+     *
+     * /^[a-z0-9]+(?:[._-][a-z0-9]+)*$/
+     *
+     * used by Laravel StoreRoleRequest and
+     * UpdateRoleRequest.
+     */
+    if (
+        !/^[a-z0-9]+(?:[._-][a-z0-9]+)*$/.test(
+            slug,
+        )
+    ) {
+        roleFormErrors.value.slug =
+            'Use lowercase letters, numbers, dots, underscores, or hyphens.';
         return;
     }
 
@@ -601,62 +923,96 @@ function submitRole(): void {
         is_active: roleForm.isActive,
     };
 
-    if (roleModalMode.value === 'create') {
-        router.post('/roles', payload, {
-            preserveScroll: true,
-            onSuccess: () => {
-                showRoleModal.value = false;
-                operationMessageType.value = 'success';
-                operationMessage.value = 'Role created successfully.';
+    try {
+        if (roleModalMode.value === 'create') {
+            /*
+             * apiRequest automatically unwraps:
+             *
+             * { data: role }
+             *
+             * into:
+             *
+             * role
+             */
+            const created =
+                await apiRequest<Role>(
+                    '/api/roles',
+                    'POST',
+                    payload,
+                );
 
-                router.reload({
+            showRoleModal.value = false;
+
+            operationMessageType.value =
+                'success';
+
+            router.get(
+                '/settings/roles-permissions',
+                {
+                    role: created.id,
+                },
+                {
+                    preserveScroll: false,
+                    preserveState: true,
+                    replace: true,
                     only: [
                         'roles',
                         'modules',
                         'selectedRoleId',
                         'capabilities',
                     ],
-                });
-            },
-            onError: (errors) => {
-                roleFormErrors.value = errors;
-                operationMessageType.value = 'error';
-                operationMessage.value =
-                    'Please correct the highlighted fields.';
-            },
-            onFinish: () => {
-                isSavingRole.value = false;
-            },
-        });
+                    onSuccess: () => {
+                        operationMessageType.value = 'success';
+                        operationMessage.value =
+                            'Role created successfully.';
+                    },
+                },
+            );
 
-        return;
-    }
+            return;
+        }
 
-    if (!selectedRole.value) {
+        if (!selectedRole.value) {
+            return;
+        }
+
+        await apiRequest<Role>(
+            `/api/roles/${selectedRole.value.id}`,
+            'PUT',
+            payload,
+        );
+
+        showRoleModal.value = false;
+
+        operationMessageType.value =
+            'success';
+
+        operationMessage.value =
+            'Role updated successfully.';
+
+        reloadAccessPage();
+    } catch (error) {
+        const typedError =
+            error as ApiRequestError;
+
+        roleFormErrors.value =
+            typedError.validationErrors ?? {};
+
+        operationMessageType.value =
+            'error';
+
+        operationMessage.value =
+            Object.keys(
+                typedError.validationErrors ?? {},
+            ).length > 0
+                ? 'Please correct the highlighted fields.'
+                : errorMessage(
+                      error,
+                      'Unable to save the role. Please try again.',
+                  );
+    } finally {
         isSavingRole.value = false;
-        return;
     }
-
-    router.put(`/roles/${selectedRole.value.id}`, payload, {
-        preserveScroll: true,
-        onSuccess: () => {
-            showRoleModal.value = false;
-            operationMessageType.value = 'success';
-            operationMessage.value = 'Role updated successfully.';
-
-            router.reload({
-                only: ['roles', 'modules', 'selectedRoleId', 'capabilities'],
-            });
-        },
-        onError: (errors) => {
-            roleFormErrors.value = errors;
-            operationMessageType.value = 'error';
-            operationMessage.value = 'Please correct the highlighted fields.';
-        },
-        onFinish: () => {
-            isSavingRole.value = false;
-        },
-    });
 }
 
 /* -------------------------------------------------------------------------- */
@@ -664,15 +1020,67 @@ function submitRole(): void {
 /* -------------------------------------------------------------------------- */
 
 function exportRoles(): void {
-    const params = new URLSearchParams();
+    const rows = [
+        [
+            'ID',
+            'Name',
+            'Slug',
+            'Status',
+            'System Role',
+            'Users',
+            'Permissions',
+        ],
+        ...roles.value.map((role) => [
+            String(role.id),
+            role.name,
+            role.slug,
+            role.isActive
+                ? 'Active'
+                : 'Inactive',
+            role.isSystem ? 'Yes' : 'No',
+            String(role.userCount),
+            String(role.permissionCount),
+        ]),
+    ];
 
-    if (selectedRoleId.value !== null) {
-        params.set('role', String(selectedRoleId.value));
-    }
+    const csv = rows
+        .map((row) =>
+            row
+                .map(
+                    (value) =>
+                        `"${String(value).replace(
+                            /"/g,
+                            '""',
+                        )}"`,
+                )
+                .join(','),
+        )
+        .join('\r\n');
 
-    window.location.href = `/settings/roles-permissions/export${
-        params.toString() ? `?${params.toString()}` : ''
-    }`;
+    const blob = new Blob([csv], {
+        type: 'text/csv;charset=utf-8;',
+    });
+
+    const url =
+        URL.createObjectURL(blob);
+
+    const link =
+        document.createElement('a');
+
+    link.href = url;
+
+    link.download =
+        `madina-scale-roles-${new Date()
+            .toISOString()
+            .slice(0, 10)}.csv`;
+
+    document.body.appendChild(link);
+
+    link.click();
+
+    link.remove();
+
+    URL.revokeObjectURL(url);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -691,29 +1099,43 @@ const roleModalTitle = computed<string>(() => {
     return 'Role Details';
 });
 
-const roleModalDescription = computed<string>(() => {
-    if (roleModalMode.value === 'create') {
-        return 'Create a new access role for your organization.';
-    }
+const roleModalDescription =
+    computed<string>(() => {
+        if (
+            roleModalMode.value === 'create'
+        ) {
+            return 'Create a new access role for your organization.';
+        }
 
-    if (roleModalMode.value === 'edit') {
-        return 'Update role identity, description, and availability.';
-    }
+        if (
+            roleModalMode.value === 'edit'
+        ) {
+            return 'Update role identity, description, and availability.';
+        }
 
-    return 'Review the selected role and its current access scope.';
-});
+        return 'Review the selected role and its current access scope.';
+    });
 
-const roleModalIsReadonly = computed<boolean>(
-    () => roleModalMode.value === 'show',
+const roleModalIsReadonly =
+    computed<boolean>(
+        () => roleModalMode.value === 'show',
+    );
+
+const roleSubmitLabel = computed<string>(
+    () => {
+        if (isSavingRole.value) {
+            return roleModalMode.value ===
+                'create'
+                ? 'Creating...'
+                : 'Saving...';
+        }
+
+        return roleModalMode.value ===
+            'create'
+            ? 'Create Role'
+            : 'Save Changes';
+    },
 );
-
-const roleSubmitLabel = computed<string>(() => {
-    if (isSavingRole.value) {
-        return roleModalMode.value === 'create' ? 'Creating...' : 'Saving...';
-    }
-
-    return roleModalMode.value === 'create' ? 'Create Role' : 'Save Changes';
-});
 </script>
 
 <template>
@@ -816,10 +1238,9 @@ const roleSubmitLabel = computed<string>(() => {
                 aria-label="Access control overview"
             >
                 <article
-                    v-for="(card, index) in kpiCards"
+                    v-for="card in kpiCards"
                     :key="card.label"
                     class="access-stat-card"
-                    :style="{ '--card-index': index }"
                 >
                     <div
                         :class="['access-stat-icon', card.tone]"
@@ -1668,10 +2089,7 @@ const roleSubmitLabel = computed<string>(() => {
                                 autocomplete="off"
                                 placeholder="e.g. Warehouse Supervisor"
                                 :disabled="isSavingRole"
-                                @input="
-                                    roleForm.slug ||
-                                    (roleForm.slug = slugify(roleForm.name))
-                                "
+                                @input="handleRoleNameInput"
                             />
 
                             <small
@@ -1693,6 +2111,7 @@ const roleSubmitLabel = computed<string>(() => {
                                 type="text"
                                 autocomplete="off"
                                 placeholder="warehouse-supervisor"
+                                :readonly="roleModalMode === 'create'"
                                 :disabled="isSavingRole"
                             />
 
@@ -1808,7 +2227,7 @@ const roleSubmitLabel = computed<string>(() => {
     --access-success: var(--success);
 
     min-height: 100%;
-    padding: 22px 22px 28px;
+    padding: 22px 0 28px;
     color: var(--text-primary);
 }
 
@@ -2044,31 +2463,15 @@ const roleSubmitLabel = computed<string>(() => {
     border-radius: 12px;
     background: color-mix(in srgb, var(--surface) 96%, var(--surface-muted));
     box-shadow: var(--shadow);
-    animation: access-enter 480ms cubic-bezier(0.22, 1, 0.36, 1) both;
-    animation-delay: calc(var(--card-index, 0) * 55ms + 80ms);
-    transition:
-        transform 220ms ease,
-        border-color 220ms ease,
-        box-shadow 220ms ease;
 }
 
-.access-stat-card:hover {
-    transform: translateY(-3px);
-    border-color: color-mix(in srgb, var(--primary) 28%, var(--border));
-    box-shadow: 0 16px 34px color-mix(in srgb, var(--primary) 9%, transparent);
-}
+/* KPI motion is intentionally disabled for now.
+ * Keep this selector isolated so animation/hover effects can be restored later. */
 
 .access-stat-icon {
     width: 34px;
     height: 34px;
     border-radius: 9px;
-    transition:
-        transform 220ms ease,
-        box-shadow 220ms ease;
-}
-
-.access-stat-card:hover .access-stat-icon {
-    transform: scale(1.08) rotate(-3deg);
 }
 
 .access-stat-icon.green {
@@ -2488,7 +2891,16 @@ const roleSubmitLabel = computed<string>(() => {
     gap: 4px;
     padding: 0 18px;
     overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
     border-bottom: 1px solid var(--border);
+}
+
+.permission-tabs::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
 }
 
 .permission-tab {
@@ -3322,7 +3734,7 @@ const roleSubmitLabel = computed<string>(() => {
 
 @media (max-width: 820px) {
     .access-page {
-        padding: 16px 12px 22px;
+        padding: 16px 0 22px;
     }
 
     .access-header {

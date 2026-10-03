@@ -10,13 +10,16 @@ class AuthorizationService
     /**
      * Determine whether a user has a specific permission.
      *
-     * Authorization requires:
-     * - an active user
-     * - an active role assigned to that user
-     * - the requested permission assigned to that role
-     * - an active module owning that permission
+     * Authorization rules:
+     * - the user must exist and be active
+     * - an active Developer has supreme access
+     * - otherwise, the permission must exist
+     * - the permission's module must be active
+     * - the permission must belong to an active role assigned to the user
      *
-     * Permission slugs are expected to be globally unique.
+     * Developer access is intentionally evaluated before the permission
+     * lookup so newly-created permissions automatically become available
+     * to the Developer role without requiring a separate pivot record.
      */
     public function can(
         User $user,
@@ -32,6 +35,17 @@ class AuthorizationService
             return false;
         }
 
+        /*
+         * Developer is the supreme application role.
+         *
+         * This intentionally happens before checking whether the
+         * requested permission currently exists. That means future
+         * permissions automatically become available to Developer.
+         */
+        if ($this->isDeveloper($user)) {
+            return true;
+        }
+
         return Permission::query()
             ->where('permissions.slug', $permissionSlug)
             ->whereHas('module', function ($query): void {
@@ -44,6 +58,22 @@ class AuthorizationService
                         $userQuery->where('users.id', $user->id);
                     });
             })
+            ->exists();
+    }
+
+    /**
+     * Determine whether the user is an active Developer.
+     *
+     * Developer is identified by its immutable system slug rather than
+     * by the display name so the role can be renamed visually without
+     * affecting authorization logic.
+     */
+    public function isDeveloper(User $user): bool
+    {
+        return $user->roles()
+            ->where('roles.slug', 'developer')
+            ->where('roles.is_system', true)
+            ->where('roles.is_active', true)
             ->exists();
     }
 
