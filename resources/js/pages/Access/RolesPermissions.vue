@@ -123,12 +123,17 @@ async function apiRequest<T>(
         headers['Content-Type'] = 'application/json';
     }
 
-    const response = await fetch(url, {
+    const requestInit: RequestInit = {
         method,
         headers,
         credentials: 'same-origin',
-        body: body === undefined ? undefined : JSON.stringify(body),
-    });
+    };
+
+    if (body !== undefined && method !== 'GET') {
+        requestInit.body = JSON.stringify(body);
+    }
+
+    const response = await fetch(url, requestInit);
 
     const responseText = await response.text();
 
@@ -144,9 +149,7 @@ async function apiRequest<T>(
 
     if (!response.ok) {
         const errorPayload = (
-            payload && typeof payload === 'object'
-                ? payload
-                : {}
+            payload && typeof payload === 'object' ? payload : {}
         ) as ApiErrorPayload;
 
         const validationErrors: Record<string, string> = {};
@@ -185,21 +188,14 @@ async function apiRequest<T>(
      * const response = await ...
      * response.data
      */
-    if (
-        payload &&
-        typeof payload === 'object' &&
-        'data' in payload
-    ) {
+    if (payload && typeof payload === 'object' && 'data' in payload) {
         return (payload as ApiSuccessPayload<T>).data;
     }
 
     return payload as T;
 }
 
-function errorMessage(
-    error: unknown,
-    fallback: string,
-): string {
+function errorMessage(error: unknown, fallback: string): string {
     if (error instanceof ApiRequestError && error.message) {
         return error.message;
     }
@@ -249,9 +245,7 @@ const isSavingPermissions = ref(false);
 const roleFormErrors = ref<Record<string, string>>({});
 
 const operationMessage = ref('');
-const operationMessageType = ref<
-    'success' | 'error' | 'info'
->('info');
+const operationMessageType = ref<'success' | 'error' | 'info'>('info');
 
 const permissionDirty = ref(false);
 
@@ -287,15 +281,10 @@ const moduleIconMap: Record<string, string> = {
 
 const roles = computed<Role[]>(() => props.roles ?? []);
 
-const modules = computed<PermissionModule[]>(
-    () => props.modules ?? [],
-);
+const modules = computed<PermissionModule[]>(() => props.modules ?? []);
 
 const selectedRoleId = computed<number | null>(() => {
-    if (
-        props.selectedRoleId !== null &&
-        props.selectedRoleId !== undefined
-    ) {
+    if (props.selectedRoleId !== null && props.selectedRoleId !== undefined) {
         return props.selectedRoleId;
     }
 
@@ -307,16 +296,10 @@ const selectedRole = computed<Role | null>(() => {
         return null;
     }
 
-    return (
-        props.roles.find(
-            (role) => role.id === selectedRoleId.value,
-        ) ?? null
-    );
+    return props.roles.find((role) => role.id === selectedRoleId.value) ?? null;
 });
 
-const hasSelectedRole = computed<boolean>(
-    () => selectedRole.value !== null,
-);
+const hasSelectedRole = computed<boolean>(() => selectedRole.value !== null);
 
 const selectedRoleIsSystem = computed<boolean>(
     () => selectedRole.value?.isSystem === true,
@@ -356,24 +339,17 @@ const filteredRoles = computed<Role[]>(() => {
     const query = search.value.trim().toLowerCase();
 
     return roles.value.filter((role) => {
-        const searchableText = [
-            role.name,
-            role.slug,
-            role.description ?? '',
-        ]
+        const searchableText = [role.name, role.slug, role.description ?? '']
             .join(' ')
             .toLowerCase();
 
         const matchesSearch =
-            query.length === 0 ||
-            searchableText.includes(query);
+            query.length === 0 || searchableText.includes(query);
 
         const matchesStatus =
             statusFilter.value === 'all' ||
-            (statusFilter.value === 'active' &&
-                role.isActive) ||
-            (statusFilter.value === 'inactive' &&
-                !role.isActive);
+            (statusFilter.value === 'active' && role.isActive) ||
+            (statusFilter.value === 'inactive' && !role.isActive);
 
         return matchesSearch && matchesStatus;
     });
@@ -383,12 +359,8 @@ const filteredRoles = computed<Role[]>(() => {
 /* Permission state                                                           */
 /* -------------------------------------------------------------------------- */
 
-function isPermissionEnabled(
-    permissionId: number,
-): boolean {
-    return (
-        localPermissionState.value[permissionId] === true
-    );
+function isPermissionEnabled(permissionId: number): boolean {
+    return localPermissionState.value[permissionId] === true;
 }
 
 function initializePermissionState(): void {
@@ -424,33 +396,24 @@ const filteredModules = computed<PermissionModule[]>(() => {
 
     return modules.value
         .map((module) => {
-            const moduleMatches = [
-                module.name,
-                module.slug,
-                module.icon ?? '',
-            ]
+            const moduleMatches = [module.name, module.slug, module.icon ?? '']
                 .join(' ')
                 .toLowerCase()
                 .includes(query);
 
             const permissions = moduleMatches
                 ? module.permissions
-                : module.permissions.filter(
-                      (permission) => {
-                          const searchableText = [
-                              permission.name,
-                              permission.slug,
-                              permission.description ??
-                                  '',
-                          ]
-                              .join(' ')
-                              .toLowerCase();
+                : module.permissions.filter((permission) => {
+                      const searchableText = [
+                          permission.name,
+                          permission.slug,
+                          permission.description ?? '',
+                      ]
+                          .join(' ')
+                          .toLowerCase();
 
-                          return searchableText.includes(
-                              query,
-                          );
-                      },
-                  );
+                      return searchableText.includes(query);
+                  });
 
             return {
                 ...module,
@@ -460,9 +423,7 @@ const filteredModules = computed<PermissionModule[]>(() => {
         .filter(
             (module) =>
                 module.permissions.length > 0 ||
-                module.name
-                    .toLowerCase()
-                    .includes(query),
+                module.name.toLowerCase().includes(query),
         );
 });
 
@@ -470,21 +431,15 @@ const filteredModules = computed<PermissionModule[]>(() => {
 /* Dynamic KPI calculations                                                   */
 /* -------------------------------------------------------------------------- */
 
-const totalRoles = computed<number>(
-    () => roles.value.length,
-);
+const totalRoles = computed<number>(() => roles.value.length);
 
 const activeRoles = computed<number>(
-    () =>
-        roles.value.filter(
-            (role) => role.isActive,
-        ).length,
+    () => roles.value.filter((role) => role.isActive).length,
 );
 
 const totalPermissions = computed<number>(() =>
     modules.value.reduce(
-        (total, module) =>
-            total + module.permissions.length,
+        (total, module) => total + module.permissions.length,
         0,
     ),
 );
@@ -493,40 +448,29 @@ const enabledPermissions = computed<number>(() =>
     modules.value.reduce(
         (total, module) =>
             total +
-            module.permissions.filter(
-                (permission) =>
-                    isPermissionEnabled(permission.id),
+            module.permissions.filter((permission) =>
+                isPermissionEnabled(permission.id),
             ).length,
         0,
     ),
 );
 
 const permissionCoverage = computed<number>(() => {
-    if (
-        !totalPermissions.value ||
-        !hasSelectedRole.value
-    ) {
+    if (!totalPermissions.value || !hasSelectedRole.value) {
         return 0;
     }
 
     return Math.min(
         100,
-        Math.round(
-            (enabledPermissions.value /
-                totalPermissions.value) *
-                100,
-        ),
+        Math.round((enabledPermissions.value / totalPermissions.value) * 100),
     );
 });
 
 const enabledModuleCount = computed<number>(
     () =>
         modules.value.filter((module) =>
-            module.permissions.some(
-                (permission) =>
-                    isPermissionEnabled(
-                        permission.id,
-                    ),
+            module.permissions.some((permission) =>
+                isPermissionEnabled(permission.id),
             ),
         ).length,
 );
@@ -566,52 +510,32 @@ const kpiCards = computed(() => [
 /* Module helpers                                                             */
 /* -------------------------------------------------------------------------- */
 
-function isModuleExpanded(
-    moduleId: number,
-): boolean {
+function isModuleExpanded(moduleId: number): boolean {
     return expandedModules.value.includes(moduleId);
 }
 
 function toggleModule(moduleId: number): void {
-    expandedModules.value =
-        isModuleExpanded(moduleId)
-            ? expandedModules.value.filter(
-                  (id) => id !== moduleId,
-              )
-            : [
-                  ...expandedModules.value,
-                  moduleId,
-              ];
+    expandedModules.value = isModuleExpanded(moduleId)
+        ? expandedModules.value.filter((id) => id !== moduleId)
+        : [...expandedModules.value, moduleId];
 }
 
 function expandAllModules(): void {
-    expandedModules.value =
-        filteredModules.value.map(
-            (module) => module.id,
-        );
+    expandedModules.value = filteredModules.value.map((module) => module.id);
 }
 
 function collapseAllModules(): void {
     expandedModules.value = [];
 }
 
-function moduleEnabledCount(
-    module: PermissionModule,
-): number {
-    return module.permissions.filter(
-        (permission) =>
-            isPermissionEnabled(permission.id),
+function moduleEnabledCount(module: PermissionModule): number {
+    return module.permissions.filter((permission) =>
+        isPermissionEnabled(permission.id),
     ).length;
 }
 
-function moduleIcon(
-    module: PermissionModule,
-): string {
-    return (
-        module.icon ||
-        moduleIconMap[module.slug] ||
-        'settings'
-    );
+function moduleIcon(module: PermissionModule): string {
+    return module.icon || moduleIconMap[module.slug] || 'settings';
 }
 
 /* -------------------------------------------------------------------------- */
@@ -652,12 +576,7 @@ function selectRole(roleId: number): void {
             preserveState: true,
             preserveScroll: true,
             replace: true,
-            only: [
-                'roles',
-                'modules',
-                'selectedRoleId',
-                'capabilities',
-            ],
+            only: ['roles', 'modules', 'selectedRoleId', 'capabilities'],
             onFinish: () => {
                 isSelectingRole.value = false;
             },
@@ -678,12 +597,7 @@ function reloadAccessPage(): void {
               }
             : {},
         {
-            only: [
-                'roles',
-                'modules',
-                'selectedRoleId',
-                'capabilities',
-            ],
+            only: ['roles', 'modules', 'selectedRoleId', 'capabilities'],
             preserveScroll: true,
             preserveState: true,
             replace: true,
@@ -695,32 +609,24 @@ function reloadAccessPage(): void {
 /* Permission mutation                                                        */
 /* -------------------------------------------------------------------------- */
 
-function togglePermission(
-    permission: Permission,
-): void {
+function togglePermission(permission: Permission): void {
     if (!canManageSelectedPermissions.value) {
         return;
     }
 
     localPermissionState.value = {
         ...localPermissionState.value,
-        [permission.id]:
-            !isPermissionEnabled(permission.id),
+        [permission.id]: !isPermissionEnabled(permission.id),
     };
 
     permissionDirty.value = true;
     operationMessage.value = '';
 }
 
-const selectedPermissionIds = computed<number[]>(
-    () =>
-        Object.entries(
-            localPermissionState.value,
-        )
-            .filter(([, enabled]) => enabled)
-            .map(([permissionId]) =>
-                Number(permissionId),
-            ),
+const selectedPermissionIds = computed<number[]>(() =>
+    Object.entries(localPermissionState.value)
+        .filter(([, enabled]) => enabled)
+        .map(([permissionId]) => Number(permissionId)),
 );
 
 function resetPermissions(): void {
@@ -747,16 +653,14 @@ async function savePermissions(): Promise<void> {
             `/api/roles/${selectedRole.value.id}/permissions`,
             'PUT',
             {
-                permission_ids:
-                    selectedPermissionIds.value,
+                permission_ids: selectedPermissionIds.value,
             },
         );
 
         permissionDirty.value = false;
 
         operationMessageType.value = 'success';
-        operationMessage.value =
-            'Permissions updated successfully.';
+        operationMessage.value = 'Permissions updated successfully.';
 
         reloadAccessPage();
     } catch (error) {
@@ -810,19 +714,14 @@ function openCreateRole(): void {
 }
 
 function openEditRole(): void {
-    if (
-        !selectedRole.value ||
-        !canEditSelectedRole.value
-    ) {
+    if (!selectedRole.value || !canEditSelectedRole.value) {
         return;
     }
 
     roleForm.name = selectedRole.value.name;
     roleForm.slug = selectedRole.value.slug;
-    roleForm.description =
-        selectedRole.value.description ?? '';
-    roleForm.isActive =
-        selectedRole.value.isActive;
+    roleForm.description = selectedRole.value.description ?? '';
+    roleForm.isActive = selectedRole.value.isActive;
 
     roleFormErrors.value = {};
     roleModalMode.value = 'edit';
@@ -852,37 +751,27 @@ async function submitRole(): Promise<void> {
         return;
     }
 
-    if (
-        roleModalMode.value === 'create' &&
-        !props.capabilities.canCreateRole
-    ) {
+    if (roleModalMode.value === 'create' && !props.capabilities.canCreateRole) {
         return;
     }
 
-    if (
-        roleModalMode.value === 'edit' &&
-        !canEditSelectedRole.value
-    ) {
+    if (roleModalMode.value === 'edit' && !canEditSelectedRole.value) {
         return;
     }
 
     const name = roleForm.name.trim();
-    const slug =
-        roleForm.slug.trim() || slugify(name);
-    const description =
-        roleForm.description.trim();
+    const slug = roleForm.slug.trim() || slugify(name);
+    const description = roleForm.description.trim();
 
     roleFormErrors.value = {};
 
     if (!name) {
-        roleFormErrors.value.name =
-            'Role name is required.';
+        roleFormErrors.value.name = 'Role name is required.';
         return;
     }
 
     if (!slug) {
-        roleFormErrors.value.slug =
-            'Role slug is required.';
+        roleFormErrors.value.slug = 'Role slug is required.';
         return;
     }
 
@@ -894,11 +783,7 @@ async function submitRole(): Promise<void> {
      * used by Laravel StoreRoleRequest and
      * UpdateRoleRequest.
      */
-    if (
-        !/^[a-z0-9]+(?:[._-][a-z0-9]+)*$/.test(
-            slug,
-        )
-    ) {
+    if (!/^[a-z0-9]+(?:[._-][a-z0-9]+)*$/.test(slug)) {
         roleFormErrors.value.slug =
             'Use lowercase letters, numbers, dots, underscores, or hyphens.';
         return;
@@ -925,20 +810,17 @@ async function submitRole(): Promise<void> {
              *
              * role
              */
-            const created =
-                await apiRequest<Role>(
-                    '/api/roles',
-                    'POST',
-                    payload,
-                );
+            const created = await apiRequest<Role>(
+                '/api/roles',
+                'POST',
+                payload,
+            );
 
             showRoleModal.value = false;
 
-            operationMessageType.value =
-                'success';
+            operationMessageType.value = 'success';
 
-            operationMessage.value =
-                'Role created successfully.';
+            operationMessage.value = 'Role created successfully.';
 
             router.get(
                 '/settings/roles-permissions',
@@ -973,27 +855,20 @@ async function submitRole(): Promise<void> {
 
         showRoleModal.value = false;
 
-        operationMessageType.value =
-            'success';
+        operationMessageType.value = 'success';
 
-        operationMessage.value =
-            'Role updated successfully.';
+        operationMessage.value = 'Role updated successfully.';
 
         reloadAccessPage();
     } catch (error) {
-        const typedError =
-            error as ApiRequestError;
+        const typedError = error as ApiRequestError;
 
-        roleFormErrors.value =
-            typedError.validationErrors ?? {};
+        roleFormErrors.value = typedError.validationErrors ?? {};
 
-        operationMessageType.value =
-            'error';
+        operationMessageType.value = 'error';
 
         operationMessage.value =
-            Object.keys(
-                typedError.validationErrors ?? {},
-            ).length > 0
+            Object.keys(typedError.validationErrors ?? {}).length > 0
                 ? 'Please correct the highlighted fields.'
                 : errorMessage(
                       error,
@@ -1010,22 +885,12 @@ async function submitRole(): Promise<void> {
 
 function exportRoles(): void {
     const rows = [
-        [
-            'ID',
-            'Name',
-            'Slug',
-            'Status',
-            'System Role',
-            'Users',
-            'Permissions',
-        ],
+        ['ID', 'Name', 'Slug', 'Status', 'System Role', 'Users', 'Permissions'],
         ...roles.value.map((role) => [
             String(role.id),
             role.name,
             role.slug,
-            role.isActive
-                ? 'Active'
-                : 'Inactive',
+            role.isActive ? 'Active' : 'Inactive',
             role.isSystem ? 'Yes' : 'No',
             String(role.userCount),
             String(role.permissionCount),
@@ -1035,13 +900,7 @@ function exportRoles(): void {
     const csv = rows
         .map((row) =>
             row
-                .map(
-                    (value) =>
-                        `"${String(value).replace(
-                            /"/g,
-                            '""',
-                        )}"`,
-                )
+                .map((value) => `"${String(value).replace(/"/g, '""')}"`)
                 .join(','),
         )
         .join('\r\n');
@@ -1050,18 +909,13 @@ function exportRoles(): void {
         type: 'text/csv;charset=utf-8;',
     });
 
-    const url =
-        URL.createObjectURL(blob);
+    const url = URL.createObjectURL(blob);
 
-    const link =
-        document.createElement('a');
+    const link = document.createElement('a');
 
     link.href = url;
 
-    link.download =
-        `madina-scale-roles-${new Date()
-            .toISOString()
-            .slice(0, 10)}.csv`;
+    link.download = `madina-scale-roles-${new Date().toISOString().slice(0, 10)}.csv`;
 
     document.body.appendChild(link);
 
@@ -1088,43 +942,29 @@ const roleModalTitle = computed<string>(() => {
     return 'Role Details';
 });
 
-const roleModalDescription =
-    computed<string>(() => {
-        if (
-            roleModalMode.value === 'create'
-        ) {
-            return 'Create a new access role for your organization.';
-        }
+const roleModalDescription = computed<string>(() => {
+    if (roleModalMode.value === 'create') {
+        return 'Create a new access role for your organization.';
+    }
 
-        if (
-            roleModalMode.value === 'edit'
-        ) {
-            return 'Update role identity, description, and availability.';
-        }
+    if (roleModalMode.value === 'edit') {
+        return 'Update role identity, description, and availability.';
+    }
 
-        return 'Review the selected role and its current access scope.';
-    });
+    return 'Review the selected role and its current access scope.';
+});
 
-const roleModalIsReadonly =
-    computed<boolean>(
-        () => roleModalMode.value === 'show',
-    );
-
-const roleSubmitLabel = computed<string>(
-    () => {
-        if (isSavingRole.value) {
-            return roleModalMode.value ===
-                'create'
-                ? 'Creating...'
-                : 'Saving...';
-        }
-
-        return roleModalMode.value ===
-            'create'
-            ? 'Create Role'
-            : 'Save Changes';
-    },
+const roleModalIsReadonly = computed<boolean>(
+    () => roleModalMode.value === 'show',
 );
+
+const roleSubmitLabel = computed<string>(() => {
+    if (isSavingRole.value) {
+        return roleModalMode.value === 'create' ? 'Creating...' : 'Saving...';
+    }
+
+    return roleModalMode.value === 'create' ? 'Create Role' : 'Save Changes';
+});
 </script>
 
 <template>
@@ -1571,7 +1411,11 @@ const roleSubmitLabel = computed<string>(
                         >
                             <div class="permission-toolbar">
                                 <div class="permission-search">
-                                    <Icon name="search" :size="14" aria-hidden="true" />
+                                    <Icon
+                                        name="search"
+                                        :size="14"
+                                        aria-hidden="true"
+                                    />
 
                                     <input
                                         v-model="moduleSearch"
@@ -1755,11 +1599,16 @@ const roleSubmitLabel = computed<string>(
                                             <span
                                                 class="module-chevron"
                                                 :class="{
-                                                    expanded: isModuleExpanded(module.id),
+                                                    expanded: isModuleExpanded(
+                                                        module.id,
+                                                    ),
                                                 }"
                                                 aria-hidden="true"
                                             >
-                                                <Icon name="chevron-down" :size="14" />
+                                                <Icon
+                                                    name="chevron-down"
+                                                    :size="14"
+                                                />
                                             </span>
                                         </span>
                                     </button>
@@ -1972,7 +1821,12 @@ const roleSubmitLabel = computed<string>(
                             :disabled="isSavingRole"
                             @click="closeRoleModal"
                         >
-                            <Icon name="plus" :size="15" aria-hidden="true" class="close-icon" />
+                            <Icon
+                                name="plus"
+                                :size="15"
+                                aria-hidden="true"
+                                class="close-icon"
+                            />
                         </button>
                     </div>
 

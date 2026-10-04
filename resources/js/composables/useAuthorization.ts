@@ -7,15 +7,11 @@ export function useAuthorization() {
 
     const auth = computed<Auth>(() => page.props.auth);
 
-    const isDeveloper = computed<boolean>(
-        () => auth.value.is_developer,
-    );
+    const isDeveloper = computed<boolean>(() => auth.value.is_developer);
 
     const roles = computed(() => auth.value.roles);
 
-    const permissions = computed<string[]>(
-        () => auth.value.permissions,
-    );
+    const permissions = computed<string[]>(() => auth.value.permissions);
 
     const can = (permission: string): boolean => {
         const slug = permission.trim();

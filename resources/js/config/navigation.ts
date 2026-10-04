@@ -118,6 +118,7 @@ export const primaryNavigation: NavigationItem[] = [
         label: 'Team & Users',
         icon: 'users',
         expandable: true,
+
         children: [
             {
                 label: 'Users',
@@ -132,6 +133,7 @@ export const primaryNavigation: NavigationItem[] = [
         label: 'Settings',
         icon: 'settings',
         expandable: true,
+
         children: [
             {
                 label: 'Role & Permissions',
