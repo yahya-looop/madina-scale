@@ -9,6 +9,16 @@ export type User = {
     [key: string]: unknown;
 };
 
+export type AuthRole = {
+    id: number;
+    name: string;
+    slug: string;
+    is_system: boolean;
+};
+
 export type Auth = {
-    user: User;
+    user: User | null;
+    is_developer: boolean;
+    roles: AuthRole[];
+    permissions: string[];
 };

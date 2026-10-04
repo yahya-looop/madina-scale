@@ -16,12 +16,16 @@ class UserService
      */
     public function list(): Collection
     {
-        return User::query()
+        $users = User::query()
             ->with([
                 'roles:id,name,slug,is_system,is_active',
             ])
             ->orderBy('name')
             ->get();
+
+        return $users->each(
+            fn (User $user): User => $this->prepareForManagement($user),
+        );
     }
 
     /**
@@ -29,11 +33,13 @@ class UserService
      */
     public function find(int $id): User
     {
-        return User::query()
+        $user = User::query()
             ->with([
                 'roles:id,name,slug,is_system,is_active',
             ])
             ->findOrFail($id);
+
+        return $this->prepareForManagement($user);
     }
 
     /**
@@ -51,7 +57,7 @@ class UserService
     public function create(array $attributes): User
     {
         return DB::transaction(function () use ($attributes): User {
-            return User::query()->create([
+            $user = User::query()->create([
                 'name' => $attributes['name'],
                 'email' => $attributes['email'],
                 'password' => $attributes['password'],
@@ -59,6 +65,12 @@ class UserService
                 'failed_login_attempts' => 0,
                 'password_changed_at' => now(),
             ]);
+
+            $user->load([
+                'roles:id,name,slug,is_system,is_active',
+            ]);
+
+            return $this->prepareForManagement($user);
         });
     }
 
@@ -103,7 +115,13 @@ class UserService
 
             $user->update($data);
 
-            return $user->refresh();
+            $user = $user
+                ->refresh()
+                ->load([
+                    'roles:id,name,slug,is_system,is_active',
+                ]);
+
+            return $this->prepareForManagement($user);
         });
     }
 
@@ -122,14 +140,39 @@ class UserService
             $user,
             $roleIds,
         ): User {
+            /*
+             * Normalize role IDs before validation.
+             *
+             * This prevents duplicate IDs from creating an inconsistent
+             * role count comparison.
+             */
+            $normalizedRoleIds = array_values(
+                array_unique(
+                    array_map(
+                        static fn (mixed $roleId): int => (int) $roleId,
+                        $roleIds,
+                    ),
+                ),
+            );
+
             $roles = Role::query()
-                ->whereIn('id', $roleIds)
+                ->whereIn('id', $normalizedRoleIds)
                 ->get();
 
-            if ($roles->count() !== count(array_unique($roleIds))) {
-                abort(422, 'One or more selected roles do not exist.');
+            /*
+             * Every requested role must exist.
+             */
+            if ($roles->count() !== count($normalizedRoleIds)) {
+                abort(
+                    422,
+                    'One or more selected roles do not exist.',
+                );
             }
 
+            /*
+             * System roles cannot be assigned through normal
+             * user management.
+             */
             if (
                 $roles->contains(
                     static fn (Role $role): bool => $role->is_system
@@ -141,6 +184,9 @@ class UserService
                 );
             }
 
+            /*
+             * Inactive roles cannot be assigned.
+             */
             if (
                 $roles->contains(
                     static fn (Role $role): bool => ! $role->is_active
@@ -152,19 +198,28 @@ class UserService
                 );
             }
 
-            $user->roles()->sync($roleIds);
+            /*
+             * Synchronize the user's roles.
+             */
+            $user->roles()->sync($normalizedRoleIds);
 
-            return $user->refresh()->load([
-                'roles:id,name,slug,is_system,is_active',
-            ]);
+            $user = $user
+                ->refresh()
+                ->load([
+                    'roles:id,name,slug,is_system,is_active',
+                ]);
+
+            return $this->prepareForManagement($user);
         });
     }
 
     /**
      * Change the user's application status.
      */
-    public function setStatus(User $user, string $status): User
-    {
+    public function setStatus(
+        User $user,
+        string $status,
+    ): User {
         return DB::transaction(function () use (
             $user,
             $status,
@@ -173,7 +228,38 @@ class UserService
                 'status' => $status,
             ]);
 
-            return $user->refresh();
+            $user = $user
+                ->refresh()
+                ->load([
+                    'roles:id,name,slug,is_system,is_active',
+                ]);
+
+            return $this->prepareForManagement($user);
         });
+    }
+
+    /**
+     * Prepare a user model for the user-management response.
+     *
+     * The actual login timestamp is stored in `last_login_at`.
+     *
+     * The frontend Users/Index.vue can consume the camelCase
+     * `lastLoginAt` property while the original database-backed
+     * `last_login_at` attribute remains untouched.
+     */
+    private function prepareForManagement(User $user): User
+    {
+        $lastLoginAt = $user->getAttribute('last_login_at');
+
+        /*
+         * Keep the original database attribute intact and additionally
+         * expose the frontend-friendly property.
+         */
+        $user->setAttribute(
+            'lastLoginAt',
+            $lastLoginAt,
+        );
+
+        return $user;
     }
 }

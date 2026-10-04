@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Services\AuthorizationService;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -29,17 +30,71 @@ class HandleInertiaRequests extends Middleware
     /**
      * Define the props that are shared by default.
      *
-     * @see https://inertiajs.com/shared-data
-     *
      * @return array<string, mixed>
      */
     public function share(Request $request): array
     {
+        $user = $request->user();
+
+        $roles = [];
+        $permissions = [];
+        $isDeveloper = false;
+
+        if ($user) {
+            $roles = $user->roles()
+                ->where('roles.is_active', true)
+                ->get([
+                    'roles.id',
+                    'roles.name',
+                    'roles.slug',
+                    'roles.is_system',
+                ])
+                ->map(fn ($role): array => [
+                    'id' => $role->id,
+                    'name' => $role->name,
+                    'slug' => $role->slug,
+                    'is_system' => $role->is_system,
+                ])
+                ->values()
+                ->all();
+
+            $isDeveloper = app(AuthorizationService::class)
+                ->isDeveloper($user);
+
+            $permissions = $user->roles()
+                ->where('roles.is_active', true)
+                ->with([
+                    'permissions' => fn ($query) => $query
+                        ->whereHas('module', function ($moduleQuery): void {
+                            $moduleQuery->where('modules.is_active', true);
+                        })
+                        ->select([
+                            'permissions.id',
+                            'permissions.module_id',
+                            'permissions.name',
+                            'permissions.slug',
+                        ]),
+                ])
+                ->get()
+                ->flatMap(
+                    fn ($role) => $role->permissions
+                )
+                ->pluck('slug')
+                ->unique()
+                ->values()
+                ->all();
+        }
+
         return [
             ...parent::share($request),
+
             'name' => config('app.name'),
+
             'auth' => [
-                'user' => $request->user(),
+                'user' => $user,
+                'is_developer' => $isDeveloper,
+                'roles' => $roles,
+                'permissions' => $permissions,
             ],
         ];
     }

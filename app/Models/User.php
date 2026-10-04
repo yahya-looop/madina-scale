@@ -13,6 +13,16 @@ use Illuminate\Support\Carbon;
 use Laravel\Sanctum\HasApiTokens;
 
 /**
+ * Application user model.
+ *
+ * This model is responsible for:
+ * - Authentication
+ * - User profile data
+ * - Account status
+ * - Login tracking state
+ * - Password security state
+ * - Role relationships
+ *
  * @property int $id
  * @property string $name
  * @property string $email
@@ -27,6 +37,8 @@ use Laravel\Sanctum\HasApiTokens;
  * @property Carbon|null $password_changed_at
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
+ *
+ * @property-read BelongsToMany<Role, $this> $roles
  */
 #[Fillable([
     'name',
@@ -59,12 +71,15 @@ class User extends Authenticatable
             Role::class,
             'user_roles',
             'user_id',
-            'role_id'
+            'role_id',
         );
     }
 
     /**
      * Get the attributes that should be cast.
+     *
+     * Date/time fields are automatically converted to Carbon
+     * instances and the password is automatically hashed when set.
      *
      * @return array<string, string>
      */
@@ -73,7 +88,11 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+
+            // Login tracking
             'last_login_at' => 'datetime',
+
+            // Authentication security state
             'failed_login_attempts' => 'integer',
             'locked_until' => 'datetime',
             'password_changed_at' => 'datetime',

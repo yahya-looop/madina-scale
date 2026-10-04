@@ -4,27 +4,130 @@ export type NavigationItem = {
     icon: string;
     badge?: string;
     expandable?: boolean;
+    permission?: string;
+    developerOnly?: boolean;
     children?: NavigationItem[];
 };
 
 export const primaryNavigation: NavigationItem[] = [
-    { label: 'Dashboard', href: '/dashboard', icon: 'dashboard' },
-    { label: 'Sales', icon: 'sales', expandable: true },
-    { label: 'Orders', icon: 'orders', badge: '18' },
-    { label: 'Products', icon: 'products', expandable: true },
-    { label: 'Inventory', icon: 'inventory', expandable: true },
-    { label: 'Customers', icon: 'customers', expandable: true },
-    { label: 'B2B & Wholesale', icon: 'wholesale' },
-    { label: 'Pricing & Promotions', icon: 'pricing', expandable: true },
-    { label: 'Shipping & Delivery', icon: 'shipping', expandable: true },
-    { label: 'Payments', icon: 'payments' },
-    { label: 'Warranty & Service', icon: 'service' },
-    { label: 'Marketing', icon: 'marketing' },
-    { label: 'Analytics', icon: 'analytics' },
-    { label: 'Reports', icon: 'reports' },
-    { label: 'Content (CMS)', icon: 'cms' },
-    { label: 'SEO', icon: 'seo' },
-    { label: 'Team & Users', icon: 'users', expandable: true },
+    {
+        label: 'Dashboard',
+        href: '/dashboard',
+        icon: 'dashboard',
+        permission: 'system.dashboard.view',
+    },
+
+    {
+        label: 'Sales',
+        icon: 'sales',
+        expandable: true,
+        permission: 'system.sales.view',
+    },
+
+    {
+        label: 'Orders',
+        icon: 'orders',
+        badge: '18',
+        permission: 'system.orders.view',
+    },
+
+    {
+        label: 'Products',
+        icon: 'products',
+        expandable: true,
+        permission: 'system.products.view',
+    },
+
+    {
+        label: 'Inventory',
+        icon: 'inventory',
+        expandable: true,
+        permission: 'system.inventory.view',
+    },
+
+    {
+        label: 'Customers',
+        icon: 'customers',
+        expandable: true,
+        permission: 'system.customers.view',
+    },
+
+    {
+        label: 'B2B & Wholesale',
+        icon: 'wholesale',
+        permission: 'system.b2b.view',
+    },
+
+    {
+        label: 'Pricing & Promotions',
+        icon: 'pricing',
+        expandable: true,
+        permission: 'system.pricing.view',
+    },
+
+    {
+        label: 'Shipping & Delivery',
+        icon: 'shipping',
+        expandable: true,
+        permission: 'system.shipping.view',
+    },
+
+    {
+        label: 'Payments',
+        icon: 'payments',
+        permission: 'system.payments.view',
+    },
+
+    {
+        label: 'Warranty & Service',
+        icon: 'service',
+        permission: 'system.warranty.view',
+    },
+
+    {
+        label: 'Marketing',
+        icon: 'marketing',
+        permission: 'system.marketing.view',
+    },
+
+    {
+        label: 'Analytics',
+        icon: 'analytics',
+        permission: 'system.analytics.view',
+    },
+
+    {
+        label: 'Reports',
+        icon: 'reports',
+        permission: 'system.reports.view',
+    },
+
+    {
+        label: 'Content (CMS)',
+        icon: 'cms',
+        permission: 'system.content.view',
+    },
+
+    {
+        label: 'SEO',
+        icon: 'seo',
+        permission: 'system.seo.view',
+    },
+
+    {
+        label: 'Team & Users',
+        icon: 'users',
+        expandable: true,
+        children: [
+            {
+                label: 'Users',
+                href: '/users',
+                icon: 'users',
+                permission: 'system.users.view',
+            },
+        ],
+    },
+
     {
         label: 'Settings',
         icon: 'settings',
@@ -34,8 +137,15 @@ export const primaryNavigation: NavigationItem[] = [
                 label: 'Role & Permissions',
                 href: '/settings/roles-permissions',
                 icon: 'users',
+                permission: 'system.roles.view',
             },
         ],
     },
-    { label: 'Developer', icon: 'developer' },
+
+    {
+        label: 'Developer',
+        icon: 'developer',
+        permission: 'system.system.view',
+        developerOnly: true,
+    },
 ];

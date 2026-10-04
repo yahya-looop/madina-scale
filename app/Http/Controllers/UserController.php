@@ -7,7 +7,6 @@ use App\Http\Requests\User\UpdateUserRequest;
 use App\Models\User;
 use App\Services\UserService;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 
 class UserController extends Controller
 {
@@ -17,17 +16,22 @@ class UserController extends Controller
     }
 
     /**
-     * List users available for management.
+     * Display a listing of users available for management.
      */
     public function index(): JsonResponse
     {
+        $users = $this->userService->list();
+
         return response()->json([
-            'data' => $this->userService->list(),
+            'data' => $users
+                ->map(fn (User $user): array => $this->userPayload($user))
+                ->values()
+                ->all(),
         ]);
     }
 
     /**
-     * Create a new user.
+     * Store a newly created user.
      */
     public function store(StoreUserRequest $request): JsonResponse
     {
@@ -35,6 +39,10 @@ class UserController extends Controller
 
         $user = $this->userService->create($validated);
 
+        /*
+         * Roles are synchronized only when role_ids
+         * are explicitly included in the request.
+         */
         if (array_key_exists('role_ids', $validated)) {
             $user = $this->userService->syncRoles(
                 $user,
@@ -44,24 +52,24 @@ class UserController extends Controller
 
         return response()->json([
             'message' => 'User created successfully.',
-            'data' => $user->load([
-                'roles:id,name,slug,is_system,is_active',
-            ]),
+            'data' => $this->userPayload($user),
         ], 201);
     }
 
     /**
-     * Show a single user.
+     * Display the specified user.
      */
     public function show(User $user): JsonResponse
     {
+        $user = $this->userService->find($user->id);
+
         return response()->json([
-            'data' => $this->userService->find($user->id),
+            'data' => $this->userPayload($user),
         ]);
     }
 
     /**
-     * Update an existing user.
+     * Update the specified user.
      */
     public function update(
         UpdateUserRequest $request,
@@ -74,6 +82,10 @@ class UserController extends Controller
             $validated,
         );
 
+        /*
+         * Synchronize roles only when role_ids
+         * are explicitly included in the request.
+         */
         if (array_key_exists('role_ids', $validated)) {
             $user = $this->userService->syncRoles(
                 $user,
@@ -83,9 +95,79 @@ class UserController extends Controller
 
         return response()->json([
             'message' => 'User updated successfully.',
-            'data' => $user->load([
-                'roles:id,name,slug,is_system,is_active',
-            ]),
+            'data' => $this->userPayload($user),
         ]);
+    }
+
+    /**
+     * Build the public payload used by user-management screens.
+     *
+     * Authentication secrets such as password and remember_token
+     * are intentionally excluded.
+     *
+     * @return array<string, mixed>
+     */
+    private function userPayload(User $user): array
+    {
+        $user->loadMissing([
+            'roles:id,name,slug,is_system,is_active',
+        ]);
+
+        return [
+            /*
+             * Identity
+             */
+            'id' => $user->id,
+            'name' => $user->name,
+            'email' => $user->email,
+
+            /*
+             * Account status
+             */
+            'status' => $user->status,
+
+            /*
+             * Login tracking
+             *
+             * These fields are consumed by Users/Index.vue
+             * for the Last Login column.
+             */
+            'last_login_at' => $user->last_login_at?->toISOString(),
+            'last_login_ip' => $user->last_login_ip,
+
+            /*
+             * Account security
+             */
+            'failed_login_attempts' => $user->failed_login_attempts,
+            'locked_until' => $user->locked_until?->toISOString(),
+            'password_changed_at' => $user->password_changed_at?->toISOString(),
+
+            /*
+             * Verification
+             */
+            'email_verified_at' => $user->email_verified_at?->toISOString(),
+
+            /*
+             * Record metadata
+             */
+            'created_at' => $user->created_at?->toISOString(),
+            'updated_at' => $user->updated_at?->toISOString(),
+
+            /*
+             * Roles
+             */
+            'roles' => $user->roles
+                ->map(
+                    static fn ($role): array => [
+                        'id' => $role->id,
+                        'name' => $role->name,
+                        'slug' => $role->slug,
+                        'isSystem' => (bool) $role->is_system,
+                        'isActive' => (bool) $role->is_active,
+                    ],
+                )
+                ->values()
+                ->all(),
+        ];
     }
 }
