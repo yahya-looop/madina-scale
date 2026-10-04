@@ -793,19 +793,10 @@ function slugify(value: string): string {
 }
 
 function handleRoleNameInput(): void {
-    if (roleModalMode.value === 'create') {
+    if (!roleForm.slug) {
         roleForm.slug = slugify(roleForm.name);
     }
 }
-
-watch(
-    () => roleForm.name,
-    (name) => {
-        if (roleModalMode.value === 'create') {
-            roleForm.slug = slugify(name);
-        }
-    },
-);
 
 function openCreateRole(): void {
     if (!props.capabilities.canCreateRole) {
@@ -946,13 +937,16 @@ async function submitRole(): Promise<void> {
             operationMessageType.value =
                 'success';
 
+            operationMessage.value =
+                'Role created successfully.';
+
             router.get(
                 '/settings/roles-permissions',
                 {
                     role: created.id,
                 },
                 {
-                    preserveScroll: false,
+                    preserveScroll: true,
                     preserveState: true,
                     replace: true,
                     only: [
@@ -961,11 +955,6 @@ async function submitRole(): Promise<void> {
                         'selectedRoleId',
                         'capabilities',
                     ],
-                    onSuccess: () => {
-                        operationMessageType.value = 'success';
-                        operationMessage.value =
-                            'Role created successfully.';
-                    },
                 },
             );
 
@@ -1142,7 +1131,7 @@ const roleSubmitLabel = computed<string>(
     <Head title="Roles & Permissions" />
 
     <ErpLayout :user-name="authUser.name" :user-email="authUser.email">
-        <div class="access-page">
+        <div class="access-page page-enter">
             <!-- ---------------------------------------------------------------- -->
             <!-- Header                                                            -->
             <!-- ---------------------------------------------------------------- -->
@@ -1238,9 +1227,10 @@ const roleSubmitLabel = computed<string>(
                 aria-label="Access control overview"
             >
                 <article
-                    v-for="card in kpiCards"
+                    v-for="(card, index) in kpiCards"
                     :key="card.label"
                     class="access-stat-card"
+                    :style="{ '--card-index': index }"
                 >
                     <div
                         :class="['access-stat-icon', card.tone]"
@@ -1301,12 +1291,12 @@ const roleSubmitLabel = computed<string>(
                             title="Expand all modules"
                             @click="expandAllModules"
                         >
-                            <span class="ui-glyph">+</span>
+                            <Icon name="plus" :size="14" aria-hidden="true" />
                         </button>
                     </div>
 
                     <div class="role-search">
-                        <span class="ui-glyph" aria-hidden="true"> ⌕ </span>
+                        <Icon name="search" :size="14" aria-hidden="true" />
 
                         <input
                             v-model="search"
@@ -1414,7 +1404,7 @@ const roleSubmitLabel = computed<string>(
                             class="role-empty"
                         >
                             <span class="empty-search-icon" aria-hidden="true">
-                                ⌕
+                                <Icon name="search" :size="20" />
                             </span>
 
                             <strong>No roles found</strong>
@@ -1581,9 +1571,7 @@ const roleSubmitLabel = computed<string>(
                         >
                             <div class="permission-toolbar">
                                 <div class="permission-search">
-                                    <span class="ui-glyph" aria-hidden="true">
-                                        ⌕
-                                    </span>
+                                    <Icon name="search" :size="14" aria-hidden="true" />
 
                                     <input
                                         v-model="moduleSearch"
@@ -1767,13 +1755,11 @@ const roleSubmitLabel = computed<string>(
                                             <span
                                                 class="module-chevron"
                                                 :class="{
-                                                    expanded: isModuleExpanded(
-                                                        module.id,
-                                                    ),
+                                                    expanded: isModuleExpanded(module.id),
                                                 }"
                                                 aria-hidden="true"
                                             >
-                                                ⌄
+                                                <Icon name="chevron-down" :size="14" />
                                             </span>
                                         </span>
                                     </button>
@@ -1986,7 +1972,7 @@ const roleSubmitLabel = computed<string>(
                             :disabled="isSavingRole"
                             @click="closeRoleModal"
                         >
-                            <span class="ui-glyph">×</span>
+                            <Icon name="plus" :size="15" aria-hidden="true" class="close-icon" />
                         </button>
                     </div>
 
@@ -2111,7 +2097,6 @@ const roleSubmitLabel = computed<string>(
                                 type="text"
                                 autocomplete="off"
                                 placeholder="warehouse-supervisor"
-                                :readonly="roleModalMode === 'create'"
                                 :disabled="isSavingRole"
                             />
 
@@ -2227,7 +2212,7 @@ const roleSubmitLabel = computed<string>(
     --access-success: var(--success);
 
     min-height: 100%;
-    padding: 22px 0 28px;
+    padding: 0;
     color: var(--text-primary);
 }
 
@@ -2463,15 +2448,31 @@ const roleSubmitLabel = computed<string>(
     border-radius: 12px;
     background: color-mix(in srgb, var(--surface) 96%, var(--surface-muted));
     box-shadow: var(--shadow);
+    animation: access-enter 480ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation-delay: calc(var(--card-index, 0) * 55ms + 80ms);
+    transition:
+        transform 220ms ease,
+        border-color 220ms ease,
+        box-shadow 220ms ease;
 }
 
-/* KPI motion is intentionally disabled for now.
- * Keep this selector isolated so animation/hover effects can be restored later. */
+.access-stat-card:hover {
+    transform: translateY(-3px);
+    border-color: color-mix(in srgb, var(--primary) 28%, var(--border));
+    box-shadow: 0 16px 34px color-mix(in srgb, var(--primary) 9%, transparent);
+}
 
 .access-stat-icon {
     width: 34px;
     height: 34px;
     border-radius: 9px;
+    transition:
+        transform 220ms ease,
+        box-shadow 220ms ease;
+}
+
+.access-stat-card:hover .access-stat-icon {
+    transform: scale(1.08) rotate(-3deg);
 }
 
 .access-stat-icon.green {
@@ -2624,6 +2625,10 @@ const roleSubmitLabel = computed<string>(
     border-color: var(--border-strong);
     color: var(--text-primary);
     transform: translateY(-1px);
+}
+
+.close-icon {
+    transform: rotate(45deg);
 }
 
 .icon-only-btn:disabled {
@@ -2891,16 +2896,7 @@ const roleSubmitLabel = computed<string>(
     gap: 4px;
     padding: 0 18px;
     overflow-x: auto;
-    overflow-y: hidden;
-    scrollbar-width: none;
-    -ms-overflow-style: none;
     border-bottom: 1px solid var(--border);
-}
-
-.permission-tabs::-webkit-scrollbar {
-    display: none;
-    width: 0;
-    height: 0;
 }
 
 .permission-tab {
@@ -3734,7 +3730,7 @@ const roleSubmitLabel = computed<string>(
 
 @media (max-width: 820px) {
     .access-page {
-        padding: 16px 0 22px;
+        padding: 0;
     }
 
     .access-header {
