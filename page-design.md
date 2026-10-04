@@ -1,1254 +1,1688 @@
-# Madina Scale --- Universal Page Design System
+# Madina Scale --- Users/Index.vue Page Design Specification
 
-**File:** `page-design.md`\
-**Purpose:** This document defines the universal visual, spacing,
-typography, component, layout, interaction, and semantic rules for every
-authenticated page in the Madina Scale system.
+**Reference implementation:** `resources/js/Pages/Users/Index.vue`\
+**Purpose:** This document captures the *actual implemented* visual
+system of the Users Index page so future pages can reproduce the same
+visual language without changing the established layout.
 
-> **Design principle:** Every page must feel like it belongs to the same
-> product. A new module may introduce different data or components, but
-> it must not introduce a different visual language.
+> **Golden rule:** Preserve the same visual hierarchy, typography,
+> spacing rhythm, surfaces, controls, icon treatment, semantic
+> structure, and animation across the authenticated system. Do not
+> introduce page-specific visual language unless explicitly required.
 
 ------------------------------------------------------------------------
 
 ## 1. Design Direction
 
-Madina Scale uses a **premium modern enterprise admin** visual language.
+The page uses a **premium, modern enterprise admin** style:
 
-The design must be:
+-   Clean and information-dense.
+-   Light cool-gray application surface with white content cards.
+-   Dark navy primary text.
+-   Restrained green accent.
+-   Soft borders and very subtle shadows.
+-   Compact controls and table density.
+-   Rounded cards and controls.
+-   Stroke-based UI icons.
+-   Smooth, restrained entrance animation.
+-   Semantic HTML rather than a div-only structure.
 
--   Clean
--   Spacious, but not over-padded
--   Information-dense without feeling crowded
--   Consistent across every module
--   Accessible and keyboard-friendly
--   Responsive
--   Production-ready
--   Easy to extend
--   Semantically structured
--   Visually aligned with the existing **Roles & Permissions** page
-
-### Reference page
-
-The **Roles & Permissions** page is the primary visual reference for
-authenticated management pages.
-
-The **Users / User Management** page must follow the same:
-
--   page shell
--   content width
--   breadcrumb treatment
--   heading hierarchy
--   title + icon composition
--   typography
--   spacing rhythm
--   card treatment
--   button treatment
--   border radius
--   border color
--   background color
--   table styling
--   status badges
--   search controls
--   action controls
--   responsive behavior
+The page is designed to visually belong beside the **Roles &
+Permissions** page.
 
 ------------------------------------------------------------------------
 
-# 2. Global Application Shell
+## 2. Application Shell
 
-## 2.1 Layout
-
-The application uses a persistent ERP shell:
-
-``` text
-┌──────────────────────────────────────────────────────────────┐
-│ Sidebar │ Topbar                                             │
-│         ├─────────────────────────────────────────────────────┤
-│         │                                                     │
-│         │ Main page content                                  │
-│         │                                                     │
-│         │                                                     │
-└─────────┴─────────────────────────────────────────────────────┘
-```
-
-### Sidebar
-
--   Fixed/sticky left navigation.
--   Dark navy background.
--   Primary navigation icons are always visible.
--   Navigation labels use the same font family as the application.
--   Active navigation item uses the system accent treatment.
--   Do not redesign the sidebar on individual pages.
-
-### Topbar
-
--   Fixed/sticky within the main application shell.
--   Light background.
--   Search field on the left.
--   Utility controls on the right.
--   Theme selector.
--   User profile control.
--   Consistent height across all authenticated pages.
-
-### Main content
-
-All page-specific content lives inside:
+The page is rendered inside:
 
 ``` html
-<main id="main-content" class="erp-content">
+<ErpLayout>
+    <main id="main-content" class="erp-content">
+        ...
+    </main>
+</ErpLayout>
 ```
 
-Do not create another application shell inside an individual page.
+The page itself does **not** create another application shell.
+
+Required shell elements:
+
+-   Persistent sidebar.
+-   Persistent topbar.
+-   Main content area.
+-   Page-specific content inside `.erp-content`.
 
 ------------------------------------------------------------------------
 
-# 3. Universal Page Container
+## 3. Page Container / Spacing
 
-## 3.1 Content width
-
-The page content must use the same horizontal alignment as the Roles &
-Permissions page.
-
-### Required rule
-
-Do **not** add excessive left/right padding inside individual pages.
-
-The page should visually align with:
-
--   topbar content
--   page heading
--   KPI cards
--   search/filter card
--   data table
--   bottom metadata
-
-### Recommended page padding
-
-``` text
-Desktop:
-left/right: 20px–24px
-top: 18px–24px
-bottom: 24px–32px
-```
-
-The exact value should be inherited from the shared page/layout system
-where possible.
-
-### Forbidden
-
-Do not create:
+The Users page root is:
 
 ``` css
-padding-left: 60px;
-padding-right: 60px;
+.users-page {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    padding: 0;
+}
 ```
-
-or other page-specific oversized horizontal spacing unless the reference
-design explicitly requires it.
-
-------------------------------------------------------------------------
-
-# 4. Page Header System
-
-Every major management page must use the same page-header structure.
-
-## 4.1 Required hierarchy
-
-``` text
-Breadcrumb
-    ↓
-Page title row
-    ↓
-Description
-```
-
-For pages that use a leading module icon:
-
-``` text
-Breadcrumb
-
-┌──────────┐  Page Title
-│  Icon    │  Description
-└──────────┘
-```
-
-## 4.2 Header structure
-
-Recommended semantic structure:
-
-``` html
-<header class="page-header">
-    <nav aria-label="Breadcrumb">
-        ...
-    </nav>
-
-    <div class="page-header-main">
-        <div class="page-header-icon" aria-hidden="true">
-            ...
-        </div>
-
-        <div>
-            <h1>Page Title</h1>
-            <p>Page description.</p>
-        </div>
-
-        <div class="page-header-actions">
-            ...
-        </div>
-    </div>
-</header>
-```
-
-## 4.3 Breadcrumb
-
-Breadcrumb must appear **above the page title**.
-
-Example:
-
-``` text
-Identity & Access  ›  Users
-```
-
-### Breadcrumb styling
-
--   Font size: **13px--14px**
--   Weight: **500**
--   Color: muted slate/blue-gray
--   Current segment: darker text
--   Separator: subtle gray
--   No oversized breadcrumb text
--   Breadcrumb must not compete with the H1
-
-### Semantic element
-
-Use:
-
-``` html
-<nav aria-label="Breadcrumb">
-```
-
-with an ordered list where appropriate.
-
-------------------------------------------------------------------------
-
-# 5. Page Title
-
-## 5.1 H1
-
-The page title is the primary visual anchor.
-
-Recommended:
-
-``` text
-Font family: Instrument Sans
-Font size: 36px
-Font weight: 500–600
-Line height: 1.1–1.2
-Letter spacing: approximately -0.02em
-Color: primary dark navy
-```
-
-The existing **User Management** and **Roles & Permissions** headings
-demonstrate this visual hierarchy.
-
-### Important
-
-Do not use a different font family or arbitrary font size for another
-page.
-
-------------------------------------------------------------------------
-
-# 6. Page Header Icon
-
-A page-level icon must appear before the page title on management pages.
-
-Example:
-
-``` text
-┌─────────┐
-│   👥    │  User Management
-└─────────┘  Manage platform users...
-```
-
-## Icon container
-
-Recommended:
-
-``` text
-Size: approximately 50px × 50px
-Border radius: 14px–16px
-Background: very light accent/green tint
-Border: subtle accent border
-```
-
-## Icon
-
--   Size: approximately **22px--24px**
--   Stroke-based icon
--   Same icon family used throughout the application
--   Consistent stroke width
--   Never replace a defined icon with a random Unicode symbol
 
 ### Critical rule
 
-Icons must be rendered through the project's established icon system.
+The page itself must **not** add large left/right padding.
 
-Do **not** use:
+The spacing is inherited from the shared `.erp-content` layout.
+
+The established project rule is:
+
+``` css
+.erp-content {
+    padding: 16px 16px 28px;
+}
+```
+
+Therefore:
+
+-   Left: **16px**
+-   Right: **16px**
+-   Top: **16px**
+-   Bottom: **28px**
+
+Do not add another page-level `padding: 24px`, `32px`, `40px`, etc.
+
+------------------------------------------------------------------------
+
+# 4. Page Header
+
+The header uses:
 
 ``` html
-<span>○</span>
+<header class="page-header">
+    ...
+</header>
 ```
 
-as a substitute for a real icon.
+### Layout
 
-Do not use text glyphs as icon replacements.
+``` css
+.page-header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 24px;
+    margin-bottom: 22px;
+}
+```
+
+### Header animation
+
+The header enters with:
+
+``` css
+animation:
+    users-header-enter
+    480ms
+    cubic-bezier(0.22, 1, 0.36, 1)
+    20ms
+    both;
+```
 
 ------------------------------------------------------------------------
 
-# 7. Page Header Description
+# 5. Breadcrumb
 
-The subtitle explains the page purpose.
+Breadcrumb appears above the title.
 
-Recommended:
+Semantic markup:
 
-``` text
-Font family: Instrument Sans
-Font size: 16px
-Font weight: 400
-Line height: 1.5
-Color: muted slate
+``` html
+<nav class="page-breadcrumb" aria-label="Breadcrumb">
+    <span>Identity &amp; Access</span>
+    <AppIcon name="chevron-right" />
+    <span class="is-current">Users</span>
+</nav>
 ```
 
-Example:
+### Actual styling
 
-> Manage platform users, account status and assigned roles from one
-> workspace.
+``` css
+.page-breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    margin-bottom: 9px;
 
-Keep descriptions concise.
+    color: var(--text-muted, #7b8794);
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.2;
+}
+```
+
+Current breadcrumb:
+
+``` css
+.page-breadcrumb .is-current {
+    color: var(--text-secondary, #596573);
+}
+```
+
+Separator:
+
+``` css
+.breadcrumb-icon {
+    color: var(--border-strong, #cdd4dd);
+}
+```
+
+### Important
+
+Breadcrumb is intentionally smaller than the H1. It must never visually
+compete with the page title.
 
 ------------------------------------------------------------------------
 
-# 8. Header Action Buttons
+# 6. Page Title + Icon
 
-Actions such as:
+The title row is:
+
+``` html
+<div class="page-title-row">
+    <div class="page-title-icon" aria-hidden="true">
+        <AppIcon name="users" />
+    </div>
+
+    <div>
+        <h1>User Management</h1>
+        <p>Manage platform users, account status and assigned roles from one workspace.</p>
+    </div>
+</div>
+```
+
+### Title row
+
+``` css
+.page-title-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+```
+
+### Page icon container
+
+Actual implementation:
+
+``` css
+.page-title-icon {
+    display: inline-flex;
+    width: 42px;
+    height: 42px;
+    flex: 0 0 42px;
+    align-items: center;
+    justify-content: center;
+
+    border: 1px solid
+        color-mix(
+            in srgb,
+            var(--primary, #1f8f68) 22%,
+            var(--border, #e5e9ee)
+        );
+
+    border-radius: 12px;
+
+    color: var(--primary, #1f8f68);
+
+    background:
+        color-mix(
+            in srgb,
+            var(--primary, #1f8f68) 10%,
+            var(--surface, #ffffff)
+        );
+}
+```
+
+### Icon
+
+-   Size: **21px**
+-   Stroke-based.
+-   Green accent.
+-   Same application icon family.
+-   No emoji.
+-   No Unicode replacement.
+
+------------------------------------------------------------------------
+
+# 7. H1 Typography
+
+Actual implementation:
+
+``` css
+.page-title-row h1 {
+    margin: 0;
+    color: var(--text-primary, #17202a);
+
+    font-size: clamp(24px, 3vw, 30px);
+    font-weight: 700;
+    line-height: 1.12;
+    letter-spacing: -0.035em;
+}
+```
+
+### Actual Users page hierarchy
+
+  Property         Value
+  ---------------- -----------------------------------
+  Font family      Instrument Sans
+  Size             `clamp(24px, 3vw, 30px)`
+  Weight           700
+  Line height      1.12
+  Letter spacing   -0.035em
+  Color            `#17202a` / `var(--text-primary)`
+
+------------------------------------------------------------------------
+
+# 8. Page Description
+
+``` css
+.page-title-row p {
+    max-width: 620px;
+    margin: 7px 0 0;
+
+    color: var(--text-muted, #7b8794);
+
+    font-size: 13px;
+    line-height: 1.55;
+}
+```
+
+Desktop actual size: **13px**.
+
+At mobile width below 560px:
+
+``` css
+font-size: 12px;
+```
+
+------------------------------------------------------------------------
+
+# 9. Header Action Buttons
+
+Header contains:
 
 -   Refresh
 -   Add user
--   Create role
--   Export
 
-must use the shared button system.
+Semantic markup:
 
-## Primary button
+``` html
+<button type="button" class="btn btn-secondary">
+    <AppIcon />
+    <span>Refresh</span>
+</button>
 
-Example:
-
-``` text
-+ Add user
+<button type="button" class="btn btn-primary">
+    <AppIcon />
+    <span>Add user</span>
+</button>
 ```
 
-Recommended:
+### Action group
 
-``` text
-Height: 44px–48px
-Horizontal padding: 18px–20px
-Border radius: 12px
-Font size: 14px–15px
-Font weight: 600
+``` css
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+}
 ```
 
-Primary action:
+### Button
 
--   Uses the system green/accent color.
--   White text.
--   Has a subtle hover state.
--   Icon is placed before the label.
+``` css
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
 
-## Secondary button
+    min-height: 38px;
+    padding: 0 14px;
 
-Example:
+    border: 1px solid transparent;
+    border-radius: 10px;
 
-``` text
-↻ Refresh
+    font: inherit;
+    font-size: 13px;
+    font-weight: 700;
+
+    cursor: pointer;
+
+    transition:
+        transform 140ms ease,
+        border-color 140ms ease,
+        background 140ms ease,
+        color 140ms ease,
+        opacity 140ms ease,
+        box-shadow 140ms ease;
+}
 ```
 
-Recommended:
+### Hover
 
-``` text
-Height: 44px–48px
-Border: 1px solid #E2E8F0-ish
-Background: white
-Text: primary dark
-Border radius: 12px
+``` css
+.btn:not(:disabled):hover {
+    transform: translateY(-1px);
+}
 ```
 
-### Icon rule
+### Primary
 
-Buttons must use actual icons.
-
-Refresh must display a refresh icon, not a circle glyph.
-
-------------------------------------------------------------------------
-
-# 9. Spacing System
-
-Madina Scale should use a consistent spacing scale.
-
-Recommended base:
-
-``` text
-4px
-8px
-12px
-16px
-20px
-24px
-32px
-40px
-48px
+``` css
+.btn-primary {
+    color: #fff;
+    background: var(--primary, #1f8f68);
+    box-shadow:
+        0 5px 14px
+        color-mix(
+            in srgb,
+            var(--primary, #1f8f68) 18%,
+            transparent
+        );
+}
 ```
 
-## Page-level rhythm
+### Secondary
 
-Typical hierarchy:
-
-``` text
-Topbar
-↓ 18–24px
-Breadcrumb
-↓ 12–16px
-Title row
-↓ 24–32px
-KPI section
-↓ 20–24px
-Main data card
-```
-
-Do not introduce random spacing such as:
-
-``` text
-17px
-29px
-37px
-63px
-```
-
-unless there is a deliberate component-level reason.
-
-------------------------------------------------------------------------
-
-# 10. KPI Cards
-
-Management pages may use KPI cards beneath the page header.
-
-The Users page uses:
-
--   Total users
--   Active
--   Inactive
-
-The Roles & Permissions page uses:
-
--   Total Roles
--   Active Roles
--   Permissions
--   Coverage
-
-## Card structure
-
-``` text
-┌───────────────────────────────────────────┐
-│  Icon   Label                             │
-│          Value                            │
-│          Optional supporting text         │
-└───────────────────────────────────────────┘
-```
-
-## KPI card rules
-
--   Background: white
--   Border: subtle neutral border
--   Radius: approximately 16px
--   Soft shadow
--   Internal padding: approximately 18px--20px
--   Height: visually consistent across pages
-
-### Label
-
-``` text
-Font size: 13px–14px
-Weight: 400–500
-Color: muted
-```
-
-### Value
-
-``` text
-Font size: 26px–30px
-Weight: 600
-Color: primary
-```
-
-### Supporting text
-
-``` text
-Font size: 12px–13px
-Weight: 400
-Color: muted
+``` css
+.btn-secondary {
+    color: var(--text-primary, #17202a);
+    border-color: var(--border, #e5e9ee);
+    background: var(--surface, #fff);
+}
 ```
 
 ------------------------------------------------------------------------
 
-# 11. Icon Containers
+# 10. Statistics / KPI Cards
 
-All semantic icons should follow a shared visual language.
+The Users page has three KPI cards:
 
-### General icon sizes
+1.  Total users
+2.  Active
+3.  Inactive
 
-``` text
-Navigation icon: 18px–20px
-Button icon: 16px–18px
-Table/action icon: 17px–18px
-Page icon: 22px–24px
-KPI icon: 20px–22px
+Markup:
+
+``` html
+<section class="stat-grid" aria-label="User statistics">
+    <article class="stat-card">...</article>
+    <article class="stat-card">...</article>
+    <article class="stat-card">...</article>
+</section>
 ```
 
-### Never
+### Grid
 
--   Use different icon libraries on different pages without a reason.
--   Use emoji as UI icons.
--   Use Unicode circles/squares as icon replacements.
--   Change icon stroke style from one page to another.
+``` css
+.stat-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px;
+    margin-bottom: 18px;
+}
+```
+
+### Card
+
+Actual card dimensions/style:
+
+``` css
+.stat-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+
+    min-height: 82px;
+    padding: 16px;
+
+    border: 1px solid var(--border, #e5e9ee);
+    border-radius: 14px;
+
+    background: var(--surface, #fff);
+
+    box-shadow: 0 5px 18px rgb(15 23 42 / 3%);
+}
+```
+
+### KPI icon
+
+``` css
+.stat-icon {
+    width: 38px;
+    height: 38px;
+    flex: 0 0 38px;
+
+    display: grid;
+    place-items: center;
+
+    border-radius: 10px;
+
+    color: var(--text-secondary, #596573);
+    background: var(--surface-muted, #f3f5f7);
+}
+```
+
+Active icon:
+
+``` css
+color: #19734f;
+background: #eaf7f1;
+```
+
+Inactive icon:
+
+``` css
+color: #9a6518;
+background: #fff5e4;
+```
+
+### KPI label
+
+``` css
+.stat-card span {
+    display: block;
+    color: var(--text-muted, #7b8794);
+    font-size: 12px;
+}
+```
+
+### KPI value
+
+``` css
+.stat-card strong {
+    display: block;
+    margin-top: 3px;
+
+    color: var(--text-primary, #17202a);
+    font-size: 22px;
+    line-height: 1.1;
+}
+```
 
 ------------------------------------------------------------------------
 
-# 12. Main Data Card
+# 11. Main Workspace Card
 
-The Users table and Roles & Permissions workspace both use a large white
-content card.
+The user table lives inside:
 
-## Card
-
-``` text
-Background: white
-Border: subtle neutral
-Border radius: 16px–18px
-Overflow: hidden where necessary
+``` html
+<section class="workspace-card" aria-labelledby="users-table-title">
 ```
 
-The card should contain:
+### Actual styling
 
-1.  Search/filter toolbar
-2.  Table header
-3.  Table rows
-4.  Footer/meta information
+``` css
+.workspace-card {
+    overflow: hidden;
+
+    border: 1px solid var(--border, #e5e9ee);
+    border-radius: 15px;
+
+    background: var(--surface, #fff);
+
+    box-shadow: 0 8px 28px rgb(15 23 42 / 4%);
+
+    animation:
+        workspace-enter
+        520ms
+        cubic-bezier(0.22, 1, 0.36, 1)
+        80ms
+        both;
+}
+```
+
+This is the primary content surface.
 
 ------------------------------------------------------------------------
 
-# 13. Search & Filter Toolbar
+# 12. Toolbar
 
-## Layout
+Toolbar contains:
 
-``` text
-┌──────────────────────────────────────────────────────────┐
-│ Search field                              Status filter  │
-└──────────────────────────────────────────────────────────┘
+-   Search.
+-   Status filter.
+-   Clear filters when active.
+
+``` css
+.toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+
+    padding: 15px;
+
+    border-bottom: 1px solid var(--border, #e5e9ee);
+}
 ```
-
-### Search input
-
-Recommended:
-
-``` text
-Height: 48px
-Border radius: 12px
-Padding: 0 16px
-Font size: 14px–15px
-```
-
-Placeholder:
-
--   muted
--   not overly dark
--   concise
-
-### Filter
-
-Status dropdown should have the same height and radius as the search
-field.
-
-Do not use a visually different dropdown on another page.
 
 ------------------------------------------------------------------------
 
-# 14. Table Design
+# 13. Search Field
 
-## Column hierarchy
+Semantic markup:
 
-The Users page currently follows:
-
-``` text
-USER
-STATUS
-ROLES
-LAST LOGIN
-CREATED
-ACTIONS
+``` html
+<label class="search-field">
+    <AppIcon name="search" />
+    <input
+        type="search"
+        placeholder="Search by name, email or role..."
+    />
+</label>
 ```
 
-This column structure must remain stable unless the business requirement
-changes.
+### Actual styling
 
-## Table header
+``` css
+.search-field {
+    display: flex;
+    align-items: center;
+    gap: 9px;
 
-Recommended:
+    width: min(470px, 100%);
+    height: 39px;
+    padding: 0 12px;
 
-``` text
-Font size: 12px–13px
-Font weight: 600
-Text transform: uppercase
-Letter spacing: approximately 0.02em–0.04em
-Color: muted slate
+    border: 1px solid var(--border, #e5e9ee);
+    border-radius: 10px;
+
+    color: var(--text-muted, #7b8794);
+    background: var(--surface-muted, #f8fafb);
+}
 ```
 
-## Table row
+Input:
 
-Recommended:
-
-``` text
-Min height: approximately 72px–80px
-Border bottom: subtle
-Vertical alignment: middle
+``` css
+font-size: 13px;
 ```
 
-Rows must have enough space for:
+Focus:
 
--   avatar
--   user name
--   email
--   status badge
--   role badge
--   last login
--   creation date
--   action buttons
+``` css
+border-color:
+    color-mix(
+        in srgb,
+        var(--primary, #1f8f68) 45%,
+        var(--border, #e5e9ee)
+    );
+
+background: var(--surface, #fff);
+
+box-shadow:
+    0 0 0 3px
+    color-mix(
+        in srgb,
+        var(--primary, #1f8f68) 10%,
+        transparent
+    );
+```
 
 ------------------------------------------------------------------------
 
-# 15. User Cell
+# 14. Status Filter
 
-The user column contains:
+Actual select:
+
+``` css
+.toolbar select {
+    height: 39px;
+    padding: 0 34px 0 11px;
+
+    border: 1px solid var(--border, #e5e9ee);
+    border-radius: 10px;
+
+    color: var(--text-primary, #17202a);
+    background: var(--surface, #fff);
+
+    font: inherit;
+    font-size: 13px;
+}
+```
+
+Search and filter deliberately use the same control height and radius.
+
+------------------------------------------------------------------------
+
+# 15. Table Structure
+
+The page uses real table semantics:
+
+``` html
+<table>
+    <thead>
+        <tr>
+            <th>User</th>
+            <th>Status</th>
+            <th>Roles</th>
+            <th>Last Login</th>
+            <th>Created</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+
+    <tbody>
+        ...
+    </tbody>
+</table>
+```
+
+Column order is fixed:
+
+1.  USER
+2.  STATUS
+3.  ROLES
+4.  LAST LOGIN
+5.  CREATED
+6.  ACTIONS
+
+------------------------------------------------------------------------
+
+# 16. Table Header
+
+Actual implementation:
+
+``` css
+th {
+    padding: 12px 16px;
+
+    color: var(--text-muted, #7b8794);
+    background: var(--surface-muted, #fafbfc);
+
+    font-size: 11px;
+    font-weight: 800;
+
+    letter-spacing: 0.06em;
+
+    text-align: left;
+    text-transform: uppercase;
+
+    white-space: nowrap;
+}
+```
+
+This is a deliberately compact enterprise table header.
+
+------------------------------------------------------------------------
+
+# 17. Table Cells / Rows
+
+Actual:
+
+``` css
+td {
+    padding: 13px 16px;
+
+    border-top: 1px solid var(--border, #eef1f4);
+
+    vertical-align: middle;
+
+    color: var(--text-primary, #17202a);
+    font-size: 13px;
+}
+```
+
+Row hover:
+
+``` css
+tbody tr:hover {
+    background: var(--surface-muted, #fafbfc);
+}
+```
+
+------------------------------------------------------------------------
+
+# 18. User Cell
+
+Structure:
 
 ``` text
 [Avatar]  User Name
           email@example.com
 ```
 
-## User name
+Semantic interactive element:
 
-``` text
-Font size: 15px–16px
-Weight: 600
-Color: primary
+``` html
+<button class="user-cell" type="button">
+    ...
+</button>
 ```
 
-## Email
+### Layout
 
-``` text
-Font size: 13px–14px
-Weight: 400
-Color: muted
+``` css
+.user-cell {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+
+    padding: 0;
+    border: 0;
+
+    background: transparent;
+    text-align: left;
+}
 ```
 
-## Avatar
+### Avatar
 
-Recommended:
+Actual:
 
-``` text
-Size: 44px–48px
-Border radius: 12px–14px
-Background: subtle green/accent tint
+``` css
+.avatar {
+    display: grid;
+    width: 38px;
+    height: 38px;
+    flex: 0 0 38px;
+    place-items: center;
+
+    border-radius: 11px;
+
+    color: var(--primary, #1f8f68);
+    background: var(--primary-soft, #eaf7f1);
+
+    font-size: 12px;
+    font-weight: 800;
+}
 ```
 
-Initials should be derived from the user's name.
+### User name
+
+``` css
+.user-copy strong {
+    color: var(--text-primary, #17202a);
+    font-weight: 700;
+}
+```
+
+### Email
+
+``` css
+.user-copy small {
+    color: var(--text-muted, #7b8794);
+    font-size: 12px;
+}
+```
+
+The user name and email are ellipsis-truncated at approximately 280px.
 
 ------------------------------------------------------------------------
 
-# 16. Status Badges
+# 19. Status Badge
 
-Examples:
+Markup:
 
-``` text
-● Active
-● Inactive
+``` html
+<span class="status-badge active">
+    <i></i>
+    active
+</span>
 ```
 
-## Badge
+### Badge
 
-Recommended:
+``` css
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
 
-``` text
-Height: 28px–32px
-Padding: 0 10px–12px
-Border radius: 999px
-Font size: 12px–13px
-Font weight: 600
+    padding: 5px 9px;
+    border-radius: 999px;
+
+    font-size: 11px;
+    font-weight: 800;
+
+    text-transform: capitalize;
+}
+```
+
+Dot:
+
+``` css
+width: 6px;
+height: 6px;
+border-radius: 50%;
+background: currentColor;
 ```
 
 ### Active
 
--   Green-tinted background
--   Green text
--   Small green status dot
+``` css
+color: #17714e;
+background: #eaf7f1;
+```
 
 ### Inactive
 
--   Amber/orange-tinted background
--   Amber/orange text
--   Small amber status dot
-
-The semantic meaning must remain consistent throughout the application.
+``` css
+color: #9a6518;
+background: #fff5e4;
+```
 
 ------------------------------------------------------------------------
 
-# 17. Role Badges
+# 20. Role Chips
 
-Example:
+Roles are displayed as compact chips.
 
-``` text
-Manager
-Developer
+``` css
+.roles-cell {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    min-width: 190px;
+}
 ```
 
-Recommended:
+Chip:
 
-``` text
-Background: very light neutral/blue-gray
-Border: subtle
-Border radius: 8px–10px
-Font size: 12px–13px
-Font weight: 500–600
-Padding: 5px–9px
+``` css
+.role-chip,
+.role-more {
+    display: inline-flex;
+    align-items: center;
+
+    min-height: 25px;
+    padding: 0 8px;
+
+    border: 1px solid var(--border, #e5e9ee);
+    border-radius: 7px;
+
+    color: var(--text-secondary, #596573);
+    background: var(--surface-muted, #f8fafb);
+
+    font-size: 11px;
+    font-weight: 700;
+}
 ```
 
-System roles may use the project's special system-role treatment.
+System role:
+
+``` css
+.role-chip.system {
+    color: #6c4b9e;
+    border-color: #dfd3f0;
+    background: #f7f2fc;
+}
+```
+
+Maximum visible roles: **2**, then `+N`.
 
 ------------------------------------------------------------------------
 
-# 18. Last Login
+# 21. Last Login Column
 
-The `LAST LOGIN` column is a first-class data column and must never
-disappear merely because the UI is being restyled.
+This column is mandatory and must never disappear during UI restyling.
 
-## Data source
+Data source:
 
-The UI should read:
-
-``` text
+``` ts
 user.last_login_at
 ```
 
-from the authenticated user's persisted login metadata.
+Optional secondary metadata:
 
-## Display rule
+``` ts
+user.last_login_ip
+```
 
-If login data exists:
+### Cell
+
+``` css
+.last-login-cell {
+    min-width: 155px;
+}
+```
+
+### Layout
+
+``` css
+.last-login {
+    display: grid;
+    gap: 3px;
+}
+```
+
+### Login time
+
+``` css
+.last-login-time {
+    color: var(--text-secondary, #596573);
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+```
+
+If missing:
+
+``` css
+.last-login-time.never {
+    color: var(--text-muted, #9aa4b2);
+    font-weight: 500;
+}
+```
+
+Display:
 
 ``` text
 Oct 04, 2026, 07:32 PM
 ```
 
-or the project's approved relative/absolute date format.
-
-If no login exists:
+If genuinely null:
 
 ``` text
 Never
 ```
 
-### Important
+The frontend must never fabricate login information.
 
-The frontend must not fabricate last-login data.
+------------------------------------------------------------------------
 
-The backend must persist it during successful authentication.
+# 22. Last Login IP
 
-The value is expected to be updated by the authentication flow:
+``` css
+.last-login-ip {
+    color: var(--text-muted, #8a94a5);
+    font-size: 10px;
+    line-height: 1.2;
+    white-space: nowrap;
+}
+```
 
-``` text
-successful login
-    ↓
-AuthenticationService
-    ↓
-AccountSecurityService
-    ↓
-last_login_at = current time
-last_login_ip = request IP
-    ↓
-database
-    ↓
-UserController payload
-    ↓
-Users/Index.vue
+At max-width 1100px:
+
+``` css
+.last-login-ip {
+    display: none;
+}
 ```
 
 ------------------------------------------------------------------------
 
-# 19. Created Date
+# 23. Created Column
 
-The Created column should use the application's standard date format.
+``` css
+.date-cell {
+    color: var(--text-secondary, #596573);
+    white-space: nowrap;
+}
+```
+
+The page formats the stored `created_at` value using
+`Intl.DateTimeFormat`.
+
+------------------------------------------------------------------------
+
+# 24. Action Buttons
+
+Actions:
+
+-   View
+-   Edit
+
+Buttons are icon-only but accessible:
+
+``` html
+<button
+    type="button"
+    aria-label="View user"
+    title="View user"
+>
+    <AppIcon name="eye" />
+</button>
+```
+
+### Actual dimensions
+
+``` css
+.icon-btn {
+    display: grid;
+
+    width: 32px;
+    height: 32px;
+
+    place-items: center;
+
+    border: 1px solid var(--border, #e5e9ee);
+    border-radius: 8px;
+
+    color: var(--text-secondary, #596573);
+    background: var(--surface, #fff);
+}
+```
+
+Hover:
+
+``` css
+color: var(--primary, #1f8f68);
+border-color:
+    color-mix(
+        in srgb,
+        var(--primary, #1f8f68) 50%,
+        var(--border, #e5e9ee)
+    );
+background: var(--surface-muted, #fafbfc);
+transform: translateY(-1px);
+```
+
+------------------------------------------------------------------------
+
+# 25. Empty State
+
+The empty state is semantic and centered.
+
+``` css
+.empty-state {
+    display: grid;
+    min-height: 250px;
+
+    place-items: center;
+    align-content: center;
+
+    padding: 40px 20px;
+
+    text-align: center;
+}
+```
+
+Icon:
+
+``` css
+.empty-icon {
+    width: 44px;
+    height: 44px;
+    margin-bottom: 10px;
+
+    display: grid;
+    place-items: center;
+
+    border-radius: 12px;
+
+    color: var(--text-muted, #7b8794);
+    background: var(--surface-muted, #f3f5f7);
+}
+```
+
+Text:
+
+-   Heading: 14px.
+-   Supporting text: 12px.
+-   Clear filters action appears when filters are active.
+
+------------------------------------------------------------------------
+
+# 26. Footer
+
+``` css
+.table-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+
+    padding: 12px 16px;
+
+    border-top: 1px solid var(--border, #e5e9ee);
+
+    color: var(--text-muted, #7b8794);
+    font-size: 12px;
+}
+```
 
 Example:
-
-``` text
-Oct 01, 2026
-```
-
-Recommended:
-
-``` text
-Font size: 14px–15px
-Weight: 400–500
-Color: muted/secondary
-```
-
-------------------------------------------------------------------------
-
-# 20. Action Buttons
-
-The Actions column should contain compact icon buttons.
-
-Typical actions:
-
-``` text
-View
-Edit
-```
-
-## Action button
-
-Recommended:
-
-``` text
-Width: 40px–42px
-Height: 40px–42px
-Border radius: 10px–12px
-Border: 1px solid neutral
-Background: white
-```
-
-### Critical rule
-
-The actual icons must always render.
-
-Use the project's established icon components/library.
-
-Do not replace icons with:
-
-``` text
-○
-•
-□
-```
-
-or text characters.
-
-------------------------------------------------------------------------
-
-# 21. Footer
-
-The data card footer may display:
 
 ``` text
 Showing 6 of 6 users
 ```
 
-Recommended:
-
-``` text
-Font size: 13px–14px
-Color: muted
-```
-
-Right-side contextual controls may appear when appropriate, e.g.:
+Developer users additionally see:
 
 ``` text
 Developer access
 ```
 
+Developer note color:
+
+``` css
+#6c4b9e
+```
+
 ------------------------------------------------------------------------
 
-# 22. Color System
+# 27. Color System
 
-The visual system is based on a restrained enterprise palette.
+The page uses restrained enterprise colors.
 
-## Primary
+## Primary text
 
-Use the application's established dark navy for:
+``` text
+#17202a
+```
+
+Variable:
+
+``` css
+var(--text-primary)
+```
+
+Used for:
 
 -   H1
--   primary text
--   important labels
--   navigation
+-   User names
+-   Important labels
+-   Table primary text
 
-## Accent
+## Secondary text
 
-Use the application's green accent for:
+``` text
+#596573
+```
 
--   primary buttons
--   active navigation
--   success states
--   page icon accents
--   positive status indicators
+Variable:
 
-## Neutral
+``` css
+var(--text-secondary)
+```
 
-Use blue-gray/slate tones for:
+## Muted text
 
--   secondary text
--   descriptions
--   metadata
--   table headers
--   placeholders
+``` text
+#7b8794
+```
+
+Variable:
+
+``` css
+var(--text-muted)
+```
+
+## Primary accent
+
+``` text
+#1f8f68
+```
+
+Variable:
+
+``` css
+var(--primary)
+```
+
+Used for:
+
+-   Primary button
+-   Page icon
+-   Active state
+-   Positive UI
+-   Hover accent
 
 ## Surface
 
-Use:
-
--   very light cool-gray page background
--   white cards
--   subtle neutral borders
-
-## Status colors
-
 ``` text
-Success → green
-Warning/Inactive → amber
-Error → red
-Info → blue
+#ffffff
 ```
 
-Do not introduce arbitrary colors per page.
-
-------------------------------------------------------------------------
-
-# 23. Border System
-
-Use a consistent subtle border.
-
-Recommended visual:
-
-``` text
-1px solid rgba(148, 163, 184, 0.18–0.28)
-```
-
-Borders should separate surfaces without becoming visually heavy.
-
-------------------------------------------------------------------------
-
-# 24. Border Radius System
-
-Use a predictable radius hierarchy.
-
-``` text
-Small controls:     8px–10px
-Inputs:             10px–12px
-Buttons:            10px–12px
-Badges:             999px
-Cards:              16px–18px
-Page icon:          14px–16px
-Avatar:             12px–14px
-```
-
-Do not use random radii on equivalent components.
-
-------------------------------------------------------------------------
-
-# 25. Shadow System
-
-Shadows should be subtle.
-
-Use them primarily for:
-
--   cards
--   dropdowns
--   floating elements
--   modal surfaces
-
-Avoid strong black shadows.
-
-The design should look premium through:
-
--   spacing
--   hierarchy
--   borders
--   typography
--   restrained shadows
-
----not through heavy effects.
-
-------------------------------------------------------------------------
-
-# 26. Typography System
-
-## Font family
-
-The project uses **Instrument Sans**.
-
-This must be the universal application font unless a specific technical
-requirement says otherwise.
+Variable:
 
 ``` css
-font-family: 'Instrument Sans', sans-serif;
+var(--surface)
 ```
 
-## Primary weights
+## Muted surface
 
-Use:
+Common values:
 
 ``` text
-400 — regular
-500 — medium
-600 — semibold
+#f8fafb
+#fafbfc
+#f3f5f7
 ```
 
-Avoid unnecessary use of:
+## Border
 
 ``` text
-700+
+#e5e9ee
 ```
 
-unless the design system explicitly requires it.
+Variable:
+
+``` css
+var(--border)
+```
+
+## Strong border
+
+``` text
+#cdd4dd
+```
+
+Variable:
+
+``` css
+var(--border-strong)
+```
+
+## Active status
+
+``` text
+foreground: #17714e
+background: #eaf7f1
+```
+
+## Inactive status
+
+``` text
+foreground: #9a6518
+background: #fff5e4
+```
+
+## System role
+
+``` text
+foreground: #6c4b9e
+background: #f7f2fc
+border: #dfd3f0
+```
 
 ------------------------------------------------------------------------
 
-# 27. Typography Scale
+# 28. Font System
 
-  Element                      Size     Weight
-  ---------------------- ---------- ----------
-  Page H1                  34--38px   500--600
-  Page description         15--16px        400
-  Breadcrumb               13--14px        500
-  Section title            18--20px   500--600
-  Card label               13--14px   400--500
-  KPI value                26--30px        600
-  Table header             12--13px        600
-  Table primary text       15--16px   500--600
-  Table secondary text     13--14px        400
-  Button                   14--15px        600
-  Input                    14--15px   400--500
-  Badge                    12--13px   500--600
-  Footer/meta              13--14px   400--500
+The project uses:
+
+``` css
+font-family: "Instrument Sans", sans-serif;
+```
+
+No page may introduce another font family.
+
+### Actual Users page sizes
+
+  Element                          Size           Weight
+  --------------- --------------------- ----------------
+  Breadcrumb                       11px              600
+  H1                24--30px responsive              700
+  Description                      13px              400
+  Header button                    13px              700
+  KPI label                        12px              400
+  KPI value                        22px   default strong
+  Search                           13px        inherited
+  Filter                           13px        inherited
+  Table header                     11px              800
+  Table body                       13px          regular
+  User name              inherited, 700              700
+  Email                            12px          regular
+  Status badge                     11px              800
+  Role chip                        11px              700
+  Last login                       12px              600
+  Last-login IP                    10px          regular
+  Footer                           12px          regular
+
+> **Important:** Future pages should use the established project's
+> typography system rather than inventing page-specific font sizes.
 
 ------------------------------------------------------------------------
 
-# 28. Semantic HTML Rules
+# 29. Border Radius System
 
-Every page must use semantic HTML.
+Actual Users page uses:
 
-### Required where appropriate
+  Component          Radius
+  ---------------- --------
+  Page icon            12px
+  Header buttons       10px
+  KPI card             14px
+  KPI icon             10px
+  Workspace card       15px
+  Search               10px
+  Filter               10px
+  Avatar               11px
+  Status badge        999px
+  Role chip             7px
+  Action button         8px
+  Empty icon           12px
+
+------------------------------------------------------------------------
+
+# 30. Shadow System
+
+Shadows are deliberately subtle.
+
+KPI:
+
+``` css
+0 5px 18px rgb(15 23 42 / 3%)
+```
+
+Workspace:
+
+``` css
+0 8px 28px rgb(15 23 42 / 4%)
+```
+
+Primary button:
+
+``` css
+0 5px 14px
+color-mix(in srgb, var(--primary) 18%, transparent)
+```
+
+Do not use heavy black shadows.
+
+------------------------------------------------------------------------
+
+# 31. Icon System
+
+The page currently uses a self-contained SVG icon renderer because
+several shared icon names previously failed to resolve reliably.
+
+Icons are:
+
+-   SVG.
+-   Stroke based.
+-   `viewBox="0 0 24 24"`.
+-   `fill="none"`.
+-   `stroke="currentColor"`.
+-   `stroke-linecap="round"`.
+-   `stroke-linejoin="round"`.
+-   Default stroke width around **1.8**.
+
+Used icons include:
+
+``` text
+users
+refresh
+plus
+check
+lock
+search
+close
+eye
+edit
+chevron-right
+developer
+```
+
+### Permanent rule
+
+UI icons must never be represented with:
+
+``` text
+○
+•
+□
++
+emoji
+```
+
+Use the established icon component/library.
+
+------------------------------------------------------------------------
+
+# 32. Semantic HTML
+
+The page correctly uses:
 
 ``` html
 <header>
 <nav>
-<main>
 <section>
 <article>
 <h1>
 <h2>
-<h3>
+<p>
+<button>
+<label>
+<input>
+<select>
 <table>
 <thead>
 <tbody>
 <tr>
 <th>
 <td>
-<form>
-<label>
-<button>
+<footer>
 ```
 
-### Do not
-
-Build an entire page using meaningless:
-
-``` html
-<div>
-    <div>
-        <div>
-            ...
-        </div>
-    </div>
-</div>
-```
-
-Use semantic structure whenever the element has a semantic equivalent.
+This structure must be preserved.
 
 ------------------------------------------------------------------------
 
-# 29. Accessibility Rules
+# 33. Accessibility
 
-Every page must support:
+The page provides:
 
--   keyboard navigation
--   visible focus states
--   screen-reader labels
--   semantic buttons
--   semantic headings
--   accessible form labels
--   sufficient color contrast
--   meaningful `aria-label` values for icon-only buttons
+-   `aria-label="Breadcrumb"`.
+-   `aria-label="User statistics"`.
+-   `aria-labelledby` for the main workspace.
+-   Screen-reader-only table heading.
+-   Proper `<label>` around search.
+-   Explicit label for status filter.
+-   `aria-label` and `title` on icon-only action buttons.
+-   `focus-visible` outlines.
+-   Disabled states.
+-   Keyboard-friendly buttons.
 
-Example:
-
-``` html
-<button
-    type="button"
-    aria-label="View user"
->
-    ...
-</button>
-```
-
-Never make an icon-only button accessible only through its visual
-appearance.
-
-------------------------------------------------------------------------
-
-# 30. Responsive Rules
-
-The page must work on:
-
--   desktop
--   laptop
--   tablet
--   mobile
-
-### Desktop
-
-Use the full multi-column layout.
-
-### Tablet
-
-Reduce:
-
--   horizontal gaps
--   card grid columns
--   table density where necessary
-
-### Mobile
-
-Stack:
-
-``` text
-Breadcrumb
-Title
-Description
-Actions
-KPI cards
-Search/filter
-Data
-```
-
-Do not allow the page to become horizontally broken.
-
-For very wide tables, use a controlled horizontal scroll container
-rather than breaking table semantics.
-
-------------------------------------------------------------------------
-
-# 31. Loading State
-
-Loading states must preserve layout dimensions.
-
-Do not cause large layout jumps.
-
-Use skeletons or appropriate loading indicators that match the same:
-
--   radius
--   spacing
--   typography
--   surface colors
-
-------------------------------------------------------------------------
-
-# 32. Empty State
-
-Empty states must use the same page language.
-
-Example:
-
-``` text
-[Icon]
-
-No users found
-
-There are no users matching the current filters.
-```
-
-Include an appropriate action when useful.
-
-------------------------------------------------------------------------
-
-# 33. Error State
-
-Errors must be:
-
--   visible
--   concise
--   actionable
--   semantically associated with the failed operation
-
-Do not rely only on color.
-
-------------------------------------------------------------------------
-
-# 34. Interaction Rules
-
-Every interactive element needs:
-
-``` text
-Default
-Hover
-Focus
-Active
-Disabled
-Loading
-```
-
-states where applicable.
-
-Transitions should be subtle.
-
-Recommended:
+Focus style:
 
 ``` css
-transition: 150ms–200ms ease;
+outline: 2px solid
+    color-mix(
+        in srgb,
+        var(--primary, #1f8f68) 65%,
+        transparent
+    );
+
+outline-offset: 2px;
 ```
 
-Do not use excessive animations.
+------------------------------------------------------------------------
+
+# 34. Animation System
+
+The page has three entrance animations.
+
+## Root
+
+``` css
+@keyframes users-page-enter {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+```
+
+Duration:
+
+``` text
+500ms
+```
+
+Easing:
+
+``` text
+cubic-bezier(0.22, 1, 0.36, 1)
+```
+
+## Header
+
+``` text
+480ms
+20ms delay
+translateY(7px)
+```
+
+## Workspace
+
+``` text
+520ms
+80ms delay
+translateY(9px)
+```
+
+The animation should feel:
+
+-   Smooth.
+-   Subtle.
+-   Premium.
+-   Fast enough for an admin system.
+-   Never distracting.
+
+Future pages should reuse this animation language.
 
 ------------------------------------------------------------------------
 
-# 35. Page Consistency Rules
+# 35. Responsive Behavior
 
-When creating a new page, developers must not independently decide:
+## \<= 1100px
 
--   a new font
--   a new card radius
--   a new button style
--   a new input style
--   a new spacing system
--   a new page heading structure
--   a new icon style
--   a new color palette
+-   Last-login minimum width becomes 125px.
+-   Last-login IP is hidden.
 
-Instead, reuse the universal design system.
+## \<= 900px
+
+-   Header becomes vertical.
+-   Header actions become full width.
+-   KPI grid becomes one column.
+-   Toolbar becomes vertical.
+-   Search becomes full width.
+-   Toolbar actions distribute horizontally.
+
+## \<= 720px
+
+-   Page title icon becomes 38×38px.
+-   H1 becomes 24px.
+-   Header buttons become full width.
+-   Header actions stack vertically.
+-   Toolbar actions stack vertically.
+-   Status select becomes full width.
+-   Footer stacks vertically.
+
+## \<= 560px
+
+-   Header gap: 18px.
+-   Header bottom margin: 18px.
+-   Description: 12px.
+-   KPI card minimum height: 76px.
+-   KPI padding: 14px.
+-   Table horizontal padding becomes 12px.
 
 ------------------------------------------------------------------------
 
-# 36. Page Blueprint
+# 36. Data / Functional Elements That Must Not Be Removed
 
-A standard management page should follow this structure:
+Visual refactoring must preserve:
+
+-   Total users.
+-   Active users.
+-   Inactive users.
+-   Search.
+-   Status filter.
+-   Clear filters.
+-   Refresh.
+-   Add user.
+-   View user.
+-   Edit user.
+-   Roles.
+-   Status.
+-   Last Login.
+-   Last Login IP where available.
+-   Created date.
+-   Developer access indicator.
+-   Empty state.
+-   API refresh.
+-   Backend capability checks.
+
+------------------------------------------------------------------------
+
+# 37. Last Login Data Flow
+
+The page expects:
+
+``` text
+Successful login
+    ↓
+AuthenticationService
+    ↓
+AccountSecurityService
+    ↓
+last_login_at + last_login_ip
+    ↓
+Database
+    ↓
+UserController
+    ↓
+/api/users
+    ↓
+Users/Index.vue
+```
+
+Frontend:
+
+``` ts
+user.last_login_at
+```
+
+Display:
+
+``` text
+Oct 04, 2026, 07:32 PM
+```
+
+If truly null:
+
+``` text
+Never
+```
+
+The frontend must never manufacture a date.
+
+------------------------------------------------------------------------
+
+# 38. Search Behavior
+
+Search indexes:
+
+-   User name.
+-   Email.
+-   Assigned role names.
+
+The query is normalized:
+
+``` ts
+search.value.trim().toLowerCase()
+```
+
+The searchable content is joined and compared case-insensitively.
+
+------------------------------------------------------------------------
+
+# 39. Page Blueprint
+
+Future management pages should follow this structure:
 
 ``` text
 ERP Layout
@@ -1259,316 +1693,131 @@ ERP Layout
 │
 └── Main
     │
-    └── Page Container
+    └── erp-content
         │
-        ├── Breadcrumb
-        │
-        ├── Page Header
-        │   ├── Page Icon
-        │   ├── H1
-        │   ├── Description
-        │   └── Actions
-        │
-        ├── KPI / Summary Cards
-        │
-        └── Main Content Card
-            ├── Search / Filters
-            ├── Table / Content
-            └── Footer / Pagination / Metadata
+        └── Page
+            │
+            ├── Breadcrumb
+            │
+            ├── Page Header
+            │   ├── Page Icon
+            │   ├── H1
+            │   ├── Description
+            │   └── Actions
+            │
+            ├── KPI / Summary
+            │
+            └── Main Workspace Card
+                ├── Search / Filter Toolbar
+                ├── Data Table / Content
+                └── Footer / Metadata
 ```
 
 ------------------------------------------------------------------------
 
-# 37. Users Page Reference Blueprint
+# 40. Universal Rules for Future Pages
 
-The Users page specifically follows:
+Every new page must:
 
-``` text
-Identity & Access › Users
-
-[Users Icon]  User Management
-              Manage platform users, account status and assigned roles from one workspace.
-
-                                  [Refresh] [ + Add user ]
-
-┌──────────────────┐ ┌──────────────────┐ ┌──────────────────┐
-│ Total users      │ │ Active           │ │ Inactive         │
-│ 6                │ │ 5                │ │ 1                │
-└──────────────────┘ └──────────────────┘ └──────────────────┘
-
-┌─────────────────────────────────────────────────────────────┐
-│ Search                                  All statuses        │
-├─────────────────────────────────────────────────────────────┤
-│ USER       STATUS       ROLES       LAST LOGIN  CREATED ... │
-│                                                             │
-│ User       Active       Manager     date        date   ... │
-│ User       Active       Developer   date        date   ... │
-│ User       Inactive     No role     Never       date   ... │
-├─────────────────────────────────────────────────────────────┤
-│ Showing X of Y users                         Developer ...  │
-└─────────────────────────────────────────────────────────────┘
-```
-
-This blueprint must remain visually consistent with the Roles &
-Permissions page.
+1.  Use the same ERP shell.
+2.  Use Instrument Sans.
+3.  Respect `.erp-content` spacing.
+4.  Avoid extra page-level horizontal padding.
+5.  Put breadcrumb above H1.
+6.  Put module icon before H1.
+7.  Use the same heading hierarchy.
+8.  Use the same button system.
+9.  Use the same input/filter system.
+10. Use the same card surfaces.
+11. Use the same border language.
+12. Use the same radius language.
+13. Use the same icon family.
+14. Use semantic HTML.
+15. Preserve keyboard accessibility.
+16. Use restrained animation.
+17. Preserve existing data functionality when restyling.
+18. Keep table semantics where tabular data is used.
+19. Never replace real icons with text characters.
+20. Never introduce arbitrary colors or fonts.
 
 ------------------------------------------------------------------------
 
-# 38. Roles & Permissions as the Primary Reference
+# 41. Design Validation Checklist
 
-When there is uncertainty about page design, compare the new page
-against the Roles & Permissions page.
-
-The following must match:
-
-1.  Header alignment
-2.  Breadcrumb position
-3.  Page icon treatment
-4.  H1 typography
-5.  Description typography
-6.  Action button height
-7.  Action button radius
-8.  KPI card dimensions
-9.  Search field dimensions
-10. Filter dimensions
-11. Card radius
-12. Table header treatment
-13. Row spacing
-14. Status badges
-15. Icon style
-16. Color usage
-17. Border treatment
-18. Overall density
-19. Responsive behavior
-20. Horizontal content boundaries
-
-------------------------------------------------------------------------
-
-# 39. Implementation Rule --- Preserve Existing Functionality
-
-When updating an existing page, **visual changes must not remove working
-functionality**.
-
-For example, updating Users/Index.vue must not accidentally remove:
-
--   Last Login column
--   Created column
--   Roles
--   Status
--   Search
--   Status filter
--   Refresh
--   Add user
--   View action
--   Edit action
--   User count
--   Active count
--   Inactive count
--   Developer access
--   API data mapping
-
-The correct approach is:
-
-``` text
-Existing functionality
-        +
-Universal design system
-        =
-Updated page
-```
-
-Not:
-
-``` text
-New visual design
-        →
-rewrite page
-        →
-accidentally remove functionality
-```
-
-------------------------------------------------------------------------
-
-# 40. Backend / Frontend Data Contract
-
-For user-management pages, the backend should expose:
-
-``` text
-id
-name
-email
-status
-last_login_at
-last_login_ip
-failed_login_attempts
-locked_until
-password_changed_at
-email_verified_at
-created_at
-updated_at
-roles[]
-```
-
-The frontend should map these values without silently renaming or
-dropping required fields.
-
-------------------------------------------------------------------------
-
-# 41. Last Login Data Contract
-
-Successful authentication must update:
-
-``` php
-$user->last_login_at = Carbon::now();
-$user->last_login_ip = $ipAddress;
-```
-
-The Users API must serialize:
-
-``` php
-'last_login_at' => $user->last_login_at?->toISOString(),
-'last_login_ip' => $user->last_login_ip,
-```
-
-The frontend must consume:
-
-``` ts
-user.last_login_at
-```
-
-and render:
-
-``` text
-Never
-```
-
-only when the value is genuinely `null`.
-
-------------------------------------------------------------------------
-
-# 42. Code Quality Rules
-
-All page code must be:
-
--   TypeScript-safe
--   Vue 3 compatible
--   Composition API based
--   semantically structured
--   reusable where appropriate
--   free of dead code
--   free of duplicated styling when a shared component exists
-
-Run:
-
-``` bash
-npm run types:check
-```
-
-Then:
-
-``` bash
-php artisan optimize:clear
-```
-
-Then:
-
-``` bash
-npm run build
-```
-
-All three should complete successfully before considering a UI change
-complete.
-
-------------------------------------------------------------------------
-
-# 43. Change-Safety Rule
-
-When a user requests a small UI change:
-
-> Change only what was requested.
-
-Do not simultaneously redesign:
-
--   table columns
--   spacing
--   data mapping
--   backend contracts
--   icon system
--   navigation
--   unrelated components
-
-unless the requested change explicitly requires it.
-
-------------------------------------------------------------------------
-
-# 44. Final Acceptance Checklist
-
-Before marking any page as complete:
+Before accepting a new page:
 
 ### Layout
 
--   [ ] Same ERP shell
--   [ ] Same content boundaries
--   [ ] Same horizontal spacing
--   [ ] Same vertical rhythm
--   [ ] No excessive page padding
+-   [ ] Same ERP shell.
+-   [ ] Same `.erp-content` boundaries.
+-   [ ] 16px left/right content spacing.
+-   [ ] 16px top / 28px bottom shell spacing.
+-   [ ] No oversized page padding.
 
 ### Header
 
--   [ ] Breadcrumb exists
--   [ ] Page icon exists
--   [ ] H1 hierarchy matches
--   [ ] Description matches
--   [ ] Actions align correctly
+-   [ ] Breadcrumb above title.
+-   [ ] Module icon before H1.
+-   [ ] H1 matches Users/Roles visual hierarchy.
+-   [ ] Description uses the same muted style.
+-   [ ] Actions align with the header.
 
 ### Typography
 
--   [ ] Instrument Sans
--   [ ] Correct size hierarchy
--   [ ] Correct weights
--   [ ] No random fonts
+-   [ ] Instrument Sans.
+-   [ ] No arbitrary font family.
+-   [ ] Hierarchy matches the system.
+-   [ ] Weight usage is consistent.
 
 ### Components
 
--   [ ] Buttons match universal style
--   [ ] Inputs match universal style
--   [ ] Cards match universal style
--   [ ] Badges match universal style
--   [ ] Icons render correctly
+-   [ ] Buttons match.
+-   [ ] Inputs match.
+-   [ ] Filters match.
+-   [ ] Cards match.
+-   [ ] Badges match.
+-   [ ] Icons render correctly.
 
 ### Data
 
--   [ ] Existing columns preserved
--   [ ] Last Login preserved
--   [ ] Created preserved
--   [ ] Roles preserved
--   [ ] Status preserved
--   [ ] API data correctly mapped
+-   [ ] Existing functionality preserved.
+-   [ ] Required columns preserved.
+-   [ ] Last Login preserved where applicable.
+-   [ ] API contract preserved.
+-   [ ] Null values handled honestly.
 
 ### Accessibility
 
--   [ ] Semantic HTML
--   [ ] Keyboard support
--   [ ] Focus states
--   [ ] Icon button labels
--   [ ] Proper table semantics
+-   [ ] Semantic HTML.
+-   [ ] Keyboard support.
+-   [ ] Focus states.
+-   [ ] Icon-only labels.
+-   [ ] Table semantics.
+-   [ ] Form labels.
 
 ### Validation
 
--   [ ] `npm run types:check`
--   [ ] `php artisan optimize:clear`
--   [ ] `npm run build`
+``` bash
+npm run types:check
+php artisan optimize:clear
+npm run build
+```
+
+All three should pass before the page is considered complete.
 
 ------------------------------------------------------------------------
 
-# 45. Golden Rule
+# 42. Golden Rule
 
 > **Madina Scale must look like one system, not a collection of
 > independently designed pages.**
 
-Every new page should be able to sit next to the Roles & Permissions
-page and look as if both were designed and implemented as part of the
-same design system.
+The Users Index page is the concrete reference for compact table-heavy
+management screens.
 
-**Roles & Permissions = visual reference.**\
-**This document = universal implementation rule.**
+The Roles & Permissions page remains the primary visual reference for
+the overall authenticated page hierarchy.
+
+When uncertain:
+
+**reuse the existing system instead of inventing a new one.**

@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from "vue";
-import { Head, router } from "@inertiajs/vue3";
+import { computed, onMounted, reactive, ref } from "vue";
+import { Head, router, usePage } from "@inertiajs/vue3";
 
 import ErpLayout from "@/layouts/ErpLayout.vue";
 import Icon from "@/components/dashboard/Icon.vue";
@@ -9,33 +9,62 @@ interface Role {
   id: number;
   name: string;
   slug: string;
-  description?: string | null;
   isSystem: boolean;
   isActive: boolean;
+}
+
+interface UserApiPayload {
+  id: number;
+  name: string;
+  email: string;
+  status: "active" | "inactive" | string;
+
+  last_login_at?: string | null;
+  last_login_ip?: string | null;
+
+  failed_login_attempts?: number;
+  locked_until?: string | null;
+  password_changed_at?: string | null;
+
+  email_verified_at?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+
+  roles?: Role[];
 }
 
 interface User {
   id: number;
   name: string;
   email: string;
-  status: "active" | "inactive";
-  roles?: Role[];
-  created_at?: string | null;
-  updated_at?: string | null;
+  status: "active" | "inactive" | string;
+
+  lastLoginAt: string | null;
+  lastLoginIp: string | null;
+
+  failedLoginAttempts: number;
+  lockedUntil: string | null;
+  passwordChangedAt: string | null;
+
+  emailVerifiedAt: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+
+  roles: Role[];
 }
 
-interface Capabilities {
-  canView: boolean;
-  canUpdate: boolean;
-  isDeveloper?: boolean;
+interface AuthUser {
+  id: number;
+  name: string;
+  email: string;
 }
 
-interface Props {
-  user: User;
-  roles?: Role[];
-  capabilities?: Capabilities;
-  userName?: string;
-  userEmail?: string;
+interface PageProps {
+  [key: string]: unknown;
+
+  auth?: {
+    user?: AuthUser;
+  };
 }
 
 interface ApiErrorPayload {
@@ -63,77 +92,104 @@ class ApiRequestError extends Error {
   }
 }
 
-const props = withDefaults(defineProps<Props>(), {
-  roles: () => [],
-  capabilities: () => ({
-    canView: false,
-    canUpdate: false,
-    isDeveloper: false,
-  }),
-  userName: "",
-  userEmail: "",
+const page = usePage<PageProps>();
+
+const authUser = computed<AuthUser>(() => {
+  return (
+    page.props.auth?.user ?? {
+      id: 0,
+      name: "Administrator",
+      email: "",
+    }
+  );
 });
 
-const isSubmitting = ref(false);
+const userId = Number(
+  window.location.pathname.match(/\/users\/(\d+)(?:\/edit|\/|$)/)?.[1] ?? 0
+);
+
+const user = ref<User | null>(null);
+
+const isLoading = ref(true);
+const isSaving = ref(false);
+
 const showPassword = ref(false);
 const showPasswordConfirmation = ref(false);
 
 const formErrors = ref<Record<string, string>>({});
-
 const operationMessage = ref("");
 const operationMessageType = ref<"success" | "error">("success");
 
 const form = reactive({
-  name: props.user.name,
-  email: props.user.email,
+  name: "",
+  email: "",
   password: "",
   password_confirmation: "",
-  status: props.user.status,
-  role_ids: (props.user.roles ?? [])
-    .filter((role) => role.isActive && !role.isSystem)
-    .map((role) => role.id),
+  status: "active",
+  role_ids: [] as number[],
 });
 
-const availableRoles = computed(() => {
-  const roles = new Map<number, Role>();
+function normalizeUser(payload: UserApiPayload): User {
+  return {
+    id: payload.id,
+    name: payload.name,
+    email: payload.email,
+    status: payload.status,
 
-  props.roles
-    .filter((role) => role.isActive && !role.isSystem)
-    .forEach((role) => {
-      roles.set(role.id, role);
-    });
+    lastLoginAt: payload.last_login_at ?? null,
+    lastLoginIp: payload.last_login_ip ?? null,
 
-  /*
-   * Keep currently assigned roles available even if the roles
-   * collection sent by the page is incomplete.
-   */
-  (props.user.roles ?? [])
-    .filter((role) => role.isActive && !role.isSystem)
-    .forEach((role) => {
-      roles.set(role.id, role);
-    });
+    failedLoginAttempts: payload.failed_login_attempts ?? 0,
+    lockedUntil: payload.locked_until ?? null,
+    passwordChangedAt: payload.password_changed_at ?? null,
 
-  return Array.from(roles.values()).sort((a, b) => a.name.localeCompare(b.name));
+    emailVerifiedAt: payload.email_verified_at ?? null,
+    createdAt: payload.created_at ?? null,
+    updatedAt: payload.updated_at ?? null,
+
+    roles: payload.roles ?? [],
+  };
+}
+
+const activeRoles = computed(() => {
+  return user.value?.roles.filter((role) => role.isActive) ?? [];
 });
 
-const currentSystemRoles = computed(() =>
-  (props.user.roles ?? []).filter((role) => role.isSystem)
-);
-
-const selectedRoleCount = computed(() => form.role_ids.length);
-
-const initials = computed(() => {
-  return props.user.name
-    .trim()
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((part) => part.charAt(0).toUpperCase())
-    .join("");
+const systemRoles = computed(() => {
+  return user.value?.roles.filter((role) => role.isSystem) ?? [];
 });
 
-const canEdit = computed(() => props.capabilities.canUpdate);
+const assignableRoles = computed(() => {
+  return (
+    user.value?.roles
+      .filter((role) => role.isActive && !role.isSystem)
+      .sort((a, b) => a.name.localeCompare(b.name)) ?? []
+  );
+});
 
-function apiRequest<T>(url: string, method: "PUT", body?: unknown): Promise<T> {
+const accountLocked = computed(() => {
+  if (!user.value?.lockedUntil) {
+    return false;
+  }
+
+  const timestamp = new Date(user.value.lockedUntil).getTime();
+
+  return !Number.isNaN(timestamp) && timestamp > Date.now();
+});
+
+const accountStatusLabel = computed(() => {
+  if (!user.value) {
+    return "Unknown";
+  }
+
+  return user.value.status.charAt(0).toUpperCase() + user.value.status.slice(1);
+});
+
+async function apiRequest<T>(
+  url: string,
+  method: "GET" | "PUT",
+  body?: unknown
+): Promise<T> {
   const headers: Record<string, string> = {
     Accept: "application/json",
     "X-Requested-With": "XMLHttpRequest",
@@ -151,78 +207,109 @@ function apiRequest<T>(url: string, method: "PUT", body?: unknown): Promise<T> {
     headers["Content-Type"] = "application/json";
   }
 
-  return fetch(url, {
+  const response = await fetch(url, {
     method,
     headers,
     credentials: "same-origin",
     body: body === undefined ? undefined : JSON.stringify(body),
-  }).then(async (response) => {
-    const text = await response.text();
-
-    let payload: unknown = null;
-
-    if (text.trim() !== "") {
-      try {
-        payload = JSON.parse(text) as unknown;
-      } catch {
-        payload = null;
-      }
-    }
-
-    if (!response.ok) {
-      const errorPayload = (payload ?? {}) as ApiErrorPayload;
-
-      const validationErrors: Record<string, string> = {};
-
-      Object.entries(errorPayload.errors ?? {}).forEach(([key, value]) => {
-        validationErrors[key] = Array.isArray(value)
-          ? String(value[0] ?? "")
-          : String(value);
-      });
-
-      throw new ApiRequestError(
-        errorPayload.message ?? `Request failed with status ${response.status}.`,
-        response.status,
-        validationErrors
-      );
-    }
-
-    if (payload && typeof payload === "object" && "data" in payload) {
-      return (payload as ApiSuccessPayload<T>).data;
-    }
-
-    return payload as T;
   });
+
+  const text = await response.text();
+
+  let payload: unknown = null;
+
+  if (text.trim() !== "") {
+    try {
+      payload = JSON.parse(text) as unknown;
+    } catch {
+      payload = null;
+    }
+  }
+
+  if (!response.ok) {
+    const errorPayload = (payload ?? {}) as ApiErrorPayload;
+
+    const validationErrors: Record<string, string> = {};
+
+    Object.entries(errorPayload.errors ?? {}).forEach(([key, value]) => {
+      validationErrors[key] = Array.isArray(value)
+        ? String(value[0] ?? "")
+        : String(value);
+    });
+
+    throw new ApiRequestError(
+      errorPayload.message ?? `Request failed with status ${response.status}.`,
+      response.status,
+      validationErrors
+    );
+  }
+
+  if (payload && typeof payload === "object" && "data" in payload) {
+    return (payload as ApiSuccessPayload<T>).data;
+  }
+
+  return payload as T;
+}
+
+function syncFormFromUser(currentUser: User): void {
+  form.name = currentUser.name;
+  form.email = currentUser.email;
+  form.status = currentUser.status;
+
+  form.role_ids = currentUser.roles
+    .filter((role) => role.isActive && !role.isSystem)
+    .map((role) => role.id);
+
+  form.password = "";
+  form.password_confirmation = "";
+}
+
+async function loadUser(): Promise<void> {
+  if (!userId) {
+    isLoading.value = false;
+    operationMessageType.value = "error";
+    operationMessage.value = "A valid user ID is required.";
+    return;
+  }
+
+  isLoading.value = true;
+  operationMessage.value = "";
+
+  try {
+    const payload = await apiRequest<UserApiPayload>(`/api/users/${userId}`, "GET");
+
+    const normalizedUser = normalizeUser(payload);
+
+    user.value = normalizedUser;
+    syncFormFromUser(normalizedUser);
+  } catch (error) {
+    operationMessageType.value = "error";
+    operationMessage.value =
+      error instanceof Error ? error.message : "Unable to load the user.";
+  } finally {
+    isLoading.value = false;
+  }
 }
 
 function toggleRole(roleId: number): void {
-  if (!canEdit.value) {
-    return;
-  }
-
-  const role = availableRoles.value.find((item) => item.id === roleId);
-
-  if (!role || role.isSystem || !role.isActive) {
-    return;
-  }
-
   form.role_ids = form.role_ids.includes(roleId)
     ? form.role_ids.filter((id) => id !== roleId)
     : [...form.role_ids, roleId];
 
-  clearFieldError("role_ids");
-}
-
-function hasError(field: string): boolean {
-  return Boolean(formErrors.value[field]);
+  delete formErrors.value.role_ids;
 }
 
 function clearFieldError(field: string): void {
   delete formErrors.value[field];
 }
 
-function validate(): boolean {
+async function save(): Promise<void> {
+  if (!user.value || isSaving.value) {
+    return;
+  }
+
   formErrors.value = {};
+  operationMessage.value = "";
 
   if (!form.name.trim()) {
     formErrors.value.name = "Name is required.";
@@ -232,76 +319,49 @@ function validate(): boolean {
     formErrors.value.email = "Email is required.";
   }
 
-  if (form.password && form.password.length < 8) {
-    formErrors.value.password = "Password must be at least 8 characters.";
+  if (form.password && form.password !== form.password_confirmation) {
+    formErrors.value.password_confirmation = "Passwords do not match.";
   }
 
-  if (form.password || form.password_confirmation) {
-    if (!form.password_confirmation) {
-      formErrors.value.password_confirmation = "Please confirm the new password.";
-    } else if (form.password !== form.password_confirmation) {
-      formErrors.value.password_confirmation = "Passwords do not match.";
-    }
-  }
-
-  return Object.keys(formErrors.value).length === 0;
-}
-
-async function submit(): Promise<void> {
-  if (isSubmitting.value || !canEdit.value) {
-    return;
-  }
-
-  operationMessage.value = "";
-
-  if (!validate()) {
+  if (Object.keys(formErrors.value).length > 0) {
     operationMessageType.value = "error";
     operationMessage.value = "Please correct the highlighted fields.";
     return;
   }
 
-  isSubmitting.value = true;
+  isSaving.value = true;
+
+  const payload: Record<string, unknown> = {
+    name: form.name.trim(),
+    email: form.email.trim(),
+    status: form.status,
+    role_ids: form.role_ids,
+  };
+
+  if (form.password) {
+    payload.password = form.password;
+    payload.password_confirmation = form.password_confirmation;
+  }
 
   try {
-    /*
-     * Only submit active, non-system roles.
-     * System roles are always controlled by the platform.
-     */
-    const validRoleIds = form.role_ids.filter((roleId) =>
-      availableRoles.value.some(
-        (role) => role.id === roleId && role.isActive && !role.isSystem
-      )
+    const response = await apiRequest<UserApiPayload>(
+      `/api/users/${user.value.id}`,
+      "PUT",
+      payload
     );
 
-    const payload: Record<string, unknown> = {
-      name: form.name.trim(),
-      email: form.email.trim(),
-      status: form.status,
-      role_ids: validRoleIds,
-    };
+    const normalizedUser = normalizeUser(response);
 
-    if (form.password.trim() !== "") {
-      payload.password = form.password;
-      payload.password_confirmation = form.password_confirmation;
-    }
-
-    await apiRequest<User>(`/api/users/${props.user.id}`, "PUT", payload);
+    user.value = normalizedUser;
+    syncFormFromUser(normalizedUser);
 
     operationMessageType.value = "success";
     operationMessage.value = "User updated successfully.";
-
-    form.password = "";
-    form.password_confirmation = "";
-
-    window.setTimeout(() => {
-      router.visit(`/users/${props.user.id}`);
-    }, 450);
   } catch (error) {
     if (error instanceof ApiRequestError) {
       formErrors.value = error.validationErrors;
 
       operationMessageType.value = "error";
-
       operationMessage.value =
         Object.keys(error.validationErrors).length > 0
           ? "Please correct the highlighted fields."
@@ -311,19 +371,43 @@ async function submit(): Promise<void> {
       operationMessage.value = "Unable to update the user. Please try again.";
     }
   } finally {
-    isSubmitting.value = false;
+    isSaving.value = false;
   }
 }
 
-function cancel(): void {
-  router.visit(`/users/${props.user.id}`);
+function back(): void {
+  router.get("/users");
 }
 
-function backToUsers(): void {
-  router.visit("/users");
+function showUser(): void {
+  if (!user.value) {
+    return;
+  }
+
+  router.get(`/users/${user.value.id}`);
 }
 
-function formatDate(value?: string | null): string {
+function formatDate(value?: string | null, fallback = "Never"): string {
+  if (!value) {
+    return fallback;
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
+function formatDateOnly(value?: string | null): string {
   if (!value) {
     return "—";
   }
@@ -331,7 +415,7 @@ function formatDate(value?: string | null): string {
   const date = new Date(value);
 
   if (Number.isNaN(date.getTime())) {
-    return "—";
+    return value;
   }
 
   return new Intl.DateTimeFormat(undefined, {
@@ -340,973 +424,514 @@ function formatDate(value?: string | null): string {
     day: "2-digit",
   }).format(date);
 }
+
+onMounted(() => {
+  void loadUser();
+});
 </script>
 
 <template>
-  <Head :title="`Edit ${props.user.name}`" />
+  <Head :title="user ? `Edit — ${user.name}` : 'Edit User'" />
 
-  <ErpLayout :user-name="props.userName" :user-email="props.userEmail">
+  <ErpLayout :user-name="authUser.name" :user-email="authUser.email">
     <div class="user-edit-page">
-      <!-- =========================================================
-                 PAGE HEADER
-                 ========================================================= -->
-      <header class="page-header">
-        <div class="page-header-copy">
-          <div class="page-breadcrumb" aria-label="Breadcrumb">
-            <button class="breadcrumb-link" type="button" @click="backToUsers">
-              System
-            </button>
-
-            <span class="page-breadcrumb-separator" aria-hidden="true"> / </span>
-
-            <button class="breadcrumb-link" type="button" @click="backToUsers">
-              Identity &amp; Access
-            </button>
-
-            <span class="page-breadcrumb-separator" aria-hidden="true"> / </span>
-
-            <span class="is-current"> Edit User </span>
-          </div>
-
-          <div class="page-title-row">
-            <div class="page-title-icon" aria-hidden="true">
-              <Icon name="users" :size="21" />
-            </div>
-
-            <div>
-              <h1>Edit User</h1>
-
-              <p>Update account information, access status and assigned roles.</p>
-            </div>
-          </div>
+      <section v-if="isLoading" class="state-page page-enter" aria-live="polite">
+        <div class="state-icon">
+          <Icon name="users" :size="24" />
         </div>
 
-        <div class="header-actions">
-          <button
-            class="btn btn-secondary"
-            type="button"
-            :disabled="isSubmitting"
-            @click="cancel"
-          >
-            <Icon name="arrow-left" :size="15" />
-            Cancel
-          </button>
+        <strong>Loading user...</strong>
 
-          <button
-            v-if="canEdit"
-            class="btn btn-primary"
-            type="button"
-            :disabled="isSubmitting"
-            @click="submit"
-          >
-            <Icon name="check" :size="15" />
+        <span> Retrieving account information and access details. </span>
+      </section>
 
-            {{ isSubmitting ? "Saving..." : "Save changes" }}
-          </button>
-        </div>
-      </header>
+      <template v-else-if="user">
+        <div class="page-enter">
+          <header class="page-header">
+            <div class="heading-copy">
+              <nav class="breadcrumb" aria-label="Breadcrumb">
+                <button class="breadcrumb-link" type="button" @click="back">
+                  <Icon name="users" :size="14" />
+                  <span>Users</span>
+                </button>
 
-      <!-- =========================================================
-                 OPERATION MESSAGE
-                 ========================================================= -->
-      <div
-        v-if="operationMessage"
-        class="operation-message"
-        :class="operationMessageType"
-        role="status"
-      >
-        <Icon :name="operationMessageType === 'success' ? 'check' : 'alert'" :size="15" />
+                <span class="breadcrumb-separator" aria-hidden="true"> / </span>
 
-        {{ operationMessage }}
-      </div>
+                <button class="breadcrumb-link" type="button" @click="showUser">
+                  <span>{{ user.name }}</span>
+                </button>
 
-      <!-- =========================================================
-                 PERMISSION NOTICE
-                 ========================================================= -->
-      <div v-if="!canEdit" class="operation-message error" role="alert">
-        <Icon name="lock" :size="15" />
+                <span class="breadcrumb-separator" aria-hidden="true"> / </span>
 
-        You do not have permission to update this user.
-      </div>
+                <span class="breadcrumb-current"> Edit </span>
+              </nav>
 
-      <!-- =========================================================
-                 FORM
-                 ========================================================= -->
-      <form v-if="canEdit" class="content-grid" @submit.prevent="submit">
-        <!-- =====================================================
-                     BASIC INFORMATION
-                     ===================================================== -->
-        <section class="panel">
-          <div class="panel-heading">
-            <div>
-              <span class="section-kicker"> Profile </span>
+              <div class="title-row">
+                <div class="page-title-icon" aria-hidden="true">
+                  <Icon name="edit" :size="22" />
+                </div>
 
-              <h2>Basic information</h2>
+                <div class="title-copy">
+                  <span class="eyebrow"> Identity Management </span>
+
+                  <h1>Edit User</h1>
+
+                  <p>Update account identity, security settings and assigned access.</p>
+                </div>
+              </div>
             </div>
 
-            <span class="required-note"> * Required </span>
-          </div>
-
-          <div class="form-grid">
-            <label class="field full">
-              <span>
-                Full name
-                <em>*</em>
-              </span>
-
-              <input
-                v-model="form.name"
-                type="text"
-                autocomplete="name"
-                placeholder="e.g. John Doe"
-                :class="{
-                  invalid: hasError('name'),
-                }"
-                @input="clearFieldError('name')"
-              />
-
-              <small v-if="formErrors.name">
-                {{ formErrors.name }}
-              </small>
-            </label>
-
-            <label class="field full">
-              <span>
-                Email address
-                <em>*</em>
-              </span>
-
-              <input
-                v-model="form.email"
-                type="email"
-                autocomplete="email"
-                placeholder="user@example.com"
-                :class="{
-                  invalid: hasError('email'),
-                }"
-                @input="clearFieldError('email')"
-              />
-
-              <small v-if="formErrors.email">
-                {{ formErrors.email }}
-              </small>
-            </label>
-
-            <label class="field">
-              <span> Account status </span>
-
-              <select
-                v-model="form.status"
-                :class="{
-                  invalid: hasError('status'),
-                }"
-                @change="clearFieldError('status')"
+            <div class="header-actions">
+              <button
+                class="btn btn-secondary"
+                type="button"
+                :disabled="isSaving"
+                @click="showUser"
               >
-                <option value="active">Active</option>
+                <Icon name="arrow-left" :size="15" />
+                Cancel
+              </button>
 
-                <option value="inactive">Inactive</option>
-              </select>
+              <button
+                class="btn btn-primary"
+                type="button"
+                :disabled="isSaving"
+                @click="save"
+              >
+                <Icon v-if="!isSaving" name="check" :size="15" />
 
-              <small v-if="formErrors.status">
-                {{ formErrors.status }}
-              </small>
-            </label>
-
-            <div class="field">
-              <span> Account ID </span>
-
-              <div class="readonly-value">#{{ props.user.id }}</div>
+                {{ isSaving ? "Saving..." : "Save Changes" }}
+              </button>
             </div>
+          </header>
+
+          <div
+            v-if="operationMessage"
+            class="operation-message"
+            :class="operationMessageType"
+            role="status"
+          >
+            <Icon
+              :name="operationMessageType === 'success' ? 'check' : 'lock'"
+              :size="15"
+            />
+
+            <span>{{ operationMessage }}</span>
           </div>
-        </section>
 
-        <!-- =====================================================
-                     SECURITY
-                     ===================================================== -->
-        <section class="panel">
-          <div class="panel-heading">
-            <div>
-              <span class="section-kicker"> Security </span>
-
-              <h2>Change password</h2>
-            </div>
-
-            <span class="optional-note"> Optional </span>
-          </div>
-
-          <p class="panel-description">
-            Leave both password fields empty to keep the current password unchanged.
-          </p>
-
-          <div class="form-grid">
-            <label class="field">
-              <span> New password </span>
-
-              <div class="password-field">
-                <input
-                  v-model="form.password"
-                  :type="showPassword ? 'text' : 'password'"
-                  autocomplete="new-password"
-                  placeholder="Minimum 8 characters"
-                  :class="{
-                    invalid: hasError('password'),
-                  }"
-                  @input="clearFieldError('password')"
-                />
-
-                <button
-                  class="password-toggle"
-                  type="button"
-                  :aria-label="showPassword ? 'Hide password' : 'Show password'"
-                  @click="showPassword = !showPassword"
-                >
-                  <Icon :name="showPassword ? 'eye-off' : 'eye'" :size="15" />
-                </button>
+          <section class="summary-grid" aria-label="User account summary">
+            <article class="summary-card">
+              <div class="summary-icon">
+                <Icon name="check" :size="16" />
               </div>
 
-              <small v-if="formErrors.password">
-                {{ formErrors.password }}
-              </small>
-            </label>
+              <div>
+                <span>Status</span>
 
-            <label class="field">
-              <span> Confirm new password </span>
-
-              <div class="password-field">
-                <input
-                  v-model="form.password_confirmation"
-                  :type="showPasswordConfirmation ? 'text' : 'password'"
-                  autocomplete="new-password"
-                  placeholder="Repeat new password"
-                  :class="{
-                    invalid: hasError('password_confirmation'),
-                  }"
-                  @input="clearFieldError('password_confirmation')"
-                />
-
-                <button
-                  class="password-toggle"
-                  type="button"
-                  :aria-label="
-                    showPasswordConfirmation ? 'Hide password' : 'Show password'
-                  "
-                  @click="showPasswordConfirmation = !showPasswordConfirmation"
-                >
-                  <Icon :name="showPasswordConfirmation ? 'eye-off' : 'eye'" :size="15" />
-                </button>
-              </div>
-
-              <small v-if="formErrors.password_confirmation">
-                {{ formErrors.password_confirmation }}
-              </small>
-            </label>
-          </div>
-        </section>
-
-        <!-- =====================================================
-                     ROLES
-                     ===================================================== -->
-        <section class="panel roles-panel">
-          <div class="panel-heading">
-            <div>
-              <span class="section-kicker"> Authorization </span>
-
-              <h2>Assigned roles</h2>
-            </div>
-
-            <span class="selection-count"> {{ selectedRoleCount }} selected </span>
-          </div>
-
-          <p class="panel-description">
-            Select the active non-system roles this user should receive.
-          </p>
-
-          <div v-if="availableRoles.length" class="role-grid">
-            <button
-              v-for="role in availableRoles"
-              :key="role.id"
-              class="role-option"
-              :class="{
-                selected: form.role_ids.includes(role.id),
-              }"
-              type="button"
-              @click="toggleRole(role.id)"
-            >
-              <span class="role-check">
-                <Icon v-if="form.role_ids.includes(role.id)" name="check" :size="13" />
-              </span>
-
-              <span class="role-copy">
-                <strong>
-                  {{ role.name }}
+                <strong class="status-value" :class="user.status">
+                  {{ accountStatusLabel }}
                 </strong>
-
-                <small>
-                  {{ role.description || role.slug }}
-                </small>
-              </span>
-            </button>
-          </div>
-
-          <div v-else class="empty-roles">
-            <Icon name="lock" :size="18" />
-
-            <div>
-              <strong> No assignable roles </strong>
-
-              <p>There are currently no active non-system roles available.</p>
-            </div>
-          </div>
-
-          <div v-if="currentSystemRoles.length" class="system-role-notice">
-            <Icon name="developer" :size="16" />
-
-            <div>
-              <strong> System role protected </strong>
-
-              <p>
-                {{ currentSystemRoles.map((role) => role.name).join(", ") }}
-                is managed by the system and cannot be changed from this form.
-              </p>
-            </div>
-          </div>
-        </section>
-
-        <!-- =====================================================
-                     ACCOUNT METADATA
-                     ===================================================== -->
-        <section class="panel metadata-panel">
-          <div class="panel-heading">
-            <div>
-              <span class="section-kicker"> Record </span>
-
-              <h2>Account metadata</h2>
-            </div>
-          </div>
-
-          <div class="metadata-grid">
-            <article>
-              <span>Created</span>
-
-              <strong>
-                {{ formatDate(props.user.created_at) }}
-              </strong>
+              </div>
             </article>
 
-            <article>
-              <span>Last updated</span>
+            <article class="summary-card">
+              <div class="summary-icon">
+                <Icon name="users" :size="16" />
+              </div>
 
-              <strong>
-                {{ formatDate(props.user.updated_at) }}
-              </strong>
+              <div>
+                <span>Active roles</span>
+
+                <strong>
+                  {{ activeRoles.length }}
+                </strong>
+              </div>
             </article>
 
-            <article>
-              <span>Current status</span>
+            <article class="summary-card">
+              <div class="summary-icon warning">
+                <Icon name="lock" :size="16" />
+              </div>
 
-              <strong class="status" :class="form.status">
-                <i></i>
-                {{ form.status }}
-              </strong>
+              <div>
+                <span>Failed logins</span>
+
+                <strong>
+                  {{ user.failedLoginAttempts }}
+                </strong>
+              </div>
             </article>
 
-            <article>
-              <span>Authorization</span>
+            <article class="summary-card">
+              <div class="summary-icon">
+                <Icon name="clock" :size="16" />
+              </div>
 
-              <strong>
-                {{ props.capabilities.isDeveloper ? "Developer" : "Permission based" }}
-              </strong>
+              <div>
+                <span>Last login</span>
+
+                <strong>
+                  {{ formatDate(user.lastLoginAt, "Never") }}
+                </strong>
+              </div>
             </article>
-          </div>
-        </section>
+          </section>
 
-        <!-- =====================================================
-                     FORM FOOTER
-                     ===================================================== -->
-        <footer class="form-footer">
-          <span>
-            <Icon name="lock" :size="13" />
+          <form class="content-grid" @submit.prevent="save">
+            <section class="panel">
+              <header class="panel-heading">
+                <div>
+                  <span class="section-kicker"> Account </span>
 
-            Authorization is enforced server-side.
-          </span>
+                  <h2>Profile &amp; security</h2>
 
-          <div class="footer-actions">
-            <button
-              class="btn btn-secondary"
-              type="button"
-              :disabled="isSubmitting"
-              @click="cancel"
-            >
-              Cancel
-            </button>
+                  <p>Update identity and authentication settings.</p>
+                </div>
 
-            <button class="btn btn-primary" type="submit" :disabled="isSubmitting">
-              <Icon name="check" :size="15" />
+                <div class="panel-icon" aria-hidden="true">
+                  <Icon name="settings" :size="17" />
+                </div>
+              </header>
 
-              {{ isSubmitting ? "Saving..." : "Save changes" }}
-            </button>
-          </div>
-        </footer>
-      </form>
+              <div class="form-grid">
+                <label class="field">
+                  <span>
+                    Name
+                    <em>*</em>
+                  </span>
+
+                  <input
+                    v-model="form.name"
+                    type="text"
+                    autocomplete="name"
+                    :class="{
+                      invalid: formErrors.name,
+                    }"
+                    @input="clearFieldError('name')"
+                  />
+
+                  <small v-if="formErrors.name">
+                    {{ formErrors.name }}
+                  </small>
+                </label>
+
+                <label class="field">
+                  <span>
+                    Email
+                    <em>*</em>
+                  </span>
+
+                  <input
+                    v-model="form.email"
+                    type="email"
+                    autocomplete="email"
+                    :class="{
+                      invalid: formErrors.email,
+                    }"
+                    @input="clearFieldError('email')"
+                  />
+
+                  <small v-if="formErrors.email">
+                    {{ formErrors.email }}
+                  </small>
+                </label>
+
+                <label class="field">
+                  <span>Status</span>
+
+                  <select v-model="form.status">
+                    <option value="active">Active</option>
+
+                    <option value="inactive">Inactive</option>
+                  </select>
+                </label>
+
+                <div class="field">
+                  <span>Account ID</span>
+
+                  <div class="readonly-value">#{{ user.id }}</div>
+                </div>
+
+                <label class="field">
+                  <span>New password</span>
+
+                  <div class="input-with-action">
+                    <input
+                      v-model="form.password"
+                      :type="showPassword ? 'text' : 'password'"
+                      autocomplete="new-password"
+                      placeholder="Leave blank to keep current password"
+                      :class="{
+                        invalid: formErrors.password,
+                      }"
+                      @input="clearFieldError('password')"
+                    />
+
+                    <button
+                      class="input-action"
+                      type="button"
+                      @click="showPassword = !showPassword"
+                    >
+                      {{ showPassword ? "Hide" : "Show" }}
+                    </button>
+                  </div>
+
+                  <small v-if="formErrors.password">
+                    {{ formErrors.password }}
+                  </small>
+                </label>
+
+                <label class="field">
+                  <span> Confirm new password </span>
+
+                  <div class="input-with-action">
+                    <input
+                      v-model="form.password_confirmation"
+                      :type="showPasswordConfirmation ? 'text' : 'password'"
+                      autocomplete="new-password"
+                      placeholder="Repeat new password"
+                      :class="{
+                        invalid: formErrors.password_confirmation,
+                      }"
+                      @input="clearFieldError('password_confirmation')"
+                    />
+
+                    <button
+                      class="input-action"
+                      type="button"
+                      @click="showPasswordConfirmation = !showPasswordConfirmation"
+                    >
+                      {{ showPasswordConfirmation ? "Hide" : "Show" }}
+                    </button>
+                  </div>
+
+                  <small v-if="formErrors.password_confirmation">
+                    {{ formErrors.password_confirmation }}
+                  </small>
+                </label>
+              </div>
+
+              <div class="security-grid">
+                <article class="security-item">
+                  <span>Last login</span>
+
+                  <strong>
+                    {{ formatDate(user.lastLoginAt, "Never") }}
+                  </strong>
+                </article>
+
+                <article class="security-item">
+                  <span>Login IP</span>
+
+                  <strong>
+                    {{ user.lastLoginIp ?? "Not available" }}
+                  </strong>
+                </article>
+
+                <article class="security-item">
+                  <span>Password changed</span>
+
+                  <strong>
+                    {{ formatDate(user.passwordChangedAt, "Not recorded") }}
+                  </strong>
+                </article>
+
+                <article class="security-item">
+                  <span>Lock status</span>
+
+                  <strong
+                    :class="{
+                      'security-warning': accountLocked,
+                    }"
+                  >
+                    {{
+                      accountLocked
+                        ? `Locked until ${formatDate(user.lockedUntil)}`
+                        : "Not locked"
+                    }}
+                  </strong>
+                </article>
+              </div>
+            </section>
+
+            <section class="panel">
+              <header class="panel-heading">
+                <div>
+                  <span class="section-kicker"> Access Control </span>
+
+                  <h2>Assigned roles</h2>
+
+                  <p>Only active non-system roles can be managed here.</p>
+                </div>
+
+                <span class="selection-count">
+                  {{ form.role_ids.length }}
+                  selected
+                </span>
+              </header>
+
+              <div class="role-list">
+                <button
+                  v-for="role in assignableRoles"
+                  :key="role.id"
+                  type="button"
+                  class="role-row role-button"
+                  :class="{
+                    selected: form.role_ids.includes(role.id),
+                  }"
+                  @click="toggleRole(role.id)"
+                >
+                  <span class="role-icon" aria-hidden="true">
+                    <Icon name="users" :size="14" />
+                  </span>
+
+                  <span class="role-copy">
+                    <strong>
+                      {{ role.name }}
+                    </strong>
+
+                    <small>
+                      {{ role.slug }}
+                    </small>
+                  </span>
+
+                  <span class="role-check" aria-hidden="true">
+                    <Icon
+                      v-if="form.role_ids.includes(role.id)"
+                      name="check"
+                      :size="13"
+                    />
+                  </span>
+                </button>
+
+                <div v-if="assignableRoles.length === 0" class="empty-state">
+                  <div class="empty-icon">
+                    <Icon name="users" :size="19" />
+                  </div>
+
+                  <strong> No assignable roles </strong>
+
+                  <span> No active non-system roles are currently available. </span>
+                </div>
+              </div>
+
+              <div v-if="systemRoles.length > 0" class="system-role-note">
+                <Icon name="developer" :size="14" />
+
+                <span>
+                  {{ systemRoles.length }}
+                  system role{{ systemRoles.length === 1 ? "" : "s" }}
+                  protected from normal user management.
+                </span>
+              </div>
+            </section>
+          </form>
+
+          <section class="metadata-grid" aria-label="User metadata">
+            <article class="metadata-card">
+              <div class="metadata-icon">
+                <Icon name="calendar" :size="15" />
+              </div>
+
+              <div>
+                <span>Created</span>
+
+                <strong>
+                  {{ formatDateOnly(user.createdAt) }}
+                </strong>
+              </div>
+            </article>
+
+            <article class="metadata-card">
+              <div class="metadata-icon">
+                <Icon name="refresh" :size="15" />
+              </div>
+
+              <div>
+                <span>Updated</span>
+
+                <strong>
+                  {{ formatDateOnly(user.updatedAt) }}
+                </strong>
+              </div>
+            </article>
+
+            <article class="metadata-card">
+              <div class="metadata-icon">
+                <Icon name="check" :size="15" />
+              </div>
+
+              <div>
+                <span>Email verification</span>
+
+                <strong>
+                  {{
+                    user.emailVerifiedAt
+                      ? formatDateOnly(user.emailVerifiedAt)
+                      : "Not verified"
+                  }}
+                </strong>
+              </div>
+            </article>
+
+            <article class="metadata-card">
+              <div class="metadata-icon">
+                <Icon name="lock" :size="15" />
+              </div>
+
+              <div>
+                <span>System roles</span>
+
+                <strong>
+                  {{ systemRoles.length }}
+                </strong>
+              </div>
+            </article>
+          </section>
+
+          <footer class="access-footer">
+            <span>
+              <i></i>
+              Authorization is enforced server-side
+            </span>
+
+            <span> UI visibility is not a security boundary. </span>
+          </footer>
+        </div>
+      </template>
+
+      <section v-else class="state-page error-state page-enter">
+        <div class="state-icon error">
+          <Icon name="users" :size="25" />
+        </div>
+
+        <h2>Unable to load user</h2>
+
+        <p>
+          {{ operationMessage || "The requested user could not be loaded." }}
+        </p>
+
+        <button class="btn btn-primary" type="button" @click="back">
+          <Icon name="arrow-left" :size="15" />
+          Back to Users
+        </button>
+      </section>
     </div>
   </ErpLayout>
 </template>
 
 <style scoped>
-/* ================================================================
-   PAGE
-   ================================================================ */
-
 .user-edit-page {
-  width: auto;
-  min-width: 0;
-  margin-inline: -22px;
-  padding: 16px 16px 28px;
-  box-sizing: border-box;
-  color: var(--text-primary, #17202a);
-
-  animation: users-enter 500ms cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-
-/* ================================================================
-   HEADER
-   ================================================================ */
-
-.page-header {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 24px;
-  margin-bottom: 22px;
-
-  animation: users-enter 480ms cubic-bezier(0.22, 1, 0.36, 1) 20ms both;
-}
-
-.page-header-copy {
-  min-width: 0;
-}
-
-.page-breadcrumb {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
-  color: var(--text-muted, #7b8794);
-  font-size: 11px;
-  font-weight: 600;
-}
-
-.breadcrumb-link {
-  padding: 0;
-  border: 0;
-  color: inherit;
-  background: transparent;
-  font: inherit;
-  cursor: pointer;
-}
-
-.breadcrumb-link:hover {
-  color: var(--primary, #1f8f68);
-}
-
-.page-breadcrumb .is-current {
-  color: var(--text-secondary, #596573);
-}
-
-.page-breadcrumb-separator {
-  color: var(--border-strong, #dfe4eb);
-}
-
-.page-title-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.page-title-icon {
-  display: inline-flex;
-  width: 42px;
-  height: 42px;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid
-    color-mix(in srgb, var(--primary, #1f8f68) 22%, var(--border, #e5e9ee));
-  border-radius: 12px;
-  color: var(--primary, #1f8f68);
-  background: color-mix(in srgb, var(--primary, #1f8f68) 10%, var(--surface, #fff));
-  box-shadow: 0 8px 22px color-mix(in srgb, var(--primary, #1f8f68) 9%, transparent);
-}
-
-.page-header h1 {
-  margin: 0;
-  font-size: 24px;
-  line-height: 1.15;
-  letter-spacing: -0.025em;
-  font-weight: 750;
-}
-
-.page-header p {
-  max-width: 620px;
-  margin: 5px 0 0;
-  color: var(--text-secondary, #596573);
-  font-size: 12px;
-  line-height: 1.5;
-}
-
-/* ================================================================
-   BUTTONS
-   ================================================================ */
-
-.header-actions,
-.footer-actions {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-}
-
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  min-height: 38px;
-  padding: 0 14px;
-  border: 1px solid transparent;
-  border-radius: 10px;
-  font: inherit;
-  font-size: 13px;
-  font-weight: 700;
-  cursor: pointer;
-
-  transition: transform 140ms ease, border-color 140ms ease, background 140ms ease,
-    opacity 140ms ease;
-}
-
-.btn:disabled {
-  cursor: not-allowed;
-  opacity: 0.55;
-}
-
-.btn:not(:disabled):hover {
-  transform: translateY(-1px);
-}
-
-.btn-primary {
-  color: #fff;
-  background: var(--primary, #1f8f68);
-}
-
-.btn-secondary {
-  color: var(--text-primary, #17202a);
-  border-color: var(--border, #e5e9ee);
-  background: var(--surface, #fff);
-}
-
-/* ================================================================
-   NOTICES
-   ================================================================ */
-
-.operation-message {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 18px;
-  padding: 11px 14px;
-  border: 1px solid var(--border, #e5e9ee);
-  border-radius: 10px;
-  font-size: 13px;
-}
-
-.operation-message.success {
-  border-color: #bfe5d3;
-  color: #17714e;
-  background: #f0fbf5;
-}
-
-.operation-message.error {
-  border-color: #f1b8b8;
-  color: #a52d2d;
-  background: #fff6f6;
-}
-
-/* ================================================================
-   CONTENT GRID
-   ================================================================ */
-
-.content-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
-}
-
-.panel {
-  min-width: 0;
-  padding: 16px;
-  border: 1px solid var(--border, #e5e9ee);
-  border-radius: 14px;
-  background: var(--surface, #fff);
-  box-shadow: 0 5px 18px rgb(15 23 42 / 3%);
-
-  animation: users-enter 480ms cubic-bezier(0.22, 1, 0.36, 1) 80ms both;
-}
-
-.panel.roles-panel,
-.panel.metadata-panel {
-  grid-column: 1 / -1;
-}
-
-.panel-heading {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 15px;
-  margin-bottom: 16px;
-}
-
-.section-kicker {
-  display: block;
-  margin-bottom: 4px;
-  color: var(--text-muted, #7b8794);
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
-.panel-heading h2 {
-  margin: 0;
-  color: var(--text-primary, #17202a);
-  font-size: 16px;
-  letter-spacing: -0.015em;
-}
-
-.required-note,
-.optional-note,
-.selection-count {
-  color: var(--text-muted, #7b8794);
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.selection-count {
-  color: var(--primary, #1f8f68);
-}
-
-.panel-description {
-  margin: -4px 0 16px;
-  color: var(--text-muted, #7b8794);
-  font-size: 12px;
-  line-height: 1.55;
-}
-
-/* ================================================================
-   FORM
-   ================================================================ */
-
-.form-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
-}
-
-.field {
-  display: grid;
-  gap: 7px;
-  min-width: 0;
-}
-
-.field.full {
-  grid-column: 1 / -1;
-}
-
-.field > span {
-  color: #394457;
-  font-size: 12px;
-  font-weight: 750;
-}
-
-.field em {
-  color: #c24b4b;
-  font-style: normal;
-}
-
-.field input,
-.field select,
-.readonly-value {
   width: 100%;
-  min-height: 40px;
-  box-sizing: border-box;
-  padding: 0 12px;
-  border: 1px solid var(--border, #e5e9ee);
-  border-radius: 9px;
-  outline: 0;
-  color: var(--text-primary, #18212f);
-  background: var(--surface, #fff);
-  font: inherit;
-  font-size: 13px;
-}
-
-.field input::placeholder {
-  color: #a1aab7;
-}
-
-.field input:focus,
-.field select:focus {
-  border-color: var(--primary, #1f8f68);
-  box-shadow: 0 0 0 3px rgb(31 143 104 / 10%);
-}
-
-.field input.invalid,
-.field select.invalid {
-  border-color: #d85c5c;
-}
-
-.field small {
-  color: #b33d3d;
-  font-size: 11px;
-}
-
-.readonly-value {
-  display: flex;
-  align-items: center;
-  color: var(--text-muted, #7a8495);
-  background: var(--surface-muted, #f7f9fa);
-}
-
-/* ================================================================
-   PASSWORD
-   ================================================================ */
-
-.password-field {
-  position: relative;
-}
-
-.password-field input {
-  padding-right: 42px;
-}
-
-.password-toggle {
-  position: absolute;
-  top: 50%;
-  right: 7px;
-  display: grid;
-  width: 30px;
-  height: 30px;
-  place-items: center;
-  transform: translateY(-50%);
-  border: 0;
-  border-radius: 7px;
-  color: var(--text-muted, #7a8495);
-  background: transparent;
-  cursor: pointer;
-}
-
-.password-toggle:hover {
-  color: var(--primary, #1f8f68);
-  background: var(--surface-muted, #f3f5f7);
-}
-
-/* ================================================================
-   ROLES
-   ================================================================ */
-
-.role-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.role-option {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
   min-width: 0;
-  padding: 12px;
-  border: 1px solid var(--border, #e5e9ee);
-  border-radius: 10px;
-  color: var(--text-primary, #18212f);
-  background: var(--surface, #fff);
-  text-align: left;
-  cursor: pointer;
-
-  transition: border-color 140ms ease, background 140ms ease, transform 140ms ease;
+  color: var(--text-primary, #17202a);
 }
 
-.role-option:hover {
-  transform: translateY(-1px);
-  border-color: #bfd8ce;
+.page-enter {
+  animation: page-enter 360ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
-.role-option.selected {
-  border-color: var(--primary, #1f8f68);
-  background: var(--primary-soft, #eef9f4);
-}
-
-.role-check {
-  display: grid;
-  width: 21px;
-  height: 21px;
-  flex: 0 0 21px;
-  place-items: center;
-  border: 1px solid #d5dce3;
-  border-radius: 6px;
-  color: #fff;
-  background: #fff;
-}
-
-.role-option.selected .role-check {
-  border-color: var(--primary, #1f8f68);
-  background: var(--primary, #1f8f68);
-}
-
-.role-copy {
-  display: grid;
-  gap: 3px;
-  min-width: 0;
-}
-
-.role-copy strong {
-  overflow: hidden;
-  font-size: 12px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.role-copy small {
-  overflow: hidden;
-  color: var(--text-muted, #7a8495);
-  font-size: 10px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.empty-roles {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 16px;
-  border: 1px dashed var(--border, #dfe5ea);
-  border-radius: 10px;
-  color: var(--text-muted, #7a8495);
-  background: var(--surface-muted, #fafbfc);
-}
-
-.empty-roles strong {
-  display: block;
-  color: #394457;
-  font-size: 12px;
-}
-
-.empty-roles p {
-  margin: 3px 0 0;
-  font-size: 11px;
-}
-
-.system-role-notice {
-  display: flex;
-  align-items: flex-start;
-  gap: 9px;
-  margin-top: 14px;
-  padding: 12px;
-  border: 1px solid #dfd3f0;
-  border-radius: 10px;
-  color: #6c4b9e;
-  background: #f8f4fc;
-}
-
-.system-role-notice strong {
-  display: block;
-  font-size: 12px;
-}
-
-.system-role-notice p {
-  margin: 3px 0 0;
-  color: #7d6999;
-  font-size: 11px;
-  line-height: 1.5;
-}
-
-/* ================================================================
-   METADATA
-   ================================================================ */
-
-.metadata-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.metadata-grid article {
-  padding: 13px;
-  border: 1px solid var(--border, #edf0f3);
-  border-radius: 10px;
-  background: var(--surface-muted, #fafbfc);
-}
-
-.metadata-grid span {
-  display: block;
-  margin-bottom: 5px;
-  color: var(--text-muted, #7a8495);
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-}
-
-.metadata-grid strong {
-  display: block;
-  color: #394457;
-  font-size: 12px;
-}
-
-.status {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  text-transform: capitalize;
-}
-
-.status i {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: currentColor;
-}
-
-.status.active {
-  color: #17714e;
-}
-
-.status.inactive {
-  color: #9a6518;
-}
-
-/* ================================================================
-   FORM FOOTER
-   ================================================================ */
-
-.form-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  grid-column: 1 / -1;
-  gap: 14px;
-  padding: 4px 2px 0;
-  color: var(--text-muted, #7a8495);
-  font-size: 11px;
-}
-
-.form-footer > span {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-}
-
-/* ================================================================
-   ANIMATION
-   ================================================================ */
-
-@keyframes users-enter {
+@keyframes page-enter {
   from {
     opacity: 0;
     transform: translateY(8px);
@@ -1318,118 +943,728 @@ function formatDate(value?: string | null): string {
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .user-edit-page,
-  .page-header,
-  .panel {
-    animation: none !important;
-  }
+.page-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 20px;
 }
 
-/* ================================================================
-   RESPONSIVE
-   ================================================================ */
+.heading-copy {
+  min-width: 0;
+}
 
-@media (max-width: 980px) {
-  .content-grid {
-    grid-template-columns: 1fr;
-  }
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-bottom: 12px;
+  color: var(--text-muted, #7b8794);
+  font-size: 12px;
+  line-height: 1.4;
+}
 
-  .panel.roles-panel,
-  .panel.metadata-panel,
-  .form-footer {
-    grid-column: auto;
-  }
+.breadcrumb-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  color: var(--text-secondary, #596573);
+  background: transparent;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
 
-  .role-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
+.breadcrumb-link:hover {
+  color: var(--primary, #1f8f68);
+}
 
+.breadcrumb-separator {
+  color: #b3bac4;
+}
+
+.breadcrumb-current {
+  color: var(--text-muted, #8a94a5);
+}
+
+.title-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.page-title-icon {
+  display: grid;
+  width: 46px;
+  height: 46px;
+  flex: 0 0 46px;
+  place-items: center;
+  border: 1px solid #dfe5ec;
+  border-radius: 13px;
+  color: var(--primary, #1f8f68);
+  background: #f5faf8;
+}
+
+.title-copy {
+  min-width: 0;
+}
+
+.eyebrow,
+.section-kicker {
+  display: block;
+  color: #7a8495;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  line-height: 1.3;
+  text-transform: uppercase;
+}
+
+h1 {
+  margin: 4px 0 5px;
+  color: var(--text-primary, #17202a);
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+}
+
+.title-copy p {
+  margin: 0;
+  color: var(--text-secondary, #6d7788);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-shrink: 0;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 9px 14px;
+  border: 1px solid #dfe4ec;
+  border-radius: 10px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 750;
+  line-height: 1;
+  cursor: pointer;
+  transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
+}
+
+.btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  color: #fff;
+  border-color: #18212f;
+  background: #18212f;
+}
+
+.btn-secondary {
+  color: #384356;
+  background: #fff;
+}
+
+.operation-message {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 16px;
+  padding: 11px 13px;
+  border: 1px solid;
+  border-radius: 10px;
+  font-size: 13px;
+}
+
+.operation-message.success {
+  color: #176846;
+  border-color: #cce7da;
+  background: #f1faf5;
+}
+
+.operation-message.error {
+  color: #a53030;
+  border-color: #ffd5d5;
+  background: #fff1f1;
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.summary-card {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-width: 0;
+  padding: 15px;
+  border: 1px solid var(--border-color, #e7ebf0);
+  border-radius: 13px;
+  background: var(--card-bg, #fff);
+  box-shadow: 0 5px 20px rgba(28, 39, 56, 0.035);
+}
+
+.summary-icon {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  place-items: center;
+  border-radius: 9px;
+  color: #1f8f68;
+  background: #eef8f3;
+}
+
+.summary-icon.warning {
+  color: #9b6b18;
+  background: #fff8e9;
+}
+
+.summary-card span {
+  display: block;
+  margin-bottom: 3px;
+  color: var(--text-muted, #7b8794);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.summary-card strong {
+  display: block;
+  overflow: hidden;
+  color: var(--text-primary, #17202a);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.status-value.active {
+  color: #1f8f68;
+}
+
+.status-value.inactive {
+  color: #b14b4b;
+}
+
+.content-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.9fr);
+  gap: 16px;
+}
+
+.panel {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--border-color, #e7ebf0);
+  border-radius: 15px;
+  background: var(--card-bg, #fff);
+  box-shadow: 0 6px 22px rgba(28, 39, 56, 0.035);
+}
+
+.panel-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 18px 18px 15px;
+  border-bottom: 1px solid var(--border-color, #edf0f3);
+}
+
+.panel-heading h2 {
+  margin: 4px 0 4px;
+  color: var(--text-primary, #17202a);
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+}
+
+.panel-heading p {
+  margin: 0;
+  color: var(--text-secondary, #6d7788);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.panel-icon {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  place-items: center;
+  border-radius: 9px;
+  color: #657184;
+  background: #f4f6f8;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  padding: 18px;
+}
+
+.field {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.field > span {
+  color: #394457;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.field em {
+  color: #bd4545;
+  font-style: normal;
+}
+
+.field input,
+.field select {
+  width: 100%;
+  min-height: 40px;
+  box-sizing: border-box;
+  padding: 9px 11px;
+  border: 1px solid #dfe4eb;
+  border-radius: 10px;
+  outline: none;
+  color: #202b3a;
+  background: #fff;
+  font: inherit;
+  font-size: 13px;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.field input:focus,
+.field select:focus {
+  border-color: #8995a8;
+  box-shadow: 0 0 0 3px rgba(137, 149, 168, 0.12);
+}
+
+.field input.invalid {
+  border-color: #d96565;
+}
+
+.field small {
+  color: #b13d3d;
+  font-size: 11px;
+}
+
+.readonly-value {
+  display: flex;
+  min-height: 40px;
+  box-sizing: border-box;
+  align-items: center;
+  padding: 9px 11px;
+  border: 1px solid #e7ebf0;
+  border-radius: 10px;
+  color: #667186;
+  background: #f7f8fa;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.input-with-action {
+  position: relative;
+}
+
+.input-with-action input {
+  padding-right: 62px;
+}
+
+.input-action {
+  position: absolute;
+  top: 50%;
+  right: 9px;
+  padding: 3px;
+  border: 0;
+  transform: translateY(-50%);
+  color: #667186;
+  background: transparent;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.security-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  background: var(--border-color, #edf0f3);
+}
+
+.security-item {
+  min-width: 0;
+  padding: 14px 18px;
+  background: var(--card-bg, #fff);
+}
+
+.security-item span {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--text-muted, #7b8794);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.security-item strong {
+  display: block;
+  overflow: hidden;
+  color: #202a38;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.45;
+  text-overflow: ellipsis;
+}
+
+.security-warning {
+  color: #b2761e !important;
+}
+
+.selection-count {
+  flex-shrink: 0;
+  color: #8a94a5;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.role-list {
+  display: grid;
+}
+
+.role-button {
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+}
+
+.role-row {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-width: 0;
+  padding: 13px 16px;
+  border: 0;
+  border-bottom: 1px solid #edf0f3;
+  color: inherit;
+  background: #fff;
+  font: inherit;
+  transition: background 150ms ease, border-color 150ms ease;
+}
+
+.role-row:last-child {
+  border-bottom: 0;
+}
+
+.role-row:hover {
+  background: #fafcfb;
+}
+
+.role-row.selected {
+  background: #f3faf7;
+}
+
+.role-icon {
+  display: grid;
+  width: 31px;
+  height: 31px;
+  flex: 0 0 31px;
+  place-items: center;
+  border-radius: 8px;
+  color: #657184;
+  background: #f4f6f8;
+}
+
+.role-copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.role-copy strong,
+.role-copy small {
+  display: block;
+}
+
+.role-copy strong {
+  overflow: hidden;
+  color: #273243;
+  font-size: 13px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.role-copy small {
+  margin-top: 2px;
+  overflow: hidden;
+  color: #8a94a5;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.role-check {
+  display: grid;
+  width: 25px;
+  height: 25px;
+  flex: 0 0 25px;
+  place-items: center;
+  border: 1px solid #dfe4eb;
+  border-radius: 7px;
+  color: #fff;
+  background: #fff;
+}
+
+.role-row.selected .role-check {
+  border-color: #1f8f68;
+  background: #1f8f68;
+}
+
+.system-role-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin: 0 16px 16px;
+  padding: 10px 11px;
+  border: 1px solid #eadff4;
+  border-radius: 9px;
+  color: #6c4b9e;
+  background: #faf7fd;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.empty-state {
+  display: grid;
+  place-items: center;
+  gap: 7px;
+  min-height: 170px;
+  padding: 24px;
+  text-align: center;
+}
+
+.empty-icon {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  margin-bottom: 2px;
+  place-items: center;
+  border-radius: 11px;
+  color: #7b8794;
+  background: #f3f5f7;
+}
+
+.empty-state strong {
+  color: #273243;
+  font-size: 13px;
+}
+
+.empty-state span {
+  max-width: 280px;
+  color: #8a94a5;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.metadata-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.metadata-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 13px;
+  border: 1px solid var(--border-color, #e7ebf0);
+  border-radius: 12px;
+  background: var(--card-bg, #fff);
+}
+
+.metadata-icon {
+  display: grid;
+  width: 31px;
+  height: 31px;
+  flex: 0 0 31px;
+  place-items: center;
+  border-radius: 8px;
+  color: #657184;
+  background: #f4f6f8;
+}
+
+.metadata-card > div:last-child {
+  min-width: 0;
+}
+
+.metadata-card span {
+  display: block;
+  margin-bottom: 4px;
+  color: #7b8794;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.metadata-card strong {
+  display: block;
+  overflow: hidden;
+  color: #202a38;
+  font-size: 12px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.access-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 14px;
+  color: #8a94a5;
+  font-size: 11px;
+}
+
+.access-footer span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.access-footer i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #55a56b;
+}
+
+.state-page {
+  display: grid;
+  min-height: 360px;
+  place-items: center;
+  align-content: center;
+  gap: 8px;
+  color: #7b8794;
+  text-align: center;
+}
+
+.state-page strong {
+  color: #273243;
+  font-size: 14px;
+}
+
+.state-page > span,
+.state-page p {
+  margin: 0;
+  max-width: 360px;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.state-page h2 {
+  margin: 0;
+  color: #273243;
+  font-size: 18px;
+}
+
+.state-icon {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  margin-bottom: 3px;
+  place-items: center;
+  border-radius: 13px;
+  color: #657184;
+  background: #f3f5f7;
+}
+
+.state-icon.error {
+  color: #ad4a4a;
+  background: #fff0f0;
+}
+
+@media (max-width: 1000px) {
+  .summary-grid,
   .metadata-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .content-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
-@media (max-width: 900px) {
-  .user-edit-page {
-    margin-inline: -22px;
-    padding: 16px 12px 22px;
-  }
-
+@media (max-width: 720px) {
   .page-header {
     align-items: flex-start;
     flex-direction: column;
   }
 
-  .page-header-copy {
-    width: 100%;
-  }
-
   .header-actions {
     width: 100%;
   }
-}
 
-@media (max-width: 700px) {
+  .header-actions .btn {
+    flex: 1;
+  }
+
   .form-grid,
-  .role-grid,
-  .metadata-grid {
+  .summary-grid,
+  .metadata-grid,
+  .security-grid {
     grid-template-columns: 1fr;
   }
-
-  .field.full {
-    grid-column: auto;
-  }
-
-  .form-footer {
-    align-items: flex-start;
-    flex-direction: column;
-  }
 }
 
-@media (max-width: 560px) {
-  .user-edit-page {
-    margin-inline: -22px;
-    padding: 16px 10px 22px;
+@media (max-width: 520px) {
+  h1 {
+    font-size: 24px;
   }
 
-  .page-title-row {
+  .title-row {
     align-items: flex-start;
   }
 
-  .page-title-icon {
-    width: 40px;
-    height: 40px;
+  .header-actions {
+    flex-direction: column;
   }
 
-  .page-header h1 {
-    font-size: 22px;
-  }
-
-  .header-actions,
   .header-actions .btn {
     width: 100%;
   }
 
-  .header-actions {
+  .access-footer {
+    align-items: flex-start;
     flex-direction: column;
-  }
-
-  .footer-actions,
-  .footer-actions .btn {
-    width: 100%;
-  }
-
-  .footer-actions {
-    flex-direction: column;
-  }
-
-  .panel {
-    padding: 14px;
-  }
-
-  .page-breadcrumb {
-    flex-wrap: wrap;
   }
 }
 </style>
+
