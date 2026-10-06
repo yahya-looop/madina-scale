@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\ActivityLogController;
 use App\Http\Controllers\ModuleController;
 use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\RoleController;
@@ -65,6 +66,19 @@ Route::middleware(['web', 'auth'])->group(function () {
 
     Route::put('/permissions/{permission}', [PermissionController::class, 'update'])
         ->middleware('permission:system.permissions.update');
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Activity Logs
+    |--------------------------------------------------------------------------
+    */
+
+    Route::get('/activity-logs', [ActivityLogController::class, 'index'])
+        ->middleware('permission:system.activity_logs.view');
+
+    Route::get('/activity-logs/{activityLog}', [ActivityLogController::class, 'show'])
+        ->middleware('permission:system.activity_logs.view');
 
 
     /*

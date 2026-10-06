@@ -141,7 +141,15 @@ export const primaryNavigation: NavigationItem[] = [
                 icon: 'users',
                 permission: 'system.roles.view',
             },
+
+            {
+                label: 'Activity Logs',
+                href: '/settings/activity-logs',
+                icon: 'activity',
+                permission: 'system.activity_logs.view',
+            },
         ],
+
     },
 
     {

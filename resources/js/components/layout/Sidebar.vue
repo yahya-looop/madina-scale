@@ -387,7 +387,19 @@ function itemHref(item: NavigationItem): string {
              SIDEBAR FOOTER
              ========================================================= -->
         <div class="sidebar-footer">
-            <div class="footer-mark" aria-hidden="true">M</div>
+            <div
+                style="width: 27px; height: 27px; border-radius: 50%"
+                aria-hidden="true"
+            >
+                <span aria-hidden="true">
+                    <img
+                        style="width: 27px; height: 27px; border-radius: 50%"
+                        src="/images/madina-scale-icon.png"
+                        alt=""
+                        class="brand-logo"
+                    />
+                </span>
+            </div>
 
             <div class="footer-copy">
                 <strong> Madina Scale &amp; Co. </strong>

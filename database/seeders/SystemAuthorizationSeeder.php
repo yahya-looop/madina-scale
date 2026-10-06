@@ -859,6 +859,21 @@ class SystemAuthorizationSeeder extends Seeder
             ],
 
             [
+                'name' => 'Activity Logs',
+                'slug' => 'activity-logs',
+                'description' => 'Immutable user, administrative and system activity audit logs.',
+                'icon' => 'activity',
+                'sort_order' => 225,
+                'permissions' => [
+                    [
+                        'name' => 'View Activity Logs',
+                        'slug' => 'system.activity_logs.view',
+                        'description' => 'View immutable user, administrative and system activity audit logs.',
+                    ],
+                ],
+            ],
+
+            [
                 'name' => 'System',
                 'slug' => 'system',
                 'description' => 'System-level controls and protected application operations.',
