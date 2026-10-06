@@ -41,6 +41,14 @@ class SettingsController extends Controller
     }
 
     /**
+     * Return settings for the system group.
+     */
+    public function system(Request $request): JsonResponse
+    {
+        return $this->group($request, 'system');
+    }
+
+    /**
      * Return settings for a specific group.
      */
     public function group(
@@ -65,7 +73,7 @@ class SettingsController extends Controller
     }
 
     /**
-     * Update one or more system settings.
+     * Update one or more registered system settings.
      */
     public function update(
         SettingsUpdateRequest $request,
@@ -75,27 +83,30 @@ class SettingsController extends Controller
         abort_unless($user !== null, 401);
 
         $validated = $request->validated();
-        $updatedSettings = [];
+        $definitions = SettingsUpdateRequest::definitions();
 
+        $updatedSettings = [];
         $oldValues = [];
         $newValues = [];
 
         foreach ($validated['settings'] as $settingData) {
-            $existingSetting = $this->settingsService->find(
-                $settingData['key'],
-            );
+            $key = $settingData['key'];
+            $definition = $definitions[$key];
 
-            $oldValues[$settingData['key']] = $existingSetting === null
+            $existingSetting = $this->settingsService->find($key);
+
+            $oldValues[$key] = $existingSetting === null
                 ? null
                 : $this->settingsService->valueOf($existingSetting);
 
             $updatedSetting = $this->settingsService->set(
-                key: $settingData['key'],
+                key: $key,
                 value: $settingData['value'],
-                type: $settingData['type'],
+                group: $definition['group'],
+                type: $definition['type'],
             );
 
-            $newValues[$settingData['key']] = $this->settingsService->valueOf(
+            $newValues[$key] = $this->settingsService->valueOf(
                 $updatedSetting,
             );
 

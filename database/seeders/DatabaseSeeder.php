@@ -15,6 +15,7 @@ class DatabaseSeeder extends Seeder
     {
         $this->call([
             SystemAuthorizationSeeder::class,
+            SettingsSeeder::class,
         ]);
 
         $developerRole = Role::query()
