@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\ActivityLogController;
 use App\Http\Controllers\ModuleController;
 use App\Http\Controllers\PermissionController;
@@ -79,6 +80,26 @@ Route::middleware(['web', 'auth'])->group(function () {
 
     Route::get('/activity-logs/{activityLog}', [ActivityLogController::class, 'show'])
         ->middleware('permission:system.activity_logs.view');
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Settings
+    |--------------------------------------------------------------------------
+    */
+
+    Route::get('/settings', [SettingsController::class, 'index'])
+        ->middleware('permission:system.settings.view');
+
+    Route::get('/settings/system', [SettingsController::class, 'system'])
+        ->middleware('permission:system.settings.view');
+
+    Route::get('/settings/{group}', [SettingsController::class, 'group'])
+        ->middleware('permission:system.settings.view');
+
+    Route::put('/settings', [SettingsController::class, 'update'])
+        ->middleware('permission:system.settings.update');
+
 
 
     /*

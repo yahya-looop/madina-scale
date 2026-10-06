@@ -148,6 +148,13 @@ export const primaryNavigation: NavigationItem[] = [
                 icon: 'activity',
                 permission: 'system.activity_logs.view',
             },
+
+            {
+                label: 'System',
+                href: '/settings/system',
+                icon: 'settings',
+                permission: 'system.settings.view',
+            },
         ],
 
     },
