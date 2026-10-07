@@ -21,7 +21,10 @@ class ModuleController extends Controller
     public function index(): JsonResponse
     {
         return response()->json([
-            'data' => $this->modules->list(),
+            'data' => $this->modules
+                ->list()
+                ->values()
+                ->toArray(),
         ]);
     }
 
@@ -31,7 +34,7 @@ class ModuleController extends Controller
     public function show(Module $module): JsonResponse
     {
         return response()->json([
-            'data' => $module,
+            'data' => $module->toArray(),
         ]);
     }
 
@@ -54,7 +57,7 @@ class ModuleController extends Controller
         $module = $this->modules->create($attributes);
 
         return response()->json([
-            'data' => $module,
+            'data' => $module->toArray(),
         ], Response::HTTP_CREATED);
     }
 
@@ -82,7 +85,7 @@ class ModuleController extends Controller
         );
 
         return response()->json([
-            'data' => $module,
+            'data' => $module->toArray(),
         ]);
     }
 }

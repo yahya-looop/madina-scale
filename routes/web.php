@@ -1,4 +1,4 @@
-﻿﻿<?php
+<?php
 
 use App\Http\Controllers\Access\RolesPermissionsController;
 use App\Http\Controllers\Auth\LoginController;
@@ -12,12 +12,11 @@ use Inertia\Inertia;
 | Guest Routes
 |--------------------------------------------------------------------------
 |
-| Routes that are accessible only to unauthenticated users.
+| Routes available only to unauthenticated users.
 |
 */
 
 Route::middleware('guest')->group(function () {
-
     /*
     |--------------------------------------------------------------------------
     | Authentication
@@ -37,12 +36,11 @@ Route::middleware('guest')->group(function () {
 | Authenticated Routes
 |--------------------------------------------------------------------------
 |
-| All authenticated application pages and operations live here.
+| All authenticated application pages live inside this group.
 |
 */
 
 Route::middleware('auth')->group(function () {
-
     /*
     |--------------------------------------------------------------------------
     | Authentication
@@ -58,7 +56,7 @@ Route::middleware('auth')->group(function () {
     | Dashboard
     |--------------------------------------------------------------------------
     |
-    | Main authenticated dashboard page.
+    | Main authenticated application dashboard.
     |
     */
 
@@ -71,7 +69,11 @@ Route::middleware('auth')->group(function () {
     | Developer
     |--------------------------------------------------------------------------
     |
-    | Developer-only operational and platform-management pages.
+    | Developer-level platform management pages.
+    |
+    | Authorization is enforced server-side through the module
+    | management permission. Developer users receive unrestricted
+    | access through the application's AuthorizationService.
     |
     */
 
@@ -98,16 +100,17 @@ Route::middleware('auth')->group(function () {
     |--------------------------------------------------------------------------
     |
     | Settings pages are rendered through Inertia.
-    | Settings data is handled separately through API routes.
+    | Settings data is handled independently through API endpoints.
     |
     */
+
 
     /*
     |--------------------------------------------------------------------------
     | Role & Permissions
     |--------------------------------------------------------------------------
     |
-    | Dedicated page for managing roles and permissions.
+    | Dedicated access-control management page.
     |
     */
 
@@ -120,9 +123,9 @@ Route::middleware('auth')->group(function () {
     | Activity Logs
     |--------------------------------------------------------------------------
     |
-    | Activity log page.
+    | Activity log management page.
     |
-    | Authorization is checked before rendering the page.
+    | Authorization is checked before the Inertia page is rendered.
     |
     */
 
@@ -148,13 +151,10 @@ Route::middleware('auth')->group(function () {
     | System Settings
     |--------------------------------------------------------------------------
     |
-    | Dedicated page for system-level settings.
+    | Dedicated system settings page.
     |
-    | IMPORTANT:
-    | This is the Inertia page route.
-    |
-    | The actual settings data is loaded by System.vue
-    | through the API endpoint:
+    | The page itself is rendered through Inertia.
+    | Settings data is loaded by:
     |
     |     GET /api/settings/system
     |
@@ -179,7 +179,7 @@ Route::middleware('auth')->group(function () {
 
     /*
     |--------------------------------------------------------------------------
-    | User Management Pages
+    | User Management
     |--------------------------------------------------------------------------
     |
     | User management pages rendered through Inertia.
