@@ -1,184 +1,187 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed } from "vue";
 import {
-    Activity,
-    Archive,
-    ArrowLeft,
-    ArrowRight,
-    BarChart3,
-    Bell,
-    BriefcaseBusiness,
-    CalendarDays,
-    Check,
-    CheckCircle2,
-    ChevronDown,
-    ChevronLeft,
-    ChevronRight,
-    CircleHelp,
-    Clock3,
-    CreditCard,
-    Database,
-    Edit3,
-    Eye,
-    FileBarChart,
-    FileText,
-    Folder,
-    Headphones,
-    Info,
-    KeyRound,
-    LayoutDashboard,
-    Lock,
-    LogIn,
-    Mail,
-    Maximize2,
-    Megaphone,
-    Menu,
-    MessageCircle,
-    MoreHorizontal,
-    Moon,
-    Package,
-    Pencil,
-    Plus,
-    RefreshCw,
-    Search,
-    Settings,
-    Shield,
-    ShieldCheck,
-    ShoppingCart,
-    Sun,
-    Tag,
-    Trash2,
-    Truck,
-    User,
-    UserPlus,
-    Users,
-    X,
-} from 'lucide-vue-next';
+  Activity,
+  Archive,
+  ArrowLeft,
+  ArrowRight,
+  BarChart3,
+  Bell,
+  BriefcaseBusiness,
+  CalendarDays,
+  Check,
+  CheckCircle2,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  CircleHelp,
+  Clock3,
+  CreditCard,
+  Database,
+  Edit3,
+  Eye,
+  FileBarChart,
+  FileText,
+  Folder,
+  Headphones,
+  Info,
+  KeyRound,
+  LayoutDashboard,
+  Lock,
+  LogIn,
+  Mail,
+  Maximize2,
+  Megaphone,
+  Menu,
+  MessageCircle,
+  MapPin,
+  MoreHorizontal,
+  Moon,
+  Package,
+  Pencil,
+  Plus,
+  RefreshCw,
+  Search,
+  Settings,
+  Shield,
+  ShieldCheck,
+  ShoppingCart,
+  Sun,
+  Tag,
+  Trash2,
+  Truck,
+  User,
+  UserPlus,
+  Users,
+  X,
+} from "lucide-vue-next";
 
 type IconComponent = typeof LayoutDashboard;
 
 const iconMap: Record<string, IconComponent> = {
-    dashboard: LayoutDashboard,
+  dashboard: LayoutDashboard,
 
-    search: Search,
-    plus: Plus,
-    bell: Bell,
+  search: Search,
+  plus: Plus,
+  bell: Bell,
 
-    calendar: CalendarDays,
-    sun: Sun,
-    moon: Moon,
-    settings: Settings,
+  calendar: CalendarDays,
+  sun: Sun,
+  moon: Moon,
+  settings: Settings,
 
-    'chevron-down': ChevronDown,
-    'chevron-left': ChevronLeft,
-    'chevron-right': ChevronRight,
+  "chevron-down": ChevronDown,
+  "chevron-left": ChevronLeft,
+  "chevron-right": ChevronRight,
 
-    expand: Maximize2,
-    menu: Menu,
+  expand: Maximize2,
+  menu: Menu,
 
-    check: Check,
-    'check-circle': CheckCircle2,
-    info: Info,
+  check: Check,
+  "check-circle": CheckCircle2,
+  info: Info,
 
-    dots: MoreHorizontal,
+  dots: MoreHorizontal,
 
-    chat: MessageCircle,
-    support: Headphones,
+  chat: MessageCircle,
+  support: Headphones,
 
-    users: Users,
-    customers: Users,
-    user: User,
-    'user-plus': UserPlus,
+  users: Users,
+  customers: Users,
+  user: User,
+  "user-plus": UserPlus,
 
-    cart: ShoppingCart,
-    orders: ShoppingCart,
-    sales: ShoppingCart,
+  cart: ShoppingCart,
+  orders: ShoppingCart,
+  sales: ShoppingCart,
 
-    products: Package,
-    inventory: Package,
+  products: Package,
+  inventory: Package,
 
-    wholesale: BriefcaseBusiness,
-    pricing: Tag,
+  wholesale: BriefcaseBusiness,
+  pricing: Tag,
 
-    shipping: Truck,
-    payments: CreditCard,
-    revenue: CreditCard,
+  shipping: Truck,
+  payments: CreditCard,
+  revenue: CreditCard,
 
-    service: Clock3,
+  service: Clock3,
 
-    marketing: Megaphone,
-    analytics: BarChart3,
-    conversion: Activity,
+  marketing: Megaphone,
+  analytics: BarChart3,
+  conversion: Activity,
 
-    reports: FileBarChart,
-    cms: FileText,
-    seo: FileText,
-    developer: FileText,
+  'map-pin': MapPin,
 
-    lock: Lock,
-    unlock: ShieldCheck,
+  reports: FileBarChart,
+  cms: FileText,
+  seo: FileText,
+  developer: FileText,
 
-    security: Shield,
-    permissions: ShieldCheck,
-    roles: ShieldCheck,
+  lock: Lock,
+  unlock: ShieldCheck,
 
-    login: LogIn,
-    'last-login': LogIn,
+  security: Shield,
+  permissions: ShieldCheck,
+  roles: ShieldCheck,
 
-    refresh: RefreshCw,
+  login: LogIn,
+  "last-login": LogIn,
 
-    edit: Pencil,
-    pencil: Pencil,
-    'edit-3': Edit3,
+  refresh: RefreshCw,
 
-    view: Eye,
-    eye: Eye,
+  edit: Pencil,
+  pencil: Pencil,
+  "edit-3": Edit3,
 
-    delete: Trash2,
-    trash: Trash2,
+  view: Eye,
+  eye: Eye,
 
-    close: X,
-    x: X,
+  delete: Trash2,
+  trash: Trash2,
 
-    back: ArrowLeft,
-    'arrow-left': ArrowLeft,
-    'arrow-right': ArrowRight,
+  close: X,
+  x: X,
 
-    save: CheckCircle2,
+  back: ArrowLeft,
+  "arrow-left": ArrowLeft,
+  "arrow-right": ArrowRight,
 
-    email: Mail,
-    mail: Mail,
+  save: CheckCircle2,
 
-    password: KeyRound,
-    key: KeyRound,
+  email: Mail,
+  mail: Mail,
 
-    database: Database,
-    folder: Folder,
+  password: KeyRound,
+  key: KeyRound,
 
-    help: CircleHelp,
+  database: Database,
+  folder: Folder,
+
+  help: CircleHelp,
 };
 
 const props = withDefaults(
-    defineProps<{
-        name: string;
-        size?: number;
-        strokeWidth?: number;
-    }>(),
-    {
-        size: 20,
-        strokeWidth: 1.8,
-    },
+  defineProps<{
+    name: string;
+    size?: number;
+    strokeWidth?: number;
+  }>(),
+  {
+    size: 20,
+    strokeWidth: 1.8,
+  }
 );
 
 const icon = computed(() => iconMap[props.name] ?? CircleHelp);
 </script>
 
 <template>
-    <component
-        :is="icon"
-        :size="size"
-        :stroke-width="strokeWidth"
-        aria-hidden="true"
-        focusable="false"
-    />
+  <component
+    :is="icon"
+    :size="size"
+    :stroke-width="strokeWidth"
+    aria-hidden="true"
+    focusable="false"
+  />
 </template>

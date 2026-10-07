@@ -1,4 +1,4 @@
-export type NavigationItem = {
+﻿export type NavigationItem = {
     label: string;
     href?: string;
     icon: string;
@@ -150,12 +150,18 @@ export const primaryNavigation: NavigationItem[] = [
             },
 
             {
+                label: 'Locations',
+                href: '/locations',
+                icon: 'map-pin',
+                permission: 'system.locations.view',
+            },
+
+            {
                 label: 'Activity Logs',
                 href: '/settings/activity-logs',
                 icon: 'activity',
                 permission: 'system.activity_logs.view',
             },
-
         ],
     },
 

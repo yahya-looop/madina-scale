@@ -3,6 +3,7 @@
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\ActivityLogController;
 use App\Http\Controllers\ModuleController;
+use App\Http\Controllers\LocationController;
 use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\UserController;
@@ -119,4 +120,27 @@ Route::middleware(['web', 'auth'])->group(function () {
 
     Route::put('/modules/{module}', [ModuleController::class, 'update'])
         ->middleware('permission:system.modules.update');
+    /*
+    |--------------------------------------------------------------------------
+    | Locations
+    |--------------------------------------------------------------------------
+    */
+
+    Route::get('/locations', [LocationController::class, 'index'])
+        ->middleware('permission:system.locations.view');
+
+    Route::get('/locations/{location}', [LocationController::class, 'show'])
+        ->middleware('permission:system.locations.view');
+
+    Route::post('/locations', [LocationController::class, 'store'])
+        ->middleware('permission:system.locations.create');
+
+    Route::put('/locations/{location}', [LocationController::class, 'update'])
+        ->middleware('permission:system.locations.update');
+
+    Route::patch('/locations/{location}/activate', [LocationController::class, 'activate'])
+        ->middleware('permission:system.locations.manage');
+
+    Route::patch('/locations/{location}/deactivate', [LocationController::class, 'deactivate'])
+        ->middleware('permission:system.locations.manage');
 });

@@ -874,6 +874,40 @@ class SystemAuthorizationSeeder extends Seeder
             ],
 
             [
+                'name' => 'Locations',
+                'slug' => 'locations',
+                'description' => 'Business locations, branches, stores, warehouses and operational hubs.',
+                'icon' => 'map-pin',
+                'sort_order' => 235,
+                'permissions' => [
+                    [
+                        'name' => 'View Locations',
+                        'slug' => 'system.locations.view',
+                        'description' => 'View business locations and operational details.',
+                    ],
+                    [
+                        'name' => 'Create Locations',
+                        'slug' => 'system.locations.create',
+                        'description' => 'Create business locations.',
+                    ],
+                    [
+                        'name' => 'Update Locations',
+                        'slug' => 'system.locations.update',
+                        'description' => 'Update existing business locations.',
+                    ],
+                    [
+                        'name' => 'Delete Locations',
+                        'slug' => 'system.locations.delete',
+                        'description' => 'Delete eligible business locations.',
+                    ],
+                    [
+                        'name' => 'Manage Locations',
+                        'slug' => 'system.locations.manage',
+                        'description' => 'Manage location configuration and operational settings.',
+                    ],
+                ],
+            ],
+            [
                 'name' => 'System',
                 'slug' => 'system',
                 'description' => 'System-level controls and protected application operations.',

@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { Head } from "@inertiajs/vue3";
 
@@ -230,8 +230,16 @@ const definitions: SettingDefinition[] = [
   },
 
   {
+    key: "business.legal_name",
+    label: "Legal Business Name",
+    description: "Legal or registered business name.",
+    group: "business",
+    type: "string",
+    icon: "settings",
+  },
+  {
     key: "business.name",
-    label: "Business Name",
+    label: "Trading / Display Name",
     description: "Primary business name shown throughout the platform.",
     group: "business",
     type: "string",
@@ -254,9 +262,89 @@ const definitions: SettingDefinition[] = [
     icon: "settings",
   },
   {
+    key: "business.website",
+    label: "Business Website",
+    description: "Public website used for business identity and communications.",
+    group: "business",
+    type: "string",
+    icon: "settings",
+  },
+  {
     key: "business.address",
     label: "Business Address",
     description: "Primary registered or operating business address.",
+    group: "business",
+    type: "string",
+    icon: "settings",
+  },
+  {
+    key: "business.country_code",
+    label: "Country",
+    description: "Primary country using an ISO 3166-1 alpha-2 country code.",
+    group: "business",
+    type: "string",
+    icon: "settings",
+  },
+  {
+    key: "business.division",
+    label: "Division / State",
+    description: "Primary administrative division, state or province.",
+    group: "business",
+    type: "string",
+    icon: "settings",
+  },
+  {
+    key: "business.district",
+    label: "District / City",
+    description: "Primary district, city or equivalent local area.",
+    group: "business",
+    type: "string",
+    icon: "settings",
+  },
+  {
+    key: "business.postal_code",
+    label: "Postal Code",
+    description: "Primary business postal or ZIP code.",
+    group: "business",
+    type: "string",
+    icon: "settings",
+  },
+  {
+    key: "business.type",
+    label: "Business Type",
+    description: "Primary legal or organizational business type.",
+    group: "business",
+    type: "string",
+    icon: "settings",
+  },
+  {
+    key: "business.industry",
+    label: "Industry",
+    description: "Primary industry or economic activity.",
+    group: "business",
+    type: "string",
+    icon: "settings",
+  },
+  {
+    key: "business.registration_number",
+    label: "Registration Number",
+    description: "Business registration or incorporation number.",
+    group: "business",
+    type: "string",
+    icon: "settings",
+  },
+  {
+    key: "business.bin",
+    label: "BIN",
+    description: "Bangladesh Business Identification Number, where applicable.",
+    group: "business",
+    type: "string",
+    icon: "settings",
+  },
+  {
+    key: "business.tin",
+    label: "TIN",
+    description: "Taxpayer Identification Number, where applicable.",
     group: "business",
     type: "string",
     icon: "settings",
@@ -394,6 +482,96 @@ const dayDefinitions = [
 ];
 
 const supportChannels = ["chat", "email", "phone"];
+
+const countryOptions = [
+  {
+    value: "BD",
+    label: "Bangladesh — BD",
+  },
+  {
+    value: "IN",
+    label: "India — IN",
+  },
+  {
+    value: "AE",
+    label: "United Arab Emirates — AE",
+  },
+  {
+    value: "MY",
+    label: "Malaysia — MY",
+  },
+  {
+    value: "SG",
+    label: "Singapore — SG",
+  },
+  {
+    value: "GB",
+    label: "United Kingdom — GB",
+  },
+  {
+    value: "US",
+    label: "United States — US",
+  },
+];
+
+const bangladeshDivisionOptions = [
+  { value: "Dhaka", label: "Dhaka" },
+  { value: "Chattogram", label: "Chattogram" },
+  { value: "Rajshahi", label: "Rajshahi" },
+  { value: "Khulna", label: "Khulna" },
+  { value: "Barishal", label: "Barishal" },
+  { value: "Sylhet", label: "Sylhet" },
+  { value: "Rangpur", label: "Rangpur" },
+  { value: "Mymensingh", label: "Mymensingh" },
+];
+
+const businessTypeOptions = [
+  {
+    value: "sole_proprietorship",
+    label: "Sole Proprietorship",
+  },
+  {
+    value: "partnership",
+    label: "Partnership",
+  },
+  {
+    value: "private_limited",
+    label: "Private Limited Company",
+  },
+  {
+    value: "public_limited",
+    label: "Public Limited Company",
+  },
+  {
+    value: "cooperative",
+    label: "Cooperative",
+  },
+  {
+    value: "nonprofit",
+    label: "Nonprofit / NGO",
+  },
+  {
+    value: "other",
+    label: "Other",
+  },
+];
+
+const industryOptions = [
+  "Retail",
+  "Wholesale",
+  "Manufacturing",
+  "Distribution",
+  "E-commerce",
+  "Food & Beverage",
+  "Services",
+  "Technology",
+  "Healthcare",
+  "Education",
+  "Construction",
+  "Real Estate",
+  "Import & Export",
+  "Other",
+];
 
 const timezoneOptions = [
   {
@@ -1591,84 +1769,114 @@ onMounted(() => {
                   </label>
                 </div>
               </div>
-              <div
+                            <div
                 v-if="activeCategory === 'business'"
                 class="settings-card setting-group-card"
               >
                 <div class="subsection-heading">
                   <div>
                     <strong>Business Identity</strong>
-                    <span> Core business information used by the platform. </span>
+                    <span>
+                      Core legal, public and contact information used across the
+                      platform.
+                    </span>
                   </div>
                 </div>
 
                 <div class="form-grid">
                   <label class="field">
+                    <span>Legal Business Name</span>
+                    <small>
+                      Official registered or legal name of the business.
+                    </small>
+                    <input
+                      :value="stringValue('business.legal_name')"
+                      type="text"
+                      maxlength="200"
+                      placeholder="e.g. Madina Scale & Co."
+                      @input="
+                        setValue(
+                          'business.legal_name',
+                          ($event.target as HTMLInputElement).value,
+                        )
+                      "
+                    />
+                  </label>
+
+                  <label class="field">
                     <span>Business Name</span>
-                    <small>Primary business name.</small>
+                    <small>
+                      Primary public-facing business name.
+                    </small>
                     <input
                       :value="stringValue('business.name')"
                       type="text"
+                      maxlength="200"
+                      placeholder="e.g. Madina Scale"
                       @input="
-                                                setValue(
-                                                    'business.name',
-                                                    (
-                                                        $event.target as HTMLInputElement
-                                                    ).value,
-                                                )
-                                            "
+                        setValue(
+                          'business.name',
+                          ($event.target as HTMLInputElement).value,
+                        )
+                      "
                     />
                   </label>
 
                   <label class="field">
                     <span>Business Email</span>
-                    <small>Primary business email.</small>
+                    <small>
+                      Primary business email address.
+                    </small>
                     <input
                       :value="stringValue('business.email')"
                       type="email"
+                      maxlength="254"
+                      placeholder="e.g. info@madinascale.com"
                       @input="
-                                                setValue(
-                                                    'business.email',
-                                                    (
-                                                        $event.target as HTMLInputElement
-                                                    ).value,
-                                                )
-                                            "
+                        setValue(
+                          'business.email',
+                          ($event.target as HTMLInputElement).value,
+                        )
+                      "
                     />
                   </label>
 
                   <label class="field">
                     <span>Business Phone</span>
-                    <small>Primary business phone.</small>
+                    <small>
+                      Primary business contact number.
+                    </small>
                     <input
                       :value="stringValue('business.phone')"
-                      type="text"
+                      type="tel"
+                      maxlength="30"
+                      placeholder="e.g. +880 1XXX-XXXXXX"
                       @input="
-                                                setValue(
-                                                    'business.phone',
-                                                    (
-                                                        $event.target as HTMLInputElement
-                                                    ).value,
-                                                )
-                                            "
+                        setValue(
+                          'business.phone',
+                          ($event.target as HTMLInputElement).value,
+                        )
+                      "
                     />
                   </label>
 
                   <label class="field full">
-                    <span>Business Address</span>
-                    <small> Registered or operating address. </small>
-                    <textarea
-                      :value="stringValue('business.address')"
-                      rows="3"
+                    <span>Business Website</span>
+                    <small>
+                      Official website or primary public web address.
+                    </small>
+                    <input
+                      :value="stringValue('business.website')"
+                      type="url"
+                      maxlength="255"
+                      placeholder="https://www.example.com"
                       @input="
-                                                setValue(
-                                                    'business.address',
-                                                    (
-                                                        $event.target as HTMLTextAreaElement
-                                                    ).value,
-                                                )
-                                            "
-                    ></textarea>
+                        setValue(
+                          'business.website',
+                          ($event.target as HTMLInputElement).value,
+                        )
+                      "
+                    />
                   </label>
                 </div>
               </div>
@@ -1679,13 +1887,337 @@ onMounted(() => {
               >
                 <div class="subsection-heading">
                   <div>
+                    <strong>Location & Address</strong>
+                    <span>
+                      Define the primary registered or operating business
+                      location.
+                    </span>
+                  </div>
+                </div>
+
+                <div class="form-grid">
+                  <label class="field">
+                    <span>Country</span>
+                    <small>
+                      ISO 3166-1 alpha-2 country code.
+                    </small>
+                    <select
+                      :value="stringValue('business.country_code') || 'BD'"
+                      @change="
+                        setValue(
+                          'business.country_code',
+                          ($event.target as HTMLSelectElement).value,
+                        )
+                      "
+                    >
+                      <option value="BD">Bangladesh — BD</option>
+                      <option value="IN">India — IN</option>
+                      <option value="AE">United Arab Emirates — AE</option>
+                      <option value="SA">Saudi Arabia — SA</option>
+                      <option value="SG">Singapore — SG</option>
+                      <option value="MY">Malaysia — MY</option>
+                      <option value="GB">United Kingdom — GB</option>
+                      <option value="US">United States — US</option>
+                    </select>
+                  </label>
+
+                  <label class="field">
+                    <span>Division / State / Region</span>
+                    <small>
+                      Primary administrative region.
+                    </small>
+                    <input
+                      :value="stringValue('business.division')"
+                      type="text"
+                      maxlength="120"
+                      list="madina-business-divisions"
+                      placeholder="e.g. Dhaka"
+                      @input="
+                        setValue(
+                          'business.division',
+                          ($event.target as HTMLInputElement).value,
+                        )
+                      "
+                    />
+                  </label>
+
+                  <label class="field">
+                    <span>District / City</span>
+                    <small>
+                      Primary district, city or administrative area.
+                    </small>
+                    <input
+                      :value="stringValue('business.district')"
+                      type="text"
+                      maxlength="120"
+                      list="madina-business-districts"
+                      placeholder="e.g. Dhaka"
+                      @input="
+                        setValue(
+                          'business.district',
+                          ($event.target as HTMLInputElement).value,
+                        )
+                      "
+                    />
+                  </label>
+
+                  <label class="field">
+                    <span>Postal Code</span>
+                    <small>
+                      Postal or ZIP code for the primary address.
+                    </small>
+                    <input
+                      :value="stringValue('business.postal_code')"
+                      type="text"
+                      maxlength="20"
+                      inputmode="numeric"
+                      placeholder="e.g. 1205"
+                      @input="
+                        setValue(
+                          'business.postal_code',
+                          ($event.target as HTMLInputElement).value,
+                        )
+                      "
+                    />
+                  </label>
+
+                  <label class="field full">
+                    <span>Registered / Operating Address</span>
+                    <small>
+                      Full registered office, headquarters or primary operating
+                      address.
+                    </small>
+                    <textarea
+                      :value="stringValue('business.address')"
+                      rows="4"
+                      maxlength="1000"
+                      placeholder="House / Road, Area, District, Division, Country"
+                      @input="
+                        setValue(
+                          'business.address',
+                          ($event.target as HTMLTextAreaElement).value,
+                        )
+                      "
+                    ></textarea>
+                  </label>
+                </div>
+
+                <datalist id="madina-business-divisions">
+                  <option value="Dhaka"></option>
+                  <option value="Chattogram"></option>
+                  <option value="Rajshahi"></option>
+                  <option value="Khulna"></option>
+                  <option value="Barishal"></option>
+                  <option value="Sylhet"></option>
+                  <option value="Rangpur"></option>
+                  <option value="Mymensingh"></option>
+                </datalist>
+
+                <datalist id="madina-business-districts">
+                  <option value="Dhaka"></option>
+                  <option value="Gazipur"></option>
+                  <option value="Narayanganj"></option>
+                  <option value="Narsingdi"></option>
+                  <option value="Tangail"></option>
+                  <option value="Chattogram"></option>
+                  <option value="Cumilla"></option>
+                  <option value="Rajshahi"></option>
+                  <option value="Khulna"></option>
+                  <option value="Sylhet"></option>
+                </datalist>
+              </div>
+
+              <div
+                v-if="activeCategory === 'business'"
+                class="settings-card setting-group-card"
+              >
+                <div class="subsection-heading">
+                  <div>
+                    <strong>Classification & Compliance</strong>
+                    <span>
+                      Identify the business structure and core registration
+                      information.
+                    </span>
+                  </div>
+                </div>
+
+                <div class="form-grid">
+                  <label class="field">
+                    <span>Business Type</span>
+                    <small>
+                      Legal or organizational structure of the business.
+                    </small>
+                    <select
+                      :value="stringValue('business.type')"
+                      @change="
+                        setValue(
+                          'business.type',
+                          ($event.target as HTMLSelectElement).value,
+                        )
+                      "
+                    >
+                      <option value="">Select business type</option>
+                      <option value="sole_proprietorship">
+                        Sole Proprietorship
+                      </option>
+                      <option value="partnership">
+                        Partnership
+                      </option>
+                      <option value="private_limited">
+                        Private Limited
+                      </option>
+                      <option value="public_limited">
+                        Public Limited
+                      </option>
+                      <option value="llc">
+                        Limited Liability Company
+                      </option>
+                      <option value="ngo">
+                        NGO / Non-Profit
+                      </option>
+                      <option value="government">
+                        Government / Public Organization
+                      </option>
+                      <option value="other">
+                        Other
+                      </option>
+                    </select>
+                  </label>
+
+                  <label class="field">
+                    <span>Industry</span>
+                    <small>
+                      Primary industry or operating sector.
+                    </small>
+                    <input
+                      :value="stringValue('business.industry')"
+                      type="text"
+                      maxlength="120"
+                      list="madina-business-industries"
+                      placeholder="e.g. Retail & E-commerce"
+                      @input="
+                        setValue(
+                          'business.industry',
+                          ($event.target as HTMLInputElement).value,
+                        )
+                      "
+                    />
+                  </label>
+
+                  <label class="field">
+                    <span>Registration Number</span>
+                    <small>
+                      Government or authority-issued business registration
+                      number.
+                    </small>
+                    <input
+                      :value="stringValue('business.registration_number')"
+                      type="text"
+                      maxlength="100"
+                      placeholder="Business registration number"
+                      @input="
+                        setValue(
+                          'business.registration_number',
+                          ($event.target as HTMLInputElement).value,
+                        )
+                      "
+                    />
+                  </label>
+
+                  <label class="field">
+                    <span>BIN</span>
+                    <small>
+                      Business Identification Number / VAT registration.
+                    </small>
+                    <input
+                      :value="stringValue('business.bin')"
+                      type="text"
+                      maxlength="50"
+                      inputmode="numeric"
+                      placeholder="BIN / VAT number"
+                      @input="
+                        setValue(
+                          'business.bin',
+                          ($event.target as HTMLInputElement).value,
+                        )
+                      "
+                    />
+                  </label>
+
+                  <label class="field">
+                    <span>TIN</span>
+                    <small>
+                      Tax Identification Number.
+                    </small>
+                    <input
+                      :value="stringValue('business.tin')"
+                      type="text"
+                      maxlength="50"
+                      inputmode="numeric"
+                      placeholder="TIN"
+                      @input="
+                        setValue(
+                          'business.tin',
+                          ($event.target as HTMLInputElement).value,
+                        )
+                      "
+                    />
+                  </label>
+
+                  <div class="field field-info">
+                    <span>Compliance Readiness</span>
+                    <small>
+                      Keep official registration and tax identifiers here for
+                      future invoicing, taxation and reporting workflows.
+                    </small>
+
+                    <div class="business-compliance-note">
+                      <Icon name="security" :size="14" />
+                      <span>
+                        Sensitive compliance identifiers are protected by the
+                        existing settings authorization layer.
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <datalist id="madina-business-industries">
+                  <option value="Retail & E-commerce"></option>
+                  <option value="Wholesale & Distribution"></option>
+                  <option value="Manufacturing"></option>
+                  <option value="Import & Export"></option>
+                  <option value="Information Technology"></option>
+                  <option value="Software & SaaS"></option>
+                  <option value="Professional Services"></option>
+                  <option value="Logistics & Transportation"></option>
+                  <option value="Food & Beverage"></option>
+                  <option value="Healthcare"></option>
+                  <option value="Education"></option>
+                  <option value="Construction"></option>
+                  <option value="Real Estate"></option>
+                  <option value="Other"></option>
+                </datalist>
+              </div>
+
+              <div
+                v-if="activeCategory === 'business'"
+                class="settings-card setting-group-card"
+              >
+                <div class="subsection-heading">
+                  <div>
                     <strong>Business Hours</strong>
-                    <span> Configure weekly operating hours. </span>
+                    <span>
+                      Configure the weekly operating schedule for the business.
+                    </span>
                   </div>
                 </div>
 
                 <div class="hours-list">
-                  <div v-for="day in dayDefinitions" :key="day.key" class="hours-row">
+                  <div
+                    v-for="day in dayDefinitions"
+                    :key="day.key"
+                    class="hours-row"
+                  >
                     <div class="day-copy">
                       <strong>{{ day.label }}</strong>
                       <small>
@@ -1699,14 +2231,12 @@ onMounted(() => {
                         type="checkbox"
                         :aria-label="`${day.label} enabled`"
                         @change="
-                                                    updateBusinessHour(
-                                                        day.key,
-                                                        'enabled',
-                                                        (
-                                                            $event.target as HTMLInputElement
-                                                        ).checked,
-                                                    )
-                                                "
+                          updateBusinessHour(
+                            day.key,
+                            'enabled',
+                            ($event.target as HTMLInputElement).checked,
+                          )
+                        "
                       />
                       <span class="switch-track">
                         <span class="switch-thumb"></span>
@@ -1717,36 +2247,38 @@ onMounted(() => {
                       <input
                         :value="businessHour(day.key).open"
                         type="time"
+                        :disabled="!businessHour(day.key).enabled"
+                        :aria-label="`${day.label} opening time`"
                         @input="
-                                                    updateBusinessHour(
-                                                        day.key,
-                                                        'open',
-                                                        (
-                                                            $event.target as HTMLInputElement
-                                                        ).value,
-                                                    )
-                                                "
+                          updateBusinessHour(
+                            day.key,
+                            'open',
+                            ($event.target as HTMLInputElement).value,
+                          )
+                        "
                       />
+
                       <span>to</span>
+
                       <input
                         :value="businessHour(day.key).close"
                         type="time"
+                        :disabled="!businessHour(day.key).enabled"
+                        :aria-label="`${day.label} closing time`"
                         @input="
-                                                    updateBusinessHour(
-                                                        day.key,
-                                                        'close',
-                                                        (
-                                                            $event.target as HTMLInputElement
-                                                        ).value,
-                                                    )
-                                                "
+                          updateBusinessHour(
+                            day.key,
+                            'close',
+                            ($event.target as HTMLInputElement).value,
+                          )
+                        "
                       />
                     </div>
                   </div>
                 </div>
               </div>
 
-              <div
+<div
                 v-if="activeCategory === 'security'"
                 class="security-section"
               >
@@ -3253,6 +3785,39 @@ onMounted(() => {
   color: var(--text-muted);
   font-size: 7px;
   line-height: 1.4;
+}
+
+.field-info {
+  justify-content: flex-start;
+}
+
+.business-compliance-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin-top: 2px;
+  padding: 9px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-muted, var(--surface));
+  color: var(--text-secondary);
+  font-size: 8px;
+  font-weight: 500;
+  line-height: 1.45;
+}
+
+.business-compliance-note svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+  color: var(--text-secondary);
+}
+
+.business-compliance-note span {
+  min-width: 0;
+  color: var(--text-secondary);
+  font-size: 8px;
+  font-weight: 500;
+  line-height: 1.45;
 }
 
 .field input,
