@@ -143,26 +143,36 @@ export const primaryNavigation: NavigationItem[] = [
             },
 
             {
+                label: 'System',
+                href: '/settings/system',
+                icon: 'settings',
+                permission: 'system.settings.view',
+            },
+
+            {
                 label: 'Activity Logs',
                 href: '/settings/activity-logs',
                 icon: 'activity',
                 permission: 'system.activity_logs.view',
             },
 
-            {
-                label: 'System',
-                href: '/settings/system',
-                icon: 'settings',
-                permission: 'system.settings.view',
-            },
         ],
-
     },
 
     {
         label: 'Developer',
         icon: 'developer',
+        expandable: true,
         permission: 'system.system.view',
         developerOnly: true,
+
+        children: [
+            {
+                label: 'Module Management',
+                href: '/developer/modules',
+                icon: 'developer',
+                permission: 'system.modules.view',
+            },
+        ],
     },
 ];

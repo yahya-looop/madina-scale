@@ -1,4 +1,4 @@
-﻿<?php
+﻿﻿<?php
 
 use App\Http\Controllers\Access\RolesPermissionsController;
 use App\Http\Controllers\Auth\LoginController;
@@ -64,6 +64,32 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/dashboard', DashboardController::class)
         ->name('dashboard');
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Developer
+    |--------------------------------------------------------------------------
+    |
+    | Developer-only operational and platform-management pages.
+    |
+    */
+
+    Route::get('/developer/modules', function () {
+        $user = request()->user();
+
+        abort_unless($user !== null, 401);
+
+        abort_unless(
+            $user->can('system.modules.view'),
+            403,
+        );
+
+        return Inertia::render('Developer/Modules', [
+            'userName' => $user->name,
+            'userEmail' => $user->email,
+        ]);
+    })->name('developer.modules');
 
 
     /*
