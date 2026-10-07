@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { Head } from "@inertiajs/vue3";
 
@@ -10,7 +10,13 @@ interface Props {
   userEmail?: string;
 }
 
-type SettingGroup = "general" | "localization" | "currency" | "business" | "system";
+type SettingGroup =
+  | "general"
+  | "localization"
+  | "currency"
+  | "business"
+  | "security"
+  | "system";
 
 type SettingType = "string" | "boolean" | "integer" | "json";
 
@@ -84,6 +90,12 @@ const categories: CategoryDefinition[] = [
     label: "Business",
     description: "Business identity and operating information.",
     icon: "settings",
+  },
+  {
+    id: "security",
+    label: "Security",
+    description: "Authentication protection and password policy.",
+    icon: "security",
   },
   {
     id: "system",
@@ -259,6 +271,93 @@ const definitions: SettingDefinition[] = [
   },
 
   {
+    key: "security.login_max_attempts",
+    label: "Maximum Login Attempts",
+    description:
+      "Maximum consecutive failed login attempts before temporary account lockout.",
+    group: "security",
+    type: "integer",
+    icon: "security",
+  },
+  {
+    key: "security.lockout_duration_minutes",
+    label: "Lockout Duration",
+    description:
+      "Temporary account lockout duration after the configured failed-attempt threshold.",
+    group: "security",
+    type: "integer",
+    icon: "security",
+  },
+  {
+    key: "security.session_timeout_minutes",
+    label: "Session Timeout",
+    description:
+      "Maximum inactive session lifetime before the user must authenticate again.",
+    group: "security",
+    type: "integer",
+    icon: "security",
+  },
+  {
+    key: "security.password_min_length",
+    label: "Minimum Password Length",
+    description: "Minimum number of characters required for a user password.",
+    group: "security",
+    type: "integer",
+    icon: "security",
+  },
+  {
+    key: "security.password_require_mixed_case",
+    label: "Require Mixed Case",
+    description: "Require both uppercase and lowercase characters in passwords.",
+    group: "security",
+    type: "boolean",
+    icon: "security",
+  },
+  {
+    key: "security.password_require_numbers",
+    label: "Require Numbers",
+    description: "Require at least one numeric character in passwords.",
+    group: "security",
+    type: "boolean",
+    icon: "security",
+  },
+  {
+    key: "security.password_require_symbols",
+    label: "Require Symbols",
+    description: "Require at least one symbol character in passwords.",
+    group: "security",
+    type: "boolean",
+    icon: "security",
+  },
+  {
+    key: "security.password_expiry_days",
+    label: "Password Expiry",
+    description:
+      "Number of days before a password is considered expired. Use 0 to disable expiry.",
+    group: "security",
+    type: "integer",
+    icon: "security",
+  },
+  {
+    key: "security.force_password_change",
+    label: "Force Password Change",
+    description:
+      "Require users to change their password when the security policy demands it.",
+    group: "security",
+    type: "boolean",
+    icon: "security",
+  },
+  {
+    key: "security.require_email_verification",
+    label: "Require Email Verification",
+    description:
+      "Require users to verify their email address before normal account access.",
+    group: "security",
+    type: "boolean",
+    icon: "security",
+  },
+
+  {
     key: "system.maintenance_mode",
     label: "Maintenance Mode",
     description: "Temporarily place the platform into maintenance mode.",
@@ -295,6 +394,189 @@ const dayDefinitions = [
 ];
 
 const supportChannels = ["chat", "email", "phone"];
+
+const timezoneOptions = [
+  {
+    value: "Asia/Dhaka",
+    label: "Asia/Dhaka — Bangladesh Standard Time (UTC+06:00)",
+  },
+  {
+    value: "Asia/Kolkata",
+    label: "Asia/Kolkata — India Standard Time (UTC+05:30)",
+  },
+  {
+    value: "Asia/Dubai",
+    label: "Asia/Dubai — Gulf Standard Time (UTC+04:00)",
+  },
+  {
+    value: "Asia/Singapore",
+    label: "Asia/Singapore — Singapore Standard Time (UTC+08:00)",
+  },
+  {
+    value: "UTC",
+    label: "UTC — Coordinated Universal Time",
+  },
+];
+
+const localeOptions = [
+  {
+    value: "en-BD",
+    label: "English (Bangladesh) — en-BD",
+  },
+  {
+    value: "bn-BD",
+    label: "বাংলা (বাংলাদেশ) — bn-BD",
+  },
+  {
+    value: "en",
+    label: "English — en",
+  },
+  {
+    value: "bn",
+    label: "বাংলা — bn",
+  },
+];
+
+const dateFormatOptions = [
+  {
+    value: "DD/MM/YYYY",
+    label: "DD/MM/YYYY — 07/10/2026",
+  },
+  {
+    value: "DD MMM YYYY",
+    label: "DD MMM YYYY — 07 Oct 2026",
+  },
+  {
+    value: "DD MMMM YYYY",
+    label: "DD MMMM YYYY — 07 October 2026",
+  },
+  {
+    value: "YYYY-MM-DD",
+    label: "YYYY-MM-DD — 2026-10-07",
+  },
+  {
+    value: "MM/DD/YYYY",
+    label: "MM/DD/YYYY — 10/07/2026",
+  },
+];
+
+const currencyOptions = [
+  {
+    value: "BDT",
+    label: "BDT — Bangladeshi Taka",
+    symbol: "৳",
+  },
+  {
+    value: "USD",
+    label: "USD — US Dollar",
+    symbol: "$",
+  },
+  {
+    value: "EUR",
+    label: "EUR — Euro",
+    symbol: "€",
+  },
+  {
+    value: "GBP",
+    label: "GBP — British Pound",
+    symbol: "£",
+  },
+  {
+    value: "INR",
+    label: "INR — Indian Rupee",
+    symbol: "₹",
+  },
+  {
+    value: "SAR",
+    label: "SAR — Saudi Riyal",
+    symbol: "﷼",
+  },
+  {
+    value: "AED",
+    label: "AED — UAE Dirham",
+    symbol: "د.إ",
+  },
+];
+
+const currencySymbolOptions = [
+  {
+    value: "৳",
+    label: "৳ — Bangladeshi Taka",
+  },
+  {
+    value: "$",
+    label: "$ — US Dollar",
+  },
+  {
+    value: "€",
+    label: "€ — Euro",
+  },
+  {
+    value: "£",
+    label: "£ — British Pound",
+  },
+  {
+    value: "₹",
+    label: "₹ — Indian Rupee",
+  },
+  {
+    value: "﷼",
+    label: "﷼ — Saudi Riyal",
+  },
+  {
+    value: "د.إ",
+    label: "د.إ — UAE Dirham",
+  },
+];
+
+const decimalPlaceOptions = [
+  {
+    value: 0,
+    label: "0 — No decimal",
+  },
+  {
+    value: 1,
+    label: "1 — 123.4",
+  },
+  {
+    value: 2,
+    label: "2 — 123.45",
+  },
+  {
+    value: 3,
+    label: "3 — 123.456",
+  },
+  {
+    value: 4,
+    label: "4 — 123.4567",
+  },
+];
+
+const thousandSeparatorOptions = [
+  {
+    value: ",",
+    label: ", — 1,234,567.89",
+  },
+  {
+    value: ".",
+    label: ". — 1.234.567,89",
+  },
+  {
+    value: " ",
+    label: "Space — 1 234 567.89",
+  },
+];
+
+const decimalSeparatorOptions = [
+  {
+    value: ".",
+    label: ". — 123.45",
+  },
+  {
+    value: ",",
+    label: ", — 123,45",
+  },
+];
 
 const settings = ref<Record<string, unknown>>({});
 const originalSettings = ref<Record<string, unknown>>({});
@@ -441,7 +723,7 @@ function businessHour(day: string): BusinessHour {
 
   return (
     hours[day] ?? {
-      enabled: false,
+      enabled: day !== "friday",
       open: "09:00",
       close: "18:00",
     }
@@ -1043,78 +1325,100 @@ onMounted(() => {
                 <div class="subsection-heading">
                   <div>
                     <strong>Language & Time</strong>
-                    <span> Configure the application's regional behavior. </span>
+                    <span>
+                      Configure the application's regional behavior.
+                    </span>
                   </div>
                 </div>
 
                 <div class="form-grid">
                   <label class="field">
                     <span>Timezone</span>
-                    <small> Default application timezone. </small>
-                    <input
-                      :value="stringValue('localization.timezone')"
-                      type="text"
-                      placeholder="Asia/Dhaka"
-                      @input="
-                                                setValue(
-                                                    'localization.timezone',
-                                                    (
-                                                        $event.target as HTMLInputElement
-                                                    ).value,
-                                                )
-                                            "
-                    />
+                    <small>
+                      Default timezone used by the application.
+                    </small>
+
+                    <select
+                      :value="stringValue('localization.timezone') || 'Asia/Dhaka'"
+                      @change="
+                        setValue(
+                          'localization.timezone',
+                          ($event.target as HTMLSelectElement).value,
+                        )
+                      "
+                    >
+                      <option
+                        v-for="option in timezoneOptions"
+                        :key="option.value"
+                        :value="option.value"
+                      >
+                        {{ option.label }}
+                      </option>
+                    </select>
                   </label>
 
                   <label class="field">
                     <span>Locale</span>
-                    <small>Default locale code.</small>
-                    <input
-                      :value="stringValue('localization.locale')"
-                      type="text"
-                      placeholder="en"
-                      @input="
-                                                setValue(
-                                                    'localization.locale',
-                                                    (
-                                                        $event.target as HTMLInputElement
-                                                    ).value,
-                                                )
-                                            "
-                    />
+                    <small>
+                      Default application language and regional locale.
+                    </small>
+
+                    <select
+                      :value="stringValue('localization.locale') || 'en-BD'"
+                      @change="
+                        setValue(
+                          'localization.locale',
+                          ($event.target as HTMLSelectElement).value,
+                        )
+                      "
+                    >
+                      <option
+                        v-for="option in localeOptions"
+                        :key="option.value"
+                        :value="option.value"
+                      >
+                        {{ option.label }}
+                      </option>
+                    </select>
                   </label>
 
                   <label class="field">
                     <span>Date Format</span>
-                    <small> Default calendar date format. </small>
-                    <input
-                      :value="stringValue('localization.date_format')"
-                      type="text"
-                      placeholder="DD/MM/YYYY"
-                      @input="
-                                                setValue(
-                                                    'localization.date_format',
-                                                    (
-                                                        $event.target as HTMLInputElement
-                                                    ).value,
-                                                )
-                                            "
-                    />
+                    <small>
+                      Default calendar date display format.
+                    </small>
+
+                    <select
+                      :value="stringValue('localization.date_format') || 'DD/MM/YYYY'"
+                      @change="
+                        setValue(
+                          'localization.date_format',
+                          ($event.target as HTMLSelectElement).value,
+                        )
+                      "
+                    >
+                      <option
+                        v-for="option in dateFormatOptions"
+                        :key="option.value"
+                        :value="option.value"
+                      >
+                        {{ option.label }}
+                      </option>
+                    </select>
                   </label>
 
                   <label class="field">
                     <span>Time Format</span>
-                    <small> 12-hour or 24-hour display. </small>
+                    <small>12-hour or 24-hour display.</small>
+
                     <select
-                      :value="stringValue('localization.time_format')"
+                      :value="stringValue('localization.time_format') || '12-hour'"
                       @change="
-                                                setValue(
-                                                    'localization.time_format',
-                                                    (
-                                                        $event.target as HTMLSelectElement
-                                                    ).value,
-                                                )
-                                            "
+                        setValue(
+                          'localization.time_format',
+                          ($event.target as HTMLSelectElement).value,
+                        )
+                      "
                     >
                       <option value="12-hour">12-hour</option>
                       <option value="24-hour">24-hour</option>
@@ -1123,19 +1427,18 @@ onMounted(() => {
 
                   <label class="field">
                     <span>Week Starts On</span>
-                    <small> First day used in weekly views. </small>
+                    <small>
+                      First day used in weekly views.
+                    </small>
+
                     <select
-                      :value="numberValue('localization.week_starts_on', 6)"
+                      :value="numberValue('localization.week_starts_on', 0)"
                       @change="
-                                                setValue(
-                                                    'localization.week_starts_on',
-                                                    Number(
-                                                        (
-                                                            $event.target as HTMLSelectElement
-                                                        ).value,
-                                                    ),
-                                                )
-                                            "
+                        setValue(
+                          'localization.week_starts_on',
+                          Number(($event.target as HTMLSelectElement).value),
+                        )
+                      "
                     >
                       <option :value="0">Sunday</option>
                       <option :value="1">Monday</option>
@@ -1148,7 +1451,6 @@ onMounted(() => {
                   </label>
                 </div>
               </div>
-
               <div
                 v-if="activeCategory === 'currency'"
                 class="settings-card setting-group-card"
@@ -1156,109 +1458,139 @@ onMounted(() => {
                 <div class="subsection-heading">
                   <div>
                     <strong>Currency & Number Formatting</strong>
-                    <span> Configure monetary display rules for the platform. </span>
+                    <span>
+                      Configure monetary display rules for the platform.
+                    </span>
                   </div>
                 </div>
 
                 <div class="form-grid">
                   <label class="field">
                     <span>Default Currency</span>
-                    <small>ISO currency code.</small>
-                    <input
-                      :value="stringValue('currency.default')"
-                      type="text"
-                      maxlength="10"
-                      placeholder="BDT"
-                      @input="
-                                                setValue(
-                                                    'currency.default',
-                                                    (
-                                                        $event.target as HTMLInputElement
-                                                    ).value.toUpperCase(),
-                                                )
-                                            "
-                    />
+                    <small>
+                      Primary currency used for monetary values.
+                    </small>
+
+                    <select
+                      :value="stringValue('currency.default') || 'BDT'"
+                      @change="
+                        setValue(
+                          'currency.default',
+                          ($event.target as HTMLSelectElement).value,
+                        )
+                      "
+                    >
+                      <option
+                        v-for="currency in currencyOptions"
+                        :key="currency.value"
+                        :value="currency.value"
+                      >
+                        {{ currency.label }}
+                      </option>
+                    </select>
                   </label>
 
                   <label class="field">
                     <span>Currency Symbol</span>
-                    <small>Displayed currency symbol.</small>
-                    <input
-                      :value="stringValue('currency.symbol')"
-                      type="text"
-                      maxlength="10"
-                      placeholder="৳"
-                      @input="
-                                                setValue(
-                                                    'currency.symbol',
-                                                    (
-                                                        $event.target as HTMLInputElement
-                                                    ).value,
-                                                )
-                                            "
-                    />
+                    <small>
+                      Symbol displayed alongside monetary values.
+                    </small>
+
+                    <select
+                      :value="stringValue('currency.symbol') || '৳'"
+                      @change="
+                        setValue(
+                          'currency.symbol',
+                          ($event.target as HTMLSelectElement).value,
+                        )
+                      "
+                    >
+                      <option
+                        v-for="option in currencySymbolOptions"
+                        :key="option.value"
+                        :value="option.value"
+                      >
+                        {{ option.label }}
+                      </option>
+                    </select>
                   </label>
 
                   <label class="field">
                     <span>Decimal Places</span>
-                    <small> Digits shown after the decimal. </small>
-                    <input
+                    <small>
+                      Digits displayed after the decimal separator.
+                    </small>
+
+                    <select
                       :value="numberValue('currency.decimal_places', 2)"
-                      type="number"
-                      min="0"
-                      max="6"
-                      step="1"
-                      @input="
-                                                setValue(
-                                                    'currency.decimal_places',
-                                                    Number(
-                                                        (
-                                                            $event.target as HTMLInputElement
-                                                        ).value,
-                                                    ),
-                                                )
-                                            "
-                    />
+                      @change="
+                        setValue(
+                          'currency.decimal_places',
+                          Number(($event.target as HTMLSelectElement).value),
+                        )
+                      "
+                    >
+                      <option
+                        v-for="option in decimalPlaceOptions"
+                        :key="option.value"
+                        :value="option.value"
+                      >
+                        {{ option.label }}
+                      </option>
+                    </select>
                   </label>
 
                   <label class="field">
-                    <span>Thousands Separator</span>
-                    <small> Separator between thousands. </small>
-                    <input
-                      :value="stringValue('currency.thousand_separator')"
-                      type="text"
-                      maxlength="3"
-                      @input="
-                                                setValue(
-                                                    'currency.thousand_separator',
-                                                    (
-                                                        $event.target as HTMLInputElement
-                                                    ).value,
-                                                )
-                                            "
-                    />
+                    <span>Thousand Separator</span>
+                    <small>
+                      Character used to group thousands.
+                    </small>
+
+                    <select
+                      :value="stringValue('currency.thousand_separator') || ','"
+                      @change="
+                        setValue(
+                          'currency.thousand_separator',
+                          ($event.target as HTMLSelectElement).value,
+                        )
+                      "
+                    >
+                      <option
+                        v-for="option in thousandSeparatorOptions"
+                        :key="option.value"
+                        :value="option.value"
+                      >
+                        {{ option.label }}
+                      </option>
+                    </select>
                   </label>
 
                   <label class="field">
                     <span>Decimal Separator</span>
-                    <small>Decimal character.</small>
-                    <input
-                      :value="stringValue('currency.decimal_separator')"
-                      type="text"
-                      maxlength="3"
-                      @input="
-                                                setValue(
-                                                    'currency.decimal_separator',
-                                                    (
-                                                        $event.target as HTMLInputElement
-                                                    ).value,
-                                                )
-                                            "
-                    />
+                    <small>
+                      Character used before the decimal portion.
+                    </small>
+
+                    <select
+                      :value="stringValue('currency.decimal_separator') || '.'"
+                      @change="
+                        setValue(
+                          'currency.decimal_separator',
+                          ($event.target as HTMLSelectElement).value,
+                        )
+                      "
+                    >
+                      <option
+                        v-for="option in decimalSeparatorOptions"
+                        :key="option.value"
+                        :value="option.value"
+                      >
+                        {{ option.label }}
+                      </option>
+                    </select>
                   </label>
                 </div>
               </div>
-
               <div
                 v-if="activeCategory === 'business'"
                 class="settings-card setting-group-card"
@@ -1385,7 +1717,6 @@ onMounted(() => {
                       <input
                         :value="businessHour(day.key).open"
                         type="time"
-                        :disabled="!businessHour(day.key).enabled"
                         @input="
                                                     updateBusinessHour(
                                                         day.key,
@@ -1400,7 +1731,6 @@ onMounted(() => {
                       <input
                         :value="businessHour(day.key).close"
                         type="time"
-                        :disabled="!businessHour(day.key).enabled"
                         @input="
                                                     updateBusinessHour(
                                                         day.key,
@@ -1416,6 +1746,432 @@ onMounted(() => {
                 </div>
               </div>
 
+              <div
+                v-if="activeCategory === 'security'"
+                class="security-section"
+              >
+                <div class="settings-card setting-group-card security-policy-card">
+                  <div class="security-section-heading">
+                    <div class="security-section-heading-copy">
+                      <div class="security-section-icon">
+                        <Icon name="security" :size="17" />
+                      </div>
+
+                      <div>
+                        <strong>Login Protection</strong>
+                        <span>
+                          Configure account lockout and session protection policies.
+                        </span>
+                      </div>
+                    </div>
+
+                    <div class="security-status-badge">
+                      <span class="security-status-dot"></span>
+                      <span>Protected</span>
+                    </div>
+                  </div>
+
+                  <div class="security-policy-grid">
+                    <div class="security-policy-field">
+                      <label for="security-login-max-attempts">
+                        Maximum Login Attempts
+                      </label>
+
+                      <div class="security-input-wrapper">
+                        <input
+                          id="security-login-max-attempts"
+                          :value="numberValue('security.login_max_attempts', 5)"
+                          type="number"
+                          min="1"
+                          max="20"
+                          step="1"
+                          @input="
+                            setValue(
+                              'security.login_max_attempts',
+                              Number(
+                                ($event.target as HTMLInputElement).value,
+                              ),
+                            )
+                          "
+                        />
+
+                        <span>attempts</span>
+                      </div>
+
+                      <small>
+                        Failed attempts allowed before temporary lockout.
+                      </small>
+                    </div>
+
+                    <div class="security-policy-field">
+                      <label for="security-lockout-duration">
+                        Lockout Duration
+                      </label>
+
+                      <div class="security-input-wrapper">
+                        <input
+                          id="security-lockout-duration"
+                          :value="numberValue('security.lockout_duration_minutes', 15)"
+                          type="number"
+                          min="1"
+                          max="1440"
+                          step="1"
+                          @input="
+                            setValue(
+                              'security.lockout_duration_minutes',
+                              Number(
+                                ($event.target as HTMLInputElement).value,
+                              ),
+                            )
+                          "
+                        />
+
+                        <span>minutes</span>
+                      </div>
+
+                      <small>
+                        Duration of the temporary account lockout.
+                      </small>
+                    </div>
+
+                    <div class="security-policy-field">
+                      <label for="security-session-timeout">
+                        Session Timeout
+                      </label>
+
+                      <div class="security-input-wrapper">
+                        <input
+                          id="security-session-timeout"
+                          :value="numberValue('security.session_timeout_minutes', 120)"
+                          type="number"
+                          min="5"
+                          max="10080"
+                          step="5"
+                          @input="
+                            setValue(
+                              'security.session_timeout_minutes',
+                              Number(
+                                ($event.target as HTMLInputElement).value,
+                              ),
+                            )
+                          "
+                        />
+
+                        <span>minutes</span>
+                      </div>
+
+                      <small>
+                        Maximum inactive session lifetime.
+                      </small>
+                    </div>
+                  </div>
+
+                  <div class="security-policy-note">
+                    <Icon name="activity" :size="14" />
+
+                    <div>
+                      <strong>Account protection</strong>
+                      <span>
+                        These controls define the baseline protection applied to
+                        authentication attempts and inactive sessions.
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="settings-card setting-group-card security-policy-card">
+                  <div class="security-section-heading">
+                    <div class="security-section-heading-copy">
+                      <div class="security-section-icon">
+                        <Icon name="security" :size="17" />
+                      </div>
+
+                      <div>
+                        <strong>Password Policy</strong>
+                        <span>
+                          Establish baseline password complexity and lifecycle rules.
+                        </span>
+                      </div>
+                    </div>
+
+                    <div class="security-status-badge">
+                      <span class="security-status-dot"></span>
+                      <span>Policy</span>
+                    </div>
+                  </div>
+
+                  <div class="security-password-grid">
+                    <div class="security-policy-field">
+                      <label for="security-password-min-length">
+                        Minimum Password Length
+                      </label>
+
+                      <div class="security-input-wrapper">
+                        <input
+                          id="security-password-min-length"
+                          :value="numberValue('security.password_min_length', 12)"
+                          type="number"
+                          min="8"
+                          max="128"
+                          step="1"
+                          @input="
+                            setValue(
+                              'security.password_min_length',
+                              Number(
+                                ($event.target as HTMLInputElement).value,
+                              ),
+                            )
+                          "
+                        />
+
+                        <span>characters</span>
+                      </div>
+
+                      <small>
+                        Minimum number of password characters.
+                      </small>
+                    </div>
+
+                    <div class="security-policy-field">
+                      <label for="security-password-expiry">
+                        Password Expiry
+                      </label>
+
+                      <div class="security-input-wrapper">
+                        <input
+                          id="security-password-expiry"
+                          :value="numberValue('security.password_expiry_days', 0)"
+                          type="number"
+                          min="0"
+                          max="3650"
+                          step="1"
+                          @input="
+                            setValue(
+                              'security.password_expiry_days',
+                              Number(
+                                ($event.target as HTMLInputElement).value,
+                              ),
+                            )
+                          "
+                        />
+
+                        <span>days</span>
+                      </div>
+
+                      <small>
+                        Use 0 to keep password expiry disabled.
+                      </small>
+                    </div>
+                  </div>
+
+                  <div class="security-control-list">
+                    <div class="security-control-row">
+                      <div class="security-control-info">
+                        <div class="security-control-icon">
+                          <Icon name="security" :size="15" />
+                        </div>
+
+                        <div>
+                          <strong>Require Mixed Case</strong>
+                          <span>
+                            Require both uppercase and lowercase characters.
+                          </span>
+                          <small>security.password_require_mixed_case</small>
+                        </div>
+                      </div>
+
+                      <label class="security-switch">
+                        <input
+                          :checked="booleanValue('security.password_require_mixed_case')"
+                          type="checkbox"
+                          @change="
+                            setValue(
+                              'security.password_require_mixed_case',
+                              ($event.target as HTMLInputElement).checked,
+                            )
+                          "
+                        />
+
+                        <span class="security-switch-track">
+                          <span class="security-switch-thumb"></span>
+                        </span>
+
+                        <span class="security-switch-text">
+                          {{
+                            booleanValue("security.password_require_mixed_case")
+                              ? "Required"
+                              : "Optional"
+                          }}
+                        </span>
+                      </label>
+                    </div>
+
+                    <div class="security-control-row">
+                      <div class="security-control-info">
+                        <div class="security-control-icon">
+                          <Icon name="security" :size="15" />
+                        </div>
+
+                        <div>
+                          <strong>Require Numbers</strong>
+                          <span>
+                            Require at least one numeric character.
+                          </span>
+                          <small>security.password_require_numbers</small>
+                        </div>
+                      </div>
+
+                      <label class="security-switch">
+                        <input
+                          :checked="booleanValue('security.password_require_numbers')"
+                          type="checkbox"
+                          @change="
+                            setValue(
+                              'security.password_require_numbers',
+                              ($event.target as HTMLInputElement).checked,
+                            )
+                          "
+                        />
+
+                        <span class="security-switch-track">
+                          <span class="security-switch-thumb"></span>
+                        </span>
+
+                        <span class="security-switch-text">
+                          {{
+                            booleanValue("security.password_require_numbers")
+                              ? "Required"
+                              : "Optional"
+                          }}
+                        </span>
+                      </label>
+                    </div>
+
+                    <div class="security-control-row">
+                      <div class="security-control-info">
+                        <div class="security-control-icon">
+                          <Icon name="security" :size="15" />
+                        </div>
+
+                        <div>
+                          <strong>Require Symbols</strong>
+                          <span>
+                            Require at least one symbol character.
+                          </span>
+                          <small>security.password_require_symbols</small>
+                        </div>
+                      </div>
+
+                      <label class="security-switch">
+                        <input
+                          :checked="booleanValue('security.password_require_symbols')"
+                          type="checkbox"
+                          @change="
+                            setValue(
+                              'security.password_require_symbols',
+                              ($event.target as HTMLInputElement).checked,
+                            )
+                          "
+                        />
+
+                        <span class="security-switch-track">
+                          <span class="security-switch-thumb"></span>
+                        </span>
+
+                        <span class="security-switch-text">
+                          {{
+                            booleanValue("security.password_require_symbols")
+                              ? "Required"
+                              : "Optional"
+                          }}
+                        </span>
+                      </label>
+                    </div>
+
+                    <div class="security-control-row">
+                      <div class="security-control-info">
+                        <div class="security-control-icon">
+                          <Icon name="security" :size="15" />
+                        </div>
+
+                        <div>
+                          <strong>Force Password Change</strong>
+                          <span>
+                            Require users to change their password when enabled.
+                          </span>
+                          <small>security.force_password_change</small>
+                        </div>
+                      </div>
+
+                      <label class="security-switch">
+                        <input
+                          :checked="booleanValue('security.force_password_change')"
+                          type="checkbox"
+                          @change="
+                            setValue(
+                              'security.force_password_change',
+                              ($event.target as HTMLInputElement).checked,
+                            )
+                          "
+                        />
+
+                        <span class="security-switch-track">
+                          <span class="security-switch-thumb"></span>
+                        </span>
+
+                        <span class="security-switch-text">
+                          {{
+                            booleanValue("security.force_password_change")
+                              ? "Enabled"
+                              : "Disabled"
+                          }}
+                        </span>
+                      </label>
+                    </div>
+
+                    <div class="security-control-row">
+                      <div class="security-control-info">
+                        <div class="security-control-icon">
+                          <Icon name="security" :size="15" />
+                        </div>
+
+                        <div>
+                          <strong>Require Email Verification</strong>
+                          <span>
+                            Require verified email addresses for normal access.
+                          </span>
+                          <small>security.require_email_verification</small>
+                        </div>
+                      </div>
+
+                      <label class="security-switch">
+                        <input
+                          :checked="booleanValue('security.require_email_verification')"
+                          type="checkbox"
+                          @change="
+                            setValue(
+                              'security.require_email_verification',
+                              ($event.target as HTMLInputElement).checked,
+                            )
+                          "
+                        />
+
+                        <span class="security-switch-track">
+                          <span class="security-switch-thumb"></span>
+                        </span>
+
+                        <span class="security-switch-text">
+                          {{
+                            booleanValue("security.require_email_verification")
+                              ? "Required"
+                              : "Optional"
+                          }}
+                        </span>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              </div>
               <div
                 v-if="activeCategory === 'system'"
                 class="settings-card setting-group-card"
@@ -2040,6 +2796,355 @@ onMounted(() => {
   font-weight: 700;
 }
 
+.security-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.security-policy-card {
+  overflow: hidden;
+}
+
+.security-section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 13px 14px 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.security-section-heading-copy {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.security-section-icon {
+  width: 29px;
+  height: 29px;
+  flex: 0 0 29px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--primary) 5%, var(--surface));
+  color: var(--primary);
+}
+
+.security-section-heading-copy strong {
+  display: block;
+  color: var(--text-primary);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.security-section-heading-copy span {
+  display: block;
+  margin-top: 3px;
+  color: var(--text-muted);
+  font-size: 8px;
+  line-height: 1.4;
+}
+
+.security-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: 0 0 auto;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: 8px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.security-status-dot {
+  width: 5px;
+  height: 5px;
+  flex: 0 0 5px;
+  border-radius: 50%;
+  background: var(--success, #16a34a);
+  box-shadow: 0 0 0 2px rgb(22 163 74 / 8%);
+}
+
+.security-policy-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  background: var(--border);
+}
+
+.security-password-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  background: var(--border);
+}
+
+.security-policy-field {
+  min-width: 0;
+  padding: 13px;
+  background: var(--surface);
+}
+
+.security-policy-field > label {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--text-primary);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.security-input-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 0 9px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.security-input-wrapper:focus-within {
+  border-color: color-mix(in srgb, var(--primary) 55%, var(--border));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 9%, transparent);
+}
+
+.security-input-wrapper input {
+  width: 100%;
+  min-width: 0;
+  min-height: 32px;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 9px;
+  font-weight: 600;
+}
+
+.security-input-wrapper span {
+  flex: 0 0 auto;
+  color: var(--text-muted);
+  font-size: 8px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.security-policy-field small {
+  display: block;
+  min-height: 20px;
+  margin-top: 4px;
+  color: var(--text-muted);
+  font-size: 7px;
+  line-height: 1.4;
+}
+
+.security-policy-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 10px 13px 13px;
+  padding: 9px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--primary) 3%, var(--surface));
+  color: var(--text-muted);
+}
+
+.security-policy-note > svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+  color: var(--primary);
+}
+
+.security-policy-note strong {
+  display: block;
+  margin-bottom: 2px;
+  color: var(--text-primary);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.security-policy-note span {
+  display: block;
+  font-size: 7px;
+  line-height: 1.45;
+}
+
+.security-control-list {
+  display: flex;
+  flex-direction: column;
+  margin: 10px 13px 13px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  overflow: hidden;
+}
+
+.security-control-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  min-height: 58px;
+  padding: 10px 12px;
+  background: var(--surface);
+}
+
+.security-control-row + .security-control-row {
+  border-top: 1px solid var(--border);
+}
+
+.security-control-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.security-control-icon {
+  width: 29px;
+  height: 29px;
+  flex: 0 0 29px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--primary) 5%, var(--surface));
+  color: var(--primary);
+}
+
+.security-control-info > div:last-child {
+  min-width: 0;
+}
+
+.security-control-info strong {
+  display: block;
+  color: var(--text-primary);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.security-control-info span {
+  display: block;
+  margin-top: 2px;
+  color: var(--text-secondary);
+  font-size: 9px;
+  line-height: 1.4;
+}
+
+.security-control-info small {
+  display: block;
+  margin-top: 3px;
+  color: var(--text-muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 7px;
+  line-height: 1.35;
+}
+
+.security-switch {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex: 0 0 auto;
+  cursor: pointer;
+  user-select: none;
+}
+
+.security-switch input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.security-switch-track {
+  position: relative;
+  width: 38px;
+  height: 21px;
+  flex: 0 0 38px;
+  border-radius: 999px;
+  background: var(--border);
+  transition: background 160ms ease;
+}
+
+.security-switch-thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: var(--surface);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 18%);
+  transition: transform 160ms ease;
+}
+
+.security-switch input:checked + .security-switch-track {
+  background: var(--primary);
+}
+
+.security-switch input:checked + .security-switch-track .security-switch-thumb {
+  transform: translateX(17px);
+}
+
+.security-switch input:focus-visible + .security-switch-track {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 9%, transparent);
+}
+
+.security-switch-text {
+  min-width: 52px;
+  color: var(--text-secondary);
+  font-size: 9px;
+  font-weight: 650;
+}
+
+@media (max-width: 1100px) {
+  .security-policy-grid,
+  .security-password-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 700px) {
+  .security-section-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    padding: 13px 14px 10px;
+  }
+
+  .security-control-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .security-switch {
+    align-self: flex-end;
+  }
+}
 .settings-card {
   overflow: hidden;
   border: 1px solid var(--border);
@@ -2171,6 +3276,17 @@ onMounted(() => {
 .field select {
   min-height: 34px;
   padding: 0 9px;
+}
+
+.field select {
+  appearance: auto;
+  cursor: pointer;
+}
+
+.field select:disabled,
+.time-controls input:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
 }
 
 .field textarea {
@@ -2844,3 +3960,7 @@ onMounted(() => {
   }
 }
 </style>
+
+
+
+

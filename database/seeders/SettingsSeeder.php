@@ -13,6 +13,12 @@ class SettingsSeeder extends Seeder
     public function run(): void
     {
         $settings = [
+            /*
+            |--------------------------------------------------------------------------
+            | General
+            |--------------------------------------------------------------------------
+            */
+
             [
                 'group' => 'general',
                 'key' => 'general.site_name',
@@ -57,6 +63,12 @@ class SettingsSeeder extends Seeder
                 'sort_order' => 50,
             ],
 
+            /*
+            |--------------------------------------------------------------------------
+            | Localization
+            |--------------------------------------------------------------------------
+            */
+
             [
                 'group' => 'localization',
                 'key' => 'localization.timezone',
@@ -98,6 +110,12 @@ class SettingsSeeder extends Seeder
                 'sort_order' => 50,
             ],
 
+            /*
+            |--------------------------------------------------------------------------
+            | Currency
+            |--------------------------------------------------------------------------
+            */
+
             [
                 'group' => 'currency',
                 'key' => 'currency.default',
@@ -138,6 +156,12 @@ class SettingsSeeder extends Seeder
                 'description' => 'Decimal separator for monetary values.',
                 'sort_order' => 50,
             ],
+
+            /*
+            |--------------------------------------------------------------------------
+            | Business
+            |--------------------------------------------------------------------------
+            */
 
             [
                 'group' => 'business',
@@ -183,6 +207,12 @@ class SettingsSeeder extends Seeder
                 'sort_order' => 50,
             ],
 
+            /*
+            |--------------------------------------------------------------------------
+            | System
+            |--------------------------------------------------------------------------
+            */
+
             [
                 'group' => 'system',
                 'key' => 'system.maintenance_mode',
@@ -210,6 +240,98 @@ class SettingsSeeder extends Seeder
                 'description' => 'Legacy system support channel configuration.',
                 'sort_order' => 30,
             ],
+
+            /*
+            |--------------------------------------------------------------------------
+            | Security
+            |--------------------------------------------------------------------------
+            |
+            | These values define the application's configurable security
+            | policy. Existing values are preserved when the seeder runs
+            | again.
+            |
+            */
+
+            [
+                'group' => 'security',
+                'key' => 'security.login_max_attempts',
+                'value' => '5',
+                'type' => 'integer',
+                'description' => 'Maximum consecutive failed login attempts before the account is temporarily locked.',
+                'sort_order' => 10,
+            ],
+            [
+                'group' => 'security',
+                'key' => 'security.lockout_duration_minutes',
+                'value' => '15',
+                'type' => 'integer',
+                'description' => 'Duration in minutes for a temporary account lock after exceeding the failed login attempt limit.',
+                'sort_order' => 20,
+            ],
+            [
+                'group' => 'security',
+                'key' => 'security.session_timeout_minutes',
+                'value' => '120',
+                'type' => 'integer',
+                'description' => 'Maximum inactivity period in minutes before an authenticated session expires.',
+                'sort_order' => 30,
+            ],
+            [
+                'group' => 'security',
+                'key' => 'security.password_min_length',
+                'value' => '12',
+                'type' => 'integer',
+                'description' => 'Minimum number of characters required for user passwords.',
+                'sort_order' => 40,
+            ],
+            [
+                'group' => 'security',
+                'key' => 'security.password_require_mixed_case',
+                'value' => '1',
+                'type' => 'boolean',
+                'description' => 'Require passwords to contain both uppercase and lowercase characters.',
+                'sort_order' => 50,
+            ],
+            [
+                'group' => 'security',
+                'key' => 'security.password_require_numbers',
+                'value' => '1',
+                'type' => 'boolean',
+                'description' => 'Require passwords to contain at least one numeric character.',
+                'sort_order' => 60,
+            ],
+            [
+                'group' => 'security',
+                'key' => 'security.password_require_symbols',
+                'value' => '1',
+                'type' => 'boolean',
+                'description' => 'Require passwords to contain at least one symbol or special character.',
+                'sort_order' => 70,
+            ],
+            [
+                'group' => 'security',
+                'key' => 'security.password_expiry_days',
+                'value' => '0',
+                'type' => 'integer',
+                'description' => 'Number of days before a password expires. Set to 0 to disable password expiry.',
+                'sort_order' => 80,
+            ],
+            [
+                'group' => 'security',
+                'key' => 'security.force_password_change',
+                'value' => '0',
+                'type' => 'boolean',
+                'description' => 'Require users to change their password when the security policy requires it.',
+                'sort_order' => 90,
+            ],
+            [
+                'group' => 'security',
+                'key' => 'security.require_email_verification',
+                'value' => '0',
+                'type' => 'boolean',
+                'description' => 'Require users to verify their email address before accessing protected application features.',
+                'sort_order' => 100,
+            ],
         ];
 
         foreach ($settings as $data) {
@@ -217,10 +339,20 @@ class SettingsSeeder extends Seeder
                 'key' => $data['key'],
             ]);
 
+            /*
+             * Preserve an existing setting value.
+             *
+             * This makes the seeder safe to run repeatedly without
+             * resetting administrator-configured values.
+             */
             if (! $setting->exists) {
                 $setting->value = $data['value'];
             }
 
+            /*
+             * Keep setting metadata synchronized with the application
+             * definition while preserving the current value.
+             */
             $setting->group = $data['group'];
             $setting->type = $data['type'];
             $setting->description = $data['description'];
