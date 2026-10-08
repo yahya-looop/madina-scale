@@ -1,5 +1,10 @@
 <?php
 
+
+use App\Http\Controllers\ProductCategoryController;
+use App\Http\Controllers\BrandController;
+use App\Http\Controllers\UnitController;
+use App\Http\Controllers\AttributeController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\ActivityLogController;
 use App\Http\Controllers\ModuleController;
@@ -143,4 +148,90 @@ Route::middleware(['web', 'auth'])->group(function () {
 
     Route::patch('/locations/{location}/deactivate', [LocationController::class, 'deactivate'])
         ->middleware('permission:system.locations.manage');
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Product Categories
+    |--------------------------------------------------------------------------
+    */
+    Route::get('/product-categories', [ProductCategoryController::class, 'index'])
+        ->middleware('permission:system.products.categories.view');
+
+    Route::get('/product-categories/{productCategory}', [ProductCategoryController::class, 'show'])
+        ->middleware('permission:system.products.categories.view');
+
+    Route::post('/product-categories', [ProductCategoryController::class, 'store'])
+        ->middleware('permission:system.products.categories.create');
+
+    Route::put('/product-categories/{productCategory}', [ProductCategoryController::class, 'update'])
+        ->middleware('permission:system.products.categories.update');
+
+    Route::delete('/product-categories/{productCategory}', [ProductCategoryController::class, 'destroy'])
+        ->middleware('permission:system.products.categories.delete');
+
+
+
+     /*
+    |--------------------------------------------------------------------------
+    | Brand Routes
+    |--------------------------------------------------------------------------
+    */
+    Route::get('/brands', [BrandController::class, 'index'])
+        ->middleware('permission:system.products.brands.view');
+
+    Route::get('/brands/{brand}', [BrandController::class, 'show'])
+        ->middleware('permission:system.products.brands.view');
+
+    Route::post('/brands', [BrandController::class, 'store'])
+        ->middleware('permission:system.products.brands.create');
+
+    Route::put('/brands/{brand}', [BrandController::class, 'update'])
+        ->middleware('permission:system.products.brands.update');
+
+    Route::delete('/brands/{brand}', [BrandController::class, 'destroy'])
+        ->middleware('permission:system.products.brands.delete');
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Unit Routes
+    |--------------------------------------------------------------------------
+    */
+    Route::get('/units', [UnitController::class, 'index'])
+    ->middleware('permission:system.products.units.view');
+
+    Route::get('/units/{unit}', [UnitController::class, 'show'])
+        ->middleware('permission:system.products.units.view');
+
+    Route::post('/units', [UnitController::class, 'store'])
+        ->middleware('permission:system.products.units.create');
+
+    Route::put('/units/{unit}', [UnitController::class, 'update'])
+        ->middleware('permission:system.products.units.update');
+
+    Route::delete('/units/{unit}', [UnitController::class, 'destroy'])
+        ->middleware('permission:system.products.units.delete');
+
+    /*
+    |--------------------------------------------------------------------------
+    | Attribute Routes
+    |--------------------------------------------------------------------------
+    */
+
+    Route::get('/attributes', [AttributeController::class, 'index'])
+        ->middleware('permission:system.products.attributes.view');
+
+    Route::get('/attributes/{attribute}', [AttributeController::class, 'show'])
+        ->middleware('permission:system.products.attributes.view');
+
+    Route::post('/attributes', [AttributeController::class, 'store'])
+        ->middleware('permission:system.products.attributes.create');
+
+    Route::put('/attributes/{attribute}', [AttributeController::class, 'update'])
+        ->middleware('permission:system.products.attributes.update');
+
+    Route::delete('/attributes/{attribute}', [AttributeController::class, 'destroy'])
+        ->middleware('permission:system.products.attributes.delete');
+
 });

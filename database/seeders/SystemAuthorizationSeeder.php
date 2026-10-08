@@ -265,6 +265,119 @@ class SystemAuthorizationSeeder extends Seeder
                         'slug' => 'system.products.analytics.view',
                         'description' => 'View product performance analytics.',
                     ],
+
+                    /*
+                     * Product Categories
+                     */
+                    [
+                        'name' => 'View Product Categories',
+                        'slug' => 'system.products.categories.view',
+                        'description' => 'View product categories.',
+                    ],
+                    [
+                        'name' => 'Create Product Categories',
+                        'slug' => 'system.products.categories.create',
+                        'description' => 'Create product categories.',
+                    ],
+                    [
+                        'name' => 'Update Product Categories',
+                        'slug' => 'system.products.categories.update',
+                        'description' => 'Update product categories.',
+                    ],
+                    [
+                        'name' => 'Delete Product Categories',
+                        'slug' => 'system.products.categories.delete',
+                        'description' => 'Delete eligible product categories.',
+                    ],
+                    [
+                        'name' => 'Manage Product Categories',
+                        'slug' => 'system.products.categories.manage',
+                        'description' => 'Manage product category hierarchy, status and visibility.',
+                    ],
+                    /*
+                    * Brands
+                    */
+                    [
+                        'name' => 'View Brands',
+                        'slug' => 'system.products.brands.view',
+                        'description' => 'View product brands.',
+                    ],
+                    [
+                        'name' => 'Create Brands',
+                        'slug' => 'system.products.brands.create',
+                        'description' => 'Create product brands.',
+                    ],
+                    [
+                        'name' => 'Update Brands',
+                        'slug' => 'system.products.brands.update',
+                        'description' => 'Update product brands.',
+                    ],
+                    [
+                        'name' => 'Delete Brands',
+                        'slug' => 'system.products.brands.delete',
+                        'description' => 'Delete eligible product brands.',
+                    ],
+                    [
+                        'name' => 'Manage Brands',
+                        'slug' => 'system.products.brands.manage',
+                        'description' => 'Manage product brand status, ordering and configuration.',
+                    ],
+                    /*
+                    * Units
+                    */
+                    [
+                        'name' => 'View Units',
+                        'slug' => 'system.products.units.view',
+                        'description' => 'View product units.',
+                    ],
+                    [
+                        'name' => 'Create Units',
+                        'slug' => 'system.products.units.create',
+                        'description' => 'Create product units.',
+                    ],
+                    [
+                        'name' => 'Update Units',
+                        'slug' => 'system.products.units.update',
+                        'description' => 'Update product units.',
+                    ],
+                    [
+                        'name' => 'Delete Units',
+                        'slug' => 'system.products.units.delete',
+                        'description' => 'Delete eligible product units.',
+                    ],
+                    [
+                        'name' => 'Manage Units',
+                        'slug' => 'system.products.units.manage',
+                        'description' => 'Manage product unit status, ordering and configuration.',
+                    ],
+                    /*
+                    * Attributes
+                    */
+                    [
+                        'name' => 'View Attributes',
+                        'slug' => 'system.products.attributes.view',
+                        'description' => 'View product attributes.',
+                    ],
+                    [
+                        'name' => 'Create Attributes',
+                        'slug' => 'system.products.attributes.create',
+                        'description' => 'Create product attributes.',
+                    ],
+                    [
+                        'name' => 'Update Attributes',
+                        'slug' => 'system.products.attributes.update',
+                        'description' => 'Update product attributes.',
+                    ],
+                    [
+                        'name' => 'Delete Attributes',
+                        'slug' => 'system.products.attributes.delete',
+                        'description' => 'Delete eligible product attributes.',
+                    ],
+                    [
+                        'name' => 'Manage Attributes',
+                        'slug' => 'system.products.attributes.manage',
+                        'description' => 'Manage product attribute status, ordering and configuration.',
+                    ],
                 ],
             ],
 
@@ -907,6 +1020,7 @@ class SystemAuthorizationSeeder extends Seeder
                     ],
                 ],
             ],
+
             [
                 'name' => 'System',
                 'slug' => 'system',
@@ -946,7 +1060,7 @@ class SystemAuthorizationSeeder extends Seeder
      * The Developer role is the supreme system role and therefore
      * receives every registered permission.
      *
-     * @param  array<int, Permission>  $permissions
+     * @param array<int, Permission> $permissions
      */
     private function syncDeveloperRole(array $permissions): void
     {
