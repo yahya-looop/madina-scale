@@ -32,10 +32,47 @@ export const primaryNavigation: NavigationItem[] = [
     },
 
     {
-        label: 'Products',
-        href: '/products',
+        label: 'Product Management',
         icon: 'products',
+        expandable: true,
         permission: 'system.products.view',
+
+        children: [
+            {
+                label: 'Products',
+                href: '/products',
+                icon: 'products',
+                permission: 'system.products.view',
+            },
+
+            {
+                label: 'Categories',
+                href: '/product-categories',
+                icon: 'chart-column-stacked',
+                permission: 'system.products.categories.view',
+            },
+
+            {
+                label: 'Brands',
+                href: '/brands',
+                icon: 'ad',
+                permission: 'system.products.brands.view',
+            },
+
+            {
+                label: 'Units',
+                href: '/units',
+                icon: 'combine',
+                permission: 'system.products.units.view',
+            },
+
+            {
+                label: 'Attributes',
+                href: '/attributes',
+                icon: 'book-heart',
+                permission: 'system.products.attributes.view',
+            },
+        ],
     },
 
     {
