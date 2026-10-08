@@ -1,11 +1,13 @@
 <?php
 
 use App\Http\Controllers\Access\RolesPermissionsController;
+use App\Http\Controllers\ProductController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\UserPageController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
+
 
 /*
 |--------------------------------------------------------------------------
@@ -17,6 +19,7 @@ use Inertia\Inertia;
 */
 
 Route::middleware('guest')->group(function () {
+
     /*
     |--------------------------------------------------------------------------
     | Authentication
@@ -28,6 +31,7 @@ Route::middleware('guest')->group(function () {
 
     Route::post('/login', [LoginController::class, 'store'])
         ->name('login.store');
+
 });
 
 
@@ -41,6 +45,7 @@ Route::middleware('guest')->group(function () {
 */
 
 Route::middleware('auth')->group(function () {
+
     /*
     |--------------------------------------------------------------------------
     | Authentication
@@ -62,6 +67,86 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/dashboard', DashboardController::class)
         ->name('dashboard');
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Product Management Pages
+    |--------------------------------------------------------------------------
+    |
+    | Product pages are rendered through Inertia.
+    | Product data is handled independently through the API endpoints.
+    |
+    */
+
+    Route::get('/products', function () {
+        $user = request()->user();
+
+        abort_unless($user !== null, 401);
+
+        abort_unless(
+            $user->can('system.products.view'),
+            403,
+        );
+
+        return Inertia::render('Products/Index', [
+            'userName' => $user->name,
+            'userEmail' => $user->email,
+        ]);
+    })->name('products.index');
+
+
+    Route::get('/products/create', function () {
+        $user = request()->user();
+
+        abort_unless($user !== null, 401);
+
+        abort_unless(
+            $user->can('system.products.create'),
+            403,
+        );
+
+        return Inertia::render('Products/Create', [
+            'userName' => $user->name,
+            'userEmail' => $user->email,
+        ]);
+    })->name('products.create');
+
+
+    Route::get('/products/{product}/edit', function (int $product) {
+        $user = request()->user();
+
+        abort_unless($user !== null, 401);
+
+        abort_unless(
+            $user->can('system.products.update'),
+            403,
+        );
+
+        return Inertia::render('Products/Edit', [
+            'userName' => $user->name,
+            'userEmail' => $user->email,
+            'productId' => $product,
+        ]);
+    })->whereNumber('product')->name('products.edit');
+
+
+    Route::get('/products/{product}', function (int $product) {
+        $user = request()->user();
+
+        abort_unless($user !== null, 401);
+
+        abort_unless(
+            $user->can('system.products.view'),
+            403,
+        );
+
+        return Inertia::render('Products/Show', [
+            'userName' => $user->name,
+            'userEmail' => $user->email,
+            'productId' => $product,
+        ]);
+    })->whereNumber('product')->name('products.show');
 
 
     /*
@@ -261,4 +346,5 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/users/{user}', [UserPageController::class, 'show'])
         ->name('users.show');
+
 });

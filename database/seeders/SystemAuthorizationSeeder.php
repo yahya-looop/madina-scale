@@ -378,6 +378,35 @@ class SystemAuthorizationSeeder extends Seeder
                         'slug' => 'system.products.attributes.manage',
                         'description' => 'Manage product attribute status, ordering and configuration.',
                     ],
+
+                    /*
+                    * Attributes
+                    */
+                    [
+                        'name' => 'View Attribute Values',
+                        'slug' => 'system.products.attributes.values.view',
+                        'description' => 'View product attribute values.',
+                    ],
+                    [
+                        'name' => 'Create Attribute Values',
+                        'slug' => 'system.products.attributes.values.create',
+                        'description' => 'Create product attribute values.',
+                    ],
+                    [
+                        'name' => 'Update Attribute Values',
+                        'slug' => 'system.products.attributes.values.update',
+                        'description' => 'Update product attribute values.',
+                    ],
+                    [
+                        'name' => 'Delete Attribute Values',
+                        'slug' => 'system.products.attributes.values.delete',
+                        'description' => 'Delete product attribute values.',
+                    ],
+                    [
+                        'name' => 'Manage Attribute Values',
+                        'slug' => 'system.products.attributes.values.manage',
+                        'description' => 'Manage product attribute values.',
+                    ],
                 ],
             ],
 

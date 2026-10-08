@@ -33,8 +33,8 @@ export const primaryNavigation: NavigationItem[] = [
 
     {
         label: 'Products',
+        href: '/products',
         icon: 'products',
-        expandable: true,
         permission: 'system.products.view',
     },
 

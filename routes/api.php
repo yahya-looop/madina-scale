@@ -5,6 +5,8 @@ use App\Http\Controllers\ProductCategoryController;
 use App\Http\Controllers\BrandController;
 use App\Http\Controllers\UnitController;
 use App\Http\Controllers\AttributeController;
+use App\Http\Controllers\AttributeValueController;
+use App\Http\Controllers\ProductController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\ActivityLogController;
 use App\Http\Controllers\ModuleController;
@@ -233,5 +235,46 @@ Route::middleware(['web', 'auth'])->group(function () {
 
     Route::delete('/attributes/{attribute}', [AttributeController::class, 'destroy'])
         ->middleware('permission:system.products.attributes.delete');
+
+    /*
+    |--------------------------------------------------------------------------
+    | Attribute Routes
+    |--------------------------------------------------------------------------
+    */
+    Route::get('/attribute-values', [AttributeValueController::class, 'index'])
+        ->middleware('permission:system.products.attributes.values.view');
+
+    Route::get('/attribute-values/{attributeValue}', [AttributeValueController::class, 'show'])
+        ->middleware('permission:system.products.attributes.values.view');
+
+    Route::post('/attribute-values', [AttributeValueController::class, 'store'])
+        ->middleware('permission:system.products.attributes.values.create');
+
+    Route::put('/attribute-values/{attributeValue}', [AttributeValueController::class, 'update'])
+        ->middleware('permission:system.products.attributes.values.update');
+
+    Route::delete('/attribute-values/{attributeValue}', [AttributeValueController::class, 'destroy'])
+        ->middleware('permission:system.products.attributes.values.delete');
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Product Routes
+    |--------------------------------------------------------------------------
+    */
+    Route::get('/products', [ProductController::class, 'index'])
+        ->middleware('permission:system.products.view');
+
+    Route::get('/products/{product}', [ProductController::class, 'show'])
+        ->middleware('permission:system.products.view');
+
+    Route::post('/products', [ProductController::class, 'store'])
+        ->middleware('permission:system.products.create');
+
+    Route::put('/products/{product}', [ProductController::class, 'update'])
+        ->middleware('permission:system.products.update');
+
+    Route::delete('/products/{product}', [ProductController::class, 'destroy'])
+        ->middleware('permission:system.products.delete');
 
 });
