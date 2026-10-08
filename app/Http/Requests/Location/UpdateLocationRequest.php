@@ -55,7 +55,15 @@ class UpdateLocationRequest extends FormRequest
             'type' => [
                 'required',
                 'string',
-                'in:head_office,branch,store,warehouse,distribution_hub,other',
+                Rule::in([
+                    'head_office',
+                    'branch',
+                    'warehouse',
+                    'distribution_hub',
+                    'service_center',
+                    'factory',
+                    'other',
+                ]),
             ],
 
             'is_active' => [

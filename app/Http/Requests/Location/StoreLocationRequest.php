@@ -2,8 +2,10 @@
 
 namespace App\Http\Requests\Location;
 
+use App\Models\Location;
 use App\Services\AuthorizationService;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
 
 class StoreLocationRequest extends FormRequest
@@ -47,7 +49,15 @@ class StoreLocationRequest extends FormRequest
             'type' => [
                 'required',
                 'string',
-                'in:head_office,branch,store,warehouse,distribution_hub,other',
+                Rule::in([
+                    'head_office',
+                    'branch',
+                    'warehouse',
+                    'distribution_hub',
+                    'service_center',
+                    'factory',
+                    'other',
+                ]),
             ],
 
             'is_active' => [

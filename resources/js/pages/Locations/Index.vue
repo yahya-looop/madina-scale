@@ -1,9 +1,18 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref } from "vue";
-import { Head } from "@inertiajs/vue3";
+import { computed, defineComponent, h, onBeforeUnmount, onMounted, reactive, ref, type Component } from "vue";
+import { Head, router } from "@inertiajs/vue3";
 
 import ErpLayout from "@/layouts/ErpLayout.vue";
 import Icon from "@/components/dashboard/Icon.vue";
+import {
+  Building2,
+  Factory,
+  Cog,
+  HouseIcon,
+  MapPinHouse,
+  ShieldX,
+  ShelvingUnit,
+} from "lucide-vue-next";
 
 interface Props {
   userName?: string;
@@ -15,12 +24,61 @@ const props = withDefaults(defineProps<Props>(), {
   userEmail: "",
 });
 
+const HouseCogIcon = defineComponent({
+  name: "HouseCogIcon",
+  props: {
+    size: {
+      type: Number,
+      default: 24,
+    },
+    strokeWidth: {
+      type: Number,
+      default: 2,
+    },
+  },
+  setup(iconProps) {
+    return () =>
+      h(
+        "span",
+        {
+          style: {
+            position: "relative",
+            display: "inline-flex",
+            width: `${iconProps.size}px`,
+            height: `${iconProps.size}px`,
+            flex: "0 0 auto",
+          },
+          "aria-hidden": "true",
+        },
+        [
+          h(HouseIcon, {
+            size: iconProps.size,
+            strokeWidth: iconProps.strokeWidth,
+          }),
+          h(Cog, {
+            size: Math.max(9, Number(iconProps.size) * 0.55),
+            strokeWidth: iconProps.strokeWidth,
+            style: {
+              position: "absolute",
+              right: "-1px",
+              bottom: "-1px",
+              background: "var(--surface, transparent)",
+              borderRadius: "50%",
+            },
+          }),
+        ],
+      );
+  },
+});
+
 type LocationType =
   | "head_office"
   | "branch"
   | "store"
   | "warehouse"
   | "distribution_hub"
+  | "service_center"
+  | "factory"
   | "other";
 
 type BusinessHoursDay = {
@@ -86,40 +144,60 @@ const locationTypes: Array<{
   {
     value: "head_office",
     label: "Head Office",
-    description: "Primary corporate or administrative office.",
-    icon: "map-pin",
+    description: "Primary corporate or administrative headquarters.",
+    icon: "building-complex",
   },
   {
     value: "branch",
-    label: "Branch",
-    description: "Operational business branch.",
-    icon: "map-pin",
-  },
-  {
-    value: "store",
-    label: "Store",
-    description: "Retail or customer-facing outlet.",
-    icon: "cart",
+    label: "Branch Office",
+    description: "Operational business branch office.",
+    icon: "map-pin-house",
   },
   {
     value: "warehouse",
     label: "Warehouse",
-    description: "Inventory storage facility.",
-    icon: "inventory",
+    description: "Inventory storage and handling facility.",
+    icon: "shelving-unit",
   },
   {
     value: "distribution_hub",
     label: "Distribution Hub",
-    description: "Distribution and fulfillment operation.",
-    icon: "truck",
+    description: "Distribution, fulfillment and logistics hub.",
+    icon: "map-pin-house",
+  },
+  {
+    value: "service_center",
+    label: "Service Center",
+    description: "Customer service, repair or support facility.",
+    icon: "house-cog",
+  },
+  {
+    value: "factory",
+    label: "Factory",
+    description: "Manufacturing or production facility.",
+    icon: "factory",
   },
   {
     value: "other",
     label: "Other",
-    description: "Other operational location.",
+    description: "Other approved operational location.",
     icon: "map-pin",
   },
 ];
+
+const locationIconComponents: Record<string, Component> = {
+  "building-complex": Building2,
+  "shelving-unit": ShelvingUnit,
+  "map-pin-house": MapPinHouse,
+  "house-cog": HouseCogIcon,
+  factory: Factory,
+  "shield-x": ShieldX,
+};
+
+function locationIconComponent(type: LocationType): Component | null {
+  const iconName = locationTypes.find((item) => item.value === type)?.icon;
+  return iconName ? (locationIconComponents[iconName] ?? null) : null;
+}
 
 const countries = [
   { value: "BD", label: "Bangladesh" },
@@ -236,7 +314,7 @@ function emptyForm(): LocationForm {
   return {
     name: "",
     code: "",
-    type: "branch",
+    type: "head_office",
     is_active: true,
     is_primary: false,
     country_code: "BD",
@@ -330,7 +408,7 @@ const modalTitle = computed(() =>
 
 const modalDescription = computed(() =>
   modalMode.value === "create"
-    ? "Create a new branch, store, warehouse or operational location."
+    ? "Create a new head office, branch, warehouse, hub, service center, factory or other location."
     : "Update the location profile and operational configuration."
 );
 
@@ -445,6 +523,10 @@ function openCreateModal(): void {
   showModal.value = true;
 }
 
+function openShowPage(location: Location): void {
+  router.get(`/locations/${location.id}`);
+}
+
 function openEditModal(location: Location): void {
   modalMode.value = "edit";
   editingLocation.value = location;
@@ -458,14 +540,17 @@ function openEditModal(location: Location): void {
     country_code: location.country_code || "BD",
     division: location.division || "Dhaka",
     district:
-      location.district || districtsByDivision[location.division || "Dhaka"]?.[0] || "",
+      location.district ||
+      districtsByDivision[location.division || "Dhaka"]?.[0] ||
+      "",
     postal_code: location.postal_code || "",
     address: location.address || "",
     phone: location.phone || "",
     email: location.email || "",
     business_hours:
-      location.business_hours && Object.keys(location.business_hours).length > 0
-        ? structuredClone(location.business_hours)
+      location.business_hours &&
+      Object.keys(location.business_hours).length > 0
+        ? location.business_hours
         : emptyBusinessHours(),
   });
 
@@ -479,6 +564,12 @@ function closeModal(): void {
     return;
   }
 
+  showModal.value = false;
+  editingLocation.value = null;
+  validationErrors.value = {};
+}
+
+function forceCloseModal(): void {
   showModal.value = false;
   editingLocation.value = null;
   validationErrors.value = {};
@@ -661,11 +752,14 @@ async function saveLocation(): Promise<void> {
       return;
     }
 
-    closeModal();
+    forceCloseModal();
 
-    showSuccess(
-      isEdit ? "Location updated successfully." : "Location created successfully."
-    );
+    if (!isEdit) {
+      showSuccess("Location created successfully.");
+      return;
+    }
+
+    showSuccess("Location updated successfully.");
   } catch (error) {
     showError(errorMessage(error, "Unable to save location. Please review the form."));
   } finally {
@@ -772,7 +866,7 @@ onBeforeUnmount(() => {
               <h1>Locations</h1>
 
               <p>
-                Manage branches, stores, warehouses and operational locations across your
+                Manage branches, warehouses and operational locations across your
                 business.
               </p>
             </div>
@@ -849,7 +943,7 @@ onBeforeUnmount(() => {
 
         <article class="stat-card">
           <div class="stat-icon warning">
-            <Icon name="pause" :size="17" />
+            <ShieldX :size="17" :stroke-width="1.8" />
           </div>
 
           <div>
@@ -877,7 +971,7 @@ onBeforeUnmount(() => {
 
         <article class="stat-card">
           <div class="stat-icon">
-            <Icon name="inventory" :size="17" />
+            <ShelvingUnit :size="17" :stroke-width="1.8" />
           </div>
 
           <div>
@@ -1025,14 +1119,25 @@ onBeforeUnmount(() => {
                         primary: location.is_primary,
                       }"
                     >
-                      <Icon :name="locationTypeIcon(location.type)" :size="16" />
+                      <component
+                        v-if="locationIconComponent(location.type)"
+                        :is="locationIconComponent(location.type)"
+                        :size="16"
+                        :stroke-width="1.8"
+                      />
+                      <Icon v-else :name="locationTypeIcon(location.type)" :size="16" />
                     </div>
 
                     <div class="location-main">
                       <div class="location-name-row">
-                        <strong>
+                        <button
+                          class="location-name-link"
+                          type="button"
+                          title="View location"
+                          @click.stop.prevent="openShowPage(location)"
+                        >
                           {{ location.name }}
-                        </strong>
+                        </button>
 
                         <span v-if="location.is_primary" class="primary-badge">
                           Primary
@@ -1117,7 +1222,8 @@ onBeforeUnmount(() => {
                       "
                       @click="changeStatus(location)"
                     >
-                      <Icon :name="location.is_active ? 'pause' : 'check'" :size="14" />
+                      <ShieldX v-if="location.is_active" :size="14" :stroke-width="1.8" />
+                      <Icon v-else name="check" :size="14" />
                     </button>
                   </div>
                 </td>
@@ -1252,7 +1358,13 @@ onBeforeUnmount(() => {
                       @click="form.type = type.value"
                     >
                       <span class="type-card-icon">
-                        <Icon :name="type.icon" :size="17" />
+                        <component
+                          v-if="locationIconComponents[type.icon]"
+                          :is="locationIconComponents[type.icon]"
+                          :size="17"
+                          :stroke-width="1.8"
+                        />
+                        <Icon v-else :name="type.icon" :size="17" />
                       </span>
 
                       <span class="type-card-copy">
@@ -1495,7 +1607,8 @@ onBeforeUnmount(() => {
                       active: form.is_active,
                     }"
                   >
-                    <Icon :name="form.is_active ? 'check' : 'pause'" :size="15" />
+                    <component v-if="form.is_active" :is="Icon" name="check" :size="15" />
+                    <ShieldX v-else :size="15" :stroke-width="1.8" />
                   </div>
 
                   <div>
@@ -1519,7 +1632,8 @@ onBeforeUnmount(() => {
                       active: form.is_active,
                     }"
                   >
-                    <Icon :name="form.is_active ? 'check' : 'pause'" :size="16" />
+                    <component v-if="form.is_active" :is="Icon" name="check" :size="16" />
+                    <ShieldX v-else :size="16" :stroke-width="1.8" />
                   </span>
 
                   <span class="setting-copy">
@@ -2122,6 +2236,17 @@ onBeforeUnmount(() => {
   color: var(--text-primary);
   font-size: 10px;
   font-weight: 700;
+}
+
+.location-name-link {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
 }
 
 .location-code {

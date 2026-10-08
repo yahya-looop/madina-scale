@@ -69,10 +69,11 @@ Route::middleware('auth')->group(function () {
     | Business Locations
     |--------------------------------------------------------------------------
     |
-    | Business locations, branches, stores, warehouses and operational
-    | hubs are rendered through the Locations/Index Inertia page.
-    |
+    | Business location pages are rendered through Inertia.
     | Location data itself is handled through protected API endpoints.
+    |
+    | Page authorization is intentionally aligned with the corresponding
+    | location permission so users cannot open a page they cannot use.
     |
     */
 
@@ -91,6 +92,40 @@ Route::middleware('auth')->group(function () {
             'userEmail' => $user->email,
         ]);
     })->name('locations.index');
+
+
+    Route::get('/locations/{location}/edit', function () {
+        $user = request()->user();
+
+        abort_unless($user !== null, 401);
+
+        abort_unless(
+            $user->can('system.locations.update'),
+            403,
+        );
+
+        return Inertia::render('Locations/Edit', [
+            'userName' => $user->name,
+            'userEmail' => $user->email,
+        ]);
+    })->name('locations.edit');
+
+
+    Route::get('/locations/{location}', function () {
+        $user = request()->user();
+
+        abort_unless($user !== null, 401);
+
+        abort_unless(
+            $user->can('system.locations.view'),
+            403,
+        );
+
+        return Inertia::render('Locations/Show', [
+            'userName' => $user->name,
+            'userEmail' => $user->email,
+        ]);
+    })->name('locations.show');
 
 
     /*
