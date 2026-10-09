@@ -55,7 +55,7 @@ export const primaryNavigation: NavigationItem[] = [
             {
                 label: 'Brands',
                 href: '/brands',
-                icon: 'ad',
+                icon: 'brand',
                 permission: 'system.products.brands.view',
             },
 

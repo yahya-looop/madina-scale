@@ -8,7 +8,6 @@ use App\Http\Controllers\UserPageController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
-
 /*
 |--------------------------------------------------------------------------
 | Guest Routes
@@ -67,6 +66,108 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/dashboard', DashboardController::class)
         ->name('dashboard');
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Product Master Data Pages
+    |--------------------------------------------------------------------------
+    |
+    | Product categories, brands, and units are rendered through Inertia.
+    | Their data is managed through protected API endpoints.
+    |
+    */
+
+    Route::get('/product-categories', function () {
+        $user = request()->user();
+
+        abort_unless($user !== null, 401);
+
+        abort_unless(
+            $user->can('system.products.categories.view'),
+            403,
+        );
+
+        return Inertia::render('ProductCategories/Index', [
+            'userName' => $user->name,
+            'userEmail' => $user->email,
+        ]);
+    })->name('product-categories.index');
+
+
+    Route::get('/brands', function () {
+        $user = request()->user();
+
+        abort_unless($user !== null, 401);
+
+        abort_unless(
+            $user->can('system.products.brands.view'),
+            403,
+        );
+
+        return Inertia::render('Brands/Index', [
+            'userName' => $user->name,
+            'userEmail' => $user->email,
+        ]);
+    })->name('brands.index');
+
+
+    Route::get('/units', function () {
+        $user = request()->user();
+
+        abort_unless($user !== null, 401);
+
+        abort_unless(
+            $user->can('system.products.units.view'),
+            403,
+        );
+
+        return Inertia::render('Units/Index', [
+            'userName' => $user->name,
+            'userEmail' => $user->email,
+        ]);
+    })->name('units.index');
+
+
+        /*
+    |--------------------------------------------------------------------------
+    | Product Attributes Pages
+    |--------------------------------------------------------------------------
+    */
+
+    Route::get('/attributes', function () {
+        $user = request()->user();
+
+        abort_unless($user !== null, 401);
+
+        abort_unless(
+            $user->can('system.products.attributes.view'),
+            403,
+        );
+
+        return Inertia::render('Attributes/Index', [
+            'userName' => $user->name,
+            'userEmail' => $user->email,
+        ]);
+    })->name('attributes.index');
+
+
+    Route::get('/attributes/{attribute}/values', function (int $attribute) {
+        $user = request()->user();
+
+        abort_unless($user !== null, 401);
+
+        abort_unless(
+            $user->can('system.products.attributes.values.view'),
+            403,
+        );
+
+        return Inertia::render('Attributes/Values', [
+            'userName' => $user->name,
+            'userEmail' => $user->email,
+            'attributeId' => $attribute,
+        ]);
+    })->whereNumber('attribute')->name('attributes.values.index');
 
 
     /*
