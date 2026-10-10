@@ -288,6 +288,60 @@ class UserManagementTest extends TestCase
         $response->assertUnprocessable();
     }
 
+    public function test_user_pages_require_the_matching_permissions(): void
+    {
+        $user = User::factory()->create();
+
+        $this->actingAs($user);
+
+        $this->get('/users')->assertForbidden();
+        $this->get('/users/create')->assertForbidden();
+
+        $managedUser = User::factory()->create();
+
+        $this->get('/users/'.$managedUser->id)->assertForbidden();
+        $this->get('/users/'.$managedUser->id.'/edit')->assertForbidden();
+    }
+
+    public function test_user_pages_allow_users_with_matching_permissions(): void
+    {
+        $viewer = User::factory()->create();
+        $this->grantPermission($viewer, 'system.users.view');
+
+        $this->actingAs($viewer)
+            ->get('/users')
+            ->assertOk();
+
+        $managedUser = User::factory()->create();
+
+        $this->actingAs($viewer)
+            ->get('/users/'.$managedUser->id)
+            ->assertOk();
+
+        $creator = User::factory()->create();
+        $this->grantPermission($creator, 'system.users.create');
+
+        $this->actingAs($creator)
+            ->get('/users/create')
+            ->assertOk();
+
+        $editor = User::factory()->create();
+        $this->grantPermission($editor, 'system.users.update');
+
+        $this->actingAs($editor)
+            ->get('/users/'.$managedUser->id.'/edit')
+            ->assertOk();
+    }
+
+    public function test_database_seeder_does_not_create_predictable_developer_login(): void
+    {
+        $this->seed();
+
+        $this->assertDatabaseMissing('users', [
+            'email' => 'test@example.com',
+        ]);
+    }
+
     private function grantPermission(
         User $user,
         string $permissionSlug,

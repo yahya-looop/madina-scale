@@ -2,36 +2,21 @@
 
 namespace Database\Seeders;
 
-use App\Models\Role;
-use App\Models\User;
 use Illuminate\Database\Seeder;
 
 class DatabaseSeeder extends Seeder
 {
     /**
-     * Seed the application's database.
+     * Seed the application's system configuration.
+     *
+     * Privileged user accounts must be created through a deliberate,
+     * secure bootstrap process. Never seed a predictable Developer login.
      */
     public function run(): void
     {
         $this->call([
             SystemAuthorizationSeeder::class,
             SettingsSeeder::class,
-        ]);
-
-        $developerRole = Role::query()
-            ->where('slug', 'developer')
-            ->firstOrFail();
-
-        $user = User::updateOrCreate(
-            ['email' => 'test@example.com'],
-            [
-                'name' => 'Test User',
-                'password' => 'password',
-            ],
-        );
-
-        $user->roles()->syncWithoutDetaching([
-            $developerRole->id,
         ]);
     }
 }

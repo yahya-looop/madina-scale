@@ -139,6 +139,9 @@ class ProductController extends Controller
             $validated['barcode'],
         );
 
+        // The uploaded file is media, not a products table column.
+        unset($validated['image']);
+
         $uploadedFile = $request->file('image');
         $storedPath = null;
 
@@ -239,7 +242,114 @@ class ProductController extends Controller
             $product,
         );
 
-        $product->update($validated);
+        // Keep image data out of the products table update.
+        unset($validated['image']);
+
+        $uploadedFile = $request->file('image');
+        $storedPath = null;
+        $oldMediaDisk = null;
+        $oldMediaPath = null;
+
+        try {
+            $product = DB::transaction(function () use (
+                $product,
+                $validated,
+                $uploadedFile,
+                &$storedPath,
+                &$oldMediaDisk,
+                &$oldMediaPath
+            ) {
+                $product->update($validated);
+
+                if ($uploadedFile !== null) {
+                    // Store the replacement before changing the current
+                    // primary media record.
+                    $storedPath = $uploadedFile->store(
+                        'products/' . $product->id . '/images',
+                        'public'
+                    );
+
+                    if ($storedPath === false) {
+                        throw new \RuntimeException(
+                            'The replacement product image could not be stored.'
+                        );
+                    }
+
+                    $imageSize = @getimagesize(
+                        $uploadedFile->getRealPath()
+                    );
+
+                    // Lock the existing primary media row while replacing it.
+                    $oldPrimaryMedia = ProductMedia::query()
+                        ->where('product_id', $product->id)
+                        ->where('collection', 'images')
+                        ->where('is_primary', true)
+                        ->lockForUpdate()
+                        ->first();
+
+                    if ($oldPrimaryMedia !== null) {
+                        $oldMediaDisk = $oldPrimaryMedia->disk;
+                        $oldMediaPath = $oldPrimaryMedia->path;
+
+                        // Demote before inserting the new primary record
+                        // to satisfy the PostgreSQL partial unique index.
+                        $oldPrimaryMedia->is_primary = false;
+                        $oldPrimaryMedia->save();
+
+                        // Retain the historical row but exclude it from
+                        // active media relationships.
+                        $oldPrimaryMedia->delete();
+                    }
+
+                    ProductMedia::create([
+                        'product_id' => $product->id,
+                        'disk' => 'public',
+                        'path' => $storedPath,
+                        'collection' => 'images',
+                        'original_name' => $uploadedFile->getClientOriginalName(),
+                        'mime_type' => $uploadedFile->getMimeType(),
+                        'size' => $uploadedFile->getSize(),
+                        'width' => $imageSize !== false
+                            ? ($imageSize[0] ?? null)
+                            : null,
+                        'height' => $imageSize !== false
+                            ? ($imageSize[1] ?? null)
+                            : null,
+                        'alt_text' => $product->name,
+                        'sort_order' => 0,
+                        'is_primary' => true,
+                    ]);
+                }
+
+                return $product;
+            });
+        } catch (\Throwable $exception) {
+            // The DB transaction rolls back on failure. Remove only the
+            // newly uploaded file; do not delete the previous image.
+            if ($storedPath !== null) {
+                Storage::disk('public')->delete($storedPath);
+            }
+
+            throw $exception;
+        }
+
+        // The database replacement has committed. The old file can now
+        // be removed without risking the active primary image.
+        if (
+            $uploadedFile !== null
+            && $oldMediaDisk !== null
+            && $oldMediaPath !== null
+            && $oldMediaPath !== $storedPath
+        ) {
+            try {
+                Storage::disk($oldMediaDisk)->delete($oldMediaPath);
+            } catch (\Throwable $exception) {
+                // Do not fail an otherwise successful product update if
+                // physical cleanup fails. A cleanup job can handle orphans.
+                report($exception);
+            }
+        }
+
         $product->refresh();
 
         $product->load([
@@ -258,14 +368,8 @@ class ProductController extends Controller
 
     public function destroy(Product $product): JsonResponse
     {
-        $product->load('media');
-
-        foreach ($product->media as $media) {
-            if ($media->path !== '') {
-                Storage::disk($media->disk)->delete($media->path);
-            }
-        }
-
+        // Soft-delete the product only. Keep media records and files so
+        // a future restore does not leave the product without its images.
         $product->delete();
 
         return response()->json([

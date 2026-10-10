@@ -18,6 +18,8 @@ class UserPageController extends Controller
     {
         $user = $request->user();
 
+        abort_unless($user?->can('system.users.view'), 403);
+
         return Inertia::render('Users/Index', [
             'users' => $this->users(),
             'roles' => $this->roles(),
@@ -34,6 +36,8 @@ class UserPageController extends Controller
     {
         $user = $request->user();
 
+        abort_unless($user?->can('system.users.create'), 403);
+
         return Inertia::render('Users/Create', [
             'roles' => $this->roles(),
             'capabilities' => $this->capabilities($user),
@@ -48,6 +52,8 @@ class UserPageController extends Controller
     public function show(Request $request, User $user): Response
     {
         $currentUser = $request->user();
+
+        abort_unless($currentUser?->can('system.users.view'), 403);
 
         return Inertia::render('Users/Show', [
             'user' => $user->load([
@@ -67,6 +73,8 @@ class UserPageController extends Controller
     public function edit(Request $request, User $user): Response
     {
         $currentUser = $request->user();
+
+        abort_unless($currentUser?->can('system.users.update'), 403);
 
         return Inertia::render('Users/Edit', [
             'user' => $user->load([
@@ -133,9 +141,9 @@ class UserPageController extends Controller
         }
 
         return [
-            'canView' => $this->hasPermission($user, 'users.view'),
-            'canCreate' => $this->hasPermission($user, 'users.create'),
-            'canUpdate' => $this->hasPermission($user, 'users.update'),
+            'canView' => $this->hasPermission($user, 'system.users.view'),
+            'canCreate' => $this->hasPermission($user, 'system.users.create'),
+            'canUpdate' => $this->hasPermission($user, 'system.users.update'),
             'isDeveloper' => $this->isDeveloper($user),
         ];
     }

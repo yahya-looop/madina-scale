@@ -112,9 +112,7 @@ const productId = computed<number>(() => {
     return Number(props.productId);
   }
 
-  const match = window.location.pathname.match(
-    /\/products\/(\d+)\/edit/
-  );
+  const match = window.location.pathname.match(/\/products\/(\d+)\/edit/);
 
   return Number(match?.[1] ?? 0);
 });
@@ -159,11 +157,7 @@ const form = ref({
   short_description: "",
   description: "",
 
-  status: "draft" as
-    | "draft"
-    | "active"
-    | "inactive"
-    | "archived",
+  status: "draft" as "draft" | "active" | "inactive" | "archived",
 
   visibility: "visible" as "visible" | "hidden",
 
@@ -176,9 +170,8 @@ const form = ref({
 
 const selectedCategoryName = computed(() => {
   return (
-    categories.value.find(
-      (item) => String(item.id) === form.value.category_id
-    )?.name ?? "Not selected"
+    categories.value.find((item) => String(item.id) === form.value.category_id)?.name ??
+    "Not selected"
   );
 });
 
@@ -188,31 +181,24 @@ const selectedBrandName = computed(() => {
   }
 
   return (
-    brands.value.find(
-      (item) => String(item.id) === form.value.brand_id
-    )?.name ?? "No brand"
+    brands.value.find((item) => String(item.id) === form.value.brand_id)?.name ??
+    "No brand"
   );
 });
 
 const selectedUnitName = computed(() => {
   return (
-    units.value.find(
-      (item) => String(item.id) === form.value.unit_id
-    )?.name ?? "Not selected"
+    units.value.find((item) => String(item.id) === form.value.unit_id)?.name ??
+    "Not selected"
   );
 });
 
 const productTypeLabel = computed(() => {
-  return form.value.product_type === "variable"
-    ? "Variable Product"
-    : "Simple Product";
+  return form.value.product_type === "variable" ? "Variable Product" : "Simple Product";
 });
 
 const statusLabel = computed(() => {
-  return (
-    form.value.status.charAt(0).toUpperCase() +
-    form.value.status.slice(1)
-  );
+  return form.value.status.charAt(0).toUpperCase() + form.value.status.slice(1);
 });
 
 const hasRequiredFields = computed(() => {
@@ -228,10 +214,7 @@ const hasRequiredFields = computed(() => {
     return false;
   }
 
-  if (
-    form.value.product_type === "simple" &&
-    !form.value.sku.trim()
-  ) {
+  if (form.value.product_type === "simple" && !form.value.sku.trim()) {
     return false;
   }
 
@@ -248,9 +231,7 @@ const primaryMedia = computed<ProductMedia | null>(() => {
   }
 
   return (
-    product.value.media?.find(
-      (media) => media.is_primary
-    ) ??
+    product.value.media?.find((media) => media.is_primary) ??
     product.value.media?.[0] ??
     null
   );
@@ -295,11 +276,7 @@ const existingImageSize = computed(() => {
    ========================================================================== */
 
 function csrfToken(): string {
-  return (
-    document
-      .querySelector('meta[name="csrf-token"]')
-      ?.getAttribute("content") ?? ""
-  );
+  return document.querySelector('meta[name="csrf-token"]')?.getAttribute("content") ?? "";
 }
 
 function clearMessages(): void {
@@ -358,10 +335,7 @@ function formatFileSize(size: number | null): string {
    API
    ========================================================================== */
 
-async function apiRequest<T>(
-  url: string,
-  options: RequestInit = {}
-): Promise<T> {
+async function apiRequest<T>(url: string, options: RequestInit = {}): Promise<T> {
   const response = await fetch(url, {
     credentials: "same-origin",
     ...options,
@@ -377,8 +351,7 @@ async function apiRequest<T>(
     },
   });
 
-  const contentType =
-    response.headers.get("content-type") ?? "";
+  const contentType = response.headers.get("content-type") ?? "";
 
   let payload: ApiResponse<T> = {};
 
@@ -407,38 +380,20 @@ async function loadOptions(): Promise<void> {
   isLoadingOptions.value = true;
 
   try {
-    const [
-      categoryData,
-      brandData,
-      unitData,
-    ] = await Promise.all([
-      apiRequest<Option[]>(
-        "/api/product-categories"
-      ),
-      apiRequest<Option[]>(
-        "/api/brands"
-      ),
-      apiRequest<Option[]>(
-        "/api/units"
-      ),
+    const [categoryData, brandData, unitData] = await Promise.all([
+      apiRequest<Option[]>("/api/product-categories"),
+      apiRequest<Option[]>("/api/brands"),
+      apiRequest<Option[]>("/api/units"),
     ]);
 
-    categories.value = Array.isArray(categoryData)
-      ? categoryData
-      : [];
+    categories.value = Array.isArray(categoryData) ? categoryData : [];
 
-    brands.value = Array.isArray(brandData)
-      ? brandData
-      : [];
+    brands.value = Array.isArray(brandData) ? brandData : [];
 
-    units.value = Array.isArray(unitData)
-      ? unitData
-      : [];
+    units.value = Array.isArray(unitData) ? unitData : [];
   } catch (error) {
     errorMessage.value =
-      error instanceof Error
-        ? error.message
-        : "Unable to load product options.";
+      error instanceof Error ? error.message : "Unable to load product options.";
   } finally {
     isLoadingOptions.value = false;
   }
@@ -458,9 +413,7 @@ async function loadProduct(): Promise<void> {
   isLoading.value = true;
 
   try {
-    const data = await apiRequest<Product>(
-      `/api/products/${productId.value}`
-    );
+    const data = await apiRequest<Product>(`/api/products/${productId.value}`);
 
     product.value = data;
 
@@ -468,8 +421,7 @@ async function loadProduct(): Promise<void> {
       category_id: String(data.category_id ?? ""),
 
       brand_id:
-        data.brand_id !== null &&
-        data.brand_id !== undefined
+        data.brand_id !== null && data.brand_id !== undefined
           ? String(data.brand_id)
           : "",
 
@@ -484,27 +436,21 @@ async function loadProduct(): Promise<void> {
 
       product_type: data.product_type ?? "simple",
 
-      short_description:
-        data.short_description ?? "",
+      short_description: data.short_description ?? "",
 
-      description:
-        data.description ?? "",
+      description: data.description ?? "",
 
       status: data.status ?? "draft",
 
-      visibility:
-        data.visibility ?? "visible",
+      visibility: data.visibility ?? "visible",
 
-      sort_order:
-        data.sort_order ?? 0,
+      sort_order: data.sort_order ?? 0,
     };
 
     slugManuallyEdited.value = true;
   } catch (error) {
     errorMessage.value =
-      error instanceof Error
-        ? error.message
-        : "Unable to load product.";
+      error instanceof Error ? error.message : "Unable to load product.";
   } finally {
     isLoading.value = false;
   }
@@ -543,11 +489,7 @@ function autoGenerateSlug(): void {
    ========================================================================== */
 
 function validateImage(file: File): string | null {
-  const allowedTypes = [
-    "image/jpeg",
-    "image/png",
-    "image/webp",
-  ];
+  const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
 
   if (!allowedTypes.includes(file.type)) {
     return "Only JPG, PNG or WebP images are allowed.";
@@ -561,8 +503,7 @@ function validateImage(file: File): string | null {
 }
 
 function onImageSelected(event: Event): void {
-  const input =
-    event.target as HTMLInputElement;
+  const input = event.target as HTMLInputElement;
 
   const file = input.files?.[0];
 
@@ -581,7 +522,7 @@ function onImageSelected(event: Event): void {
   if (imagePreviewUrl.value) {
     URL.revokeObjectURL(imagePreviewUrl.value);
   }
-
+  clearMessages();
   selectedImage.value = file;
   imagePreviewUrl.value = URL.createObjectURL(file);
 }
@@ -609,35 +550,23 @@ async function updateProduct(): Promise<void> {
    */
 
   if (!form.value.category_id) {
-    errors.value.category_id = [
-      "Please select a category.",
-    ];
+    errors.value.category_id = ["Please select a category."];
   }
 
   if (!form.value.unit_id) {
-    errors.value.unit_id = [
-      "Please select a base unit.",
-    ];
+    errors.value.unit_id = ["Please select a base unit."];
   }
 
   if (!form.value.name.trim()) {
-    errors.value.name = [
-      "Product name is required.",
-    ];
+    errors.value.name = ["Product name is required."];
   }
 
-  if (
-    form.value.product_type === "simple" &&
-    !form.value.sku.trim()
-  ) {
-    errors.value.sku = [
-      "SKU is required for simple products.",
-    ];
+  if (form.value.product_type === "simple" && !form.value.sku.trim()) {
+    errors.value.sku = ["SKU is required for simple products."];
   }
 
   if (Object.keys(errors.value).length > 0) {
-    errorMessage.value =
-      "Please review the highlighted fields before saving.";
+    errorMessage.value = "Please review the highlighted fields before saving.";
 
     window.scrollTo({
       top: 0,
@@ -651,93 +580,68 @@ async function updateProduct(): Promise<void> {
 
   try {
     const payload = {
-      category_id: Number(
-        form.value.category_id
-      ),
+      category_id: Number(form.value.category_id),
 
-      brand_id: form.value.brand_id
-        ? Number(form.value.brand_id)
-        : null,
+      brand_id: form.value.brand_id ? Number(form.value.brand_id) : null,
 
-      unit_id: Number(
-        form.value.unit_id
-      ),
+      unit_id: Number(form.value.unit_id),
 
       name: form.value.name.trim(),
 
-      slug: normalizeNullable(
-        form.value.slug
-      ),
+      slug: normalizeNullable(form.value.slug),
 
-      sku: normalizeNullable(
-        form.value.sku
-      ),
+      sku: normalizeNullable(form.value.sku),
 
-      model_number:
-        normalizeNullable(
-          form.value.model_number
-        ),
+      model_number: normalizeNullable(form.value.model_number),
 
-      barcode:
-        normalizeNullable(
-          form.value.barcode
-        ),
+      barcode: normalizeNullable(form.value.barcode),
 
-      product_type:
-        form.value.product_type,
+      product_type: form.value.product_type,
 
-      short_description:
-        normalizeNullable(
-          form.value.short_description
-        ),
+      short_description: normalizeNullable(form.value.short_description),
 
-      description:
-        normalizeNullable(
-          form.value.description
-        ),
+      description: normalizeNullable(form.value.description),
 
       status: form.value.status,
 
-      visibility:
-        form.value.visibility,
+      visibility: form.value.visibility,
 
-      sort_order:
-        Number(form.value.sort_order) || 0,
+      sort_order: Number(form.value.sort_order) || 0,
     };
 
-    const updatedProduct =
-      await apiRequest<Product>(
-        `/api/products/${productId.value}`,
-        {
-          method: "PUT",
+    const formData = new FormData();
 
-          headers: {
-            "Content-Type":
-              "application/json",
-          },
+    Object.entries(payload).forEach(([key, value]) => {
+      formData.append(key, value === null ? "" : String(value));
+    });
 
-          body: JSON.stringify(payload),
-        }
-      );
+    if (selectedImage.value) {
+      formData.append("image", selectedImage.value);
+    }
+
+    // Laravel multipart update-এর জন্য method spoofing
+    formData.append("_method", "PUT");
+
+    const updatedProduct = await apiRequest<Product>(`/api/products/${productId.value}`, {
+      method: "POST",
+      body: formData,
+      // Content-Type manually set করবে না।
+      // Browser নিজে multipart boundary যোগ করবে।
+    });
 
     product.value = updatedProduct;
 
-    successMessage.value =
-      "Product updated successfully.";
+    successMessage.value = "Product updated successfully.";
 
     window.setTimeout(() => {
-      router.visit(
-        `/products/${productId.value}`
-      );
+      router.visit(`/products/${productId.value}`);
     }, 900);
   } catch (error) {
     const apiError = error as ApiError;
 
     errors.value = apiError.errors ?? {};
 
-    errorMessage.value =
-      apiError.message ||
-      "Unable to update the product.";
+    errorMessage.value = apiError.message || "Unable to update the product.";
 
     window.scrollTo({
       top: 0,
@@ -753,9 +657,7 @@ async function updateProduct(): Promise<void> {
    ========================================================================== */
 
 function cancel(): void {
-  router.visit(
-    `/products/${productId.value}`
-  );
+  router.visit(`/products/${productId.value}`);
 }
 
 function backToProducts(): void {
@@ -767,10 +669,7 @@ function backToProducts(): void {
    ========================================================================== */
 
 onMounted(() => {
-  void Promise.all([
-    loadOptions(),
-    loadProduct(),
-  ]);
+  void Promise.all([loadOptions(), loadProduct()]);
 });
 
 onBeforeUnmount(() => {
@@ -783,25 +682,18 @@ onBeforeUnmount(() => {
 <template>
   <Head
     :title="
-      product
-        ? `Edit ${product.name} - Madina Scale`
-        : 'Edit Product - Madina Scale'
+      product ? `Edit ${product.name} - Madina Scale` : 'Edit Product - Madina Scale'
     "
   />
 
-  <ErpLayout
-    :user-name="props.userName"
-    :user-email="props.userEmail"
-  >
+  <ErpLayout :user-name="props.userName" :user-email="props.userEmail">
     <div class="product-edit-page">
-
       <!-- =========================================================
            HEADER
            ========================================================= -->
 
       <header class="page-header">
         <div class="header-main">
-
           <button
             type="button"
             class="back-button"
@@ -813,22 +705,12 @@ onBeforeUnmount(() => {
           </button>
 
           <div class="header-copy">
-
             <div class="breadcrumb">
-              <button
-                type="button"
-                @click="backToProducts"
-              >
-                Products
-              </button>
+              <button type="button" @click="backToProducts">Products</button>
 
               <span>/</span>
 
-              <button
-                v-if="product"
-                type="button"
-                @click="cancel"
-              >
+              <button v-if="product" type="button" @click="cancel">
                 {{ product.name }}
               </button>
 
@@ -838,7 +720,6 @@ onBeforeUnmount(() => {
             </div>
 
             <div class="title-row">
-
               <div class="title-icon">
                 <Edit3 :size="22" />
               </div>
@@ -846,20 +727,13 @@ onBeforeUnmount(() => {
               <div>
                 <h1>Edit Product</h1>
 
-                <p>
-                  Update product identity,
-                  classification and lifecycle
-                  information.
-                </p>
+                <p>Update product identity, classification and lifecycle information.</p>
               </div>
-
             </div>
-
           </div>
         </div>
 
         <div class="header-actions">
-
           <button
             type="button"
             class="secondary-button"
@@ -872,31 +746,15 @@ onBeforeUnmount(() => {
           <button
             type="button"
             class="primary-button"
-            :disabled="
-              isSaving ||
-              isLoading ||
-              !hasRequiredFields
-            "
+            :disabled="isSaving || isLoading || !hasRequiredFields"
             @click="updateProduct"
           >
-            <LoaderCircle
-              v-if="isSaving"
-              class="spin"
-              :size="16"
-            />
+            <LoaderCircle v-if="isSaving" class="spin" :size="16" />
 
-            <Save
-              v-else
-              :size="16"
-            />
+            <Save v-else :size="16" />
 
-            {{
-              isSaving
-                ? "Saving..."
-                : "Save Changes"
-            }}
+            {{ isSaving ? "Saving..." : "Save Changes" }}
           </button>
-
         </div>
       </header>
 
@@ -904,31 +762,19 @@ onBeforeUnmount(() => {
            ALERTS
            ========================================================= -->
 
-      <div
-        v-if="errorMessage"
-        class="alert-banner error"
-        role="alert"
-      >
+      <div v-if="errorMessage" class="alert-banner error" role="alert">
         <AlertCircle :size="16" />
 
         <span>
           {{ errorMessage }}
         </span>
 
-        <button
-          type="button"
-          aria-label="Close"
-          @click="errorMessage = ''"
-        >
+        <button type="button" aria-label="Close" @click="errorMessage = ''">
           <X :size="14" />
         </button>
       </div>
 
-      <div
-        v-if="successMessage"
-        class="alert-banner success"
-        role="status"
-      >
+      <div v-if="successMessage" class="alert-banner success" role="status">
         <CheckCircle2 :size="16" />
 
         <span>
@@ -940,24 +786,13 @@ onBeforeUnmount(() => {
            LOADING
            ========================================================= -->
 
-      <section
-        v-if="isLoading"
-        class="loading-card"
-      >
-        <LoaderCircle
-          class="spin"
-          :size="23"
-        />
+      <section v-if="isLoading" class="loading-card">
+        <LoaderCircle class="spin" :size="23" />
 
         <div>
-          <strong>
-            Loading product...
-          </strong>
+          <strong> Loading product... </strong>
 
-          <span>
-            Preparing product information
-            for editing.
-          </span>
+          <span> Preparing product information for editing. </span>
         </div>
       </section>
 
@@ -966,126 +801,79 @@ onBeforeUnmount(() => {
            ========================================================= -->
 
       <template v-else-if="product">
-
         <!-- Workflow -->
 
         <section class="workflow-card">
-
           <div class="workflow-step active">
-
             <span class="workflow-number">
               <CheckCircle2 :size="14" />
             </span>
 
             <div>
-              <strong>
-                Product foundation
-              </strong>
+              <strong> Product foundation </strong>
 
-              <span>
-                Core catalog information
-              </span>
+              <span> Core catalog information </span>
             </div>
-
           </div>
 
           <span class="workflow-divider"></span>
 
           <div class="workflow-step">
-
-            <span class="workflow-number">
-              02
-            </span>
+            <span class="workflow-number"> 02 </span>
 
             <div>
-              <strong>
-                Pricing
-              </strong>
+              <strong> Pricing </strong>
 
-              <span>
-                Connected later
-              </span>
+              <span> Connected later </span>
             </div>
-
           </div>
 
           <span class="workflow-divider"></span>
 
           <div class="workflow-step">
-
-            <span class="workflow-number">
-              03
-            </span>
+            <span class="workflow-number"> 03 </span>
 
             <div>
-              <strong>
-                Variants &amp; Inventory
-              </strong>
+              <strong> Variants &amp; Inventory </strong>
 
-              <span>
-                Connected later
-              </span>
+              <span> Connected later </span>
             </div>
-
           </div>
-
         </section>
 
         <div class="content-grid">
-
           <!-- =====================================================
                MAIN COLUMN
                ===================================================== -->
 
           <main class="main-column">
-
             <!-- MEDIA -->
 
             <section class="card">
-
               <div class="section-heading">
-
                 <div class="section-icon">
                   <Package :size="18" />
                 </div>
 
                 <div>
-                  <h2>
-                    Product Media
-                  </h2>
+                  <h2>Product Media</h2>
 
-                  <p>
-                    Current primary image
-                    for this product.
-                  </p>
+                  <p>Current primary image for this product.</p>
                 </div>
 
-                <span class="optional-badge">
-                  MEDIA
-                </span>
-
+                <span class="optional-badge"> MEDIA </span>
               </div>
 
               <div class="media-content">
-
-                <div
-                  v-if="existingImageUrl"
-                  class="existing-image-wrapper"
-                >
-
+                <div v-if="existingImageUrl" class="existing-image-wrapper">
                   <img
                     :src="existingImageUrl"
-                    :alt="
-                      primaryMedia?.alt_text ||
-                      product.name
-                    "
+                    :alt="primaryMedia?.alt_text || product.name"
                     class="existing-image"
                   />
 
                   <div class="image-overlay">
-
                     <div class="image-file-info">
-
                       <strong>
                         {{ existingImageName }}
                       </strong>
@@ -1093,129 +881,80 @@ onBeforeUnmount(() => {
                       <span>
                         {{ existingImageSize }}
                       </span>
-
                     </div>
 
-                    <span class="image-status">
-                      Primary Image
-                    </span>
-
+                    <span class="image-status"> Primary Image </span>
                   </div>
-
                 </div>
 
-                <div
-                  v-else
-                  class="no-image"
-                >
-
+                <div v-else class="no-image">
                   <div class="no-image-icon">
                     <ImageOff :size="24" />
                   </div>
 
-                  <strong>
-                    No product image
-                  </strong>
+                  <strong> No product image </strong>
 
-                  <span>
-                    No primary media is
-                    currently attached.
-                  </span>
-
+                  <span> No primary media is currently attached. </span>
                 </div>
 
                 <label class="media-upload">
-
                   <input
                     type="file"
                     accept="image/jpeg,image/png,image/webp"
                     @change="onImageSelected"
                   />
 
-                  <span>
-                    Choose replacement image
-                  </span>
+                  <span> Choose replacement image </span>
 
-                  <small>
-                    JPG, PNG or WebP · Max 5 MB
-                  </small>
-
+                  <small> JPG, PNG or WebP · Max 5 MB </small>
                 </label>
 
-                <div
-                  v-if="selectedImage"
-                  class="selected-file"
-                >
-
+                <div v-if="selectedImage" class="selected-file">
                   <div>
                     <strong>
                       {{ selectedImage.name }}
                     </strong>
 
                     <span>
-                      {{
-                        formatFileSize(
-                          selectedImage.size
-                        )
-                      }}
+                      {{ formatFileSize(selectedImage.size) }}
                     </span>
                   </div>
 
-                  <button
-                    type="button"
-                    @click="removeSelectedImage"
-                  >
+                  <button type="button" @click="removeSelectedImage">
                     <X :size="14" />
                   </button>
-
                 </div>
 
                 <div class="media-note">
-
                   <Info :size="14" />
 
                   <span>
-                    The selected image is previewed
-                    here. Image replacement will be
-                    persisted when Product Media
-                    management is connected.
+                    Select a replacement image and save your changes to upload it. The
+                    current image remains unchanged unless the product update succeeds.
                   </span>
-
                 </div>
-
               </div>
-
             </section>
 
             <!-- BASIC INFORMATION -->
 
             <section class="card">
-
               <div class="section-heading">
-
                 <div class="section-icon">
                   <Sparkles :size="18" />
                 </div>
 
                 <div>
-                  <h2>
-                    Basic Information
-                  </h2>
+                  <h2>Basic Information</h2>
 
-                  <p>
-                    Define the product's
-                    core identity.
-                  </p>
+                  <p>Define the product's core identity.</p>
                 </div>
-
               </div>
 
               <div class="form-grid">
-
                 <!-- NAME -->
 
                 <div class="field field-full">
-
                   <label for="product-name">
                     Product Name
                     <span>*</span>
@@ -1233,41 +972,29 @@ onBeforeUnmount(() => {
                     @input="onNameInput"
                   />
 
-                  <small
-                    v-if="errors.name"
-                    class="field-error"
-                  >
+                  <small v-if="errors.name" class="field-error">
                     {{ fieldError("name") }}
                   </small>
-
                 </div>
 
                 <!-- CATEGORY -->
 
                 <div class="field">
-
                   <label for="category">
                     Category
                     <span>*</span>
                   </label>
 
                   <div class="select-wrapper">
-
                     <select
                       id="category"
                       v-model="form.category_id"
                       :class="{
                         invalid: !!errors.category_id,
                       }"
-                      @change="
-                        clearFieldError(
-                          'category_id'
-                        )
-                      "
+                      @change="clearFieldError('category_id')"
                     >
-                      <option value="">
-                        Select category
-                      </option>
+                      <option value="">Select category</option>
 
                       <option
                         v-for="item in categories"
@@ -1279,43 +1006,28 @@ onBeforeUnmount(() => {
                     </select>
 
                     <ChevronDown :size="15" />
-
                   </div>
 
-                  <small
-                    v-if="errors.category_id"
-                    class="field-error"
-                  >
+                  <small v-if="errors.category_id" class="field-error">
                     {{ fieldError("category_id") }}
                   </small>
-
                 </div>
 
                 <!-- BRAND -->
 
                 <div class="field">
-
-                  <label for="brand">
-                    Brand
-                  </label>
+                  <label for="brand"> Brand </label>
 
                   <div class="select-wrapper">
-
                     <select
                       id="brand"
                       v-model="form.brand_id"
                       :class="{
                         invalid: !!errors.brand_id,
                       }"
-                      @change="
-                        clearFieldError(
-                          'brand_id'
-                        )
-                      "
+                      @change="clearFieldError('brand_id')"
                     >
-                      <option value="">
-                        No brand
-                      </option>
+                      <option value="">No brand</option>
 
                       <option
                         v-for="item in brands"
@@ -1327,44 +1039,31 @@ onBeforeUnmount(() => {
                     </select>
 
                     <ChevronDown :size="15" />
-
                   </div>
 
-                  <small
-                    v-if="errors.brand_id"
-                    class="field-error"
-                  >
+                  <small v-if="errors.brand_id" class="field-error">
                     {{ fieldError("brand_id") }}
                   </small>
-
                 </div>
 
                 <!-- UNIT -->
 
                 <div class="field">
-
                   <label for="unit">
                     Base Unit
                     <span>*</span>
                   </label>
 
                   <div class="select-wrapper">
-
                     <select
                       id="unit"
                       v-model="form.unit_id"
                       :class="{
                         invalid: !!errors.unit_id,
                       }"
-                      @change="
-                        clearFieldError(
-                          'unit_id'
-                        )
-                      "
+                      @change="clearFieldError('unit_id')"
                     >
-                      <option value="">
-                        Select base unit
-                      </option>
+                      <option value="">Select base unit</option>
 
                       <option
                         v-for="item in units"
@@ -1372,175 +1071,100 @@ onBeforeUnmount(() => {
                         :value="String(item.id)"
                       >
                         {{ item.name }}
-                        {{
-                          item.short_name
-                            ? `(${item.short_name})`
-                            : ""
-                        }}
+                        {{ item.short_name ? `(${item.short_name})` : "" }}
                       </option>
                     </select>
 
                     <ChevronDown :size="15" />
-
                   </div>
 
-                  <small
-                    v-if="errors.unit_id"
-                    class="field-error"
-                  >
+                  <small v-if="errors.unit_id" class="field-error">
                     {{ fieldError("unit_id") }}
                   </small>
-
                 </div>
 
                 <!-- PRODUCT TYPE -->
 
                 <div class="field field-full">
-
-                  <label>
-                    Product Type
-                  </label>
+                  <label> Product Type </label>
 
                   <div class="product-type-grid">
-
                     <button
                       type="button"
                       class="product-type-card"
                       :class="{
-                        selected:
-                          form.product_type ===
-                          'simple',
+                        selected: form.product_type === 'simple',
                       }"
-                      @click="
-                        form.product_type =
-                          'simple'
-                      "
+                      @click="form.product_type = 'simple'"
                     >
-
                       <span class="type-card-icon">
                         <Package :size="17" />
                       </span>
 
                       <span class="type-card-content">
+                        <strong> Simple Product </strong>
 
-                        <strong>
-                          Simple Product
-                        </strong>
-
-                        <small>
-                          One product SKU
-                          without variants.
-                        </small>
-
+                        <small> One product SKU without variants. </small>
                       </span>
 
                       <span class="type-check">
-
-                        <CheckCircle2
-                          v-if="
-                            form.product_type ===
-                            'simple'
-                          "
-                          :size="16"
-                        />
-
+                        <CheckCircle2 v-if="form.product_type === 'simple'" :size="16" />
                       </span>
-
                     </button>
 
                     <button
                       type="button"
                       class="product-type-card"
                       :class="{
-                        selected:
-                          form.product_type ===
-                          'variable',
+                        selected: form.product_type === 'variable',
                       }"
-                      @click="
-                        form.product_type =
-                          'variable'
-                      "
+                      @click="form.product_type = 'variable'"
                     >
-
                       <span class="type-card-icon">
                         <Layers3 :size="17" />
                       </span>
 
                       <span class="type-card-content">
+                        <strong> Variable Product </strong>
 
-                        <strong>
-                          Variable Product
-                        </strong>
-
-                        <small>
-                          Product designed
-                          for future variants.
-                        </small>
-
+                        <small> Product designed for future variants. </small>
                       </span>
 
                       <span class="type-check">
-
                         <CheckCircle2
-                          v-if="
-                            form.product_type ===
-                            'variable'
-                          "
+                          v-if="form.product_type === 'variable'"
                           :size="16"
                         />
-
                       </span>
-
                     </button>
-
                   </div>
-
                 </div>
-
               </div>
-
             </section>
 
             <!-- PRODUCT IDENTITY -->
 
             <section class="card">
-
               <div class="section-heading">
-
                 <div class="section-icon">
                   <Tag :size="18" />
                 </div>
 
                 <div>
-                  <h2>
-                    Product Identity
-                  </h2>
+                  <h2>Product Identity</h2>
 
-                  <p>
-                    SKU, model and catalog
-                    identifiers.
-                  </p>
+                  <p>SKU, model and catalog identifiers.</p>
                 </div>
-
               </div>
 
               <div class="form-grid">
-
                 <!-- SKU -->
 
                 <div class="field">
-
                   <label for="sku">
                     SKU
 
-                    <span
-                      v-if="
-                        form.product_type ===
-                        'simple'
-                      "
-                    >
-                      *
-                    </span>
+                    <span v-if="form.product_type === 'simple'"> * </span>
                   </label>
 
                   <input
@@ -1552,36 +1176,26 @@ onBeforeUnmount(() => {
                     :class="{
                       invalid: !!errors.sku,
                     }"
-                    @input="
-                      clearFieldError('sku')
-                    "
+                    @input="clearFieldError('sku')"
                   />
 
                   <small class="field-hint">
                     {{
-                      form.product_type ===
-                      "simple"
+                      form.product_type === "simple"
                         ? "Required for simple products."
                         : "Optional for variable parent products."
                     }}
                   </small>
 
-                  <small
-                    v-if="errors.sku"
-                    class="field-error"
-                  >
+                  <small v-if="errors.sku" class="field-error">
                     {{ fieldError("sku") }}
                   </small>
-
                 </div>
 
                 <!-- MODEL -->
 
                 <div class="field">
-
-                  <label for="model-number">
-                    Model Number
-                  </label>
+                  <label for="model-number"> Model Number </label>
 
                   <input
                     id="model-number"
@@ -1590,32 +1204,20 @@ onBeforeUnmount(() => {
                     maxlength="120"
                     placeholder="e.g. MBWS-D5"
                     :class="{
-                      invalid:
-                        !!errors.model_number,
+                      invalid: !!errors.model_number,
                     }"
-                    @input="
-                      clearFieldError(
-                        'model_number'
-                      )
-                    "
+                    @input="clearFieldError('model_number')"
                   />
 
-                  <small
-                    v-if="errors.model_number"
-                    class="field-error"
-                  >
+                  <small v-if="errors.model_number" class="field-error">
                     {{ fieldError("model_number") }}
                   </small>
-
                 </div>
 
                 <!-- BARCODE -->
 
                 <div class="field">
-
-                  <label for="barcode">
-                    Barcode
-                  </label>
+                  <label for="barcode"> Barcode </label>
 
                   <input
                     id="barcode"
@@ -1626,29 +1228,18 @@ onBeforeUnmount(() => {
                     :class="{
                       invalid: !!errors.barcode,
                     }"
-                    @input="
-                      clearFieldError(
-                        'barcode'
-                      )
-                    "
+                    @input="clearFieldError('barcode')"
                   />
 
-                  <small
-                    v-if="errors.barcode"
-                    class="field-error"
-                  >
+                  <small v-if="errors.barcode" class="field-error">
                     {{ fieldError("barcode") }}
                   </small>
-
                 </div>
 
                 <!-- SORT ORDER -->
 
                 <div class="field">
-
-                  <label for="sort-order">
-                    Sort Order
-                  </label>
+                  <label for="sort-order"> Sort Order </label>
 
                   <input
                     id="sort-order"
@@ -1660,35 +1251,21 @@ onBeforeUnmount(() => {
                     :class="{
                       invalid: !!errors.sort_order,
                     }"
-                    @input="
-                      clearFieldError(
-                        'sort_order'
-                      )
-                    "
+                    @input="clearFieldError('sort_order')"
                   />
 
-                  <small
-                    v-if="errors.sort_order"
-                    class="field-error"
-                  >
+                  <small v-if="errors.sort_order" class="field-error">
                     {{ fieldError("sort_order") }}
                   </small>
-
                 </div>
 
                 <!-- SLUG -->
 
                 <div class="field field-full">
-
-                  <label for="slug">
-                    Product Slug
-                  </label>
+                  <label for="slug"> Product Slug </label>
 
                   <div class="slug-field">
-
-                    <span>
-                      /products/
-                    </span>
+                    <span> /products/ </span>
 
                     <input
                       id="slug"
@@ -1702,13 +1279,7 @@ onBeforeUnmount(() => {
                       @input="onSlugInput"
                     />
 
-                    <button
-                      type="button"
-                      @click="autoGenerateSlug"
-                    >
-                      Auto Generate
-                    </button>
-
+                    <button type="button" @click="autoGenerateSlug">Auto Generate</button>
                   </div>
 
                   <small class="field-hint">
@@ -1719,49 +1290,31 @@ onBeforeUnmount(() => {
                     }}
                   </small>
 
-                  <small
-                    v-if="errors.slug"
-                    class="field-error"
-                  >
+                  <small v-if="errors.slug" class="field-error">
                     {{ fieldError("slug") }}
                   </small>
-
                 </div>
-
               </div>
-
             </section>
 
             <!-- DESCRIPTION -->
 
             <section class="card">
-
               <div class="section-heading">
-
                 <div class="section-icon">
                   <FileText :size="18" />
                 </div>
 
                 <div>
-                  <h2>
-                    Product Description
-                  </h2>
+                  <h2>Product Description</h2>
 
-                  <p>
-                    Product content and
-                    customer-facing information.
-                  </p>
+                  <p>Product content and customer-facing information.</p>
                 </div>
-
               </div>
 
               <div class="description-fields">
-
                 <div class="field">
-
-                  <label for="short-description">
-                    Short Description
-                  </label>
+                  <label for="short-description"> Short Description </label>
 
                   <textarea
                     id="short-description"
@@ -1770,46 +1323,22 @@ onBeforeUnmount(() => {
                     maxlength="1000"
                     placeholder="Write a concise product summary..."
                     :class="{
-                      invalid:
-                        !!errors.short_description,
+                      invalid: !!errors.short_description,
                     }"
-                    @input="
-                      clearFieldError(
-                        'short_description'
-                      )
-                    "
+                    @input="clearFieldError('short_description')"
                   ></textarea>
 
                   <div class="textarea-meta">
-
-                    <small
-                      v-if="
-                        errors.short_description
-                      "
-                      class="field-error"
-                    >
-                      {{
-                        fieldError(
-                          "short_description"
-                        )
-                      }}
+                    <small v-if="errors.short_description" class="field-error">
+                      {{ fieldError("short_description") }}
                     </small>
 
-                    <span>
-                      {{
-                        form.short_description.length
-                      }}/1000
-                    </span>
-
+                    <span> {{ form.short_description.length }}/1000 </span>
                   </div>
-
                 </div>
 
                 <div class="field">
-
-                  <label for="description">
-                    Full Description
-                  </label>
+                  <label for="description"> Full Description </label>
 
                   <textarea
                     id="description"
@@ -1819,26 +1348,15 @@ onBeforeUnmount(() => {
                     :class="{
                       invalid: !!errors.description,
                     }"
-                    @input="
-                      clearFieldError(
-                        'description'
-                      )
-                    "
+                    @input="clearFieldError('description')"
                   ></textarea>
 
-                  <small
-                    v-if="errors.description"
-                    class="field-error"
-                  >
+                  <small v-if="errors.description" class="field-error">
                     {{ fieldError("description") }}
                   </small>
-
                 </div>
-
               </div>
-
             </section>
-
           </main>
 
           <!-- =====================================================
@@ -1846,311 +1364,179 @@ onBeforeUnmount(() => {
                ===================================================== -->
 
           <aside class="side-column">
-
             <!-- SUMMARY -->
 
             <section class="card">
-
               <div class="section-heading">
-
                 <div class="section-icon">
                   <Eye :size="18" />
                 </div>
 
                 <div>
-                  <h2>
-                    Product Summary
-                  </h2>
+                  <h2>Product Summary</h2>
 
-                  <p>
-                    Live overview of
-                    your changes.
-                  </p>
+                  <p>Live overview of your changes.</p>
                 </div>
-
               </div>
 
               <div class="summary-body">
-
                 <div class="summary-identity">
-
                   <div class="summary-product-icon">
-                    <Icon
-                      name="products"
-                      :size="23"
-                    />
+                    <Icon name="products" :size="23" />
                   </div>
 
                   <div>
-
                     <strong>
-                      {{
-                        form.name.trim() ||
-                        "Product Name"
-                      }}
+                      {{ form.name.trim() || "Product Name" }}
                     </strong>
 
                     <span>
                       {{ productTypeLabel }}
                     </span>
-
                   </div>
-
                 </div>
 
                 <div class="summary-list">
-
                   <div class="summary-row">
-
-                    <span>
-                      Category
-                    </span>
+                    <span> Category </span>
 
                     <strong>
                       {{ selectedCategoryName }}
                     </strong>
-
                   </div>
 
                   <div class="summary-row">
-
-                    <span>
-                      Brand
-                    </span>
+                    <span> Brand </span>
 
                     <strong>
                       {{ selectedBrandName }}
                     </strong>
-
                   </div>
 
                   <div class="summary-row">
-
-                    <span>
-                      Base Unit
-                    </span>
+                    <span> Base Unit </span>
 
                     <strong>
                       {{ selectedUnitName }}
                     </strong>
-
                   </div>
 
                   <div class="summary-row">
+                    <span> Status </span>
 
-                    <span>
-                      Status
-                    </span>
-
-                    <strong
-                      class="summary-status"
-                      :class="form.status"
-                    >
+                    <strong class="summary-status" :class="form.status">
                       <span class="status-dot"></span>
 
                       {{ statusLabel }}
                     </strong>
-
                   </div>
 
                   <div class="summary-row">
-
-                    <span>
-                      Visibility
-                    </span>
+                    <span> Visibility </span>
 
                     <strong>
-                      {{
-                        form.visibility ===
-                        "visible"
-                          ? "Visible"
-                          : "Hidden"
-                      }}
+                      {{ form.visibility === "visible" ? "Visible" : "Hidden" }}
                     </strong>
-
                   </div>
-
                 </div>
-
               </div>
-
             </section>
 
             <!-- PUBLISHING -->
 
             <section class="card">
-
               <div class="section-heading">
-
                 <div class="section-icon">
                   <CheckCircle2 :size="18" />
                 </div>
 
                 <div>
-                  <h2>
-                    Publishing
-                  </h2>
+                  <h2>Publishing</h2>
 
-                  <p>
-                    Product lifecycle
-                    and visibility.
-                  </p>
+                  <p>Product lifecycle and visibility.</p>
                 </div>
-
               </div>
 
               <div class="publishing-body">
-
                 <div class="field">
-
-                  <label for="status">
-                    Status
-                  </label>
+                  <label for="status"> Status </label>
 
                   <div class="select-wrapper">
-
                     <select
                       id="status"
                       v-model="form.status"
                       :class="{
                         invalid: !!errors.status,
                       }"
-                      @change="
-                        clearFieldError(
-                          'status'
-                        )
-                      "
+                      @change="clearFieldError('status')"
                     >
-                      <option value="draft">
-                        Draft
-                      </option>
+                      <option value="draft">Draft</option>
 
-                      <option value="active">
-                        Active
-                      </option>
+                      <option value="active">Active</option>
 
-                      <option value="inactive">
-                        Inactive
-                      </option>
+                      <option value="inactive">Inactive</option>
 
-                      <option value="archived">
-                        Archived
-                      </option>
+                      <option value="archived">Archived</option>
                     </select>
 
                     <ChevronDown :size="15" />
-
                   </div>
 
-                  <small
-                    v-if="errors.status"
-                    class="field-error"
-                  >
+                  <small v-if="errors.status" class="field-error">
                     {{ fieldError("status") }}
                   </small>
-
                 </div>
 
                 <div class="field">
-
-                  <label>
-                    Visibility
-                  </label>
+                  <label> Visibility </label>
 
                   <div class="visibility-grid">
-
                     <button
                       type="button"
                       class="visibility-card"
                       :class="{
-                        selected:
-                          form.visibility ===
-                          'visible',
+                        selected: form.visibility === 'visible',
                       }"
-                      @click="
-                        form.visibility =
-                          'visible'
-                      "
+                      @click="form.visibility = 'visible'"
                     >
-
                       <Eye :size="16" />
 
                       <span>
+                        <strong> Visible </strong>
 
-                        <strong>
-                          Visible
-                        </strong>
-
-                        <small>
-                          Available in
-                          catalog
-                        </small>
-
+                        <small> Available in catalog </small>
                       </span>
 
-                      <CheckCircle2
-                        v-if="
-                          form.visibility ===
-                          'visible'
-                        "
-                        :size="15"
-                      />
-
+                      <CheckCircle2 v-if="form.visibility === 'visible'" :size="15" />
                     </button>
 
                     <button
                       type="button"
                       class="visibility-card"
                       :class="{
-                        selected:
-                          form.visibility ===
-                          'hidden',
+                        selected: form.visibility === 'hidden',
                       }"
-                      @click="
-                        form.visibility =
-                          'hidden'
-                      "
+                      @click="form.visibility = 'hidden'"
                     >
-
                       <Layers3 :size="16" />
 
                       <span>
+                        <strong> Hidden </strong>
 
-                        <strong>
-                          Hidden
-                        </strong>
-
-                        <small>
-                          Keep out of
-                          catalog
-                        </small>
-
+                        <small> Keep out of catalog </small>
                       </span>
 
-                      <CheckCircle2
-                        v-if="
-                          form.visibility ===
-                          'hidden'
-                        "
-                        :size="15"
-                      />
-
+                      <CheckCircle2 v-if="form.visibility === 'hidden'" :size="15" />
                     </button>
-
                   </div>
-
                 </div>
-
               </div>
-
             </section>
 
             <!-- SAVE -->
 
             <section class="save-card">
-
               <div class="save-status">
-
                 <span
                   class="save-status-dot"
                   :class="{
@@ -2165,37 +1551,19 @@ onBeforeUnmount(() => {
                       : "Complete required fields"
                   }}
                 </span>
-
               </div>
 
               <button
                 type="button"
                 class="save-button"
-                :disabled="
-                  isSaving ||
-                  isLoading ||
-                  !hasRequiredFields
-                "
+                :disabled="isSaving || isLoading || !hasRequiredFields"
                 @click="updateProduct"
               >
+                <LoaderCircle v-if="isSaving" class="spin" :size="17" />
 
-                <LoaderCircle
-                  v-if="isSaving"
-                  class="spin"
-                  :size="17"
-                />
+                <Save v-else :size="17" />
 
-                <Save
-                  v-else
-                  :size="17"
-                />
-
-                {{
-                  isSaving
-                    ? "Saving Changes..."
-                    : "Save Changes"
-                }}
-
+                {{ isSaving ? "Saving Changes..." : "Save Changes" }}
               </button>
 
               <button
@@ -2204,42 +1572,29 @@ onBeforeUnmount(() => {
                 :disabled="isSaving"
                 @click="cancel"
               >
-                Cancel and return
-                to product
+                Cancel and return to product
               </button>
-
             </section>
 
             <!-- INFO -->
 
             <section class="info-card">
-
               <Info :size="15" />
 
               <div>
-
-                <strong>
-                  Product foundation
-                </strong>
+                <strong> Product foundation </strong>
 
                 <span>
-                  Pricing, variants and
-                  inventory will connect
-                  to this product later.
+                  Pricing, variants and inventory will connect to this product later.
                 </span>
-
               </div>
-
             </section>
-
           </aside>
-
         </div>
 
         <!-- MOBILE ACTION BAR -->
 
         <div class="mobile-save-bar">
-
           <button
             type="button"
             class="secondary-button"
@@ -2252,37 +1607,17 @@ onBeforeUnmount(() => {
           <button
             type="button"
             class="primary-button"
-            :disabled="
-              isSaving ||
-              isLoading ||
-              !hasRequiredFields
-            "
+            :disabled="isSaving || isLoading || !hasRequiredFields"
             @click="updateProduct"
           >
+            <LoaderCircle v-if="isSaving" class="spin" :size="15" />
 
-            <LoaderCircle
-              v-if="isSaving"
-              class="spin"
-              :size="15"
-            />
+            <Save v-else :size="15" />
 
-            <Save
-              v-else
-              :size="15"
-            />
-
-            {{
-              isSaving
-                ? "Saving..."
-                : "Save Changes"
-            }}
-
+            {{ isSaving ? "Saving..." : "Save Changes" }}
           </button>
-
         </div>
-
       </template>
-
     </div>
   </ErpLayout>
 </template>
@@ -2356,10 +1691,7 @@ onBeforeUnmount(() => {
 
   cursor: pointer;
 
-  transition:
-    border-color 0.15s ease,
-    background 0.15s ease,
-    color 0.15s ease;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
 }
 
 .back-button:hover {
@@ -2419,19 +1751,11 @@ onBeforeUnmount(() => {
 
   flex: 0 0 42px;
 
-  border: 1px solid color-mix(
-    in srgb,
-    var(--primary) 22%,
-    var(--border)
-  );
+  border: 1px solid color-mix(in srgb, var(--primary) 22%, var(--border));
 
   border-radius: 12px;
 
-  background: color-mix(
-    in srgb,
-    var(--primary) 10%,
-    var(--surface)
-  );
+  background: color-mix(in srgb, var(--primary) 10%, var(--surface));
 
   color: var(--primary);
 }
@@ -2484,10 +1808,7 @@ onBeforeUnmount(() => {
 
   cursor: pointer;
 
-  transition:
-    background 0.15s ease,
-    border-color 0.15s ease,
-    transform 0.15s ease;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
 }
 
 .secondary-button {
@@ -2512,12 +1833,7 @@ onBeforeUnmount(() => {
 
   color: #fff;
 
-  box-shadow:
-    0 5px 14px color-mix(
-      in srgb,
-      var(--primary) 15%,
-      transparent
-    );
+  box-shadow: 0 5px 14px color-mix(in srgb, var(--primary) 15%, transparent);
 }
 
 .primary-button:hover:not(:disabled) {
@@ -2584,17 +1900,9 @@ onBeforeUnmount(() => {
 }
 
 .alert-banner.success {
-  border: 1px solid color-mix(
-    in srgb,
-    var(--success) 18%,
-    var(--border)
-  );
+  border: 1px solid color-mix(in srgb, var(--success) 18%, var(--border));
 
-  background: color-mix(
-    in srgb,
-    var(--success) 6%,
-    var(--surface)
-  );
+  background: color-mix(in srgb, var(--success) 6%, var(--surface));
 
   color: var(--success);
 }
@@ -2659,8 +1967,7 @@ onBeforeUnmount(() => {
 
   background: var(--surface);
 
-  box-shadow:
-    0 4px 16px rgb(26 47 72 / 4%);
+  box-shadow: 0 4px 16px rgb(26 47 72 / 4%);
 }
 
 .workflow-step {
@@ -2696,17 +2003,9 @@ onBeforeUnmount(() => {
 }
 
 .workflow-step.active .workflow-number {
-  border-color: color-mix(
-    in srgb,
-    var(--primary) 18%,
-    var(--border)
-  );
+  border-color: color-mix(in srgb, var(--primary) 18%, var(--border));
 
-  background: color-mix(
-    in srgb,
-    var(--primary) 8%,
-    var(--surface)
-  );
+  background: color-mix(in srgb, var(--primary) 8%, var(--surface));
 
   color: var(--primary);
 }
@@ -2777,8 +2076,7 @@ onBeforeUnmount(() => {
 
   background: var(--surface);
 
-  box-shadow:
-    0 8px 28px rgb(26 47 72 / 4.5%);
+  box-shadow: 0 8px 28px rgb(26 47 72 / 4.5%);
 }
 
 .card {
@@ -2803,19 +2101,11 @@ onBeforeUnmount(() => {
 
   flex: 0 0 34px;
 
-  border: 1px solid color-mix(
-    in srgb,
-    var(--primary) 18%,
-    var(--border)
-  );
+  border: 1px solid color-mix(in srgb, var(--primary) 18%, var(--border));
 
   border-radius: 9px;
 
-  background: color-mix(
-    in srgb,
-    var(--primary) 7%,
-    var(--surface)
-  );
+  background: color-mix(in srgb, var(--primary) 7%, var(--surface));
 
   color: var(--primary);
 }
@@ -2900,12 +2190,7 @@ onBeforeUnmount(() => {
 
   padding: 13px 14px;
 
-  background:
-    linear-gradient(
-      180deg,
-      transparent,
-      rgb(15 23 42 / 82%)
-    );
+  background: linear-gradient(180deg, transparent, rgb(15 23 42 / 82%));
 }
 
 .image-file-info {
@@ -3012,19 +2297,11 @@ onBeforeUnmount(() => {
 
   margin-top: 10px;
 
-  border: 1px dashed color-mix(
-    in srgb,
-    var(--primary) 25%,
-    var(--border)
-  );
+  border: 1px dashed color-mix(in srgb, var(--primary) 25%, var(--border));
 
   border-radius: 9px;
 
-  background: color-mix(
-    in srgb,
-    var(--primary) 3%,
-    var(--surface)
-  );
+  background: color-mix(in srgb, var(--primary) 3%, var(--surface));
 
   color: var(--primary);
 
@@ -3114,19 +2391,11 @@ onBeforeUnmount(() => {
   margin-top: 9px;
   padding: 9px 10px;
 
-  border: 1px solid color-mix(
-    in srgb,
-    var(--primary) 10%,
-    var(--border)
-  );
+  border: 1px solid color-mix(in srgb, var(--primary) 10%, var(--border));
 
   border-radius: 8px;
 
-  background: color-mix(
-    in srgb,
-    var(--primary) 3%,
-    var(--surface)
-  );
+  background: color-mix(in srgb, var(--primary) 3%, var(--surface));
 
   color: var(--text-muted);
 
@@ -3146,8 +2415,7 @@ onBeforeUnmount(() => {
 .form-grid {
   display: grid;
 
-  grid-template-columns:
-    repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 
   gap: 15px;
 
@@ -3201,9 +2469,7 @@ onBeforeUnmount(() => {
   font-family: inherit;
   font-size: 11px;
 
-  transition:
-    border-color 0.15s ease,
-    box-shadow 0.15s ease;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .field input,
@@ -3230,18 +2496,9 @@ onBeforeUnmount(() => {
 .field input:focus,
 .field textarea:focus,
 .field select:focus {
-  border-color: color-mix(
-    in srgb,
-    var(--primary) 48%,
-    var(--border)
-  );
+  border-color: color-mix(in srgb, var(--primary) 48%, var(--border));
 
-  box-shadow:
-    0 0 0 3px color-mix(
-      in srgb,
-      var(--primary) 8%,
-      transparent
-    );
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 8%, transparent);
 }
 
 .field input.invalid,
@@ -3293,8 +2550,7 @@ onBeforeUnmount(() => {
 .product-type-grid {
   display: grid;
 
-  grid-template-columns:
-    repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 
   gap: 9px;
 }
@@ -3315,31 +2571,17 @@ onBeforeUnmount(() => {
 
   cursor: pointer;
 
-  transition:
-    border-color 0.15s ease,
-    background 0.15s ease;
+  transition: border-color 0.15s ease, background 0.15s ease;
 }
 
 .product-type-card:hover {
-  border-color: color-mix(
-    in srgb,
-    var(--primary) 25%,
-    var(--border)
-  );
+  border-color: color-mix(in srgb, var(--primary) 25%, var(--border));
 }
 
 .product-type-card.selected {
-  border-color: color-mix(
-    in srgb,
-    var(--primary) 38%,
-    var(--border)
-  );
+  border-color: color-mix(in srgb, var(--primary) 38%, var(--border));
 
-  background: color-mix(
-    in srgb,
-    var(--primary) 5%,
-    var(--surface)
-  );
+  background: color-mix(in srgb, var(--primary) 5%, var(--surface));
 }
 
 .type-card-icon {
@@ -3420,18 +2662,9 @@ onBeforeUnmount(() => {
 }
 
 .slug-field:focus-within {
-  border-color: color-mix(
-    in srgb,
-    var(--primary) 48%,
-    var(--border)
-  );
+  border-color: color-mix(in srgb, var(--primary) 48%, var(--border));
 
-  box-shadow:
-    0 0 0 3px color-mix(
-      in srgb,
-      var(--primary) 8%,
-      transparent
-    );
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 8%, transparent);
 }
 
 .slug-field > span {
@@ -3530,19 +2763,11 @@ onBeforeUnmount(() => {
 
   flex: 0 0 46px;
 
-  border: 1px solid color-mix(
-    in srgb,
-    var(--primary) 18%,
-    var(--border)
-  );
+  border: 1px solid color-mix(in srgb, var(--primary) 18%, var(--border));
 
   border-radius: 12px;
 
-  background: color-mix(
-    in srgb,
-    var(--primary) 6%,
-    var(--surface)
-  );
+  background: color-mix(in srgb, var(--primary) 6%, var(--surface));
 
   color: var(--primary);
 }
@@ -3687,17 +2912,9 @@ onBeforeUnmount(() => {
 }
 
 .visibility-card.selected {
-  border-color: color-mix(
-    in srgb,
-    var(--primary) 35%,
-    var(--border)
-  );
+  border-color: color-mix(in srgb, var(--primary) 35%, var(--border));
 
-  background: color-mix(
-    in srgb,
-    var(--primary) 5%,
-    var(--surface)
-  );
+  background: color-mix(in srgb, var(--primary) 5%, var(--surface));
 
   color: var(--primary);
 }
@@ -3884,8 +3101,7 @@ onBeforeUnmount(() => {
   .side-column {
     display: grid;
 
-    grid-template-columns:
-      repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
 
     align-items: start;
   }
@@ -3976,14 +3192,9 @@ onBeforeUnmount(() => {
     border: 1px solid var(--border);
     border-radius: 12px;
 
-    background: color-mix(
-      in srgb,
-      var(--surface) 94%,
-      transparent
-    );
+    background: color-mix(in srgb, var(--surface) 94%, transparent);
 
-    box-shadow:
-      0 -8px 24px rgb(26 47 72 / 8%);
+    box-shadow: 0 -8px 24px rgb(26 47 72 / 8%);
 
     backdrop-filter: blur(14px);
   }
