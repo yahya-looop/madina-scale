@@ -50,6 +50,42 @@ function createDashboardFixture(): array
     );
 }
 
+
+function assignDashboardPermissions(User $user, array $permissionSlugs): void
+{
+    $role = Role::create([
+        'name' => 'Dashboard Permission Role',
+        'slug' => 'dashboard-permission-role-'.uniqid(),
+        'description' => 'Temporary role for dashboard permission assertions.',
+        'is_system' => false,
+        'is_active' => true,
+    ]);
+
+    $module = Module::create([
+        'name' => 'Dashboard Permission Module',
+        'slug' => 'dashboard-permission-module-'.uniqid(),
+        'description' => 'Temporary module for dashboard permission assertions.',
+        'sort_order' => 998,
+        'is_system' => false,
+        'is_active' => true,
+    ]);
+
+    foreach (array_unique($permissionSlugs) as $permissionSlug) {
+        $permission = Permission::create([
+            'module_id' => $module->id,
+            // Permission names must be unique within a module. Using the full slug avoids
+            // collisions such as system.users.view and system.roles.view.
+            'name' => 'Dashboard '.str($permissionSlug)->replace(['.', '_'], ' ')->title(),
+            'slug' => $permissionSlug,
+            'description' => 'Temporary permission for dashboard feature tests.',
+        ]);
+
+        $role->permissions()->attach($permission->id);
+    }
+
+    $user->roles()->attach($role->id);
+}
+
 test('guest cannot access dashboard', function () {
     $response = $this->get(route('dashboard'));
 
@@ -125,3 +161,52 @@ test('dashboard capability is false when permission is unavailable', function ()
             ->where('capabilities.canViewReports', false),
     );
 });
+
+test('dashboard capabilities use canonical management and report permissions', function () {
+    $user = User::factory()->create([
+        'status' => 'active',
+    ]);
+
+    assignDashboardPermissions($user, [
+        'system.users.update',
+        'system.roles.manage_permissions',
+        'system.reports.view',
+    ]);
+
+    $response = $this
+        ->actingAs($user)
+        ->get(route('dashboard'));
+
+    $response->assertInertia(
+        fn (Assert $page) => $page
+            ->component('Dashboard')
+            ->where('capabilities.canManageUsers', true)
+            ->where('capabilities.canManageRoles', true)
+            ->where('capabilities.canViewReports', true),
+    );
+});
+
+test('view-only permissions do not grant dashboard management capabilities', function () {
+    $user = User::factory()->create([
+        'status' => 'active',
+    ]);
+
+    assignDashboardPermissions($user, [
+        'system.users.view',
+        'system.roles.view',
+        'system.reports.view',
+    ]);
+
+    $response = $this
+        ->actingAs($user)
+        ->get(route('dashboard'));
+
+    $response->assertInertia(
+        fn (Assert $page) => $page
+            ->component('Dashboard')
+            ->where('capabilities.canManageUsers', false)
+            ->where('capabilities.canManageRoles', false)
+            ->where('capabilities.canViewReports', true),
+    );
+});
+

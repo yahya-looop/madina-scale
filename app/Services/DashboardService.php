@@ -36,19 +36,25 @@ class DashboardService
                 ]),
 
             'capabilities' => [
-                'canManageUsers' => $this->authorization->can(
-                    $user,
-                    'users.manage',
-                ),
+                // Management capabilities require at least one real
+                // management permission; view-only access is not enough.
+                'canManageUsers' => $this->authorization->canAny($user, [
+                    'system.users.create',
+                    'system.users.update',
+                    'system.users.deactivate',
+                    'system.users.manage_roles',
+                ]),
 
-                'canManageRoles' => $this->authorization->can(
-                    $user,
-                    'roles.manage',
-                ),
+                'canManageRoles' => $this->authorization->canAny($user, [
+                    'system.roles.create',
+                    'system.roles.update',
+                    'system.roles.delete',
+                    'system.roles.manage_permissions',
+                ]),
 
                 'canViewReports' => $this->authorization->can(
                     $user,
-                    'reports.view',
+                    'system.reports.view',
                 ),
             ],
         ];
