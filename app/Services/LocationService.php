@@ -45,9 +45,15 @@ class LocationService
         return DB::transaction(function () use ($data): Location {
             $data = $this->normalizeData($data);
 
-            if (($data['is_primary'] ?? false) === true) {
-                $this->clearPrimaryLocation();
-            }
+        if ($data['is_primary'] && ! $data['is_active']) {
+            throw ValidationException::withMessages([
+                'is_active' => 'A primary location must remain active.',
+            ]);
+        }
+
+        if ($data['is_primary']) {
+            $this->clearPrimaryLocation();
+        }
 
             return Location::query()->create($data);
         });

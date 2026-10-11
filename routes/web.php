@@ -18,19 +18,11 @@ use Inertia\Inertia;
 */
 
 Route::middleware('guest')->group(function () {
-
-    /*
-    |--------------------------------------------------------------------------
-    | Authentication
-    |--------------------------------------------------------------------------
-    */
-
-    Route::get('/login', [LoginController::class, 'create'])
-        ->name('login');
+    Route::get('/login', [LoginController::class, 'create'])->name('login');
 
     Route::post('/login', [LoginController::class, 'store'])
+        ->middleware('throttle:5,1')
         ->name('login.store');
-
 });
 
 
