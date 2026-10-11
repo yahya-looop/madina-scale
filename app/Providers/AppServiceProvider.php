@@ -2,7 +2,6 @@
 
 namespace App\Providers;
 
-use App\Models\Permission;
 use App\Models\User;
 use App\Services\AuthorizationService;
 use Carbon\CarbonImmutable;
@@ -43,25 +42,24 @@ class AppServiceProvider extends ServiceProvider
             string $ability,
         ) use ($authorizationService): ?bool {
             /*
-             * Only intercept abilities that are actually registered
-             * as application permissions.
+             * Handle application permission abilities, including
+             * permissions that have not yet been registered.
              *
-             * Unknown abilities are left untouched so that future
-             * Laravel policies and explicitly defined gates can still
-             * handle them normally.
+             * The AuthorizationService grants supreme access to an
+             * active Developer while preserving normal permission
+             * checks for other users.
              */
-            $permissionExists = Permission::query()
-                ->where('slug', $ability)
-                ->exists();
-
-            if (! $permissionExists) {
-                return null;
+            if (str_starts_with($ability, 'system.')) {
+                return $authorizationService->can(
+                    $user,
+                    $ability,
+                );
             }
 
-            return $authorizationService->can(
-                $user,
-                $ability,
-            );
+            /*
+             * Leave unrelated Laravel gates and policies untouched.
+             */
+            return null;
         });
     }
 
