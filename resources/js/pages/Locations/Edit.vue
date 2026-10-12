@@ -1,18 +1,9 @@
 <script setup lang="ts">
-import { computed, defineComponent, h, onMounted, reactive, ref, type Component } from "vue";
+import { computed, onMounted, reactive, ref } from "vue";
 import { Head, router } from "@inertiajs/vue3";
-import {
-  Building2,
-  Cog,
-  Factory,
-  HouseIcon,
-  MapPinHouse,
-  ShieldX,
-  ShelvingUnit,
-} from "lucide-vue-next";
-
 import ErpLayout from "@/layouts/ErpLayout.vue";
 import Icon from "@/components/dashboard/Icon.vue";
+
 
 interface Props {
   userName?: string;
@@ -196,54 +187,15 @@ function handleDivisionChange(): void {
   if (!available.includes(form.district)) form.district = available[0] ?? "";
 }
 
-function iconComponent(icon: string): Component {
-  if (icon === "building-complex") return Building2;
-  if (icon === "shelving-unit") return ShelvingUnit;
-  if (icon === "map-pin-house") return MapPinHouse;
-  if (icon === "factory") return Factory;
-  return Icon;
-}
-
-const ServiceCenterIcon = defineComponent({
-  name: "ServiceCenterIcon",
-  props: {
-    size: { type: Number, default: 18 },
-  },
-  setup(iconProps) {
-    return () =>
-      h(
-        "span",
-        {
-          style: {
-            position: "relative",
-            display: "inline-flex",
-            width: `${iconProps.size}px`,
-            height: `${iconProps.size}px`,
-            flex: "0 0 auto",
-          },
-          "aria-hidden": "true",
-        },
-        [
-          h(HouseIcon, {
-            size: iconProps.size,
-            strokeWidth: 1.8,
-          }),
-          h(Cog, {
-            size: Math.max(9, iconProps.size * 0.55),
-            strokeWidth: 1.8,
-            style: {
-              position: "absolute",
-              right: "-1px",
-              bottom: "-1px",
-            },
-          }),
-        ],
-      );
-  },
-});
-
-function isServiceCenter(icon: string): boolean {
-  return icon === "house-cog";
+function iconComponent(icon: string): string {
+  const names: Record<string, string> = {
+    "building-complex": "building",
+    "shelving-unit": "building-warehouse",
+    "map-pin-house": "map-pin",
+    "house-cog": "home-2",
+    factory: "building-factory",
+  };
+  return names[icon] ?? "map-pin";
 }
 
 function typeIcon(type: string): string {
@@ -469,14 +421,7 @@ onMounted(() => {
                     type="button"
                     @click="form.type = item.value"
                   >
-                    <ServiceCenterIcon v-if="isServiceCenter(item.icon)" :size="18" />
-                    <component
-                      :is="iconComponent(item.icon)"
-                      v-else
-                      :name="item.icon === 'map-pin' ? 'map-pin' : undefined"
-                      :size="18"
-                      :stroke-width="1.8"
-                    />
+                    <Icon :name="iconComponent(item.icon)" :size="18" :stroke-width="1.8" />
                     <span>{{ item.label }}</span>
                   </button>
                 </div>

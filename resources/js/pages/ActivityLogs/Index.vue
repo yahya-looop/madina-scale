@@ -612,15 +612,9 @@ onMounted(() => {
               })
             "
           >
-            <Icon name="refresh" :size="14" />
+            <Icon name="refresh" :size="14" :class="{ 'is-spinning': isRefreshing }" />
 
-            <span
-              :class="{
-                'is-spinning': isRefreshing,
-              }"
-            >
-              Refresh
-            </span>
+            <span>Refresh</span>
           </button>
         </div>
       </header>
@@ -764,9 +758,7 @@ onMounted(() => {
           <span>
             {{ filteredCount }}
             {{ filteredCount === 1 ? "record" : "records" }}
-            <template v-if="search.trim()">
-              of {{ totalActivities }}
-            </template>
+            <template v-if="search.trim()"> of {{ totalActivities }} </template>
           </span>
 
           <button

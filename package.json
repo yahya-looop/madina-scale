@@ -11,6 +11,7 @@
         "types:check": "vue-tsc --noEmit"
     },
     "dependencies": {
+        "@iconify/vue": "^5.0.3",
         "@inertiajs/vite": "^3.0.0",
         "@inertiajs/vue3": "^3.0.0",
         "@tailwindcss/vite": "^4.1.11",
@@ -18,12 +19,12 @@
         "clsx": "^2.1.1",
         "concurrently": "^10.0.3",
         "laravel-vite-plugin": "^3.1",
-        "lucide-vue-next": "^1.0.0",
         "tailwind-merge": "^3.2.0",
         "tailwindcss": "^4.1.1",
         "typescript": "^5.2.2",
         "vite": "^8.0.0",
-        "vue": "^3.5.13"
+        "vue": "^3.5.13",
+        "@iconify/icons-tabler": "^1.2.95"
     },
     "devDependencies": {
         "@laravel/vite-plugin-wayfinder": "^0.1.3",

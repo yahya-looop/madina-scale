@@ -1,27 +1,9 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { Head, router } from "@inertiajs/vue3";
-import {
-  AlertCircle,
-  ArrowLeft,
-  CheckCircle2,
-  ChevronDown,
-  Edit3,
-  Eye,
-  FileText,
-  ImageOff,
-  Info,
-  Layers3,
-  LoaderCircle,
-  Package,
-  Save,
-  Sparkles,
-  Tag,
-  X,
-} from "lucide-vue-next";
-
 import ErpLayout from "@/layouts/ErpLayout.vue";
 import Icon from "@/components/dashboard/Icon.vue";
+
 
 interface Option {
   id: number;
@@ -701,7 +683,7 @@ onBeforeUnmount(() => {
             aria-label="Back"
             @click="cancel"
           >
-            <ArrowLeft :size="18" />
+            <Icon name="arrow-left" :size="18" />
           </button>
 
           <div class="header-copy">
@@ -721,7 +703,7 @@ onBeforeUnmount(() => {
 
             <div class="title-row">
               <div class="title-icon">
-                <Edit3 :size="22" />
+                <Icon name="edit" :size="22" />
               </div>
 
               <div>
@@ -749,9 +731,9 @@ onBeforeUnmount(() => {
             :disabled="isSaving || isLoading || !hasRequiredFields"
             @click="updateProduct"
           >
-            <LoaderCircle v-if="isSaving" class="spin" :size="16" />
+            <Icon name="loader-2" v-if="isSaving" class="spin" :size="16" />
 
-            <Save v-else :size="16" />
+            <Icon name="device-floppy" v-else :size="16" />
 
             {{ isSaving ? "Saving..." : "Save Changes" }}
           </button>
@@ -763,19 +745,19 @@ onBeforeUnmount(() => {
            ========================================================= -->
 
       <div v-if="errorMessage" class="alert-banner error" role="alert">
-        <AlertCircle :size="16" />
+        <Icon name="alert-circle" :size="16" />
 
         <span>
           {{ errorMessage }}
         </span>
 
         <button type="button" aria-label="Close" @click="errorMessage = ''">
-          <X :size="14" />
+          <Icon name="x" :size="14" />
         </button>
       </div>
 
       <div v-if="successMessage" class="alert-banner success" role="status">
-        <CheckCircle2 :size="16" />
+        <Icon name="circle-check" :size="16" />
 
         <span>
           {{ successMessage }}
@@ -787,7 +769,7 @@ onBeforeUnmount(() => {
            ========================================================= -->
 
       <section v-if="isLoading" class="loading-card">
-        <LoaderCircle class="spin" :size="23" />
+        <Icon name="loader-2" class="spin" :size="23" />
 
         <div>
           <strong> Loading product... </strong>
@@ -806,7 +788,7 @@ onBeforeUnmount(() => {
         <section class="workflow-card">
           <div class="workflow-step active">
             <span class="workflow-number">
-              <CheckCircle2 :size="14" />
+              <Icon name="circle-check" :size="14" />
             </span>
 
             <div>
@@ -852,7 +834,7 @@ onBeforeUnmount(() => {
             <section class="card">
               <div class="section-heading">
                 <div class="section-icon">
-                  <Package :size="18" />
+                  <Icon name="package" :size="18" />
                 </div>
 
                 <div>
@@ -889,7 +871,7 @@ onBeforeUnmount(() => {
 
                 <div v-else class="no-image">
                   <div class="no-image-icon">
-                    <ImageOff :size="24" />
+                    <Icon name="photo-off" :size="24" />
                   </div>
 
                   <strong> No product image </strong>
@@ -921,12 +903,12 @@ onBeforeUnmount(() => {
                   </div>
 
                   <button type="button" @click="removeSelectedImage">
-                    <X :size="14" />
+                    <Icon name="x" :size="14" />
                   </button>
                 </div>
 
                 <div class="media-note">
-                  <Info :size="14" />
+                  <Icon name="info-circle" :size="14" />
 
                   <span>
                     Select a replacement image and save your changes to upload it. The
@@ -941,7 +923,7 @@ onBeforeUnmount(() => {
             <section class="card">
               <div class="section-heading">
                 <div class="section-icon">
-                  <Sparkles :size="18" />
+                  <Icon name="stars" :size="18" />
                 </div>
 
                 <div>
@@ -1005,7 +987,7 @@ onBeforeUnmount(() => {
                       </option>
                     </select>
 
-                    <ChevronDown :size="15" />
+                    <Icon name="chevron-down" :size="15" />
                   </div>
 
                   <small v-if="errors.category_id" class="field-error">
@@ -1038,7 +1020,7 @@ onBeforeUnmount(() => {
                       </option>
                     </select>
 
-                    <ChevronDown :size="15" />
+                    <Icon name="chevron-down" :size="15" />
                   </div>
 
                   <small v-if="errors.brand_id" class="field-error">
@@ -1075,7 +1057,7 @@ onBeforeUnmount(() => {
                       </option>
                     </select>
 
-                    <ChevronDown :size="15" />
+                    <Icon name="chevron-down" :size="15" />
                   </div>
 
                   <small v-if="errors.unit_id" class="field-error">
@@ -1098,7 +1080,7 @@ onBeforeUnmount(() => {
                       @click="form.product_type = 'simple'"
                     >
                       <span class="type-card-icon">
-                        <Package :size="17" />
+                        <Icon name="package" :size="17" />
                       </span>
 
                       <span class="type-card-content">
@@ -1108,7 +1090,7 @@ onBeforeUnmount(() => {
                       </span>
 
                       <span class="type-check">
-                        <CheckCircle2 v-if="form.product_type === 'simple'" :size="16" />
+                        <Icon name="circle-check" v-if="form.product_type === 'simple'" :size="16" />
                       </span>
                     </button>
 
@@ -1121,7 +1103,7 @@ onBeforeUnmount(() => {
                       @click="form.product_type = 'variable'"
                     >
                       <span class="type-card-icon">
-                        <Layers3 :size="17" />
+                        <Icon name="stack-2" :size="17" />
                       </span>
 
                       <span class="type-card-content">
@@ -1131,7 +1113,7 @@ onBeforeUnmount(() => {
                       </span>
 
                       <span class="type-check">
-                        <CheckCircle2
+                        <Icon name="circle-check"
                           v-if="form.product_type === 'variable'"
                           :size="16"
                         />
@@ -1147,7 +1129,7 @@ onBeforeUnmount(() => {
             <section class="card">
               <div class="section-heading">
                 <div class="section-icon">
-                  <Tag :size="18" />
+                  <Icon name="tag" :size="18" />
                 </div>
 
                 <div>
@@ -1302,7 +1284,7 @@ onBeforeUnmount(() => {
             <section class="card">
               <div class="section-heading">
                 <div class="section-icon">
-                  <FileText :size="18" />
+                  <Icon name="file-text" :size="18" />
                 </div>
 
                 <div>
@@ -1369,7 +1351,7 @@ onBeforeUnmount(() => {
             <section class="card">
               <div class="section-heading">
                 <div class="section-icon">
-                  <Eye :size="18" />
+                  <Icon name="eye" :size="18" />
                 </div>
 
                 <div>
@@ -1447,7 +1429,7 @@ onBeforeUnmount(() => {
             <section class="card">
               <div class="section-heading">
                 <div class="section-icon">
-                  <CheckCircle2 :size="18" />
+                  <Icon name="circle-check" :size="18" />
                 </div>
 
                 <div>
@@ -1479,7 +1461,7 @@ onBeforeUnmount(() => {
                       <option value="archived">Archived</option>
                     </select>
 
-                    <ChevronDown :size="15" />
+                    <Icon name="chevron-down" :size="15" />
                   </div>
 
                   <small v-if="errors.status" class="field-error">
@@ -1499,7 +1481,7 @@ onBeforeUnmount(() => {
                       }"
                       @click="form.visibility = 'visible'"
                     >
-                      <Eye :size="16" />
+                      <Icon name="eye" :size="16" />
 
                       <span>
                         <strong> Visible </strong>
@@ -1507,7 +1489,7 @@ onBeforeUnmount(() => {
                         <small> Available in catalog </small>
                       </span>
 
-                      <CheckCircle2 v-if="form.visibility === 'visible'" :size="15" />
+                      <Icon name="circle-check" v-if="form.visibility === 'visible'" :size="15" />
                     </button>
 
                     <button
@@ -1518,7 +1500,7 @@ onBeforeUnmount(() => {
                       }"
                       @click="form.visibility = 'hidden'"
                     >
-                      <Layers3 :size="16" />
+                      <Icon name="stack-2" :size="16" />
 
                       <span>
                         <strong> Hidden </strong>
@@ -1526,7 +1508,7 @@ onBeforeUnmount(() => {
                         <small> Keep out of catalog </small>
                       </span>
 
-                      <CheckCircle2 v-if="form.visibility === 'hidden'" :size="15" />
+                      <Icon name="circle-check" v-if="form.visibility === 'hidden'" :size="15" />
                     </button>
                   </div>
                 </div>
@@ -1559,9 +1541,9 @@ onBeforeUnmount(() => {
                 :disabled="isSaving || isLoading || !hasRequiredFields"
                 @click="updateProduct"
               >
-                <LoaderCircle v-if="isSaving" class="spin" :size="17" />
+                <Icon name="loader-2" v-if="isSaving" class="spin" :size="17" />
 
-                <Save v-else :size="17" />
+                <Icon name="device-floppy" v-else :size="17" />
 
                 {{ isSaving ? "Saving Changes..." : "Save Changes" }}
               </button>
@@ -1579,7 +1561,7 @@ onBeforeUnmount(() => {
             <!-- INFO -->
 
             <section class="info-card">
-              <Info :size="15" />
+              <Icon name="info-circle" :size="15" />
 
               <div>
                 <strong> Product foundation </strong>
@@ -1610,9 +1592,9 @@ onBeforeUnmount(() => {
             :disabled="isSaving || isLoading || !hasRequiredFields"
             @click="updateProduct"
           >
-            <LoaderCircle v-if="isSaving" class="spin" :size="15" />
+            <Icon name="loader-2" v-if="isSaving" class="spin" :size="15" />
 
-            <Save v-else :size="15" />
+            <Icon name="device-floppy" v-else :size="15" />
 
             {{ isSaving ? "Saving..." : "Save Changes" }}
           </button>

@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Models\Permission;
 use App\Models\User;
 use App\Services\AuthorizationService;
 use Carbon\CarbonImmutable;
@@ -28,6 +29,7 @@ class AppServiceProvider extends ServiceProvider
         AuthorizationService $authorizationService,
     ): void {
         $this->configureDefaults();
+
         $this->configureAuthorization($authorizationService);
     }
 
@@ -42,14 +44,26 @@ class AppServiceProvider extends ServiceProvider
             string $ability,
         ) use ($authorizationService): ?bool {
             /*
-             * Handle application permission abilities, including
-             * permissions that have not yet been registered.
-             *
-             * The AuthorizationService grants supreme access to an
-             * active Developer while preserving normal permission
-             * checks for other users.
+             * Application system permissions must always pass through
+             * AuthorizationService, including unregistered system abilities.
              */
             if (str_starts_with($ability, 'system.')) {
+                return $authorizationService->can(
+                    $user,
+                    $ability,
+                );
+            }
+
+            /*
+             * Resolve database-backed permissions through the central
+             * authorization service without overriding unrelated Laravel
+             * gates and policies.
+             */
+            $isDatabasePermission = Permission::query()
+                ->where('slug', $ability)
+                ->exists();
+
+            if ($isDatabasePermission) {
                 return $authorizationService->can(
                     $user,
                     $ability,
@@ -74,14 +88,15 @@ class AppServiceProvider extends ServiceProvider
             app()->isProduction(),
         );
 
-        Password::defaults(fn (): ?Password => app()->isProduction()
-            ? Password::min(12)
-                ->mixedCase()
-                ->letters()
-                ->numbers()
-                ->symbols()
-                ->uncompromised()
-            : null,
+        Password::defaults(
+            fn (): ?Password => app()->isProduction()
+                ? Password::min(12)
+                    ->mixedCase()
+                    ->letters()
+                    ->numbers()
+                    ->symbols()
+                    ->uncompromised()
+                : null,
         );
     }
 }

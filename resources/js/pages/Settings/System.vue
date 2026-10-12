@@ -1145,7 +1145,7 @@ onMounted(() => {
             :disabled="isLoading || isSaving"
             @click="fetchSettings"
           >
-            <Icon name="activity" :size="14" />
+            <Icon name="refresh" :size="14" />
             <span>{{ isLoading ? "Refreshing..." : "Refresh" }}</span>
           </button>
 
@@ -1503,18 +1503,14 @@ onMounted(() => {
                 <div class="subsection-heading">
                   <div>
                     <strong>Language & Time</strong>
-                    <span>
-                      Configure the application's regional behavior.
-                    </span>
+                    <span> Configure the application's regional behavior. </span>
                   </div>
                 </div>
 
                 <div class="form-grid">
                   <label class="field">
                     <span>Timezone</span>
-                    <small>
-                      Default timezone used by the application.
-                    </small>
+                    <small> Default timezone used by the application. </small>
 
                     <select
                       :value="stringValue('localization.timezone') || 'Asia/Dhaka'"
@@ -1537,9 +1533,7 @@ onMounted(() => {
 
                   <label class="field">
                     <span>Locale</span>
-                    <small>
-                      Default application language and regional locale.
-                    </small>
+                    <small> Default application language and regional locale. </small>
 
                     <select
                       :value="stringValue('localization.locale') || 'en-BD'"
@@ -1562,9 +1556,7 @@ onMounted(() => {
 
                   <label class="field">
                     <span>Date Format</span>
-                    <small>
-                      Default calendar date display format.
-                    </small>
+                    <small> Default calendar date display format. </small>
 
                     <select
                       :value="stringValue('localization.date_format') || 'DD/MM/YYYY'"
@@ -1605,9 +1597,7 @@ onMounted(() => {
 
                   <label class="field">
                     <span>Week Starts On</span>
-                    <small>
-                      First day used in weekly views.
-                    </small>
+                    <small> First day used in weekly views. </small>
 
                     <select
                       :value="numberValue('localization.week_starts_on', 0)"
@@ -1636,18 +1626,14 @@ onMounted(() => {
                 <div class="subsection-heading">
                   <div>
                     <strong>Currency & Number Formatting</strong>
-                    <span>
-                      Configure monetary display rules for the platform.
-                    </span>
+                    <span> Configure monetary display rules for the platform. </span>
                   </div>
                 </div>
 
                 <div class="form-grid">
                   <label class="field">
                     <span>Default Currency</span>
-                    <small>
-                      Primary currency used for monetary values.
-                    </small>
+                    <small> Primary currency used for monetary values. </small>
 
                     <select
                       :value="stringValue('currency.default') || 'BDT'"
@@ -1670,9 +1656,7 @@ onMounted(() => {
 
                   <label class="field">
                     <span>Currency Symbol</span>
-                    <small>
-                      Symbol displayed alongside monetary values.
-                    </small>
+                    <small> Symbol displayed alongside monetary values. </small>
 
                     <select
                       :value="stringValue('currency.symbol') || '৳'"
@@ -1695,9 +1679,7 @@ onMounted(() => {
 
                   <label class="field">
                     <span>Decimal Places</span>
-                    <small>
-                      Digits displayed after the decimal separator.
-                    </small>
+                    <small> Digits displayed after the decimal separator. </small>
 
                     <select
                       :value="numberValue('currency.decimal_places', 2)"
@@ -1720,9 +1702,7 @@ onMounted(() => {
 
                   <label class="field">
                     <span>Thousand Separator</span>
-                    <small>
-                      Character used to group thousands.
-                    </small>
+                    <small> Character used to group thousands. </small>
 
                     <select
                       :value="stringValue('currency.thousand_separator') || ','"
@@ -1745,9 +1725,7 @@ onMounted(() => {
 
                   <label class="field">
                     <span>Decimal Separator</span>
-                    <small>
-                      Character used before the decimal portion.
-                    </small>
+                    <small> Character used before the decimal portion. </small>
 
                     <select
                       :value="stringValue('currency.decimal_separator') || '.'"
@@ -1769,7 +1747,7 @@ onMounted(() => {
                   </label>
                 </div>
               </div>
-                            <div
+              <div
                 v-if="activeCategory === 'business'"
                 class="settings-card setting-group-card"
               >
@@ -1777,8 +1755,7 @@ onMounted(() => {
                   <div>
                     <strong>Business Identity</strong>
                     <span>
-                      Core legal, public and contact information used across the
-                      platform.
+                      Core legal, public and contact information used across the platform.
                     </span>
                   </div>
                 </div>
@@ -1786,9 +1763,7 @@ onMounted(() => {
                 <div class="form-grid">
                   <label class="field">
                     <span>Legal Business Name</span>
-                    <small>
-                      Official registered or legal name of the business.
-                    </small>
+                    <small> Official registered or legal name of the business. </small>
                     <input
                       :value="stringValue('business.legal_name')"
                       type="text"
@@ -1805,9 +1780,7 @@ onMounted(() => {
 
                   <label class="field">
                     <span>Business Name</span>
-                    <small>
-                      Primary public-facing business name.
-                    </small>
+                    <small> Primary public-facing business name. </small>
                     <input
                       :value="stringValue('business.name')"
                       type="text"
@@ -1824,9 +1797,7 @@ onMounted(() => {
 
                   <label class="field">
                     <span>Business Email</span>
-                    <small>
-                      Primary business email address.
-                    </small>
+                    <small> Primary business email address. </small>
                     <input
                       :value="stringValue('business.email')"
                       type="email"
@@ -1843,9 +1814,7 @@ onMounted(() => {
 
                   <label class="field">
                     <span>Business Phone</span>
-                    <small>
-                      Primary business contact number.
-                    </small>
+                    <small> Primary business contact number. </small>
                     <input
                       :value="stringValue('business.phone')"
                       type="tel"
@@ -1862,9 +1831,7 @@ onMounted(() => {
 
                   <label class="field full">
                     <span>Business Website</span>
-                    <small>
-                      Official website or primary public web address.
-                    </small>
+                    <small> Official website or primary public web address. </small>
                     <input
                       :value="stringValue('business.website')"
                       type="url"
@@ -1889,8 +1856,7 @@ onMounted(() => {
                   <div>
                     <strong>Location & Address</strong>
                     <span>
-                      Define the primary registered or operating business
-                      location.
+                      Define the primary registered or operating business location.
                     </span>
                   </div>
                 </div>
@@ -1898,9 +1864,7 @@ onMounted(() => {
                 <div class="form-grid">
                   <label class="field">
                     <span>Country</span>
-                    <small>
-                      ISO 3166-1 alpha-2 country code.
-                    </small>
+                    <small> ISO 3166-1 alpha-2 country code. </small>
                     <select
                       :value="stringValue('business.country_code') || 'BD'"
                       @change="
@@ -1923,9 +1887,7 @@ onMounted(() => {
 
                   <label class="field">
                     <span>Division / State / Region</span>
-                    <small>
-                      Primary administrative region.
-                    </small>
+                    <small> Primary administrative region. </small>
                     <input
                       :value="stringValue('business.division')"
                       type="text"
@@ -1943,9 +1905,7 @@ onMounted(() => {
 
                   <label class="field">
                     <span>District / City</span>
-                    <small>
-                      Primary district, city or administrative area.
-                    </small>
+                    <small> Primary district, city or administrative area. </small>
                     <input
                       :value="stringValue('business.district')"
                       type="text"
@@ -1963,9 +1923,7 @@ onMounted(() => {
 
                   <label class="field">
                     <span>Postal Code</span>
-                    <small>
-                      Postal or ZIP code for the primary address.
-                    </small>
+                    <small> Postal or ZIP code for the primary address. </small>
                     <input
                       :value="stringValue('business.postal_code')"
                       type="text"
@@ -1984,8 +1942,7 @@ onMounted(() => {
                   <label class="field full">
                     <span>Registered / Operating Address</span>
                     <small>
-                      Full registered office, headquarters or primary operating
-                      address.
+                      Full registered office, headquarters or primary operating address.
                     </small>
                     <textarea
                       :value="stringValue('business.address')"
@@ -2035,8 +1992,7 @@ onMounted(() => {
                   <div>
                     <strong>Classification & Compliance</strong>
                     <span>
-                      Identify the business structure and core registration
-                      information.
+                      Identify the business structure and core registration information.
                     </span>
                   </div>
                 </div>
@@ -2044,9 +2000,7 @@ onMounted(() => {
                 <div class="form-grid">
                   <label class="field">
                     <span>Business Type</span>
-                    <small>
-                      Legal or organizational structure of the business.
-                    </small>
+                    <small> Legal or organizational structure of the business. </small>
                     <select
                       :value="stringValue('business.type')"
                       @change="
@@ -2057,38 +2011,20 @@ onMounted(() => {
                       "
                     >
                       <option value="">Select business type</option>
-                      <option value="sole_proprietorship">
-                        Sole Proprietorship
-                      </option>
-                      <option value="partnership">
-                        Partnership
-                      </option>
-                      <option value="private_limited">
-                        Private Limited
-                      </option>
-                      <option value="public_limited">
-                        Public Limited
-                      </option>
-                      <option value="llc">
-                        Limited Liability Company
-                      </option>
-                      <option value="ngo">
-                        NGO / Non-Profit
-                      </option>
-                      <option value="government">
-                        Government / Public Organization
-                      </option>
-                      <option value="other">
-                        Other
-                      </option>
+                      <option value="sole_proprietorship">Sole Proprietorship</option>
+                      <option value="partnership">Partnership</option>
+                      <option value="private_limited">Private Limited</option>
+                      <option value="public_limited">Public Limited</option>
+                      <option value="llc">Limited Liability Company</option>
+                      <option value="ngo">NGO / Non-Profit</option>
+                      <option value="government">Government / Public Organization</option>
+                      <option value="other">Other</option>
                     </select>
                   </label>
 
                   <label class="field">
                     <span>Industry</span>
-                    <small>
-                      Primary industry or operating sector.
-                    </small>
+                    <small> Primary industry or operating sector. </small>
                     <input
                       :value="stringValue('business.industry')"
                       type="text"
@@ -2107,8 +2043,7 @@ onMounted(() => {
                   <label class="field">
                     <span>Registration Number</span>
                     <small>
-                      Government or authority-issued business registration
-                      number.
+                      Government or authority-issued business registration number.
                     </small>
                     <input
                       :value="stringValue('business.registration_number')"
@@ -2126,9 +2061,7 @@ onMounted(() => {
 
                   <label class="field">
                     <span>BIN</span>
-                    <small>
-                      Business Identification Number / VAT registration.
-                    </small>
+                    <small> Business Identification Number / VAT registration. </small>
                     <input
                       :value="stringValue('business.bin')"
                       type="text"
@@ -2146,9 +2079,7 @@ onMounted(() => {
 
                   <label class="field">
                     <span>TIN</span>
-                    <small>
-                      Tax Identification Number.
-                    </small>
+                    <small> Tax Identification Number. </small>
                     <input
                       :value="stringValue('business.tin')"
                       type="text"
@@ -2167,15 +2098,15 @@ onMounted(() => {
                   <div class="field field-info">
                     <span>Compliance Readiness</span>
                     <small>
-                      Keep official registration and tax identifiers here for
-                      future invoicing, taxation and reporting workflows.
+                      Keep official registration and tax identifiers here for future
+                      invoicing, taxation and reporting workflows.
                     </small>
 
                     <div class="business-compliance-note">
                       <Icon name="security" :size="14" />
                       <span>
-                        Sensitive compliance identifiers are protected by the
-                        existing settings authorization layer.
+                        Sensitive compliance identifiers are protected by the existing
+                        settings authorization layer.
                       </span>
                     </div>
                   </div>
@@ -2213,11 +2144,7 @@ onMounted(() => {
                 </div>
 
                 <div class="hours-list">
-                  <div
-                    v-for="day in dayDefinitions"
-                    :key="day.key"
-                    class="hours-row"
-                  >
+                  <div v-for="day in dayDefinitions" :key="day.key" class="hours-row">
                     <div class="day-copy">
                       <strong>{{ day.label }}</strong>
                       <small>
@@ -2278,10 +2205,7 @@ onMounted(() => {
                 </div>
               </div>
 
-<div
-                v-if="activeCategory === 'security'"
-                class="security-section"
-              >
+              <div v-if="activeCategory === 'security'" class="security-section">
                 <div class="settings-card setting-group-card security-policy-card">
                   <div class="security-section-heading">
                     <div class="security-section-heading-copy">
@@ -2330,15 +2254,11 @@ onMounted(() => {
                         <span>attempts</span>
                       </div>
 
-                      <small>
-                        Failed attempts allowed before temporary lockout.
-                      </small>
+                      <small> Failed attempts allowed before temporary lockout. </small>
                     </div>
 
                     <div class="security-policy-field">
-                      <label for="security-lockout-duration">
-                        Lockout Duration
-                      </label>
+                      <label for="security-lockout-duration"> Lockout Duration </label>
 
                       <div class="security-input-wrapper">
                         <input
@@ -2361,15 +2281,11 @@ onMounted(() => {
                         <span>minutes</span>
                       </div>
 
-                      <small>
-                        Duration of the temporary account lockout.
-                      </small>
+                      <small> Duration of the temporary account lockout. </small>
                     </div>
 
                     <div class="security-policy-field">
-                      <label for="security-session-timeout">
-                        Session Timeout
-                      </label>
+                      <label for="security-session-timeout"> Session Timeout </label>
 
                       <div class="security-input-wrapper">
                         <input
@@ -2392,9 +2308,7 @@ onMounted(() => {
                         <span>minutes</span>
                       </div>
 
-                      <small>
-                        Maximum inactive session lifetime.
-                      </small>
+                      <small> Maximum inactive session lifetime. </small>
                     </div>
                   </div>
 
@@ -2459,15 +2373,11 @@ onMounted(() => {
                         <span>characters</span>
                       </div>
 
-                      <small>
-                        Minimum number of password characters.
-                      </small>
+                      <small> Minimum number of password characters. </small>
                     </div>
 
                     <div class="security-policy-field">
-                      <label for="security-password-expiry">
-                        Password Expiry
-                      </label>
+                      <label for="security-password-expiry"> Password Expiry </label>
 
                       <div class="security-input-wrapper">
                         <input
@@ -2490,9 +2400,7 @@ onMounted(() => {
                         <span>days</span>
                       </div>
 
-                      <small>
-                        Use 0 to keep password expiry disabled.
-                      </small>
+                      <small> Use 0 to keep password expiry disabled. </small>
                     </div>
                   </div>
 
@@ -2505,9 +2413,7 @@ onMounted(() => {
 
                         <div>
                           <strong>Require Mixed Case</strong>
-                          <span>
-                            Require both uppercase and lowercase characters.
-                          </span>
+                          <span> Require both uppercase and lowercase characters. </span>
                           <small>security.password_require_mixed_case</small>
                         </div>
                       </div>
@@ -2546,9 +2452,7 @@ onMounted(() => {
 
                         <div>
                           <strong>Require Numbers</strong>
-                          <span>
-                            Require at least one numeric character.
-                          </span>
+                          <span> Require at least one numeric character. </span>
                           <small>security.password_require_numbers</small>
                         </div>
                       </div>
@@ -2587,9 +2491,7 @@ onMounted(() => {
 
                         <div>
                           <strong>Require Symbols</strong>
-                          <span>
-                            Require at least one symbol character.
-                          </span>
+                          <span> Require at least one symbol character. </span>
                           <small>security.password_require_symbols</small>
                         </div>
                       </div>
@@ -3445,9 +3347,7 @@ onMounted(() => {
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--surface);
-  transition:
-    border-color 160ms ease,
-    box-shadow 160ms ease;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
 }
 
 .security-input-wrapper:focus-within {
@@ -4525,7 +4425,3 @@ onMounted(() => {
   }
 }
 </style>
-
-
-
-

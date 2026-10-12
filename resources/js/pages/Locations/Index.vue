@@ -1,18 +1,8 @@
 <script setup lang="ts">
-import { computed, defineComponent, h, onBeforeUnmount, onMounted, reactive, ref, type Component } from "vue";
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from "vue";
 import { Head, router } from "@inertiajs/vue3";
-
 import ErpLayout from "@/layouts/ErpLayout.vue";
 import Icon from "@/components/dashboard/Icon.vue";
-import {
-  Building2,
-  Factory,
-  Cog,
-  HouseIcon,
-  MapPinHouse,
-  ShieldX,
-  ShelvingUnit,
-} from "lucide-vue-next";
 
 interface Props {
   userName?: string;
@@ -22,53 +12,6 @@ interface Props {
 const props = withDefaults(defineProps<Props>(), {
   userName: "",
   userEmail: "",
-});
-
-const HouseCogIcon = defineComponent({
-  name: "HouseCogIcon",
-  props: {
-    size: {
-      type: Number,
-      default: 24,
-    },
-    strokeWidth: {
-      type: Number,
-      default: 2,
-    },
-  },
-  setup(iconProps) {
-    return () =>
-      h(
-        "span",
-        {
-          style: {
-            position: "relative",
-            display: "inline-flex",
-            width: `${iconProps.size}px`,
-            height: `${iconProps.size}px`,
-            flex: "0 0 auto",
-          },
-          "aria-hidden": "true",
-        },
-        [
-          h(HouseIcon, {
-            size: iconProps.size,
-            strokeWidth: iconProps.strokeWidth,
-          }),
-          h(Cog, {
-            size: Math.max(9, Number(iconProps.size) * 0.55),
-            strokeWidth: iconProps.strokeWidth,
-            style: {
-              position: "absolute",
-              right: "-1px",
-              bottom: "-1px",
-              background: "var(--surface, transparent)",
-              borderRadius: "50%",
-            },
-          }),
-        ],
-      );
-  },
 });
 
 type LocationType =
@@ -184,20 +127,6 @@ const locationTypes: Array<{
     icon: "map-pin",
   },
 ];
-
-const locationIconComponents: Record<string, Component> = {
-  "building-complex": Building2,
-  "shelving-unit": ShelvingUnit,
-  "map-pin-house": MapPinHouse,
-  "house-cog": HouseCogIcon,
-  factory: Factory,
-  "shield-x": ShieldX,
-};
-
-function locationIconComponent(type: LocationType): Component | null {
-  const iconName = locationTypes.find((item) => item.value === type)?.icon;
-  return iconName ? (locationIconComponents[iconName] ?? null) : null;
-}
 
 const countries = [
   { value: "BD", label: "Bangladesh" },
@@ -971,7 +900,7 @@ onBeforeUnmount(() => {
 
         <article class="stat-card">
           <div class="stat-icon">
-            <ShelvingUnit :size="17" :stroke-width="1.8" />
+            <Icon name="building-warehouse" :size="17" :stroke-width="1.8" />
           </div>
 
           <div>
@@ -1119,13 +1048,7 @@ onBeforeUnmount(() => {
                         primary: location.is_primary,
                       }"
                     >
-                      <component
-                        v-if="locationIconComponent(location.type)"
-                        :is="locationIconComponent(location.type)"
-                        :size="16"
-                        :stroke-width="1.8"
-                      />
-                      <Icon v-else :name="locationTypeIcon(location.type)" :size="16" />
+                      <Icon :name="locationTypeIcon(location.type)" :size="16" />
                     </div>
 
                     <div class="location-main">
@@ -1358,13 +1281,7 @@ onBeforeUnmount(() => {
                       @click="form.type = type.value"
                     >
                       <span class="type-card-icon">
-                        <component
-                          v-if="locationIconComponents[type.icon]"
-                          :is="locationIconComponents[type.icon]"
-                          :size="17"
-                          :stroke-width="1.8"
-                        />
-                        <Icon v-else :name="type.icon" :size="17" />
+                        <Icon :name="type.icon" :size="17" />
                       </span>
 
                       <span class="type-card-copy">

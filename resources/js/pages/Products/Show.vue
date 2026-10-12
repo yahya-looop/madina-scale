@@ -1,33 +1,9 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { Head, router } from "@inertiajs/vue3";
-import {
-  ArrowLeft,
-  Barcode,
-  Box,
-  CalendarDays,
-  Check,
-  ChevronLeft,
-  ChevronRight,
-  Clock3,
-  Copy,
-  Edit3,
-  ExternalLink,
-  Eye,
-  FileText,
-  Globe2,
-  Hash,
-  ImageOff,
-  Layers3,
-  LoaderCircle,
-  Package,
-  Ruler,
-  Tag,
-  Trash2,
-} from "lucide-vue-next";
-
 import ErpLayout from "@/layouts/ErpLayout.vue";
 import Icon from "@/components/dashboard/Icon.vue";
+
 
 interface ProductMedia {
   id: number;
@@ -389,7 +365,7 @@ onMounted(() => {
             aria-label="Back to products"
             @click="goBack"
           >
-            <ArrowLeft :size="18" />
+            <Icon name="arrow-left" :size="18" />
           </button>
 
           <div class="header-copy">
@@ -434,12 +410,12 @@ onMounted(() => {
 
         <div class="header-actions">
           <button type="button" class="secondary-button" @click="goBack">
-            <ArrowLeft :size="16" />
+            <Icon name="arrow-left" :size="16" />
             Back
           </button>
 
           <button v-if="product" type="button" class="primary-button" @click="goToEdit">
-            <Edit3 :size="16" />
+            <Icon name="edit" :size="16" />
             Edit Product
           </button>
         </div>
@@ -462,7 +438,7 @@ onMounted(() => {
            LOADING
            ========================================================= -->
       <section v-if="isLoading" class="loading-card">
-        <LoaderCircle class="spin" :size="24" />
+        <Icon name="loader-2" class="spin" :size="24" />
 
         <div>
           <strong>Loading product...</strong>
@@ -478,7 +454,7 @@ onMounted(() => {
         <section class="workflow-card">
           <div class="workflow-step active">
             <span class="workflow-number">
-              <Check :size="14" />
+              <Icon name="check" :size="14" />
             </span>
 
             <div>
@@ -518,7 +494,7 @@ onMounted(() => {
           <section class="card media-card">
             <div class="section-heading">
               <div class="section-icon">
-                <Package :size="18" />
+                <Icon name="package" :size="18" />
               </div>
 
               <div>
@@ -547,7 +523,7 @@ onMounted(() => {
                   aria-label="Previous image"
                   @click="previousMedia"
                 >
-                  <ChevronLeft :size="18" />
+                  <Icon name="chevron-left" :size="18" />
                 </button>
 
                 <button
@@ -557,13 +533,13 @@ onMounted(() => {
                   aria-label="Next image"
                   @click="nextMedia"
                 >
-                  <ChevronRight :size="18" />
+                  <Icon name="chevron-right" :size="18" />
                 </button>
               </template>
 
               <div v-else class="no-media">
                 <div class="no-media-icon">
-                  <ImageOff :size="28" />
+                  <Icon name="photo-off" :size="28" />
                 </div>
 
                 <strong>No product image</strong>
@@ -611,7 +587,7 @@ onMounted(() => {
           <aside class="card summary-card">
             <div class="section-heading">
               <div class="section-icon">
-                <Eye :size="18" />
+                <Icon name="eye" :size="18" />
               </div>
 
               <div>
@@ -676,7 +652,7 @@ onMounted(() => {
 
             <div class="summary-actions">
               <button type="button" class="summary-edit-button" @click="goToEdit">
-                <Edit3 :size="15" />
+                <Icon name="edit" :size="15" />
                 Edit Product
               </button>
             </div>
@@ -691,7 +667,7 @@ onMounted(() => {
           <section class="card detail-card">
             <div class="section-heading">
               <div class="section-icon">
-                <Hash :size="18" />
+                <Icon name="hash" :size="18" />
               </div>
 
               <div>
@@ -703,7 +679,7 @@ onMounted(() => {
             <div class="info-grid">
               <div class="info-item">
                 <span class="info-label">
-                  <Hash :size="13" />
+                  <Icon name="hash" :size="13" />
                   SKU
                 </span>
 
@@ -717,15 +693,15 @@ onMounted(() => {
                     title="Copy SKU"
                     @click="copyValue(product.sku, 'sku')"
                   >
-                    <Check v-if="copiedField === 'sku'" :size="13" />
-                    <Copy v-else :size="13" />
+                    <Icon name="check" v-if="copiedField === 'sku'" :size="13" />
+                    <Icon name="copy" v-else :size="13" />
                   </button>
                 </div>
               </div>
 
               <div class="info-item">
                 <span class="info-label">
-                  <Package :size="13" />
+                  <Icon name="package" :size="13" />
                   Model Number
                 </span>
 
@@ -741,15 +717,15 @@ onMounted(() => {
                     title="Copy model number"
                     @click="copyValue(product.model_number, 'model')"
                   >
-                    <Check v-if="copiedField === 'model'" :size="13" />
-                    <Copy v-else :size="13" />
+                    <Icon name="check" v-if="copiedField === 'model'" :size="13" />
+                    <Icon name="copy" v-else :size="13" />
                   </button>
                 </div>
               </div>
 
               <div class="info-item">
                 <span class="info-label">
-                  <Barcode :size="13" />
+                  <Icon name="barcode" :size="13" />
                   Barcode
                 </span>
 
@@ -765,15 +741,15 @@ onMounted(() => {
                     title="Copy barcode"
                     @click="copyValue(product.barcode, 'barcode')"
                   >
-                    <Check v-if="copiedField === 'barcode'" :size="13" />
-                    <Copy v-else :size="13" />
+                    <Icon name="check" v-if="copiedField === 'barcode'" :size="13" />
+                    <Icon name="copy" v-else :size="13" />
                   </button>
                 </div>
               </div>
 
               <div class="info-item">
                 <span class="info-label">
-                  <Tag :size="13" />
+                  <Icon name="tag" :size="13" />
                   Product Type
                 </span>
 
@@ -786,7 +762,7 @@ onMounted(() => {
 
               <div class="info-item info-item-wide">
                 <span class="info-label">
-                  <Globe2 :size="13" />
+                  <Icon name="world" :size="13" />
                   Product Slug
                 </span>
 
@@ -801,8 +777,8 @@ onMounted(() => {
                     title="Copy slug"
                     @click="copyValue(product.slug, 'slug')"
                   >
-                    <Check v-if="copiedField === 'slug'" :size="13" />
-                    <Copy v-else :size="13" />
+                    <Icon name="check" v-if="copiedField === 'slug'" :size="13" />
+                    <Icon name="copy" v-else :size="13" />
                   </button>
                 </div>
               </div>
@@ -813,7 +789,7 @@ onMounted(() => {
           <section class="card detail-card">
             <div class="section-heading">
               <div class="section-icon">
-                <Layers3 :size="18" />
+                <Icon name="stack-2" :size="18" />
               </div>
 
               <div>
@@ -825,7 +801,7 @@ onMounted(() => {
             <div class="classification-list">
               <div class="classification-item">
                 <div class="classification-icon">
-                  <Layers3 :size="15" />
+                  <Icon name="stack-2" :size="15" />
                 </div>
 
                 <div>
@@ -845,7 +821,7 @@ onMounted(() => {
 
               <div class="classification-item">
                 <div class="classification-icon">
-                  <Tag :size="15" />
+                  <Icon name="tag" :size="15" />
                 </div>
 
                 <div>
@@ -861,7 +837,7 @@ onMounted(() => {
 
               <div class="classification-item">
                 <div class="classification-icon">
-                  <Ruler :size="15" />
+                  <Icon name="ruler" :size="15" />
                 </div>
 
                 <div>
@@ -886,7 +862,7 @@ onMounted(() => {
         <section v-if="hasDescription" class="card description-card">
           <div class="section-heading">
             <div class="section-icon">
-              <FileText :size="18" />
+              <Icon name="file-text" :size="18" />
             </div>
 
             <div>
@@ -918,7 +894,7 @@ onMounted(() => {
         <section class="card lifecycle-card">
           <div class="section-heading">
             <div class="section-icon">
-              <Clock3 :size="18" />
+              <Icon name="clock" :size="18" />
             </div>
 
             <div>
@@ -930,7 +906,7 @@ onMounted(() => {
           <div class="lifecycle-grid">
             <div class="lifecycle-item">
               <div class="lifecycle-icon">
-                <CalendarDays :size="15" />
+                <Icon name="calendar" :size="15" />
               </div>
 
               <div>
@@ -941,7 +917,7 @@ onMounted(() => {
 
             <div class="lifecycle-item">
               <div class="lifecycle-icon">
-                <Clock3 :size="15" />
+                <Icon name="clock" :size="15" />
               </div>
 
               <div>
@@ -952,7 +928,7 @@ onMounted(() => {
 
             <div class="lifecycle-item">
               <div class="lifecycle-icon">
-                <Eye :size="15" />
+                <Icon name="eye" :size="15" />
               </div>
 
               <div>
@@ -963,7 +939,7 @@ onMounted(() => {
 
             <div class="lifecycle-item">
               <div class="lifecycle-icon">
-                <Box :size="15" />
+                <Icon name="box" :size="15" />
               </div>
 
               <div>
@@ -980,7 +956,7 @@ onMounted(() => {
         <section class="future-grid">
           <article class="future-card">
             <div class="future-icon">
-              <Tag :size="18" />
+              <Icon name="tag" :size="18" />
             </div>
 
             <div>
@@ -994,7 +970,7 @@ onMounted(() => {
 
           <article class="future-card">
             <div class="future-icon">
-              <Layers3 :size="18" />
+              <Icon name="stack-2" :size="18" />
             </div>
 
             <div>
@@ -1017,21 +993,21 @@ onMounted(() => {
             :disabled="isDeleting"
             @click="deleteProduct"
           >
-            <LoaderCircle v-if="isDeleting" class="spin" :size="15" />
+            <Icon name="loader-2" v-if="isDeleting" class="spin" :size="15" />
 
-            <Trash2 v-else :size="15" />
+            <Icon name="trash" v-else :size="15" />
 
             {{ isDeleting ? "Deleting..." : "Move to Trash" }}
           </button>
 
           <div class="bottom-actions-right">
             <button type="button" class="secondary-button" @click="goBack">
-              <ArrowLeft :size="15" />
+              <Icon name="arrow-left" :size="15" />
               Back to Products
             </button>
 
             <button type="button" class="primary-button" @click="goToEdit">
-              <Edit3 :size="15" />
+              <Icon name="edit" :size="15" />
               Edit Product
             </button>
           </div>

@@ -1,18 +1,9 @@
 <script setup lang="ts">
-import { computed, defineComponent, h, onMounted, ref, type PropType } from "vue";
+import { computed, defineComponent, h, onMounted, ref } from "vue";
 import { Head, router } from "@inertiajs/vue3";
-import {
-    Building2,
-    Cog,
-    Factory,
-    HouseIcon,
-    MapPinHouse,
-    ShieldX,
-    ShelvingUnit,
-} from "lucide-vue-next";
-
 import ErpLayout from "@/layouts/ErpLayout.vue";
 import Icon from "@/components/dashboard/Icon.vue";
+
 
 interface Props {
     userName?: string;
@@ -78,78 +69,23 @@ const locationTypeLabels: Record<string, string> = {
 
 const locationIcon = defineComponent({
     name: "LocationTypeIcon",
-
     props: {
-        type: {
-            type: String,
-            required: true,
-        },
-        size: {
-            type: Number,
-            default: 20,
-        },
+        type: { type: String, required: true },
+        size: { type: Number, default: 20 },
     },
-
     setup(iconProps) {
         return () => {
-            const common = {
+            const names: Record<string, string> = {
+                head_office: "building",
+                warehouse: "building-warehouse",
+                distribution_hub: "map-pin",
+                service_center: "home-2",
+                factory: "building-factory",
+            };
+            return h(Icon, {
+                name: names[iconProps.type] ?? "map-pin",
                 size: iconProps.size,
                 strokeWidth: 1.8,
-            };
-
-            if (iconProps.type === "head_office") {
-                return h(Building2, common);
-            }
-
-            if (iconProps.type === "warehouse") {
-                return h(ShelvingUnit, common);
-            }
-
-            if (iconProps.type === "distribution_hub") {
-                return h(MapPinHouse, common);
-            }
-
-            if (iconProps.type === "service_center") {
-                return h(
-                    "span",
-                    {
-                        style: {
-                            position: "relative",
-                            display: "inline-flex",
-                            width: `${iconProps.size}px`,
-                            height: `${iconProps.size}px`,
-                            flex: "0 0 auto",
-                        },
-                        "aria-hidden": "true",
-                    },
-                    [
-                        h(HouseIcon, {
-                            ...common,
-                            style: {
-                                position: "absolute",
-                                inset: "0",
-                            },
-                        }),
-                        h(Cog, {
-                            size: Math.max(9, iconProps.size * 0.55),
-                            strokeWidth: 1.8,
-                            style: {
-                                position: "absolute",
-                                right: "-1px",
-                                bottom: "-1px",
-                            },
-                        }),
-                    ],
-                );
-            }
-
-            if (iconProps.type === "factory") {
-                return h(Factory, common);
-            }
-
-            return h(Icon, {
-                name: "map-pin",
-                size: iconProps.size,
             });
         };
     },

@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { Head, useForm } from '@inertiajs/vue3';
-import { ref } from 'vue';
-import { ArrowRight, Eye, EyeOff, LockKeyhole, Mail, ShieldCheck } from 'lucide-vue-next';
+import { Head, useForm } from "@inertiajs/vue3";
+import { ref } from "vue";
+import Icon from "@/components/dashboard/Icon.vue";
 
 const form = useForm({ email: '', password: '', remember: false });
 const showPassword = ref(false);
@@ -36,7 +36,7 @@ const submit = () => {
                 <div class="form-group">
                     <label for="email">Email address</label>
                     <div class="input-wrap" :class="{ 'has-error': form.errors.email }">
-                        <Mail :size="18" aria-hidden="true" />
+                        <Icon name="mail" :size="18" aria-hidden="true" />
                         <input
                             id="email"
                             v-model="form.email"
@@ -56,7 +56,7 @@ const submit = () => {
                 <div class="form-group">
                     <label for="password">Password</label>
                     <div class="input-wrap" :class="{ 'has-error': form.errors.password }">
-                        <LockKeyhole :size="18" aria-hidden="true" />
+                        <Icon name="lock" :size="18" aria-hidden="true" />
                         <input
                             id="password"
                             v-model="form.password"
@@ -74,8 +74,8 @@ const submit = () => {
                             :aria-label="showPassword ? 'Hide password' : 'Show password'"
                             @click="showPassword = !showPassword"
                         >
-                            <EyeOff v-if="showPassword" :size="18" />
-                            <Eye v-else :size="18" />
+                            <Icon name="eye-off" v-if="showPassword" :size="18" />
+                            <Icon name="eye" v-else :size="18" />
                         </button>
                     </div>
                     <p v-if="form.errors.password" id="password-error" class="form-error">{{ form.errors.password }}</p>
@@ -92,13 +92,13 @@ const submit = () => {
 
                 <button class="submit-button" type="submit" :disabled="form.processing">
                     <span>{{ form.processing ? 'Signing in...' : 'Sign in to dashboard' }}</span>
-                    <ArrowRight v-if="!form.processing" :size="18" aria-hidden="true" />
+                    <Icon name="arrow-right" v-if="!form.processing" :size="18" aria-hidden="true" />
                     <span v-else class="spinner" aria-hidden="true"></span>
                 </button>
             </form>
 
             <div class="secure-note">
-                <ShieldCheck :size="16" aria-hidden="true" />
+                <Icon name="shield-check" :size="16" aria-hidden="true" />
                 <span>Secure access to your business workspace</span>
             </div>
             <footer class="login-footer"><span>Madina Scale</span><i>•</i><span>Enterprise Resource Planning</span></footer>
