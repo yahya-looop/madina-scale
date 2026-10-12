@@ -733,7 +733,7 @@ onMounted(() => {
   align-items: center;
   gap: 7px;
   margin-bottom: 9px;
-  color: var(--text-muted, #7b8794);
+  color: var(--text-tertiary, #7b8794);
   font-size: 11px;
   font-weight: 600;
   line-height: 1.2;
@@ -766,7 +766,7 @@ onMounted(() => {
 .page-title-row h1 {
   margin: 0;
   color: var(--text-primary, #17202a);
-  font-size: 24px;
+  font-size: 23px;
   font-weight: 750;
   line-height: 1.15;
   letter-spacing: -0.025em;
@@ -891,7 +891,7 @@ onMounted(() => {
 }
 .stat-card span {
   display: block;
-  color: var(--text-muted, #7b8794);
+  color: var(--text-tertiary, #7b8794);
   font-size: 12px;
 }
 .stat-card strong {
@@ -935,7 +935,7 @@ onMounted(() => {
   padding: 0 10px;
   border: 1px solid var(--border, #e5e9ee);
   border-radius: 8px;
-  color: var(--text-muted, #7b8794);
+  color: var(--text-tertiary, #7b8794);
   background: var(--surface-muted, #f8fafb);
   transition: border-color 140ms ease, box-shadow 140ms ease, background 140ms ease;
 }
@@ -955,7 +955,7 @@ onMounted(() => {
   font-size: 12px;
 }
 .search-field input::placeholder {
-  color: var(--text-muted, #9aa4b2);
+  color: var(--text-tertiary, #9aa4b2);
 }
 .toolbar select {
   height: 38px;
@@ -983,7 +983,7 @@ table {
 }
 th {
   padding: 12px 16px;
-  color: var(--text-muted, #7b8794);
+  color: var(--text-tertiary, #7b8794);
   background: var(--surface-muted, #fafbfc);
   font-size: 11px;
   font-weight: 800;
@@ -1051,7 +1051,7 @@ tbody tr:hover {
 .user-copy small {
   overflow: hidden;
   max-width: 280px;
-  color: var(--text-muted, #7b8794);
+  color: var(--text-tertiary, #7b8794);
   font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1115,10 +1115,10 @@ tbody tr:hover {
   background: #f7f2fc;
 }
 .role-more {
-  color: var(--text-muted, #7b8794);
+  color: var(--text-tertiary, #7b8794);
 }
 .muted {
-  color: var(--text-muted, #7b8794);
+  color: var(--text-tertiary, #7b8794);
 }
 
 /* ================================================================
@@ -1138,11 +1138,11 @@ tbody tr:hover {
   white-space: nowrap;
 }
 .last-login-time.never {
-  color: var(--text-muted, #9aa4b2);
+  color: var(--text-tertiary, #9aa4b2);
   font-weight: 500;
 }
 .last-login-ip {
-  color: var(--text-muted, #8a94a5);
+  color: var(--text-tertiary, #8a94a5);
   font-size: 10px;
   line-height: 1.2;
   white-space: nowrap;
@@ -1209,7 +1209,7 @@ tbody tr:hover {
   margin-bottom: 10px;
   place-items: center;
   border-radius: 12px;
-  color: var(--text-muted, #7b8794);
+  color: var(--text-tertiary, #7b8794);
   background: var(--surface-muted, #f3f5f7);
 }
 .empty-state strong {
@@ -1218,7 +1218,7 @@ tbody tr:hover {
 }
 .empty-state p {
   margin: 6px 0 0;
-  color: var(--text-muted, #7b8794);
+  color: var(--text-tertiary, #7b8794);
   font-size: 12px;
 }
 .empty-clear {
@@ -1235,7 +1235,7 @@ tbody tr:hover {
   gap: 14px;
   padding: 12px 16px;
   border-top: 1px solid var(--border, #e5e9ee);
-  color: var(--text-muted, #7b8794);
+  color: var(--text-tertiary, #7b8794);
   font-size: 12px;
 }
 .table-footer strong {
@@ -1326,7 +1326,7 @@ tbody tr:hover {
     flex-basis: 38px;
   }
   .page-title-row h1 {
-    font-size: 24px;
+    font-size: 20px;
   }
   .header-actions,
   .header-actions .btn {
@@ -1369,3 +1369,4 @@ tbody tr:hover {
   }
 }
 </style>
+
