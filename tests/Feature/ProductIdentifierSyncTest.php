@@ -283,15 +283,28 @@ test('restoring a product fails if its old SKU has been reused', function () {
 
     Product::create($replacement);
 
-    expect(fn () => $original->restore())
-        ->toThrow(QueryException::class);
+    $originalId = $original->id;
 
-    expect(
-        DB::table('products')
-            ->where('id', $original->id)
-            ->whereNotNull('deleted_at')
-            ->exists()
-    )->toBeTrue();
+    // Run the conflicting restore in a separate PostgreSQL session.
+    $connection = DB::connection('pgsql');
+    $connection->beginTransaction();
+
+    try {
+        $original->restore();
+
+        test()->fail('Restoring a reused SKU should throw a QueryException.');
+    } catch (QueryException $exception) {
+        if ($connection->transactionLevel() > 0) {
+            $connection->rollBack();
+        }
+
+        expect(
+            DB::table('products')
+                ->where('id', $originalId)
+                ->whereNotNull('deleted_at')
+                ->exists()
+        )->toBeTrue();
+    }
 });
 
 test('soft deleting and restoring a variable product synchronizes variant identifiers', function () {
