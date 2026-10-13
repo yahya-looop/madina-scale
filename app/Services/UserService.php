@@ -199,9 +199,26 @@ class UserService
             }
 
             /*
-             * Synchronize the user's roles.
+             * Preserve existing system roles during ordinary user
+             * management. System roles are intentionally not assignable
+             * from the user form, but editing a user's name/email/status
+             * must never silently remove their existing system access.
+             *
+             * Only active system roles already attached to this user are
+             * preserved; this method still cannot grant a system role.
              */
-            $user->roles()->sync($normalizedRoleIds);
+            $existingSystemRoleIds = $user->roles()
+                ->where('roles.is_system', true)
+                ->pluck('roles.id')
+                ->map(static fn ($id): int => (int) $id)
+                ->all();
+
+            $roleIdsToSync = array_values(array_unique([
+                ...$existingSystemRoleIds,
+                ...$normalizedRoleIds,
+            ]));
+
+            $user->roles()->sync($roleIdsToSync);
 
             $user = $user
                 ->refresh()

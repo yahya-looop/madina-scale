@@ -262,6 +262,40 @@ class UserManagementTest extends TestCase
         );
     }
 
+    public function test_updating_user_profile_preserves_existing_system_roles(): void
+    {
+        $admin = User::factory()->create();
+        $this->grantPermission($admin, 'system.users.update');
+
+        $developerRole = Role::query()->create([
+            'name' => 'Developer',
+            'slug' => 'developer',
+            'description' => 'System developer role.',
+            'is_system' => true,
+            'is_active' => true,
+        ]);
+
+        $managedUser = User::factory()->create([
+            'name' => 'System Developer',
+            'email' => 'developer@example.com',
+        ]);
+        $managedUser->roles()->attach($developerRole->id);
+
+        $response = $this->actingAs($admin)
+            ->putJson('/api/users/'.$managedUser->id, [
+                'name' => 'Yahya Al Mahmood',
+                'email' => 'developer@example.com',
+                'status' => 'active',
+                'role_ids' => [],
+            ]);
+
+        $response->assertOk();
+        $this->assertDatabaseHas('user_roles', [
+            'user_id' => $managedUser->id,
+            'role_id' => $developerRole->id,
+        ]);
+    }
+
     public function test_system_role_cannot_be_assigned_during_user_creation(): void
     {
         $admin = User::factory()->create();

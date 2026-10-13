@@ -19,6 +19,16 @@ interface Role {
   isActive: boolean;
 }
 
+interface RoleApiPayload {
+  id: number;
+  name: string;
+  slug: string;
+  isSystem?: boolean;
+  isActive?: boolean;
+  is_system?: boolean;
+  is_active?: boolean;
+}
+
 interface UserApiPayload {
   id: number;
 
@@ -143,6 +153,10 @@ const userId = Number(
 
 const user = ref<User | null>(null);
 
+const roleCatalog = ref<Role[]>([]);
+
+const isLoadingRoles = ref(false);
+
 const isLoading = ref(true);
 
 const isSaving = ref(false);
@@ -209,15 +223,11 @@ const systemRoles = computed(() => {
   return user.value?.roles.filter((role) => role.isSystem) ?? [];
 });
 
-const assignableRoles = computed(() => {
-  return (
-    user.value?.roles
-
-      .filter((role) => role.isActive && !role.isSystem)
-
-      .sort((a, b) => a.name.localeCompare(b.name)) ?? []
-  );
-});
+const assignableRoles = computed(() =>
+  roleCatalog.value
+    .filter((role) => role.isActive && !role.isSystem)
+    .sort((a, b) => a.name.localeCompare(b.name)),
+);
 
 const accountLocked = computed(() => {
   if (!user.value?.lockedUntil) {
@@ -315,6 +325,28 @@ async function apiRequest<T>(
   }
 
   return payload as T;
+}
+
+async function loadRoles(): Promise<void> {
+  isLoadingRoles.value = true;
+
+  try {
+    const response = await apiRequest<RoleApiPayload[]>('/api/roles', 'GET');
+    roleCatalog.value = response.map((item) => ({
+      id: Number(item.id),
+      name: String(item.name ?? ''),
+      slug: String(item.slug ?? ''),
+      isSystem: Boolean(item.isSystem ?? item.is_system),
+      isActive: Boolean(item.isActive ?? item.is_active),
+    }));
+  } catch (error) {
+    operationMessageType.value = 'error';
+    operationMessage.value = error instanceof Error
+      ? `Unable to load available roles: ${error.message}`
+      : 'Unable to load available roles.';
+  } finally {
+    isLoadingRoles.value = false;
+  }
 }
 
 function syncFormFromUser(currentUser: User): void {
@@ -527,6 +559,7 @@ function formatDateOnly(value?: string | null): string {
 
 onMounted(() => {
   void loadUser();
+  void loadRoles();
 });
 </script>
 
@@ -877,7 +910,7 @@ onMounted(() => {
 
                   <h2>Assigned roles</h2>
 
-                  <p>Only active non-system roles can be managed here.</p>
+                  <p>Choose one or more active roles. System roles are protected.</p>
                 </div>
 
                 <span class="selection-count">
@@ -887,7 +920,14 @@ onMounted(() => {
                 </span>
               </header>
 
-              <div class="role-list">
+              <div v-if="isLoadingRoles" class="role-list" role="status" aria-live="polite">
+                <div class="empty-state">
+                  <strong>Loading available roles…</strong>
+                  <span>Please wait while role permissions are retrieved.</span>
+                </div>
+              </div>
+
+              <div v-else class="role-list">
                 <button
                   v-for="role in assignableRoles"
                   :key="role.id"
@@ -928,9 +968,11 @@ onMounted(() => {
 
                   <strong> No assignable roles </strong>
 
-                  <span> No active non-system roles are currently available. </span>
+                  <span>No active non-system roles are available. Create or activate a role first.</span>
                 </div>
               </div>
+
+              <small v-if="formErrors.role_ids" class="form-error">{{ formErrors.role_ids }}</small>
 
               <div v-if="systemRoles.length > 0" class="system-role-note">
                 <Icon name="developer" :size="14" />

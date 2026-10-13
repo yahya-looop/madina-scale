@@ -226,7 +226,27 @@ async function loadRoles(): Promise<void> {
 
     try {
 
-        roles.value = await apiRequest<Role[]>('/api/roles', 'GET');
+        const response = await apiRequest<Role[] | { data: Role[] }>(
+            '/api/roles',
+            'GET',
+        );
+
+        // Accept both Laravel snake_case fields and frontend camelCase fields.
+        const roleItems = Array.isArray(response) ? response : response.data;
+        roles.value = roleItems.map((item) => {
+            const raw = item as Role & {
+                is_system?: boolean;
+                is_active?: boolean;
+            };
+
+            return {
+                id: Number(raw.id),
+                name: String(raw.name ?? ''),
+                slug: String(raw.slug ?? ''),
+                isSystem: Boolean(raw.isSystem ?? raw.is_system),
+                isActive: Boolean(raw.isActive ?? raw.is_active),
+            };
+        });
 
     } catch (error) {
 
