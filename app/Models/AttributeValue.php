@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class AttributeValue extends Model
@@ -21,9 +22,27 @@ class AttributeValue extends Model
         'sort_order',
     ];
 
+    protected function casts(): array
+    {
+        return [
+            'attribute_id' => 'integer',
+            'sort_order' => 'integer',
+        ];
+    }
+
     public function attribute(): BelongsTo
     {
         return $this->belongsTo(Attribute::class);
+    }
+
+    /**
+     * Variant mappings referencing this value.
+     */
+    public function variantAttributeValues(): HasMany
+    {
+        return $this->hasMany(
+            ProductVariantAttributeValue::class
+        );
     }
 
     public function isActive(): bool
@@ -43,6 +62,7 @@ class AttributeValue extends Model
 
     public function hasColor(): bool
     {
-        return $this->color_code !== null;
+        return $this->color_code !== null
+            && $this->color_code !== '';
     }
 }

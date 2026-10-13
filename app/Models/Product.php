@@ -52,6 +52,34 @@ class Product extends Model
     }
 
     /**
+     * All variants belonging to this product.
+     */
+    public function variants(): HasMany
+    {
+        return $this->hasMany(ProductVariant::class);
+    }
+
+    /**
+     * Active variants belonging to this product.
+     */
+    public function activeVariants(): HasMany
+    {
+        return $this->variants()->where('status', 'active');
+    }
+
+    /**
+     * Default variant of this product.
+     *
+     * The database and application logic must ensure
+     * that only one default variant exists per product.
+     */
+    public function defaultVariant(): HasOne
+    {
+        return $this->hasOne(ProductVariant::class)
+            ->where('is_default', true);
+    }
+
+    /**
      * All media attached to this product.
      *
      * Ordered by sort_order first, then id to keep
