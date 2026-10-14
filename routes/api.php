@@ -7,6 +7,7 @@ use App\Http\Controllers\UnitController;
 use App\Http\Controllers\AttributeController;
 use App\Http\Controllers\AttributeValueController;
 use App\Http\Controllers\ProductController;
+use App\Http\Controllers\ProductVariantController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\ActivityLogController;
 use App\Http\Controllers\ModuleController;
@@ -275,6 +276,33 @@ Route::middleware(['web', 'auth'])->group(function () {
         ->middleware('permission:system.products.update');
 
     Route::delete('/products/{product}', [ProductController::class, 'destroy'])
+        ->middleware('permission:system.products.delete');
+
+    /*
+    |--------------------------------------------------------------------------
+    | Product Variant Routes
+    |--------------------------------------------------------------------------
+    |
+    | These routes follow the existing authentication and permission pattern.
+    |
+    */
+
+    Route::get('/products/{product}/variants', [ProductVariantController::class, 'index'])
+        ->middleware('permission:system.products.view');
+
+    Route::post('/products/{product}/variants', [ProductVariantController::class, 'store'])
+        ->middleware('permission:system.products.create');
+
+    Route::get('/products/{product}/variants/{variant}', [ProductVariantController::class, 'show'])
+        ->middleware('permission:system.products.view');
+
+    Route::put('/products/{product}/variants/{variant}', [ProductVariantController::class, 'update'])
+        ->middleware('permission:system.products.update');
+
+    Route::patch('/products/{product}/variants/{variant}', [ProductVariantController::class, 'update'])
+        ->middleware('permission:system.products.update');
+
+    Route::delete('/products/{product}/variants/{variant}', [ProductVariantController::class, 'destroy'])
         ->middleware('permission:system.products.delete');
 
 });
