@@ -299,9 +299,6 @@ Route::middleware(['web', 'auth'])->group(function () {
     Route::put('/products/{product}/variants/{variant}', [ProductVariantController::class, 'update'])
         ->middleware('permission:system.products.update');
 
-    Route::patch('/products/{product}/variants/{variant}', [ProductVariantController::class, 'update'])
-        ->middleware('permission:system.products.update');
-
     Route::delete('/products/{product}/variants/{variant}', [ProductVariantController::class, 'destroy'])
         ->middleware('permission:system.products.delete');
 

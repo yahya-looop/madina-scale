@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from "vue";
 import { Head, router } from "@inertiajs/vue3";
 import ErpLayout from "@/layouts/ErpLayout.vue";
 import Icon from "@/components/dashboard/Icon.vue";
+import ProductVariantsPanel from "@/components/products/ProductVariantsPanel.vue";
 
 
 interface ProductMedia {
@@ -470,7 +471,7 @@ onMounted(() => {
 
             <div>
               <strong>Pricing</strong>
-              <span>Connected later</span>
+              <span>Variant-level pricing available</span>
             </div>
           </div>
 
@@ -481,7 +482,7 @@ onMounted(() => {
 
             <div>
               <strong>Variants &amp; Inventory</strong>
-              <span>Connected later</span>
+              <span>Variant management enabled</span>
             </div>
           </div>
         </section>
@@ -889,6 +890,15 @@ onMounted(() => {
         </section>
 
         <!-- =======================================================
+             VARIANT MANAGEMENT
+             Keep this after core product information and before lifecycle.
+             ======================================================= -->
+        <ProductVariantsPanel
+          v-if="product.product_type === 'variable'"
+          :product-id="product.id"
+        />
+
+        <!-- =======================================================
              LIFECYCLE
              ======================================================= -->
         <section class="card lifecycle-card">
@@ -951,34 +961,29 @@ onMounted(() => {
         </section>
 
         <!-- =======================================================
-             FUTURE WORKFLOW
+             NEXT WORKFLOW
              ======================================================= -->
         <section class="future-grid">
           <article class="future-card">
             <div class="future-icon">
               <Icon name="tag" :size="18" />
             </div>
-
             <div>
               <span>Next product layer</span>
-              <strong>Pricing</strong>
-              <p>Product pricing and price lists will connect here.</p>
+              <strong>Price Lists</strong>
+              <p>Centralized pricing rules and customer-specific price lists can connect here.</p>
             </div>
-
-            <span class="future-status">Coming next</span>
+            <span class="future-status">Planned</span>
           </article>
-
           <article class="future-card">
             <div class="future-icon">
-              <Icon name="stack-2" :size="18" />
+              <Icon name="package" :size="18" />
             </div>
-
             <div>
-              <span>Future product layer</span>
-              <strong>Variants &amp; Inventory</strong>
-              <p>SKU variants, stock and inventory operations will connect here.</p>
+              <span>Inventory layer</span>
+              <strong>Stock &amp; Warehouses</strong>
+              <p>Stock balances and warehouse movements can connect to each product variant.</p>
             </div>
-
             <span class="future-status">Planned</span>
           </article>
         </section>
@@ -2443,6 +2448,29 @@ onMounted(() => {
 
 .bottom-actions-right {
   gap: 8px;
+}
+
+.simple-product-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  margin-bottom: 14px;
+  padding: 15px;
+  border: 1px solid var(--border);
+  border-radius: var(--product-radius);
+  background: var(--surface);
+}
+
+.simple-product-note strong {
+  color: var(--text-primary);
+  font-size: 11px;
+}
+
+.simple-product-note p {
+  margin: 4px 0 0;
+  color: var(--text-muted);
+  font-size: 10px;
+  line-height: 1.5;
 }
 
 /* ==========================================================================
