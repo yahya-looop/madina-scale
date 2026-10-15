@@ -17,6 +17,22 @@ interface VariantAttributeSelection {
   attribute_value?: { id: number; value: string } | null;
 }
 
+interface CatalogAttribute {
+  id: number;
+  name: string;
+  type: string;
+  status: string;
+}
+
+interface CatalogAttributeValue {
+  id: number;
+  attribute_id: number;
+  name: string;
+  value: string;
+  color_code?: string | null;
+  status: string;
+}
+
 interface ProductVariant {
   id: number;
   product_id: number;
@@ -53,9 +69,14 @@ interface VariantForm {
 const props = defineProps<{ productId: number }>();
 
 const variants = ref<ProductVariant[]>([]);
+const attributes = ref<CatalogAttribute[]>([]);
+const attributeValues = ref<Record<number, CatalogAttributeValue[]>>({});
+const selectedAttributeValues = ref<Record<number, number | "">>({});
+const isLoadingAttributes = ref(false);
 const isLoading = ref(false);
 const isSaving = ref(false);
 const deletingId = ref<number | null>(null);
+const pendingDeleteVariant = ref<ProductVariant | null>(null);
 const errorMessage = ref("");
 const successMessage = ref("");
 const isFormOpen = ref(false);
@@ -110,6 +131,44 @@ async function request<T>(
   return payload.data as T;
 }
 
+async function loadAttributes(): Promise<void> {
+  isLoadingAttributes.value = true;
+  try {
+    const result = await request<CatalogAttribute[]>("/api/attributes?status=active");
+    // The backend only accepts selectable attributes for variants. These are
+    // attributes whose values represent a concrete variant choice.
+    attributes.value = result.filter((attribute) =>
+      ["select", "multiselect", "color", "boolean"].includes(attribute.type)
+      && attribute.status === "active"
+    );
+    await Promise.all(attributes.value.map((attribute) => loadAttributeValues(attribute.id)));
+  } catch (error) {
+    errorMessage.value = error instanceof Error ? error.message : "Unable to load attributes.";
+  } finally {
+    isLoadingAttributes.value = false;
+  }
+}
+
+async function loadAttributeValues(attributeId: number): Promise<void> {
+  try {
+    const values = await request<CatalogAttributeValue[]>(
+      `/api/attribute-values?attribute_id=${attributeId}&status=active`,
+    );
+    attributeValues.value[attributeId] = values.filter((value) => value.status === "active");
+  } catch (error) {
+    errorMessage.value = error instanceof Error ? error.message : "Unable to load attribute values.";
+  }
+}
+
+function syncSelectedAttributes(selections: VariantAttributeSelection[] = []): void {
+  const next: Record<number, number | ""> = {};
+  for (const attribute of attributes.value) next[attribute.id] = "";
+  for (const selection of selections) {
+    if (selection.attribute_id in next) next[selection.attribute_id] = selection.attribute_value_id;
+  }
+  selectedAttributeValues.value = next;
+}
+
 async function loadVariants(): Promise<void> {
   isLoading.value = true;
   errorMessage.value = "";
@@ -128,6 +187,7 @@ function openCreate(): void {
   fieldErrors.value = {};
   errorMessage.value = "";
   successMessage.value = "";
+  syncSelectedAttributes();
   isFormOpen.value = true;
 }
 
@@ -157,6 +217,7 @@ function openEdit(variant: ProductVariant): void {
   fieldErrors.value = {};
   errorMessage.value = "";
   successMessage.value = "";
+  syncSelectedAttributes(variant.attribute_values ?? []);
   isFormOpen.value = true;
 }
 
@@ -178,6 +239,12 @@ function payload(): Record<string, unknown> {
     is_default: form.value.is_default,
     status: form.value.status,
     sort_order: Number(form.value.sort_order || 0),
+    attribute_values: Object.entries(selectedAttributeValues.value)
+      .filter(([, valueId]) => valueId !== "")
+      .map(([attributeId, valueId]) => ({
+        attribute_id: Number(attributeId),
+        attribute_value_id: Number(valueId),
+      })),
   };
 }
 
@@ -203,15 +270,27 @@ async function saveVariant(): Promise<void> {
   }
 }
 
-async function deleteVariant(variant: ProductVariant): Promise<void> {
+function deleteVariant(variant: ProductVariant): void {
   if (deletingId.value !== null) return;
-  const label = variant.name || variant.sku || `#${variant.id}`;
-  if (!window.confirm(`Move variant "${label}" to trash?`)) return;
+  errorMessage.value = "";
+  pendingDeleteVariant.value = variant;
+}
+
+function closeDeleteModal(): void {
+  if (deletingId.value !== null) return;
+  pendingDeleteVariant.value = null;
+}
+
+async function confirmDeleteVariant(): Promise<void> {
+  const variant = pendingDeleteVariant.value;
+  if (!variant || deletingId.value !== null) return;
+
   deletingId.value = variant.id;
   errorMessage.value = "";
   successMessage.value = "";
   try {
     await request(`/api/products/${props.productId}/variants/${variant.id}`, "DELETE");
+    pendingDeleteVariant.value = null;
     successMessage.value = "Variant moved to trash.";
     await loadVariants();
   } catch (error) {
@@ -237,7 +316,7 @@ function dateTime(value: string | null): string {
     : new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }).format(date);
 }
 
-onMounted(() => void loadVariants());
+onMounted(() => { void loadAttributes(); void loadVariants(); });
 watch(() => props.productId, () => void loadVariants());
 </script>
 
@@ -322,6 +401,19 @@ watch(() => props.productId, () => void loadVariants());
         <label class="field"><span>Promotion starts <em>Optional</em></span><input v-model="form.promotion_starts_at" type="datetime-local" /><small v-if="fieldError('promotion_starts_at')" class="field-error">{{ fieldError("promotion_starts_at") }}</small></label>
         <label class="field"><span>Promotion ends <em>Optional</em></span><input v-model="form.promotion_ends_at" type="datetime-local" /><small v-if="fieldError('promotion_ends_at')" class="field-error">{{ fieldError("promotion_ends_at") }}</small></label>
         <label class="field"><span>Sort order</span><input v-model.number="form.sort_order" type="number" min="0" step="1" /><small v-if="fieldError('sort_order')" class="field-error">{{ fieldError("sort_order") }}</small></label>
+        <div v-if="isLoadingAttributes" class="attribute-loading">Loading selectable attributes…</div>
+        <template v-else-if="attributes.length">
+          <label v-for="attribute in attributes" :key="attribute.id" class="field">
+            <span>{{ attribute.name }} <em>Variant attribute</em></span>
+            <select v-model="selectedAttributeValues[attribute.id]">
+              <option value="">No selection</option>
+              <option v-for="value in (attributeValues[attribute.id] ?? [])" :key="value.id" :value="value.id">
+                {{ value.name }}{{ value.value && value.value !== value.name ? ` (${value.value})` : "" }}
+              </option>
+            </select>
+          </label>
+        </template>
+        <p v-else class="attribute-loading">No active selectable attributes are configured. You can still create a variant without attributes.</p>
         <label class="default-field"><input v-model="form.is_default" type="checkbox" /><span><strong>Default variant</strong><small>Only one active variant can be the default for this product.</small></span></label>
       </div>
       <div class="form-actions">
@@ -329,6 +421,79 @@ watch(() => props.productId, () => void loadVariants());
         <button type="submit" class="primary-button" :disabled="isSaving"><Icon v-if="isSaving" name="loader-2" class="spin" :size="15" /><Icon v-else name="check" :size="15" />{{ isSaving ? "Saving…" : editingId ? "Save changes" : "Create variant" }}</button>
       </div>
     </form>
+
+    <Teleport to="body">
+      <div
+        v-if="pendingDeleteVariant"
+        class="delete-modal-backdrop"
+        @click.self="closeDeleteModal"
+        @keydown.esc="closeDeleteModal"
+      >
+        <section
+          class="delete-modal"
+          role="alertdialog"
+          aria-modal="true"
+          aria-labelledby="delete-variant-title"
+          aria-describedby="delete-variant-description"
+        >
+          <div class="delete-modal-topline">
+            <div class="delete-modal-icon"><Icon name="trash" :size="22" /></div>
+            <button
+              type="button"
+              class="delete-modal-close"
+              aria-label="Close delete confirmation"
+              :disabled="deletingId !== null"
+              @click="closeDeleteModal"
+            >×</button>
+          </div>
+          <div class="delete-modal-copy">
+            <span class="delete-modal-eyebrow">Confirm deletion</span>
+            <h3 id="delete-variant-title">Move this variant to trash?</h3>
+            <p id="delete-variant-description">
+              You are about to move this variant out of the active product catalog. Please review the details before continuing.
+            </p>
+          </div>
+
+          <div class="delete-variant-summary">
+            <div class="delete-variant-summary-heading">
+              <div class="delete-variant-product-icon"><Icon name="package" :size="20" /></div>
+              <div class="delete-variant-title-group">
+                <strong>{{ pendingDeleteVariant.name || `Variant #${pendingDeleteVariant.id}` }}</strong>
+                <span>Variant ID · {{ pendingDeleteVariant.id }}</span>
+              </div>
+              <span class="variant-status" :class="pendingDeleteVariant.status">{{ pendingDeleteVariant.status }}</span>
+            </div>
+            <div class="delete-variant-details">
+              <div><span>SKU</span><strong>{{ pendingDeleteVariant.sku || "—" }}</strong></div>
+              <div><span>Barcode / EAN</span><strong>{{ pendingDeleteVariant.barcode || "—" }}</strong></div>
+              <div><span>Cost price</span><strong>{{ money(pendingDeleteVariant.cost_price) }}</strong></div>
+              <div><span>Selling price</span><strong>{{ money(pendingDeleteVariant.selling_price) }}</strong></div>
+              <div v-if="pendingDeleteVariant.attribute_values?.length" class="delete-variant-attributes">
+                <span>Attributes</span>
+                <strong>{{ pendingDeleteVariant.attribute_values.map((item) => `${item.attribute?.name ?? "Attribute"}: ${item.attributeValue?.value ?? item.attribute_value?.value ?? "—"}`).join(" · ") }}</strong>
+              </div>
+            </div>
+            <div v-if="pendingDeleteVariant.is_default" class="delete-default-warning">
+              <Icon name="alert-triangle" :size="15" />
+              <span>This is currently the default variant for this product.</span>
+            </div>
+          </div>
+
+          <div class="delete-modal-note">
+            <Icon name="info" :size="15" />
+            <span>This action moves the variant to trash. Confirm only if you intend to remove this variant from active use.</span>
+          </div>
+          <div class="delete-modal-actions">
+            <button type="button" class="secondary-button" :disabled="deletingId !== null" @click="closeDeleteModal">Cancel</button>
+            <button type="button" class="danger-button" :disabled="deletingId !== null" @click="confirmDeleteVariant">
+              <Icon v-if="deletingId === pendingDeleteVariant.id" name="loader-2" class="spin" :size="15" />
+              <Icon v-else name="trash" :size="15" />
+              {{ deletingId === pendingDeleteVariant.id ? "Moving to trash…" : "Move to trash" }}
+            </button>
+          </div>
+        </section>
+      </div>
+    </Teleport>
   </section>
 </template>
 
@@ -431,7 +596,7 @@ watch(() => props.productId, () => void loadVariants());
 .field input, .field select { width: 100%; min-height: 39px; padding: 9px 11px; border: 1px solid var(--border, #e2e8f0); border-radius: 9px; outline: none; background: var(--surface, #fff); color: var(--text-primary, #0f172a); font: inherit; font-size: 11px; }
 .field input:focus, .field select:focus { border-color: color-mix(in srgb, var(--primary, #059669) 60%, var(--border, #e2e8f0)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary, #059669) 10%, transparent); }
 .field-error { color: #dc2626; font-size: 10px; line-height: 1.4; }
-.default-field { display: flex; align-items: center; gap: 10px; padding: 11px; border: 1px solid var(--border, #e2e8f0); border-radius: 9px; background: var(--surface, #fff); }
+.attribute-loading { grid-column: 1 / -1; margin: 0; padding: 10px 12px; border: 1px dashed var(--border, #e2e8f0); border-radius: 9px; color: var(--text-muted, #64748b); font-size: 11px; }\n.default-field { display: flex; align-items: center; gap: 10px; padding: 11px; border: 1px solid var(--border, #e2e8f0); border-radius: 9px; background: var(--surface, #fff); }
 .default-field input { width: 16px; height: 16px; accent-color: var(--primary, #059669); }
 .default-field span { display: flex; flex-direction: column; gap: 4px; }
 .default-field strong { color: var(--text-primary, #0f172a); font-size: 11px; }
@@ -454,4 +619,80 @@ watch(() => props.productId, () => void loadVariants());
   .variant-form { padding: 15px; }
   .form-grid { grid-template-columns: 1fr; }
 }
+
+
+/* Focused, accessible delete confirmation modal. */
+.delete-modal-backdrop {
+  position: fixed;
+  z-index: 9999;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow-y: auto;
+  padding: 24px;
+  background: rgb(15 23 42 / 58%);
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+}
+.delete-modal {
+  width: min(100%, 510px);
+  max-height: min(90vh, 820px);
+  overflow-y: auto;
+  padding: 24px;
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 18px;
+  background: var(--surface, #fff);
+  color: var(--text-primary, #0f172a);
+  box-shadow: 0 24px 80px rgb(2 6 23 / 28%);
+  animation: delete-modal-enter .18s ease-out;
+}
+.delete-modal-topline { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.delete-modal-icon {
+  width: 48px; height: 48px; display: grid; place-items: center;
+  border: 1px solid rgb(220 38 38 / 20%); border-radius: 14px;
+  background: rgb(220 38 38 / 8%); color: #dc2626;
+}
+.delete-modal-close {
+  width: 34px; height: 34px; display: inline-grid; place-items: center;
+  border: 1px solid var(--border, #e2e8f0); border-radius: 9px;
+  background: var(--surface, #fff); color: var(--text-muted, #64748b);
+  font-size: 21px; line-height: 1; cursor: pointer;
+}
+.delete-modal-close:hover:not(:disabled) { background: var(--surface-muted, #f8fafc); color: var(--text-primary, #0f172a); }
+.delete-modal-copy { margin-top: 17px; }
+.delete-modal-eyebrow { color: #dc2626; font-size: 10px; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; }
+.delete-modal-copy h3 { margin: 6px 0 0; color: var(--text-primary, #0f172a); font-size: 19px; font-weight: 800; letter-spacing: -.025em; }
+.delete-modal-copy p { margin: 9px 0 0; color: var(--text-muted, #64748b); font-size: 12px; line-height: 1.65; }
+.delete-variant-summary { margin-top: 19px; overflow: hidden; border: 1px solid var(--border, #e2e8f0); border-radius: 12px; background: var(--surface-muted, #f8fafc); }
+.delete-variant-summary-heading { display: flex; align-items: center; gap: 11px; padding: 13px; border-bottom: 1px solid var(--border, #e2e8f0); }
+.delete-variant-product-icon { width: 38px; height: 38px; flex: 0 0 38px; display: grid; place-items: center; border: 1px solid var(--border, #e2e8f0); border-radius: 10px; background: var(--surface, #fff); color: var(--primary, #059669); }
+.delete-variant-title-group { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 4px; }
+.delete-variant-title-group strong { overflow-wrap: anywhere; color: var(--text-primary, #0f172a); font-size: 12px; font-weight: 800; }
+.delete-variant-title-group span { color: var(--text-muted, #64748b); font-size: 10px; }
+.delete-variant-details { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 13px 16px; padding: 14px; }
+.delete-variant-details > div { min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+.delete-variant-details > div > span { color: var(--text-muted, #64748b); font-size: 10px; }
+.delete-variant-details > div > strong { overflow-wrap: anywhere; color: var(--text-primary, #0f172a); font-size: 11px; font-weight: 750; }
+.delete-variant-details .delete-variant-attributes { grid-column: 1 / -1; padding-top: 11px; border-top: 1px solid var(--border, #e2e8f0); }
+.delete-default-warning { display: flex; align-items: flex-start; gap: 8px; margin: 0 13px 13px; padding: 10px; border: 1px solid rgb(217 119 6 / 24%); border-radius: 9px; background: rgb(245 158 11 / 8%); color: #b45309; font-size: 10px; line-height: 1.5; }
+.delete-default-warning :deep(svg) { flex: 0 0 auto; }
+.delete-modal-note { display: flex; align-items: flex-start; gap: 8px; margin-top: 14px; color: var(--text-muted, #64748b); font-size: 10px; line-height: 1.55; }
+.delete-modal-note :deep(svg) { flex: 0 0 auto; margin-top: 1px; }
+.delete-modal-actions { display: flex; justify-content: flex-end; gap: 9px; margin-top: 22px; }
+.danger-button { min-height: 38px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 0 14px; border: 1px solid #dc2626; border-radius: 9px; background: #dc2626; color: #fff; font: inherit; font-size: 11px; font-weight: 750; cursor: pointer; transition: background .16s ease, transform .16s ease; }
+.danger-button:hover:not(:disabled) { background: #b91c1c; transform: translateY(-1px); }
+.danger-button:disabled { opacity: .6; cursor: not-allowed; }
+.delete-modal-close:disabled { opacity: .5; cursor: not-allowed; }
+@keyframes delete-modal-enter { from { opacity: 0; transform: translateY(7px) scale(.99); } to { opacity: 1; transform: translateY(0) scale(1); } }
+:global(html.dark) .delete-modal, :global(body.dark) .delete-modal, :global([data-theme="dark"]) .delete-modal { box-shadow: 0 24px 80px rgb(0 0 0 / 40%); }
+@media (max-width: 540px) {
+  .delete-modal-backdrop { align-items: flex-end; padding: 12px; }
+  .delete-modal { max-height: 92vh; padding: 19px; border-radius: 17px; }
+  .delete-modal-copy h3 { font-size: 17px; }
+  .delete-variant-details { gap: 12px; padding: 12px; }
+  .delete-modal-actions { flex-direction: column-reverse; }
+  .delete-modal-actions button { width: 100%; }
+}
+
 </style>
