@@ -68,21 +68,33 @@ class ProductVariantController extends Controller
 
                 $this->ensureVariableProduct($lockedProduct);
 
-                if (($data['is_default'] ?? false) === true) {
-                    $lockedProduct->variants()
-                        ->where('is_default', true)
-                        ->update([
-                            'is_default' => false,
-                        ]);
+                $requestedDefault = ($data['is_default'] ?? false) === true;
+                $variantStatus = $data['status'] ?? 'active';
+
+                if ($requestedDefault && $variantStatus !== 'active') {
+                    throw ValidationException::withMessages([
+                        'is_default' => 'Only an active variant can be the default variant.',
+                    ]);
                 }
 
-                $variant = $lockedProduct->variants()
-                    ->create($data);
+                if ($requestedDefault) {
+                    $lockedProduct->variants()
+                        ->where('is_default', true)
+                        ->update(['is_default' => false]);
+                } elseif (
+                    $variantStatus === 'active'
+                    && ! $lockedProduct->variants()
+                        ->where('status', 'active')
+                        ->where('is_default', true)
+                        ->exists()
+                ) {
+                    // The first active variant becomes the default automatically.
+                    $data['is_default'] = true;
+                }
 
-                $this->syncAttributeValues(
-                    $variant,
-                    $attributeValues
-                );
+                $variant = $lockedProduct->variants()->create($data);
+
+                $this->syncAttributeValues($variant, $attributeValues);
 
                 return $variant->load([
                     'attributeValues.attribute',
@@ -90,10 +102,8 @@ class ProductVariantController extends Controller
                 ]);
             }, 3);
         } catch (QueryException $exception) {
-            $this->handleIdentifierConstraint(
-                $exception,
-                $data
-            );
+            $this->handleVariantCombinationConstraint($exception);
+            $this->handleIdentifierConstraint($exception, $data);
 
             throw $exception;
         }
@@ -189,27 +199,58 @@ class ProductVariantController extends Controller
                     $lockedVariant
                 );
 
-                if (($data['is_default'] ?? false) === true) {
+                $wasDefault = $lockedVariant->is_default;
+                $effectiveStatus = $data['status'] ?? $lockedVariant->status;
+                $explicitlyRequestedDefault =
+                    array_key_exists('is_default', $data)
+                    && $data['is_default'] === true;
+
+                if ($explicitlyRequestedDefault && $effectiveStatus !== 'active') {
+                    throw ValidationException::withMessages([
+                        'is_default' => 'Only an active variant can be the default variant.',
+                    ]);
+                }
+
+                $requestedDefault = array_key_exists('is_default', $data)
+                    ? $data['is_default']
+                    : ($wasDefault && $effectiveStatus === 'active');
+
+                if ($requestedDefault) {
                     $lockedProduct->variants()
                         ->where('is_default', true)
                         ->where('id', '<>', $lockedVariant->id)
-                        ->update([
-                            'is_default' => false,
-                        ]);
+                        ->update(['is_default' => false]);
+                    $data['is_default'] = true;
+                } elseif ($effectiveStatus !== 'active') {
+                    // Inactive variants cannot remain the default.
+                    $data['is_default'] = false;
+                } elseif ($wasDefault) {
+                    $replacementExists = $lockedProduct->variants()
+                        ->where('status', 'active')
+                        ->where('is_default', false)
+                        ->where('id', '<>', $lockedVariant->id)
+                        ->exists();
+
+                    // Do not leave active variants without a default.
+                    $data['is_default'] = $replacementExists ? false : true;
+                } elseif (! $lockedProduct->variants()
+                    ->where('status', 'active')
+                    ->where('is_default', true)
+                    ->where('id', '<>', $lockedVariant->id)
+                    ->exists() && $effectiveStatus === 'active') {
+                    $data['is_default'] = true;
                 }
 
                 $lockedVariant->fill($data);
                 $lockedVariant->save();
 
                 if ($attributeValues !== null) {
-                    $this->validateAttributeSelections(
-                        $attributeValues
-                    );
+                    $this->validateAttributeSelections($attributeValues);
+                    $this->syncAttributeValues($lockedVariant, $attributeValues);
+                }
 
-                    $this->syncAttributeValues(
-                        $lockedVariant,
-                        $attributeValues
-                    );
+                if ($wasDefault && ! $lockedVariant->is_default) {
+                    $this->promoteDefaultVariant($lockedProduct, $lockedVariant->id);
                 }
 
                 return $lockedVariant->load([
@@ -218,10 +259,8 @@ class ProductVariantController extends Controller
                 ]);
             }, 3);
         } catch (QueryException $exception) {
-            $this->handleIdentifierConstraint(
-                $exception,
-                $data
-            );
+            $this->handleVariantCombinationConstraint($exception);
+            $this->handleIdentifierConstraint($exception, $data);
 
             throw $exception;
         }
@@ -257,7 +296,15 @@ class ProductVariantController extends Controller
                 ->lockForUpdate()
                 ->firstOrFail();
 
+            $wasDefault = $lockedVariant->is_default;
             $lockedVariant->delete();
+
+            if ($wasDefault || ! $lockedProduct->variants()
+                ->where('status', 'active')
+                ->where('is_default', true)
+                ->exists()) {
+                $this->promoteDefaultVariant($lockedProduct);
+            }
         }, 3);
 
         return response()->json([
@@ -505,6 +552,87 @@ class ProductVariantController extends Controller
             $variant->attributeValues()->create([
                 'attribute_id' => $selection['attribute_id'],
                 'attribute_value_id' => $selection['attribute_value_id'],
+            ]);
+        }
+
+        $variant->forceFill([
+            'attribute_signature' => $this->buildAttributeSignature($selections),
+        ])->save();
+    }
+
+    /**
+     * Produce a stable signature independent of request order.
+     * Empty attribute selections intentionally have no signature.
+     */
+    private function buildAttributeSignature(array $selections): ?string
+    {
+        if ($selections === []) {
+            return null;
+        }
+
+        usort($selections, static function (array $left, array $right): int {
+            return ((int) $left['attribute_id'] <=> (int) $right['attribute_id'])
+                ?: ((int) $left['attribute_value_id'] <=> (int) $right['attribute_value_id']);
+        });
+
+        return implode('|', array_map(
+            static fn (array $selection): string =>
+                (int) $selection['attribute_id'] . ':' . (int) $selection['attribute_value_id'],
+            $selections
+        ));
+    }
+
+    /**
+     * Promote the first active non-deleted variant when a product has no default.
+     * Caller must hold the parent product row lock.
+     */
+    private function promoteDefaultVariant(
+        Product $product,
+        ?int $excludeVariantId = null
+    ): void {
+        if ($product->variants()
+            ->where('status', 'active')
+            ->where('is_default', true)
+            ->exists()) {
+            return;
+        }
+
+        $candidate = $product->variants()
+            ->where('status', 'active')
+            ->where('is_default', false)
+            ->when(
+                $excludeVariantId !== null,
+                fn ($query) => $query->where('id', '<>', $excludeVariantId)
+            )
+            ->orderBy('sort_order')
+            ->orderBy('id')
+            ->lockForUpdate()
+            ->first();
+
+        if ($candidate !== null) {
+            $candidate->forceFill(['is_default' => true])->save();
+        }
+    }
+
+    /**
+     * Convert a unique-combination index violation into a normal validation response.
+     */
+    private function handleVariantCombinationConstraint(
+        QueryException $exception
+    ): void {
+        $sqlState = $exception->errorInfo[0] ?? null;
+        $message = mb_strtolower($exception->getMessage());
+        $constraint = mb_strtolower((string) ($exception->errorInfo[2] ?? ''));
+
+        if (
+            $sqlState === '23505'
+            && (
+                str_contains($message, 'product_variants_product_attribute_signature_unique')
+                || str_contains($constraint, 'product_variants_product_attribute_signature_unique')
+            )
+        ) {
+            throw ValidationException::withMessages([
+                'attribute_values' => 'A variant with this exact attribute combination already exists for this product.',
             ]);
         }
     }

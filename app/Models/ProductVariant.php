@@ -12,6 +12,10 @@ class ProductVariant extends Model
 {
     use HasFactory, SoftDeletes;
 
+    protected $hidden = [
+        'attribute_signature',
+    ];
+
     protected $fillable = [
         'product_id',
         'name',

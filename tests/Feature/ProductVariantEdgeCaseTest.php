@@ -301,3 +301,222 @@ test('setting a new default variant clears the previous default', function () {
             ->count()
     );
 });
+
+test('variant creation rejects an identical attribute combination for the same product', function () {
+    $user = User::factory()->create();
+    variantEdgeGrantPermission($user, 'system.products.create');
+
+    $product = variantEdgeCreateProduct();
+    $color = variantEdgeCreateAttribute('Combination Color');
+    $yellow = variantEdgeCreateValue($color);
+    $size = variantEdgeCreateAttribute('Combination Size');
+    $big = variantEdgeCreateValue($size);
+
+    $selection = [
+        ['attribute_id' => $color->id, 'attribute_value_id' => $yellow->id],
+        ['attribute_id' => $size->id, 'attribute_value_id' => $big->id],
+    ];
+
+    $this->actingAs($user)
+        ->postJson(
+            "/api/products/{$product->id}/variants",
+            variantEdgePayload(['attribute_values' => $selection])
+        )
+        ->assertCreated();
+
+    // Reverse request order to prove the signature is canonical.
+    $this->actingAs($user)
+        ->postJson(
+            "/api/products/{$product->id}/variants",
+            variantEdgePayload(['attribute_values' => array_reverse($selection)])
+        )
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['attribute_values']);
+
+    $this->assertSame(
+        1,
+        ProductVariant::query()->where('product_id', $product->id)->count()
+    );
+});
+
+test('the same attribute combination is allowed for a different product', function () {
+    $user = User::factory()->create();
+    variantEdgeGrantPermission($user, 'system.products.create');
+
+    $productA = variantEdgeCreateProduct();
+    $productB = variantEdgeCreateProduct();
+    $color = variantEdgeCreateAttribute('Shared Color');
+    $yellow = variantEdgeCreateValue($color);
+    $selection = [[
+        'attribute_id' => $color->id,
+        'attribute_value_id' => $yellow->id,
+    ]];
+
+    $this->actingAs($user)
+        ->postJson(
+            "/api/products/{$productA->id}/variants",
+            variantEdgePayload(['attribute_values' => $selection])
+        )
+        ->assertCreated();
+
+    $this->actingAs($user)
+        ->postJson(
+            "/api/products/{$productB->id}/variants",
+            variantEdgePayload(['attribute_values' => $selection])
+        )
+        ->assertCreated();
+});
+
+test('first active variant becomes default and deleting it promotes the next active variant', function () {
+    $user = User::factory()->create();
+    variantEdgeGrantPermission($user, 'system.products.create');
+    variantEdgeGrantPermission($user, 'system.products.delete');
+
+    $product = variantEdgeCreateProduct();
+
+    $first = $this->actingAs($user)
+        ->postJson(
+            "/api/products/{$product->id}/variants",
+            variantEdgePayload(['is_default' => false])
+        )
+        ->assertCreated()
+        ->assertJsonPath('data.is_default', true)
+        ->json('data');
+
+    $second = $this->actingAs($user)
+        ->postJson(
+            "/api/products/{$product->id}/variants",
+            variantEdgePayload(['is_default' => false])
+        )
+        ->assertCreated()
+        ->assertJsonPath('data.is_default', false)
+        ->json('data');
+
+    $this->actingAs($user)
+        ->deleteJson("/api/products/{$product->id}/variants/{$first['id']}")
+        ->assertOk();
+
+    $this->assertSoftDeleted('product_variants', ['id' => $first['id']]);
+    $this->assertDatabaseHas('product_variants', [
+        'id' => $second['id'],
+        'is_default' => true,
+        'status' => 'active',
+    ]);
+});
+
+test('inactivating the default variant promotes another active variant', function () {
+    $user = User::factory()->create();
+    variantEdgeGrantPermission($user, 'system.products.create');
+    variantEdgeGrantPermission($user, 'system.products.update');
+
+    $product = variantEdgeCreateProduct();
+
+    $first = $this->actingAs($user)
+        ->postJson(
+            "/api/products/{$product->id}/variants",
+            variantEdgePayload(['is_default' => true])
+        )
+        ->assertCreated()
+        ->json('data');
+
+    $second = $this->actingAs($user)
+        ->postJson(
+            "/api/products/{$product->id}/variants",
+            variantEdgePayload(['is_default' => false])
+        )
+        ->assertCreated()
+        ->json('data');
+
+    $this->actingAs($user)
+        ->putJson(
+            "/api/products/{$product->id}/variants/{$first['id']}",
+            ['status' => 'inactive']
+        )
+        ->assertOk()
+        ->assertJsonPath('data.is_default', false);
+
+    $this->assertDatabaseHas('product_variants', [
+        'id' => $second['id'],
+        'is_default' => true,
+        'status' => 'active',
+    ]);
+});
+
+test('an inactive variant cannot be selected as the default', function () {
+    $user = User::factory()->create();
+    variantEdgeGrantPermission($user, 'system.products.create');
+
+    $product = variantEdgeCreateProduct();
+
+    $this->actingAs($user)
+        ->postJson(
+            "/api/products/{$product->id}/variants",
+            variantEdgePayload([
+                'status' => 'inactive',
+                'is_default' => true,
+            ])
+        )
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['is_default']);
+
+    $this->assertDatabaseCount('product_variants', 0);
+});
+
+test('variant update rejects changing to another variant attribute combination', function () {
+    $user = User::factory()->create();
+    variantEdgeGrantPermission($user, 'system.products.create');
+    variantEdgeGrantPermission($user, 'system.products.update');
+
+    $product = variantEdgeCreateProduct();
+    $color = variantEdgeCreateAttribute('Update Color');
+    $yellow = variantEdgeCreateValue($color);
+    $black = variantEdgeCreateValue($color);
+
+    $first = $this->actingAs($user)
+        ->postJson(
+            "/api/products/{$product->id}/variants",
+            variantEdgePayload([
+                'attribute_values' => [[
+                    'attribute_id' => $color->id,
+                    'attribute_value_id' => $yellow->id,
+                ]],
+            ])
+        )
+        ->assertCreated()
+        ->json('data');
+
+    $second = $this->actingAs($user)
+        ->postJson(
+            "/api/products/{$product->id}/variants",
+            variantEdgePayload([
+                'attribute_values' => [[
+                    'attribute_id' => $color->id,
+                    'attribute_value_id' => $black->id,
+                ]],
+            ])
+        )
+        ->assertCreated()
+        ->json('data');
+
+    $this->actingAs($user)
+        ->putJson(
+            "/api/products/{$product->id}/variants/{$second['id']}",
+            ['attribute_values' => [[
+                'attribute_id' => $color->id,
+                'attribute_value_id' => $yellow->id,
+            ]]]
+        )
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['attribute_values']);
+
+    $this->assertDatabaseHas('product_variant_attribute_values', [
+        'product_variant_id' => $second['id'],
+        'attribute_id' => $color->id,
+        'attribute_value_id' => $black->id,
+    ]);
+    $this->assertDatabaseHas('product_variant_attribute_values', [
+        'product_variant_id' => $first['id'],
+        'attribute_id' => $color->id,
+        'attribute_value_id' => $yellow->id,
+    ]);
+});
