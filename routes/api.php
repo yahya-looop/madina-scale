@@ -1,6 +1,6 @@
 <?php
 
-
+use App\Http\Controllers\InventoryController;
 use App\Http\Controllers\ProductCategoryController;
 use App\Http\Controllers\BrandController;
 use App\Http\Controllers\UnitController;
@@ -301,5 +301,31 @@ Route::middleware(['web', 'auth'])->group(function () {
 
     Route::delete('/products/{product}/variants/{variant}', [ProductVariantController::class, 'destroy'])
         ->middleware('permission:system.products.delete');
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Inventory
+    |--------------------------------------------------------------------------
+    */
+
+    Route::get('/inventory/stocks', [InventoryController::class, 'stocks'])
+        ->middleware('permission:system.inventory.view');
+
+    Route::get('/inventory/movements', [InventoryController::class, 'movements'])
+        ->middleware('permission:system.inventory.view');
+
+    Route::post('/inventory/receive', [InventoryController::class, 'receive'])
+        ->middleware('permission:system.inventory.receive');
+
+    Route::post('/inventory/issue', [InventoryController::class, 'issue'])
+        ->middleware('permission:system.inventory.issue');
+
+    Route::post('/inventory/adjust', [InventoryController::class, 'adjust'])
+        ->middleware('permission:system.inventory.adjust');
+
+    Route::post('/inventory/transfer', [InventoryController::class, 'transfer'])
+        ->middleware('permission:system.inventory.transfer');
+
 
 });

@@ -1,88 +1,8 @@
 <?php
 
-use App\Models\Brand;
 use App\Models\InventoryStock;
-use App\Models\Location;
-use App\Models\Product;
-use App\Models\ProductCategory;
-use App\Models\ProductVariant;
-use App\Models\Unit;
 use App\Services\InventoryService;
 use Illuminate\Validation\ValidationException;
-
-function inventoryTestProduct(string $type = 'simple'): Product
-{
-    $suffix = strtolower(uniqid());
-
-    $category = ProductCategory::query()->create([
-        'name' => 'Inventory Category ' . $suffix,
-        'slug' => 'inventory-category-' . $suffix,
-        'status' => 'active',
-        'visibility' => 'visible',
-        'sort_order' => 0,
-    ]);
-
-    $brand = Brand::query()->create([
-        'name' => 'Inventory Brand ' . $suffix,
-        'slug' => 'inventory-brand-' . $suffix,
-        'status' => 'active',
-        'sort_order' => 0,
-    ]);
-
-    $unit = Unit::query()->create([
-        'name' => 'Inventory Unit ' . $suffix,
-        'short_name' => 'IU',
-        'slug' => 'inventory-unit-' . $suffix,
-        'status' => 'active',
-        'sort_order' => 0,
-    ]);
-
-    return Product::query()->create([
-        'category_id' => $category->id,
-        'brand_id' => $brand->id,
-        'unit_id' => $unit->id,
-        'name' => 'Inventory Product ' . $suffix,
-        'slug' => 'inventory-product-' . $suffix,
-        'sku' => $type === 'simple'
-        ? 'INV-P-' . strtoupper($suffix)
-        : null,
-        'product_type' => $type,
-        'status' => 'active',
-        'visibility' => 'visible',
-        'sort_order' => 0,
-    ]);
-}
-
-function inventoryTestLocation(string $suffix = ''): Location
-{
-    $suffix = $suffix ?: strtolower(uniqid());
-
-    return Location::query()->create([
-        'name' => 'Inventory Location ' . $suffix,
-        'code' => 'INV-' . strtoupper($suffix),
-        'type' => 'warehouse',
-        'is_active' => true,
-        'is_primary' => false,
-        'country_code' => 'BD',
-    ]);
-}
-
-function inventoryTestVariant(Product $product): ProductVariant
-{
-    return ProductVariant::query()->create([
-        'product_id' => $product->id,
-        'name' => 'Inventory Test Variant',
-        'sku' => 'INV-' . strtoupper(uniqid()),
-        'barcode' => null,
-        'cost_price' => 10,
-        'selling_price' => 20,
-        'wholesale_price' => null,
-        'promotional_price' => null,
-        'is_default' => true,
-        'status' => 'active',
-        'sort_order' => 0,
-    ]);
-}
 
 test('receipt increases stock and records a ledger movement', function () {
     $product = inventoryTestProduct();
@@ -302,4 +222,104 @@ test('a variable product cannot receive stock directly', function () {
 
     $this->assertDatabaseCount('inventory_stocks', 0);
     $this->assertDatabaseCount('stock_movements', 0);
+});
+
+test('repeating a transfer with the same idempotency key does not transfer stock twice', function () {
+    $product = inventoryTestProduct();
+    $source = inventoryTestLocation('retry-source-' . strtolower(uniqid()));
+    $destination = inventoryTestLocation('retry-dest-' . strtolower(uniqid()));
+
+    $service = app(InventoryService::class);
+
+    $service->receive([
+        'product_id' => $product->id,
+        'location_id' => $source->id,
+        'quantity' => '20.0000',
+    ]);
+
+    $payload = [
+        'product_id' => $product->id,
+        'source_location_id' => $source->id,
+        'destination_location_id' => $destination->id,
+        'quantity' => '7.5000',
+        'idempotency_key' => (string) Illuminate\Support\Str::uuid(),
+        'reason' => 'Retry safety test',
+    ];
+
+    $first = $service->transfer($payload);
+    $second = $service->transfer($payload);
+
+    expect($second['transfer_group_id'])->toBe($first['transfer_group_id'])
+        ->and($second['outgoing']->id)->toBe($first['outgoing']->id)
+        ->and($second['incoming']->id)->toBe($first['incoming']->id);
+
+    expect(
+        (string) InventoryStock::query()
+            ->where('product_id', $product->id)
+            ->where('location_id', $source->id)
+            ->value('quantity')
+    )->toBe('12.5000');
+
+    expect(
+        (string) InventoryStock::query()
+            ->where('product_id', $product->id)
+            ->where('location_id', $destination->id)
+            ->value('quantity')
+    )->toBe('7.5000');
+
+    $this->assertDatabaseCount('stock_movements', 3);
+});
+
+test('a transfer idempotency key cannot be reused for a different transfer', function () {
+    $product = inventoryTestProduct();
+    $source = inventoryTestLocation('key-source-' . strtolower(uniqid()));
+    $destination = inventoryTestLocation('key-dest-' . strtolower(uniqid()));
+    $otherDestination = inventoryTestLocation('key-other-' . strtolower(uniqid()));
+
+    $service = app(InventoryService::class);
+
+    $service->receive([
+        'product_id' => $product->id,
+        'location_id' => $source->id,
+        'quantity' => '20.0000',
+    ]);
+
+    $key = (string) Illuminate\Support\Str::uuid();
+
+    $payload = [
+        'product_id' => $product->id,
+        'source_location_id' => $source->id,
+        'destination_location_id' => $destination->id,
+        'quantity' => '5.0000',
+        'idempotency_key' => $key,
+    ];
+
+    $service->transfer($payload);
+
+    try {
+        $service->transfer([
+            ...$payload,
+            'destination_location_id' => $otherDestination->id,
+        ]);
+
+        test()->fail('Expected idempotency validation.');
+    } catch (ValidationException $exception) {
+        expect($exception->errors())->toHaveKey('idempotency_key');
+    }
+
+    expect(
+        (string) InventoryStock::query()
+            ->where('product_id', $product->id)
+            ->where('location_id', $source->id)
+            ->value('quantity')
+    )->toBe('15.0000');
+
+    expect(
+        InventoryStock::query()
+            ->where('product_id', $product->id)
+            ->where('location_id', $otherDestination->id)
+            ->exists()
+    )->toBeFalse();
+
+    $this->assertDatabaseCount('stock_movements', 3);
 });

@@ -2030,6 +2030,43 @@ class SystemAuthorizationSeeder extends Seeder
 
             ],
 
+
+            [
+                'name' => 'Inventory',
+                'slug' => 'inventory',
+                'description' => 'Inventory balances, stock movements, receipts, issues, adjustments and transfers.',
+                'icon' => 'package',
+                'sort_order' => 236,
+                'permissions' => [
+                    [
+                        'name' => 'View Inventory',
+                        'slug' => 'system.inventory.view',
+                        'description' => 'View stock balances and stock movement history.',
+                    ],
+                    [
+                        'name' => 'Receive Stock',
+                        'slug' => 'system.inventory.receive',
+                        'description' => 'Receive stock into a location.',
+                    ],
+                    [
+                        'name' => 'Issue Stock',
+                        'slug' => 'system.inventory.issue',
+                        'description' => 'Issue stock from a location.',
+                    ],
+                    [
+                        'name' => 'Adjust Stock',
+                        'slug' => 'system.inventory.adjust',
+                        'description' => 'Perform authorized stock adjustments.',
+                    ],
+                    [
+                        'name' => 'Transfer Stock',
+                        'slug' => 'system.inventory.transfer',
+                        'description' => 'Transfer stock between locations.',
+                    ],
+                ],
+            ],
+
+
             [
                 'name' => 'Module Management',
                 'slug' => 'modules',

@@ -85,13 +85,9 @@ class InventoryService
      *
      * The source and destination movements are committed atomically.
      */
-    public function transfer(
-        array $data,
-        ?User $actor = null,
-    ): array {
-        $quantity = $this->normalizeQuantity(
-            $data['quantity'] ?? null,
-        );
+    public function transfer(array $data, ?User $actor = null): array
+    {
+        $quantity = $this->normalizeQuantity($data['quantity'] ?? null);
 
         if (bccomp($quantity, '0', 4) <= 0) {
             throw ValidationException::withMessages([
@@ -99,22 +95,10 @@ class InventoryService
             ]);
         }
 
-        $sourceId = filter_var(
-            $data['source_location_id'] ?? null,
-            FILTER_VALIDATE_INT,
-        );
+        $sourceId = filter_var($data['source_location_id'] ?? null, FILTER_VALIDATE_INT);
+        $destinationId = filter_var($data['destination_location_id'] ?? null, FILTER_VALIDATE_INT);
 
-        $destinationId = filter_var(
-            $data['destination_location_id'] ?? null,
-            FILTER_VALIDATE_INT,
-        );
-
-        if (
-            $sourceId === false
-            || $destinationId === false
-            || $sourceId < 1
-            || $destinationId < 1
-        ) {
+        if ($sourceId === false || $destinationId === false || $sourceId < 1 || $destinationId < 1) {
             throw ValidationException::withMessages([
                 'location_id' => 'Valid source and destination locations are required.',
             ]);
@@ -126,19 +110,90 @@ class InventoryService
             ]);
         }
 
-        $transferGroupId = (string) Str::uuid();
+        $idempotencyKey = $data['idempotency_key'] ?? null;
+
+        if ($idempotencyKey !== null
+            && (! is_string($idempotencyKey) || ! Str::isUuid($idempotencyKey))) {
+            throw ValidationException::withMessages([
+                'idempotency_key' => 'The idempotency key must be a valid UUID.',
+            ]);
+        }
 
         return DB::transaction(function () use (
             $data,
             $quantity,
             $sourceId,
             $destinationId,
-            $transferGroupId,
-            $actor,
+            $idempotencyKey,
+            $actor
         ): array {
+            // Serialize requests using the same key, including requests
+            // that target different products.
+            if ($idempotencyKey !== null) {
+                DB::selectOne(
+                    'SELECT pg_advisory_xact_lock(hashtext(?))',
+                    [$idempotencyKey]
+                );
+            }
+
             $owner = $this->lockOwner($data);
 
-            // Lock locations in a deterministic order to reduce deadlocks.
+            // A transfer stores its idempotency key on the outgoing entry.
+            if ($idempotencyKey !== null) {
+                $existing = StockMovement::query()
+                    ->where('idempotency_key', $idempotencyKey)
+                    ->first();
+
+                if ($existing !== null) {
+                    $incoming = $existing->transfer_group_id !== null
+                        ? StockMovement::query()
+                            ->where('transfer_group_id', $existing->transfer_group_id)
+                            ->where('movement_type', 'transfer_in')
+                            ->first()
+                        : null;
+
+                    $sameRequest = $existing->movement_type === 'transfer_out'
+                        && $incoming !== null
+                        && (int) $existing->location_id === $sourceId
+                        && (int) $incoming->location_id === $destinationId
+                        && $existing->product_id === $owner['product_id']
+                        && $existing->product_variant_id === $owner['variant_id']
+                        && $incoming->product_id === $owner['product_id']
+                        && $incoming->product_variant_id === $owner['variant_id']
+                        && bccomp(
+                            (string) $existing->quantity_delta,
+                            bcsub('0', $quantity, 4),
+                            4
+                        ) === 0
+                        && bccomp(
+                            (string) $incoming->quantity_delta,
+                            $quantity,
+                            4
+                        ) === 0
+                        && $existing->reason === ($data['reason'] ?? null)
+                        && $existing->reference_type === ($data['reference_type'] ?? null)
+                        && $existing->reference_id === (
+                            isset($data['reference_id'])
+                                ? (string) $data['reference_id']
+                                : null
+                        )
+                        && $existing->metadata === ($data['metadata'] ?? null);
+
+                    if (! $sameRequest) {
+                        throw ValidationException::withMessages([
+                            'idempotency_key' =>
+                                'This key has already been used for a different stock movement.',
+                        ]);
+                    }
+
+                    return [
+                        'transfer_group_id' => $existing->transfer_group_id,
+                        'outgoing' => $existing,
+                        'incoming' => $incoming,
+                    ];
+                }
+            }
+
             $locations = Location::query()
                 ->whereIn('id', [$sourceId, $destinationId])
                 ->orderBy('id')
@@ -160,43 +215,28 @@ class InventoryService
                 }
             }
 
-            $source = $this->getOrCreateStock(
-                $owner,
-                $sourceId,
-            );
-
-            $destination = $this->getOrCreateStock(
-                $owner,
-                $destinationId,
-            );
+            $source = $this->getOrCreateStock($owner, $sourceId);
+            $destination = $this->getOrCreateStock($owner, $destinationId);
 
             $sourceBefore = (string) $source->quantity;
             $sourceAfter = bcsub($sourceBefore, $quantity, 4);
 
-            if (
-                bccomp(
-                    $sourceAfter,
-                    (string) $source->reserved_quantity,
-                    4,
-                ) < 0
-            ) {
+            if (bccomp($sourceAfter, (string) $source->reserved_quantity, 4) < 0) {
                 throw ValidationException::withMessages([
                     'quantity' => 'Insufficient available stock at the source location.',
                 ]);
             }
 
             $destinationBefore = (string) $destination->quantity;
-            $destinationAfter = bcadd(
-                $destinationBefore,
-                $quantity,
-                4,
-            );
+            $destinationAfter = bcadd($destinationBefore, $quantity, 4);
 
             $source->quantity = $sourceAfter;
             $source->save();
 
             $destination->quantity = $destinationAfter;
             $destination->save();
+
+            $transferGroupId = (string) Str::uuid();
 
             $common = [
                 'product_id' => $owner['product_id'],
@@ -211,16 +251,17 @@ class InventoryService
                 'metadata' => $data['metadata'] ?? null,
             ];
 
-            $out = StockMovement::query()->create([
+            $outgoing = StockMovement::query()->create([
                 ...$common,
                 'location_id' => $sourceId,
                 'movement_type' => 'transfer_out',
                 'quantity_delta' => bcsub('0', $quantity, 4),
                 'balance_before' => $sourceBefore,
                 'balance_after' => $sourceAfter,
+                'idempotency_key' => $idempotencyKey,
             ]);
 
-            $in = StockMovement::query()->create([
+            $incoming = StockMovement::query()->create([
                 ...$common,
                 'location_id' => $destinationId,
                 'movement_type' => 'transfer_in',
@@ -231,11 +272,12 @@ class InventoryService
 
             return [
                 'transfer_group_id' => $transferGroupId,
-                'outgoing' => $out,
-                'incoming' => $in,
+                'outgoing' => $outgoing,
+                'incoming' => $incoming,
             ];
         }, 3);
     }
+
 
     /**
      * Perform one stock movement.
@@ -303,6 +345,13 @@ class InventoryService
             $actor,
         ): StockMovement {
             if ($idempotencyKey !== null) {
+                DB::selectOne(
+                    'SELECT pg_advisory_xact_lock(hashtext(?))',
+                    [$idempotencyKey],
+                );
+            }
+
+            if ($idempotencyKey !== null) {
                 $existing = StockMovement::query()
                     ->where('idempotency_key', $idempotencyKey)
                     ->first();
@@ -316,11 +365,23 @@ class InventoryService
                             === $this->nullableInt($data['product_id'] ?? null)
                         && $existing->product_variant_id
                             === $this->nullableInt($data['product_variant_id'] ?? null)
+                        && $existing->reason === ($data['reason'] ?? null)
+
+                        && $existing->reference_type === ($data['reference_type'] ?? null)
+                        
+                        && $existing->reference_id === (
+                            isset($data['reference_id'])
+                                ? (string) $data['reference_id']
+                                : null
+                        )
+                        && $existing->metadata === ($data['metadata'] ?? null)
+
                         && bccomp(
                             (string) $existing->quantity_delta,
                             $signedDelta,
                             4,
                         ) === 0;
+
 
                     if (! $sameRequest) {
                         throw ValidationException::withMessages([
