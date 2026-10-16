@@ -191,4 +191,63 @@ table th{font-size:9px}
 .state-panel p{font-size:10px}
 @media(max-width:720px){.title-copy h1{font-size:18px}.stat-value{font-size:19px}}
 
+
+/* Stock Overview-aligned KPI cards */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  margin: 0 auto 20px;
+}
+.stat-card {
+  min-width: 0;
+  padding: 17px 18px;
+  border: 1px solid var(--border-color, var(--border));
+  border-radius: 14px;
+  background: var(--surface-color, var(--surface));
+  box-shadow: 0 2px 10px rgb(16 24 40 / 2.5%);
+  transition: transform .2s ease, border-color .2s ease, box-shadow .2s ease;
+}
+.stat-card:hover {
+  transform: translateY(-2px);
+  border-color: #d7deeb;
+  box-shadow: 0 7px 18px rgb(16 24 40 / 5%);
+}
+.stat-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 13px;
+}
+.stat-icon {
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: 11px;
+}
+.stat-icon.blue { border-color: rgb(37 99 235 / 10%); background: rgb(37 99 235 / 8%); color: #2563eb; }
+.stat-icon.green { border-color: rgb(22 163 74 / 10%); background: rgb(22 163 74 / 8%); color: #16a34a; }
+.stat-icon.amber { border-color: rgb(217 119 6 / 12%); background: rgb(217 119 6 / 9%); color: #b7791f; }
+.stat-icon.violet { border-color: rgb(124 58 237 / 10%); background: rgb(124 58 237 / 8%); color: #7c3aed; }
+.stat-caption { color: var(--text-tertiary-color, var(--text-tertiary)); font-size: 10px; font-weight: 600; }
+.stat-value {
+  overflow-wrap: anywhere;
+  color: var(--text-primary-color, var(--text-primary));
+  font-size: 25px;
+  line-height: 1.2;
+  font-weight: 750;
+  letter-spacing: -.035em;
+  font-variant-numeric: tabular-nums;
+}
+.stat-label { margin-top: 5px; color: var(--text-primary-color, var(--text-primary)); font-size: 12px; font-weight: 650; }
+.stat-description { margin-top: 8px; color: var(--text-tertiary-color, var(--text-tertiary)); font-size: 11px; line-height: 1.55; }
+@media (max-width: 1100px) { .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 560px) { .stats-grid { grid-template-columns: 1fr; gap: 10px; } .stat-card { padding: 14px; } }
+@media (prefers-reduced-motion: reduce) { .stat-card { transition: none; } .stat-card:hover { transform: none; } }
+
 </style>
