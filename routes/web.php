@@ -298,6 +298,22 @@ Route::middleware('auth')->group(function () {
     })->name('inventory.movements');
 
 
+    Route::get('/inventory/operations', function () {
+        $user = request()->user();
+
+        abort_unless($user !== null, 401);
+        abort_unless(
+            $user->can('system.inventory.view'),
+            403,
+        );
+
+        return Inertia::render('Inventory/Operations', [
+            'userName' => $user->name,
+            'userEmail' => $user->email,
+        ]);
+    })->name('inventory.operations');
+
+
 
     /*
     |--------------------------------------------------------------------------

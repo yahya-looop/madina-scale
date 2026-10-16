@@ -1,4 +1,4 @@
-﻿export type NavigationItem = {
+export type NavigationItem = {
     label: string;
     href?: string;
     icon: string;
@@ -99,6 +99,12 @@ export const primaryNavigation: NavigationItem[] = [
                 label: 'Stock Movements',
                 href: '/inventory/movements',
                 icon: 'history',
+                permission: 'system.inventory.view',
+            },
+            {
+                label: 'Stock Operations',
+                href: '/inventory/operations',
+                icon: 'arrow-left-right',
                 permission: 'system.inventory.view',
             },
         ],

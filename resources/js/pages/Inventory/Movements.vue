@@ -11,6 +11,7 @@ interface Movement {
     movement_type?: string;
     quantity?: string | number;
     quantity_change?: string | number;
+    quantity_delta?: string | number;
     reference?: string | null;
     reference_type?: string | null;
     reference_id?: number | string | null;
@@ -18,6 +19,7 @@ interface Movement {
     reason?: string | null;
     created_at?: string | null;
     created_by?: { name?: string } | null;
+    creator?: { name?: string } | null;
     product?: { id?: number; name?: string; sku?: string | null } | null;
     variant?: { name?: string; sku?: string | null } | null;
     location?: { name?: string; code?: string | null } | null;
@@ -49,7 +51,7 @@ const filteredRows = computed(() => {
         const textMatches = !term || [
             row.product?.name, row.product?.sku, row.variant?.name, row.variant?.sku,
             row.location?.name, row.location?.code, row.from_location?.name, row.to_location?.name,
-            row.reference, row.reference_type, row.reference_id, row.notes, row.reason, row.created_by?.name,
+            row.reference, row.reference_type, row.reference_id, row.notes, row.reason, row.created_by?.name, row.creator?.name,
         ].some((value) => String(value ?? '').toLowerCase().includes(term));
         return typeMatches && textMatches;
     });
@@ -62,7 +64,7 @@ function qty(value: string | number | undefined): string {
 }
 function movementType(row: Movement): string {
     const raw = String(row.type ?? row.movement_type ?? '').toLowerCase();
-    if (raw.includes('receiv') || raw.includes('inbound') || raw === 'in') return 'receive';
+    if (raw.includes('receiv') || raw.includes('receipt') || raw.includes('inbound') || raw === 'in') return 'receive';
     if (raw.includes('issu') || raw.includes('outbound') || raw === 'out') return 'issue';
     if (raw.includes('transfer')) return 'transfer';
     if (raw.includes('adjust')) return 'adjust';
@@ -147,7 +149,7 @@ onMounted(() => void load(1));
                             <td><span class="movement-kind" :class="`kind-${movementType(row)}`"><Icon :name="typeIcon(row)" :size="14" />{{ typeLabel(row) }}</span></td>
                             <td><div class="product-cell"><span class="product-avatar"><Icon name="package" :size="17" /></span><span class="product-details"><strong>{{ row.product?.name ?? 'Unknown product' }}</strong><small>{{ row.variant?.sku || row.product?.sku || 'No SKU' }}</small></span></div></td>
                             <td><span class="location-cell"><strong>{{ row.from_location?.name && row.to_location?.name ? `${row.from_location.name} → ${row.to_location.name}` : row.location?.name ?? '—' }}</strong><small>{{ row.location?.code || '' }}</small></span></td>
-                            <td class="numeric quantity">{{ qty(row.quantity ?? row.quantity_change) }}</td>
+                            <td class="numeric quantity">{{ qty(row.quantity ?? row.quantity_change ?? row.quantity_delta) }}</td>
                             <td><span class="reference-cell"><strong>{{ row.reference || (row.reference_type && row.reference_id ? `${row.reference_type} #${row.reference_id}` : '—') }}</strong><small>{{ row.notes || row.reason || '' }}</small></span></td>
                             <td class="date-cell">{{ dateLabel(row.created_at) }}</td>
                         </tr></tbody>
@@ -167,4 +169,26 @@ onMounted(() => void load(1));
 .table-toolbar{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:20px 22px}.search-box{display:flex;width:min(100%,650px);min-width:0;height:42px;align-items:center;gap:10px;padding:0 13px;border:1px solid var(--border);border-radius:11px;background:var(--surface);color:var(--subtle)}.search-box:focus-within{border-color:var(--primary);box-shadow:0 0 0 3px rgb(37 99 235 / 8%)}.search-box input{width:100%;min-width:0;height:100%;padding:0;border:0;outline:0;background:transparent;color:var(--text);font:inherit;font-size:12px}.search-box input::placeholder{color:var(--subtle)}.clear-search{display:grid;width:26px;height:26px;place-items:center;border:0;border-radius:6px;background:transparent;color:var(--subtle);cursor:pointer}.toolbar-right{display:flex;align-items:center;gap:9px}.rows-label{color:var(--muted);font-size:12px;font-weight:600}.rows-label-gap{margin-left:3px}.select-wrap{position:relative;display:flex;height:40px;min-width:74px;align-items:center}.select-wrap.wide{min-width:120px}.select-wrap select{width:100%;height:100%;padding:0 30px 0 12px;appearance:none;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text);font:inherit;cursor:pointer}.select-wrap svg{position:absolute;right:10px;pointer-events:none;color:var(--subtle)}
 .table-container{width:100%;overflow-x:auto;border-top:1px solid var(--border);transition:opacity .18s}.table-container.is-refreshing{opacity:.65}table{width:100%;border-collapse:separate;border-spacing:0;text-align:left;white-space:nowrap}thead{background:#f8fafc}th{padding:13px 16px;border-bottom:1px solid var(--border);color:var(--muted);font-size:10px;font-weight:700;letter-spacing:.025em}td{padding:14px 16px;border-bottom:1px solid #eef0f4;color:var(--muted);font-size:12px;vertical-align:middle}tbody tr:hover{background:#fafcff}tbody tr:last-child td{border-bottom:0}th:first-child,td:first-child{padding-left:22px}th:last-child,td:last-child{padding-right:22px}.numeric{text-align:right;font-variant-numeric:tabular-nums}.quantity{color:var(--text);font-weight:700}.product-cell{display:flex;min-width:170px;align-items:center;gap:10px}.product-avatar{display:grid;width:36px;height:36px;flex:0 0 auto;place-items:center;border:1px solid var(--border);border-radius:10px;background:#f8fafc;color:#64748b}.product-details,.location-cell,.reference-cell{display:flex;min-width:0;flex-direction:column;gap:4px}.product-details strong,.location-cell strong,.reference-cell strong{max-width:240px;overflow:hidden;color:var(--text);font-size:12px;font-weight:650;text-overflow:ellipsis}.product-details small,.location-cell small,.reference-cell small{max-width:250px;overflow:hidden;color:var(--subtle);font-size:10px;text-overflow:ellipsis}.movement-kind{display:inline-flex;align-items:center;gap:7px;padding:6px 9px;border:1px solid var(--border);border-radius:8px;background:#f8fafc;color:#475569;font-size:10px;font-weight:650}.kind-receive{border-color:#d1fae5;background:#ecfdf5;color:#047857}.kind-issue{border-color:#fed7aa;background:#fff7ed;color:#c2410c}.kind-transfer{border-color:#dbeafe;background:#eff6ff;color:#1d4ed8}.kind-adjust{border-color:#ede9fe;background:#f5f3ff;color:#6d28d9}.date-cell{color:var(--muted);font-size:11px}.state-panel{display:flex;min-height:220px;flex-direction:column;align-items:center;justify-content:center;padding:28px 22px;text-align:center}.compact-state{min-height:210px}.state-panel h3{margin:12px 0 5px;color:var(--text);font-size:14px;font-weight:700}.state-panel p{max-width:460px;margin:0 0 12px;color:var(--muted);font-size:12px;line-height:1.6}.state-icon{display:grid;width:48px;height:48px;place-items:center;border:1px solid var(--border);border-radius:14px;background:#f8fafc;color:#64748b}.state-icon.error{border-color:#fecaca;background:#fef2f2;color:#dc2626}.text-button{padding:5px;border:0;background:transparent;color:var(--primary);font:inherit;font-size:12px;font-weight:650;cursor:pointer}.table-footer{display:flex;align-items:center;justify-content:space-between;gap:15px;padding:15px 22px;border-top:1px solid var(--border)}.table-footer p{margin:0;color:var(--muted);font-size:11px;line-height:1.6}.table-footer strong,.pagination strong{color:var(--text)}.pagination{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:11px;white-space:nowrap}.pagination-button{display:grid;width:34px;height:34px;place-items:center;border:1px solid var(--border);border-radius:9px;background:var(--surface);color:var(--muted);cursor:pointer}.pagination-button:disabled{opacity:.4;cursor:not-allowed}.page-footnote{display:flex;align-items:flex-start;gap:7px;margin:14px 2px 0;color:var(--subtle);font-size:11px;line-height:1.6}.page-footnote svg{flex:0 0 auto;margin-top:1px}.spin{animation:spin .9s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}@keyframes enter{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
 @media(max-width:1100px){.stats-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:760px){.page-header{flex-direction:column;gap:12px}.header-actions{padding-top:0}h1{font-size:24px}.page-header p{font-size:12px}.stats-grid{gap:11px}.stat-card{padding:15px}.section-heading{padding:16px 15px 0}.table-toolbar{align-items:stretch;flex-direction:column;padding:15px}.search-box{width:100%}.toolbar-right{flex-wrap:wrap;justify-content:flex-end}.table-footer{align-items:flex-start;flex-direction:column;padding:14px 15px}.pagination{align-self:flex-end}th:first-child,td:first-child{padding-left:15px}th:last-child,td:last-child{padding-right:15px}}@media(max-width:430px){.stats-grid{grid-template-columns:minmax(0,1fr)}.record-badge{max-width:90px;overflow:hidden;text-overflow:ellipsis}}@media(prefers-reduced-motion:reduce){.inventory-page *{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+
+/* Compact typography refinement aligned with Settings > Activity Logs. */
+.inventory-page{font-size:12px}
+.breadcrumb{font-size:10px}
+.title-copy h1{font-size:20px}
+.title-copy p{font-size:11px}
+.stat-value{font-size:21px}
+.stat-label{font-size:11px}
+.stat-description{font-size:10px}
+.section-heading-copy h2{font-size:13px}
+.section-heading-copy p{font-size:10px}
+.button,.text-button{font-size:11px}
+.table-toolbar input,.table-toolbar select,.rows-label{font-size:10px}
+table{font-size:11px}
+table th{font-size:9px}
+.product-details strong,.location-cell strong{font-size:11px}
+.product-details small,.location-cell small{font-size:9px}
+.table-footer,.pagination{font-size:10px}
+.state-panel h3{font-size:12px}
+.state-panel p{font-size:10px}
+@media(max-width:720px){.title-copy h1{font-size:18px}.stat-value{font-size:19px}}
+
 </style>
