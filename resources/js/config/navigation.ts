@@ -75,12 +75,35 @@ export const primaryNavigation: NavigationItem[] = [
         ],
     },
 
+
     {
         label: 'Inventory',
         icon: 'inventory',
         expandable: true,
         permission: 'system.inventory.view',
+
+        children: [
+            {
+                label: 'Stock Overview',
+                href: '/inventory',
+                icon: 'boxes',
+                permission: 'system.inventory.view',
+            },
+            {
+                label: 'Low Stock',
+                href: '/inventory/low-stock',
+                icon: 'alert-triangle',
+                permission: 'system.inventory.view',
+            },
+            {
+                label: 'Stock Movements',
+                href: '/inventory/movements',
+                icon: 'history',
+                permission: 'system.inventory.view',
+            },
+        ],
     },
+
 
     {
         label: 'Customers',

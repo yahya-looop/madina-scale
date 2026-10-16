@@ -242,6 +242,63 @@ Route::middleware('auth')->group(function () {
     })->whereNumber('product')->name('products.show');
 
 
+
+    /*
+    |--------------------------------------------------------------------------
+    | Inventory Pages
+    |--------------------------------------------------------------------------
+    */
+
+    Route::get('/inventory', function () {
+        $user = request()->user();
+
+        abort_unless($user !== null, 401);
+
+        abort_unless(
+            $user->can('system.inventory.view'),
+            403,
+        );
+
+        return Inertia::render('Inventory/Index', [
+            'userName' => $user->name,
+            'userEmail' => $user->email,
+        ]);
+    })->name('inventory.index');
+
+    Route::get('/inventory/low-stock', function () {
+        $user = request()->user();
+
+        abort_unless($user !== null, 401);
+
+        abort_unless(
+            $user->can('system.inventory.view'),
+            403,
+        );
+
+        return Inertia::render('Inventory/LowStock', [
+            'userName' => $user->name,
+            'userEmail' => $user->email,
+        ]);
+    })->name('inventory.low-stock');
+
+    Route::get('/inventory/movements', function () {
+        $user = request()->user();
+
+        abort_unless($user !== null, 401);
+
+        abort_unless(
+            $user->can('system.inventory.view'),
+            403,
+        );
+
+        return Inertia::render('Inventory/Movements', [
+            'userName' => $user->name,
+            'userEmail' => $user->email,
+        ]);
+    })->name('inventory.movements');
+
+
+
     /*
     |--------------------------------------------------------------------------
     | Business Locations
