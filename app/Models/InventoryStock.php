@@ -13,6 +13,7 @@ class InventoryStock extends Model
         'location_id',
         'quantity',
         'reserved_quantity',
+        'low_stock_threshold',
     ];
 
     protected function casts(): array
@@ -23,6 +24,7 @@ class InventoryStock extends Model
             'location_id' => 'integer',
             'quantity' => 'decimal:4',
             'reserved_quantity' => 'decimal:4',
+            'low_stock_threshold' => 'decimal:4',
         ];
     }
 
@@ -52,4 +54,19 @@ class InventoryStock extends Model
             4
         );
     }
+
+    public function getIsLowStockAttribute(): bool
+    {
+        return bccomp(
+            (string) $this->low_stock_threshold,
+            '0',
+            4
+        ) > 0
+            && bccomp(
+                $this->available_quantity,
+                (string) $this->low_stock_threshold,
+                4
+            ) <= 0;
+    }
 }
+

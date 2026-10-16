@@ -309,6 +309,13 @@ Route::middleware(['web', 'auth'])->group(function () {
     |--------------------------------------------------------------------------
     */
 
+    // Threshold of inventory stock
+    Route::patch(
+        '/inventory/stocks/{stock}/threshold',
+        [InventoryController::class, 'updateThreshold']
+    )->middleware('permission:system.inventory.update');
+
+
     Route::get('/inventory/stocks', [InventoryController::class, 'stocks'])
         ->middleware('permission:system.inventory.view');
 
@@ -326,6 +333,9 @@ Route::middleware(['web', 'auth'])->group(function () {
 
     Route::post('/inventory/transfer', [InventoryController::class, 'transfer'])
         ->middleware('permission:system.inventory.transfer');
+
+    Route::get('/inventory/low-stock', [InventoryController::class, 'lowStock'])
+        ->middleware('permission:system.inventory.view');
 
 
 });

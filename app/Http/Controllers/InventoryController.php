@@ -45,6 +45,79 @@ class InventoryController extends Controller
         );
     }
 
+    public function lowStock(Request $request): JsonResponse
+    {
+        $filters = $request->validate([
+            'location_id' => ['nullable', 'integer', 'min:1'],
+            'product_id' => ['nullable', 'integer', 'min:1'],
+            'product_variant_id' => ['nullable', 'integer', 'min:1'],
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+        ]);
+
+        $query = InventoryStock::query()
+            ->with([
+                'product:id,name,sku,product_type',
+                'variant:id,product_id,name,sku,status',
+                'location:id,name,code,type',
+            ])
+            ->where('low_stock_threshold', '>', 0)
+            ->whereRaw(
+                '(quantity - reserved_quantity) <= low_stock_threshold'
+            )
+            ->orderBy('location_id')
+            ->orderBy('id');
+
+        foreach (['location_id', 'product_id', 'product_variant_id'] as $field) {
+            if (isset($filters[$field])) {
+                $query->where($field, $filters[$field]);
+            }
+        }
+
+        $paginator = $query->paginate($filters['per_page'] ?? 25);
+
+        $paginator->getCollection()->transform(
+            function (InventoryStock $stock): array {
+                return array_merge($stock->toArray(), [
+                    'available_quantity' => $stock->available_quantity,
+                    'is_low_stock' => $stock->is_low_stock,
+                ]);
+            }
+        );
+
+        return response()->json($paginator);
+    }
+
+    public function updateThreshold(
+        Request $request,
+        InventoryStock $stock,
+    ): JsonResponse {
+        $data = $request->validate([
+            'low_stock_threshold' => [
+                'required',
+                'numeric',
+                'min:0',
+                'regex:/^\d{1,14}(?:\.\d{1,4})?$/',
+            ],
+        ]);
+
+        $stock->low_stock_threshold = $data['low_stock_threshold'];
+        $stock->save();
+
+        $stock->refresh()->load([
+            'product:id,name,sku,product_type',
+            'variant:id,product_id,name,sku,status',
+            'location:id,name,code,type',
+        ]);
+
+        return response()->json([
+            'message' => 'Low-stock threshold updated successfully.',
+            'data' => array_merge($stock->toArray(), [
+                'available_quantity' => $stock->available_quantity,
+                'is_low_stock' => $stock->is_low_stock,
+            ]),
+        ]);
+    }
+
     public function movements(Request $request): JsonResponse
     {
         $filters = $request->validate([
