@@ -40,9 +40,10 @@ class InventoryController extends Controller
             }
         }
 
-        return response()->json(
-            $query->paginate($filters['per_page'] ?? 25)
-        );
+        $paginator = $query->paginate($filters['per_page'] ?? 25);
+        $this->attachLatestMovementAudit($paginator->getCollection());
+
+        return response()->json($paginator);
     }
 
     public function lowStock(Request $request): JsonResponse
@@ -94,9 +95,9 @@ class InventoryController extends Controller
         $data = $request->validate([
             'low_stock_threshold' => [
                 'required',
-                'numeric',
-                'min:0',
-                'regex:/^\d{1,14}(?:\.\d{1,4})?$/',
+                'integer',
+                'min:20',
+                'max:99999999999999',
             ],
         ]);
 
@@ -146,7 +147,7 @@ class InventoryController extends Controller
                 'product:id,name,sku,product_type',
                 'variant:id,product_id,name,sku',
                 'location:id,name,code',
-                'creator:id,name',
+                'creator:id,name,email',
             ])
             ->when(
                 isset($filters['location_id']),
@@ -190,6 +191,7 @@ class InventoryController extends Controller
             $data,
             $request->user(),
         );
+        $movement->forceFill(['ip_address' => $request->ip()])->save();
 
         return response()->json([
             'message' => 'Stock received successfully.',
@@ -210,6 +212,7 @@ class InventoryController extends Controller
             $data,
             $request->user(),
         );
+        $movement->forceFill(['ip_address' => $request->ip()])->save();
 
         return response()->json([
             'message' => 'Stock issued successfully.',
@@ -230,6 +233,7 @@ class InventoryController extends Controller
             $data,
             $request->user(),
         );
+        $movement->forceFill(['ip_address' => $request->ip()])->save();
 
         return response()->json([
             'message' => 'Stock adjusted successfully.',
@@ -261,11 +265,57 @@ class InventoryController extends Controller
             $data,
             $request->user(),
         );
+        foreach (['outgoing', 'incoming'] as $key) {
+            if (($result[$key] ?? null) instanceof StockMovement) {
+                $result[$key]->forceFill(['ip_address' => $request->ip()])->save();
+            }
+        }
 
         return response()->json([
             'message' => 'Stock transferred successfully.',
             'data' => $result,
         ]);
+    }
+
+    private function attachLatestMovementAudit($stocks): void
+    {
+        if ($stocks->isEmpty()) {
+            return;
+        }
+
+        $productIds = $stocks->pluck('product_id')->filter()->unique()->values();
+        $locationIds = $stocks->pluck('location_id')->filter()->unique()->values();
+        if ($productIds->isEmpty() || $locationIds->isEmpty()) {
+            return;
+        }
+
+        $movements = StockMovement::query()
+            ->with('creator:id,name,email')
+            ->whereIn('product_id', $productIds)
+            ->whereIn('location_id', $locationIds)
+            ->orderByDesc('id')
+            ->get();
+
+        $latest = [];
+        foreach ($movements as $movement) {
+            $key = implode(':', [
+                $movement->product_id,
+                $movement->product_variant_id ?? 0,
+                $movement->location_id,
+            ]);
+            if (! isset($latest[$key])) {
+                $latest[$key] = $movement;
+            }
+        }
+
+        foreach ($stocks as $stock) {
+            $key = implode(':', [
+                $stock->product_id,
+                $stock->product_variant_id ?? 0,
+                $stock->location_id,
+            ]);
+            $stock->setAttribute('latest_movement', $latest[$key] ?? null);
+        }
     }
 
     private function validateMovement(
