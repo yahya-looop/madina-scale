@@ -1,36 +1,39 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
-import { Head } from '@inertiajs/vue3';
-import ErpLayout from '@/layouts/ErpLayout.vue';
-import Icon from '@/components/dashboard/Icon.vue';
+import { computed, onMounted, ref } from "vue";
+import { Head } from "@inertiajs/vue3";
+import ErpLayout from "@/layouts/ErpLayout.vue";
+import Icon from "@/components/dashboard/Icon.vue";
 
-interface Props { userName?: string; userEmail?: string }
+interface Props {
+  userName?: string;
+  userEmail?: string;
+}
 interface StockRecord {
-    id: number;
-    quantity: string | number;
-    reserved_quantity: string | number;
-    available_quantity?: string | number;
-    low_stock_threshold: string | number;
-    is_low_stock?: boolean;
-    product?: { id: number; name: string; sku?: string | null } | null;
-    variant?: { id: number; name: string; sku?: string | null } | null;
-    location?: { id: number; name: string; code?: string | null } | null;
+  id: number;
+  quantity: string | number;
+  reserved_quantity: string | number;
+  available_quantity?: string | number;
+  low_stock_threshold: string | number;
+  is_low_stock?: boolean;
+  product?: { id: number; name: string; sku?: string | null } | null;
+  variant?: { id: number; name: string; sku?: string | null } | null;
+  location?: { id: number; name: string; code?: string | null } | null;
 }
 interface ApiResponse<T> {
-    data?: T[];
-    current_page?: number;
-    last_page?: number;
-    per_page?: number;
-    total?: number;
-    from?: number | null;
-    to?: number | null;
-    message?: string;
+  data?: T[];
+  current_page?: number;
+  last_page?: number;
+  per_page?: number;
+  total?: number;
+  from?: number | null;
+  to?: number | null;
+  message?: string;
 }
-const props = withDefaults(defineProps<Props>(), { userName: '', userEmail: '' });
+const props = withDefaults(defineProps<Props>(), { userName: "", userEmail: "" });
 const records = ref<StockRecord[]>([]);
 const loading = ref(false);
-const error = ref('');
-const search = ref('');
+const error = ref("");
+const search = ref("");
 const page = ref(1);
 const perPage = ref(10);
 const lastPage = ref(1);
@@ -38,143 +41,314 @@ const total = ref(0);
 let requestSequence = 0;
 
 const filteredRecords = computed(() => {
-    const term = search.value.trim().toLowerCase();
-    if (!term) return records.value;
-    return records.value.filter((row) => [
-        row.product?.name, row.product?.sku, row.variant?.name, row.variant?.sku,
-        row.location?.name, row.location?.code,
-    ].some((value) => String(value ?? '').toLowerCase().includes(term)));
+  const term = search.value.trim().toLowerCase();
+  if (!term) return records.value;
+  return records.value.filter((row) =>
+    [
+      row.product?.name,
+      row.product?.sku,
+      row.variant?.name,
+      row.variant?.sku,
+      row.location?.name,
+      row.location?.code,
+    ].some((value) =>
+      String(value ?? "")
+        .toLowerCase()
+        .includes(term)
+    )
+  );
 });
 function num(value: string | number | null | undefined): number {
-    const result = Number(value ?? 0);
-    return Number.isFinite(result) ? result : 0;
+  const result = Number(value ?? 0);
+  return Number.isFinite(result) ? result : 0;
 }
 function available(row: StockRecord): number {
-    return row.available_quantity !== undefined ? num(row.available_quantity) : num(row.quantity) - num(row.reserved_quantity);
+  return row.available_quantity !== undefined
+    ? num(row.available_quantity)
+    : num(row.quantity) - num(row.reserved_quantity);
 }
 function low(row: StockRecord): boolean {
-    return row.is_low_stock ?? (num(row.low_stock_threshold) > 0 && available(row) <= num(row.low_stock_threshold));
+  return (
+    row.is_low_stock ??
+    (num(row.low_stock_threshold) > 0 && available(row) <= num(row.low_stock_threshold))
+  );
 }
 function qty(value: number | string): string {
-    return new Intl.NumberFormat('en-BD', { maximumFractionDigits: 4 }).format(num(value));
+  return new Intl.NumberFormat("en-BD", { maximumFractionDigits: 4 }).format(num(value));
 }
 function messageOf(errorValue: unknown): string {
-    return errorValue instanceof Error ? errorValue.message : 'Unable to load inventory data. Please try again.';
+  return errorValue instanceof Error
+    ? errorValue.message
+    : "Unable to load inventory data. Please try again.";
 }
 async function load(targetPage = page.value): Promise<void> {
-    const requestId = ++requestSequence;
-    loading.value = true;
-    error.value = '';
-    try {
-        const params = new URLSearchParams({ page: String(targetPage), per_page: String(perPage.value) });
-        const response = await fetch(`/api/inventory/low-stock?${params}`, {
-            credentials: 'same-origin',
-            headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-        });
-        const payload = await response.json() as ApiResponse<StockRecord>;
-        if (!response.ok) throw new Error(payload.message || `Request failed (HTTP ${response.status}).`);
-        if (requestId !== requestSequence) return;
-        records.value = Array.isArray(payload.data) ? payload.data : [];
-        page.value = payload.current_page ?? targetPage;
-        lastPage.value = Math.max(1, payload.last_page ?? 1);
-        perPage.value = payload.per_page ?? perPage.value;
-        total.value = payload.total ?? records.value.length;
-    } catch (err) {
-        if (requestId !== requestSequence) return;
-        error.value = messageOf(err);
-        records.value = [];
-        total.value = 0;
-    } finally {
-        if (requestId === requestSequence) loading.value = false;
-    }
+  const requestId = ++requestSequence;
+  loading.value = true;
+  error.value = "";
+  try {
+    const params = new URLSearchParams({
+      page: String(targetPage),
+      per_page: String(perPage.value),
+    });
+    const response = await fetch(`/api/inventory/low-stock?${params}`, {
+      credentials: "same-origin",
+      headers: { Accept: "application/json", "X-Requested-With": "XMLHttpRequest" },
+    });
+    const payload = (await response.json()) as ApiResponse<StockRecord>;
+    if (!response.ok)
+      throw new Error(payload.message || `Request failed (HTTP ${response.status}).`);
+    if (requestId !== requestSequence) return;
+    records.value = Array.isArray(payload.data) ? payload.data : [];
+    page.value = payload.current_page ?? targetPage;
+    lastPage.value = Math.max(1, payload.last_page ?? 1);
+    perPage.value = payload.per_page ?? perPage.value;
+    total.value = payload.total ?? records.value.length;
+  } catch (err) {
+    if (requestId !== requestSequence) return;
+    error.value = messageOf(err);
+    records.value = [];
+    total.value = 0;
+  } finally {
+    if (requestId === requestSequence) loading.value = false;
+  }
 }
 function changePage(target: number): void {
-    const next = Math.max(1, Math.min(target, lastPage.value));
-    if (next === page.value || loading.value) return;
-    page.value = next;
-    void load(next);
+  const next = Math.max(1, Math.min(target, lastPage.value));
+  if (next === page.value || loading.value) return;
+  page.value = next;
+  void load(next);
 }
 onMounted(() => void load(1));
 </script>
 
 <template>
-    <Head title="Low Stock" />
-    <ErpLayout :user-name="props.userName" :user-email="props.userEmail">
-        <main class="inventory-page">
-            <header class="page-header">
-                <div class="page-heading">
-                    <div class="breadcrumb"><a href="/inventory">Inventory</a><Icon name="chevron-right" :size="13" /><strong>Low Stock</strong></div>
-                    <div class="title-row">
-                        <div class="page-title-icon warning"><Icon name="alert-triangle" :size="21" /></div>
-                        <div class="title-copy"><h1>Low Stock</h1><p>Monitor stock balances at or below their configured threshold.</p></div>
-                    </div>
-                </div>
-                <div class="header-actions">
-                    <button class="button" type="button" :disabled="loading" @click="load(page)">
-                        <Icon name="refresh-cw" :size="15" :class="{ spin: loading }" /> Refresh
-                    </button>
-                </div>
-            </header>
+  <Head title="Low Stock" />
+  <ErpLayout :user-name="props.userName" :user-email="props.userEmail">
+    <main class="inventory-page">
+      <header class="page-header">
+        <div class="page-heading">
+          <div class="breadcrumb">
+            <a href="/inventory">Inventory</a
+            ><Icon name="chevron-right" :size="13" /><strong>Low Stock</strong>
+          </div>
+          <div class="title-row">
+            <div class="page-title-icon warning">
+              <Icon name="alert-triangle" :size="21" />
+            </div>
+            <div class="title-copy">
+              <h1>Low Stock</h1>
+              <p>Monitor stock balances at or below their configured threshold.</p>
+            </div>
+          </div>
+        </div>
+        <div class="header-actions">
+          <button class="button" type="button" :disabled="loading" @click="load(page)">
+            <Icon name="refresh-cw" :size="15" :class="{ spin: loading }" /> Refresh
+          </button>
+        </div>
+      </header>
 
-            <section class="stats-grid" aria-label="Low stock summary">
-                <article class="stat-card">
-                    <div class="stat-top"><span class="stat-icon amber"><Icon name="alert-triangle" :size="19" /></span><span class="stat-caption">All pages</span></div>
-                    <div class="stat-value">{{ qty(total) }}</div><div class="stat-label">Low-stock records</div>
-                    <p class="stat-description">Stock balances meeting the threshold rule.</p>
-                </article>
-                <article class="stat-card">
-                    <div class="stat-top"><span class="stat-icon blue"><Icon name="boxes" :size="19" /></span><span class="stat-caption">Current page</span></div>
-                    <div class="stat-value">{{ qty(records.length) }}</div><div class="stat-label">Records displayed</div>
-                    <p class="stat-description">Matching low-stock rows on this page.</p>
-                </article>
-                <article class="stat-card">
-                    <div class="stat-top"><span class="stat-icon green"><Icon name="package-check" :size="19" /></span><span class="stat-caption">Current page</span></div>
-                    <div class="stat-value">{{ qty(records.reduce((sum, row) => sum + available(row), 0)) }}</div><div class="stat-label">Available quantity</div>
-                    <p class="stat-description">Available quantity across displayed records.</p>
-                </article>
-                <article class="stat-card">
-                    <div class="stat-top"><span class="stat-icon violet"><Icon name="map-pin" :size="19" /></span><span class="stat-caption">Current page</span></div>
-                    <div class="stat-value">{{ qty(new Set(records.map(row => row.location?.id).filter(Boolean)).size) }}</div><div class="stat-label">Locations affected</div>
-                    <p class="stat-description">Distinct locations in these results.</p>
-                </article>
-            </section>
+      <section class="stats-grid" aria-label="Low stock summary">
+        <article class="stat-card">
+          <div class="stat-top">
+            <span class="stat-icon amber"><Icon name="alert-triangle" :size="19" /></span
+            ><span class="stat-caption">All pages</span>
+          </div>
+          <div class="stat-value">{{ qty(total) }}</div>
+          <div class="stat-label">Low-stock records</div>
+          <p class="stat-description">Stock balances meeting the threshold rule.</p>
+        </article>
+        <article class="stat-card">
+          <div class="stat-top">
+            <span class="stat-icon blue"><Icon name="clipboard-list" :size="19" /></span
+            ><span class="stat-caption">Current page</span>
+          </div>
+          <div class="stat-value">{{ qty(records.length) }}</div>
+          <div class="stat-label">Records displayed</div>
+          <p class="stat-description">Matching low-stock rows on this page.</p>
+        </article>
+        <article class="stat-card">
+          <div class="stat-top">
+            <span class="stat-icon green"><Icon name="circle-check" :size="19" /></span
+            ><span class="stat-caption">Current page</span>
+          </div>
+          <div class="stat-value">
+            {{ qty(records.reduce((sum, row) => sum + available(row), 0)) }}
+          </div>
+          <div class="stat-label">Available quantity</div>
+          <p class="stat-description">Available quantity across displayed records.</p>
+        </article>
+        <article class="stat-card">
+          <div class="stat-top">
+            <span class="stat-icon violet"><Icon name="map-pin" :size="19" /></span
+            ><span class="stat-caption">Current page</span>
+          </div>
+          <div class="stat-value">
+            {{
+              qty(new Set(records.map((row) => row.location?.id).filter(Boolean)).size)
+            }}
+          </div>
+          <div class="stat-label">Locations affected</div>
+          <p class="stat-description">Distinct locations in these results.</p>
+        </article>
+      </section>
 
-            <section class="card">
-                <div class="section-heading">
-                    <div class="section-icon warning"><Icon name="alert-triangle" :size="18" /></div>
-                    <div class="section-heading-copy"><h2>Low-stock records</h2><p>Stock balances at or below their configured threshold.</p></div>
-                    <span class="record-badge">{{ qty(total) }} records</span>
-                </div>
-                <div class="table-toolbar">
-                    <label class="search-box"><Icon name="search" :size="16" /><input v-model="search" type="search" placeholder="Search product, SKU or location..." aria-label="Search low-stock records" /><button v-if="search" class="clear-search" type="button" aria-label="Clear search" @click="search = ''"><Icon name="x" :size="14" /></button></label>
-                    <div class="toolbar-right"><label for="low-stock-rows" class="rows-label">Rows</label><div class="select-wrap"><select id="low-stock-rows" v-model.number="perPage" @change="page = 1; load(1)"><option :value="10">10</option><option :value="25">25</option><option :value="50">50</option><option :value="100">100</option></select><Icon name="chevron-down" :size="14" /></div></div>
-                </div>
+      <section class="card">
+        <div class="section-heading">
+          <div class="section-icon warning">
+            <Icon name="alert-triangle" :size="18" />
+          </div>
+          <div class="section-heading-copy">
+            <h2>Low-stock records</h2>
+            <p>Stock balances at or below their configured threshold.</p>
+          </div>
+          <span class="record-badge">{{ qty(total) }} records</span>
+        </div>
+        <div class="table-toolbar">
+          <label class="search-box"
+            ><Icon name="search" :size="16" /><input
+              v-model="search"
+              type="search"
+              placeholder="Search product, SKU or location..."
+              aria-label="Search low-stock records" /><button
+              v-if="search"
+              class="clear-search"
+              type="button"
+              aria-label="Clear search"
+              @click="search = ''"
+            >
+              <Icon name="x" :size="14" /></button
+          ></label>
+          <div class="toolbar-right">
+            <label for="low-stock-rows" class="rows-label">Rows</label>
+            <div class="select-wrap">
+              <select
+                id="low-stock-rows"
+                v-model.number="perPage"
+                @change="
+                  page = 1;
+                  load(1);
+                "
+              >
+                <option :value="10">10</option>
+                <option :value="25">25</option>
+                <option :value="50">50</option>
+                <option :value="100">100</option></select
+              ><Icon name="chevron-down" :size="14" />
+            </div>
+          </div>
+        </div>
 
-                <div v-if="error" class="state-panel" role="alert"><div class="state-icon error"><Icon name="alert-circle" :size="22" /></div><h3>Unable to load low-stock records</h3><p>{{ error }}</p><button class="button" type="button" @click="load(page)">Try again</button></div>
-                <div v-else-if="loading && records.length === 0" class="state-panel"><div class="state-icon"><Icon name="loader-2" :size="22" class="spin" /></div><h3>Loading low-stock records</h3><p>Retrieving current stock thresholds...</p></div>
-                <div v-else-if="filteredRecords.length === 0" class="state-panel compact-state">
-                    <div class="state-icon"><Icon :name="search ? 'search' : 'check-circle-2'" :size="22" /></div>
-                    <h3>{{ search ? 'No matching records' : 'No low-stock records' }}</h3>
-                    <p>{{ search ? 'Try a different product, SKU or location.' : 'When a stock balance reaches its configured threshold, it will appear here.' }}</p>
-                    <button v-if="search" class="text-button" type="button" @click="search = ''">Clear search</button>
-                    <button v-else class="text-button" type="button" @click="load(page)">Refresh records</button>
-                </div>
-                <div v-else class="table-container" :class="{ 'is-refreshing': loading }">
-                    <table><thead><tr><th>Product</th><th>Location</th><th class="numeric">On hand</th><th class="numeric">Reserved</th><th class="numeric">Available</th><th class="numeric">Threshold</th><th>Status</th></tr></thead>
-                        <tbody><tr v-for="row in filteredRecords" :key="row.id">
-                            <td><div class="product-cell"><span class="product-avatar"><Icon name="package" :size="17" /></span><span class="product-details"><strong>{{ row.product?.name ?? 'Unknown product' }}</strong><small>{{ row.variant?.sku || row.product?.sku || 'No SKU' }}</small><small v-if="row.variant?.name">{{ row.variant.name }}</small></span></div></td>
-                            <td><span class="location-cell"><strong>{{ row.location?.name ?? 'Unknown location' }}</strong><small>{{ row.location?.code || '' }}</small></span></td>
-                            <td class="numeric">{{ qty(row.quantity) }}</td><td class="numeric muted">{{ qty(row.reserved_quantity) }}</td><td class="numeric available">{{ qty(available(row)) }}</td><td class="numeric muted">{{ qty(row.low_stock_threshold) }}</td>
-                            <td><span class="status-badge"><span class="status-dot"></span>Low stock</span></td>
-                        </tr></tbody>
-                    </table>
-                </div>
-                <footer v-if="total > 0" class="table-footer"><p>Showing <strong>{{ (page - 1) * perPage + 1 }}</strong>–<strong>{{ Math.min(page * perPage, total) }}</strong> of <strong>{{ qty(total) }}</strong> records <span v-if="search">· {{ filteredRecords.length }} visible on this page</span></p>
-                    <nav class="pagination" aria-label="Low-stock pagination"><button class="pagination-button" type="button" :disabled="page <= 1 || loading" aria-label="Previous page" @click="changePage(page - 1)"><Icon name="chevron-left" :size="16" /></button><span>Page <strong>{{ page }}</strong> of <strong>{{ lastPage }}</strong></span><button class="pagination-button" type="button" :disabled="page >= lastPage || loading" aria-label="Next page" @click="changePage(page + 1)"><Icon name="chevron-right" :size="16" /></button></nav>
-                </footer>
-            </section>
-        </main>
-    </ErpLayout>
+        <div v-if="error" class="state-panel" role="alert">
+          <div class="state-icon error"><Icon name="alert-circle" :size="22" /></div>
+          <h3>Unable to load low-stock records</h3>
+          <p>{{ error }}</p>
+          <button class="button" type="button" @click="load(page)">Try again</button>
+        </div>
+        <div v-else-if="loading && records.length === 0" class="state-panel">
+          <div class="state-icon"><Icon name="loader-2" :size="22" class="spin" /></div>
+          <h3>Loading low-stock records</h3>
+          <p>Retrieving current stock thresholds...</p>
+        </div>
+        <div v-else-if="filteredRecords.length === 0" class="state-panel compact-state">
+          <div class="state-icon">
+            <Icon :name="search ? 'search' : 'check-circle-2'" :size="22" />
+          </div>
+          <h3>{{ search ? "No matching records" : "No low-stock records" }}</h3>
+          <p>
+            {{
+              search
+                ? "Try a different product, SKU or location."
+                : "When a stock balance reaches its configured threshold, it will appear here."
+            }}
+          </p>
+          <button v-if="search" class="text-button" type="button" @click="search = ''">
+            Clear search
+          </button>
+          <button v-else class="text-button" type="button" @click="load(page)">
+            Refresh records
+          </button>
+        </div>
+        <div v-else class="table-container" :class="{ 'is-refreshing': loading }">
+          <table>
+            <thead>
+              <tr>
+                <th>Product</th>
+                <th>Location</th>
+                <th class="numeric">On hand</th>
+                <th class="numeric">Reserved</th>
+                <th class="numeric">Available</th>
+                <th class="numeric">Threshold</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="row in filteredRecords" :key="row.id">
+                <td>
+                  <div class="product-cell">
+                    <span class="product-avatar"><Icon name="package" :size="17" /></span
+                    ><span class="product-details"
+                      ><strong>{{ row.product?.name ?? "Unknown product" }}</strong
+                      ><small>{{
+                        row.variant?.sku || row.product?.sku || "No SKU"
+                      }}</small
+                      ><small v-if="row.variant?.name">{{
+                        row.variant.name
+                      }}</small></span
+                    >
+                  </div>
+                </td>
+                <td>
+                  <span class="location-cell"
+                    ><strong>{{ row.location?.name ?? "Unknown location" }}</strong
+                    ><small>{{ row.location?.code || "" }}</small></span
+                  >
+                </td>
+                <td class="numeric">{{ qty(row.quantity) }}</td>
+                <td class="numeric muted">{{ qty(row.reserved_quantity) }}</td>
+                <td class="numeric available">{{ qty(available(row)) }}</td>
+                <td class="numeric muted">{{ qty(row.low_stock_threshold) }}</td>
+                <td>
+                  <span class="status-badge"
+                    ><span class="status-dot"></span>Low stock</span
+                  >
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <footer v-if="total > 0" class="table-footer">
+          <p>
+            Showing <strong>{{ (page - 1) * perPage + 1 }}</strong
+            >–<strong>{{ Math.min(page * perPage, total) }}</strong> of
+            <strong>{{ qty(total) }}</strong> records
+            <span v-if="search">· {{ filteredRecords.length }} visible on this page</span>
+          </p>
+          <nav class="pagination" aria-label="Low-stock pagination">
+            <button
+              class="pagination-button"
+              type="button"
+              :disabled="page <= 1 || loading"
+              aria-label="Previous page"
+              @click="changePage(page - 1)"
+            >
+              <Icon name="chevron-left" :size="16" /></button
+            ><span
+              >Page <strong>{{ page }}</strong> of <strong>{{ lastPage }}</strong></span
+            ><button
+              class="pagination-button"
+              type="button"
+              :disabled="page >= lastPage || loading"
+              aria-label="Next page"
+              @click="changePage(page + 1)"
+            >
+              <Icon name="chevron-right" :size="16" />
+            </button>
+          </nav>
+        </footer>
+      </section>
+    </main>
+  </ErpLayout>
 </template>
 
 <style scoped>
@@ -1116,41 +1290,161 @@ tbody tr:last-child td {
 }
 
 /* Compact typography refinement aligned with Settings > Activity Logs. */
-.inventory-page{font-size:12px}
-.breadcrumb{font-size:10px}
-.title-copy h1{font-size:20px}
-.title-copy p{font-size:11px}
-.stat-value{font-size:21px}
-.stat-label{font-size:11px}
-.stat-description{font-size:10px}
-.section-heading-copy h2{font-size:13px}
-.section-heading-copy p{font-size:10px}
-.button,.text-button{font-size:11px}
-.table-toolbar input,.table-toolbar select,.rows-label{font-size:10px}
-table{font-size:11px}
-table th{font-size:9px}
-.product-details strong,.location-cell strong{font-size:11px}
-.product-details small,.location-cell small{font-size:9px}
-.table-footer,.pagination{font-size:10px}
-.state-panel h3{font-size:12px}
-.state-panel p{font-size:10px}
-@media(max-width:720px){.title-copy h1{font-size:18px}.stat-value{font-size:19px}}
+.inventory-page {
+  font-size: 12px;
+}
+.breadcrumb {
+  font-size: 10px;
+}
+.title-copy h1 {
+  font-size: 20px;
+}
+.title-copy p {
+  font-size: 11px;
+}
+.stat-value {
+  font-size: 21px;
+}
+.stat-label {
+  font-size: 11px;
+}
+.stat-description {
+  font-size: 10px;
+}
+.section-heading-copy h2 {
+  font-size: 13px;
+}
+.section-heading-copy p {
+  font-size: 10px;
+}
+.button,
+.text-button {
+  font-size: 11px;
+}
+.table-toolbar input,
+.table-toolbar select,
+.rows-label {
+  font-size: 10px;
+}
+table {
+  font-size: 11px;
+}
+table th {
+  font-size: 9px;
+}
+.product-details strong,
+.location-cell strong {
+  font-size: 11px;
+}
+.product-details small,
+.location-cell small {
+  font-size: 9px;
+}
+.table-footer,
+.pagination {
+  font-size: 10px;
+}
+.state-panel h3 {
+  font-size: 12px;
+}
+.state-panel p {
+  font-size: 10px;
+}
+@media (max-width: 720px) {
+  .title-copy h1 {
+    font-size: 18px;
+  }
+  .stat-value {
+    font-size: 19px;
+  }
+}
 
 /* Shared Inventory table variants */
-.numeric { text-align: right; font-variant-numeric: tabular-nums; }
-.muted { color: var(--text-secondary-color); font-variant-numeric: tabular-nums; }
-.available { color: var(--text-primary-color); font-weight: 700; font-variant-numeric: tabular-nums; }
-.quantity { color: var(--text-primary-color); font-weight: 700; font-variant-numeric: tabular-nums; }
-.reference-cell { display: flex; min-width: 0; flex-direction: column; gap: 4px; }
-.reference-cell strong { max-width: 260px; overflow: hidden; color: var(--text-primary-color); font-size: 11px; font-weight: 650; text-overflow: ellipsis; }
-.reference-cell small { max-width: 260px; overflow: hidden; color: var(--text-tertiary-color); font-size: 10px; text-overflow: ellipsis; }
-.date-cell { color: var(--text-secondary-color); font-size: 10px; white-space: nowrap; }
-.movement-kind { display: inline-flex; align-items: center; gap: 6px; width: fit-content; padding: 6px 9px; border: 1px solid var(--border-color); border-radius: 8px; background: #f8fafc; color: var(--text-secondary-color); font-size: 10px; font-weight: 650; }
-.movement-kind.kind-receive { border-color: #bbf7d0; background: #f0fdf4; color: #15803d; }
-.movement-kind.kind-issue { border-color: #fecaca; background: #fef2f2; color: #b91c1c; }
-.movement-kind.kind-transfer { border-color: #bfdbfe; background: #eff6ff; color: #1d4ed8; }
-.movement-kind.kind-adjust { border-color: #fed7aa; background: #fff7ed; color: #b45309; }
-.page-title-icon.warning { border-color: #fed7aa; background: #fff7ed; color: #d97706; }
-.section-icon.warning { border-color: #fed7aa; background: #fff7ed; color: #d97706; }
-
+.numeric {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.muted {
+  color: var(--text-secondary-color);
+  font-variant-numeric: tabular-nums;
+}
+.available {
+  color: var(--text-primary-color);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.quantity {
+  color: var(--text-primary-color);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.reference-cell {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+}
+.reference-cell strong {
+  max-width: 260px;
+  overflow: hidden;
+  color: var(--text-primary-color);
+  font-size: 11px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+}
+.reference-cell small {
+  max-width: 260px;
+  overflow: hidden;
+  color: var(--text-tertiary-color);
+  font-size: 10px;
+  text-overflow: ellipsis;
+}
+.date-cell {
+  color: var(--text-secondary-color);
+  font-size: 10px;
+  white-space: nowrap;
+}
+.movement-kind {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  padding: 6px 9px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: #f8fafc;
+  color: var(--text-secondary-color);
+  font-size: 10px;
+  font-weight: 650;
+}
+.movement-kind.kind-receive {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+  color: #15803d;
+}
+.movement-kind.kind-issue {
+  border-color: #fecaca;
+  background: #fef2f2;
+  color: #b91c1c;
+}
+.movement-kind.kind-transfer {
+  border-color: #bfdbfe;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+.movement-kind.kind-adjust {
+  border-color: #fed7aa;
+  background: #fff7ed;
+  color: #b45309;
+}
+.page-title-icon.warning {
+  border-color: #fed7aa;
+  background: #fff7ed;
+  color: #d97706;
+}
+.section-icon.warning {
+  border-color: #fed7aa;
+  background: #fff7ed;
+  color: #d97706;
+}
 </style>

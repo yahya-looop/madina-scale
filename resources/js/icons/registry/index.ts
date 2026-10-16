@@ -5,6 +5,7 @@ import { iconData02 } from "./part2";
 import { iconData03 } from "./part3";
 import { iconData04 } from "./part4";
 import { iconData05 } from "./part5";
+import { iconData06 } from "./part6";
 import { ICON_ALIASES } from "../aliases";
 
 type IconModule = IconifyIcon | { default: IconifyIcon };
@@ -56,6 +57,7 @@ const rawRegistry: Record<string, unknown> = Object.assign(
     iconData03,
     iconData04,
     iconData05,
+    iconData06,
 );
 
 const normalizedRegistry: Record<string, IconifyIcon> = {};

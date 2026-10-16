@@ -1,165 +1,460 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
-import { Head } from '@inertiajs/vue3';
-import ErpLayout from '@/layouts/ErpLayout.vue';
-import Icon from '@/components/dashboard/Icon.vue';
+import { computed, onMounted, ref } from "vue";
+import { Head } from "@inertiajs/vue3";
+import ErpLayout from "@/layouts/ErpLayout.vue";
+import Icon from "@/components/dashboard/Icon.vue";
 
-interface Props { userName?: string; userEmail?: string }
-interface Movement {
-    id: number;
-    type?: string;
-    movement_type?: string;
-    quantity?: string | number;
-    quantity_change?: string | number;
-    quantity_delta?: string | number;
-    reference?: string | null;
-    reference_type?: string | null;
-    reference_id?: number | string | null;
-    notes?: string | null;
-    reason?: string | null;
-    created_at?: string | null;
-    created_by?: { name?: string } | null;
-    creator?: { name?: string } | null;
-    product?: { id?: number; name?: string; sku?: string | null } | null;
-    variant?: { name?: string; sku?: string | null } | null;
-    location?: { name?: string; code?: string | null } | null;
-    from_location?: { name?: string } | null;
-    to_location?: { name?: string } | null;
+interface Props {
+  userName?: string;
+  userEmail?: string;
 }
-interface ApiResponse { data?: Movement[]; current_page?: number; last_page?: number; per_page?: number; total?: number; message?: string }
-const props = withDefaults(defineProps<Props>(), { userName: '', userEmail: '' });
+interface Movement {
+  id: number;
+  type?: string;
+  movement_type?: string;
+  quantity?: string | number;
+  quantity_change?: string | number;
+  quantity_delta?: string | number;
+  reference?: string | null;
+  reference_type?: string | null;
+  reference_id?: number | string | null;
+  notes?: string | null;
+  reason?: string | null;
+  created_at?: string | null;
+  created_by?: { name?: string } | null;
+  creator?: { name?: string } | null;
+  product?: { id?: number; name?: string; sku?: string | null } | null;
+  variant?: { name?: string; sku?: string | null } | null;
+  location?: { name?: string; code?: string | null } | null;
+  from_location?: { name?: string } | null;
+  to_location?: { name?: string } | null;
+}
+interface ApiResponse {
+  data?: Movement[];
+  current_page?: number;
+  last_page?: number;
+  per_page?: number;
+  total?: number;
+  message?: string;
+}
+const props = withDefaults(defineProps<Props>(), { userName: "", userEmail: "" });
 const rows = ref<Movement[]>([]);
 const loading = ref(false);
-const error = ref('');
-const search = ref('');
-const typeFilter = ref('all');
+const error = ref("");
+const search = ref("");
+const typeFilter = ref("all");
 const page = ref(1);
 const perPage = ref(10);
 const lastPage = ref(1);
 const total = ref(0);
 let requestSequence = 0;
 const typeOptions = [
-    { value: 'all', label: 'All types' }, { value: 'receive', label: 'Receive' },
-    { value: 'issue', label: 'Issue' }, { value: 'adjust', label: 'Adjustment' },
-    { value: 'transfer', label: 'Transfer' },
+  { value: "all", label: "All types" },
+  { value: "receive", label: "Receive" },
+  { value: "issue", label: "Issue" },
+  { value: "adjust", label: "Adjustment" },
+  { value: "transfer", label: "Transfer" },
 ];
 const filteredRows = computed(() => {
-    const term = search.value.trim().toLowerCase();
-    return rows.value.filter((row) => {
-        const kind = movementType(row);
-        const typeMatches = typeFilter.value === 'all' || kind === typeFilter.value;
-        const textMatches = !term || [
-            row.product?.name, row.product?.sku, row.variant?.name, row.variant?.sku,
-            row.location?.name, row.location?.code, row.from_location?.name, row.to_location?.name,
-            row.reference, row.reference_type, row.reference_id, row.notes, row.reason, row.created_by?.name, row.creator?.name,
-        ].some((value) => String(value ?? '').toLowerCase().includes(term));
-        return typeMatches && textMatches;
-    });
+  const term = search.value.trim().toLowerCase();
+  return rows.value.filter((row) => {
+    const kind = movementType(row);
+    const typeMatches = typeFilter.value === "all" || kind === typeFilter.value;
+    const textMatches =
+      !term ||
+      [
+        row.product?.name,
+        row.product?.sku,
+        row.variant?.name,
+        row.variant?.sku,
+        row.location?.name,
+        row.location?.code,
+        row.from_location?.name,
+        row.to_location?.name,
+        row.reference,
+        row.reference_type,
+        row.reference_id,
+        row.notes,
+        row.reason,
+        row.created_by?.name,
+        row.creator?.name,
+      ].some((value) =>
+        String(value ?? "")
+          .toLowerCase()
+          .includes(term)
+      );
+    return typeMatches && textMatches;
+  });
 });
 function num(value: string | number | undefined): number {
-    const n = Number(value ?? 0); return Number.isFinite(n) ? n : 0;
+  const n = Number(value ?? 0);
+  return Number.isFinite(n) ? n : 0;
 }
 function qty(value: string | number | undefined): string {
-    return new Intl.NumberFormat('en-BD', { maximumFractionDigits: 4 }).format(num(value));
+  return new Intl.NumberFormat("en-BD", { maximumFractionDigits: 4 }).format(num(value));
 }
 function movementType(row: Movement): string {
-    const raw = String(row.type ?? row.movement_type ?? '').toLowerCase();
-    if (raw.includes('receiv') || raw.includes('receipt') || raw.includes('inbound') || raw === 'in') return 'receive';
-    if (raw.includes('issu') || raw.includes('outbound') || raw === 'out') return 'issue';
-    if (raw.includes('transfer')) return 'transfer';
-    if (raw.includes('adjust')) return 'adjust';
-    return raw || 'other';
+  const raw = String(row.type ?? row.movement_type ?? "").toLowerCase();
+  if (
+    raw.includes("receiv") ||
+    raw.includes("receipt") ||
+    raw.includes("inbound") ||
+    raw === "in"
+  )
+    return "receive";
+  if (raw.includes("issu") || raw.includes("outbound") || raw === "out") return "issue";
+  if (raw.includes("transfer")) return "transfer";
+  if (raw.includes("adjust")) return "adjust";
+  return raw || "other";
 }
 function typeLabel(row: Movement): string {
-    const kind = movementType(row);
-    return ({ receive: 'Receive', issue: 'Issue', transfer: 'Transfer', adjust: 'Adjustment' } as Record<string, string>)[kind] ?? kind.replace(/[_-]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+  const kind = movementType(row);
+  return (
+    ({
+      receive: "Receive",
+      issue: "Issue",
+      transfer: "Transfer",
+      adjust: "Adjustment",
+    } as Record<string, string>)[kind] ??
+    kind.replace(/[_-]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
+  );
 }
 function typeIcon(row: Movement): string {
-    return ({ receive: 'arrow-down-left', issue: 'arrow-up-right', transfer: 'arrow-left-right', adjust: 'sliders-horizontal' } as Record<string, string>)[movementType(row)] ?? 'history';
+  return (
+    ({
+      receive: "package-import",
+      issue: "alert-triangle",
+      transfer: "arrows-left-right",
+      adjust: "sliders-horizontal",
+    } as Record<string, string>)[movementType(row)] ?? "history"
+  );
 }
 function dateLabel(value?: string | null): string {
-    if (!value) return '—';
-    const date = new Date(value);
-    return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat('en-BD', { dateStyle: 'medium', timeStyle: 'short' }).format(date);
+  if (!value) return "—";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? value
+    : new Intl.DateTimeFormat("en-BD", {
+        dateStyle: "medium",
+        timeStyle: "short",
+      }).format(date);
 }
-function errorText(value: unknown): string { return value instanceof Error ? value.message : 'Unable to load stock movements. Please try again.'; }
+function errorText(value: unknown): string {
+  return value instanceof Error
+    ? value.message
+    : "Unable to load stock movements. Please try again.";
+}
 async function load(targetPage = page.value): Promise<void> {
-    const requestId = ++requestSequence;
-    loading.value = true; error.value = '';
-    try {
-        const params = new URLSearchParams({ page: String(targetPage), per_page: String(perPage.value) });
-        const response = await fetch(`/api/inventory/movements?${params}`, {
-            credentials: 'same-origin',
-            headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-        });
-        const payload = await response.json() as ApiResponse;
-        if (!response.ok) throw new Error(payload.message || `Request failed (HTTP ${response.status}).`);
-        if (requestId !== requestSequence) return;
-        rows.value = Array.isArray(payload.data) ? payload.data : [];
-        page.value = payload.current_page ?? targetPage;
-        lastPage.value = Math.max(1, payload.last_page ?? 1);
-        perPage.value = payload.per_page ?? perPage.value;
-        total.value = payload.total ?? rows.value.length;
-    } catch (err) {
-        if (requestId !== requestSequence) return;
-        error.value = errorText(err); rows.value = []; total.value = 0;
-    } finally { if (requestId === requestSequence) loading.value = false; }
+  const requestId = ++requestSequence;
+  loading.value = true;
+  error.value = "";
+  try {
+    const params = new URLSearchParams({
+      page: String(targetPage),
+      per_page: String(perPage.value),
+    });
+    const response = await fetch(`/api/inventory/movements?${params}`, {
+      credentials: "same-origin",
+      headers: { Accept: "application/json", "X-Requested-With": "XMLHttpRequest" },
+    });
+    const payload = (await response.json()) as ApiResponse;
+    if (!response.ok)
+      throw new Error(payload.message || `Request failed (HTTP ${response.status}).`);
+    if (requestId !== requestSequence) return;
+    rows.value = Array.isArray(payload.data) ? payload.data : [];
+    page.value = payload.current_page ?? targetPage;
+    lastPage.value = Math.max(1, payload.last_page ?? 1);
+    perPage.value = payload.per_page ?? perPage.value;
+    total.value = payload.total ?? rows.value.length;
+  } catch (err) {
+    if (requestId !== requestSequence) return;
+    error.value = errorText(err);
+    rows.value = [];
+    total.value = 0;
+  } finally {
+    if (requestId === requestSequence) loading.value = false;
+  }
 }
 function changePage(target: number): void {
-    const next = Math.max(1, Math.min(target, lastPage.value));
-    if (next === page.value || loading.value) return;
-    page.value = next; void load(next);
+  const next = Math.max(1, Math.min(target, lastPage.value));
+  if (next === page.value || loading.value) return;
+  page.value = next;
+  void load(next);
 }
 onMounted(() => void load(1));
 </script>
 
 <template>
-    <Head title="Stock Movements" />
-    <ErpLayout :user-name="props.userName" :user-email="props.userEmail">
-        <main class="inventory-page">
-            <header class="page-header">
-                <div class="page-heading">
-                    <div class="breadcrumb"><a href="/inventory">Inventory</a><Icon name="chevron-right" :size="13" /><strong>Stock Movements</strong></div>
-                    <div class="title-row"><div class="page-title-icon"><Icon name="history" :size="22" /></div>
-                        <div class="title-copy"><h1>Stock Movements</h1><p>Review inventory receipts, issues, adjustments and transfers.</p></div>
-                    </div>
-                </div>
-                <div class="header-actions"><button class="button" type="button" :disabled="loading" @click="load(page)"><Icon name="refresh-cw" :size="15" :class="{ spin: loading }" /> Refresh</button></div>
-            </header>
+  <Head title="Stock Movements" />
+  <ErpLayout :user-name="props.userName" :user-email="props.userEmail">
+    <main class="inventory-page">
+      <header class="page-header">
+        <div class="page-heading">
+          <div class="breadcrumb">
+            <a href="/inventory">Inventory</a
+            ><Icon name="chevron-right" :size="13" /><strong>Stock Movements</strong>
+          </div>
+          <div class="title-row">
+            <div class="page-title-icon"><Icon name="history" :size="22" /></div>
+            <div class="title-copy">
+              <h1>Stock Movements</h1>
+              <p>Review inventory receipts, issues, adjustments and transfers.</p>
+            </div>
+          </div>
+        </div>
+        <div class="header-actions">
+          <button class="button" type="button" :disabled="loading" @click="load(page)">
+            <Icon name="refresh-cw" :size="15" :class="{ spin: loading }" /> Refresh
+          </button>
+        </div>
+      </header>
 
-            <section class="stats-grid" aria-label="Movement summary">
-                <article class="stat-card"><div class="stat-top"><span class="stat-icon blue"><Icon name="history" :size="19" /></span><span class="stat-caption">All pages</span></div><div class="stat-value">{{ qty(total) }}</div><div class="stat-label">Movement records</div><p class="stat-description">Recorded inventory ledger entries.</p></article>
-                <article class="stat-card"><div class="stat-top"><span class="stat-icon green"><Icon name="arrow-down-left" :size="19" /></span><span class="stat-caption">Current page</span></div><div class="stat-value">{{ qty(rows.filter(row => movementType(row) === 'receive').length) }}</div><div class="stat-label">Receipts</div><p class="stat-description">Stock entries received on this page.</p></article>
-                <article class="stat-card"><div class="stat-top"><span class="stat-icon amber"><Icon name="arrow-up-right" :size="19" /></span><span class="stat-caption">Current page</span></div><div class="stat-value">{{ qty(rows.filter(row => movementType(row) === 'issue').length) }}</div><div class="stat-label">Issues</div><p class="stat-description">Stock issues on this page.</p></article>
-                <article class="stat-card"><div class="stat-top"><span class="stat-icon violet"><Icon name="arrow-left-right" :size="19" /></span><span class="stat-caption">Current page</span></div><div class="stat-value">{{ qty(rows.filter(row => ['transfer', 'adjust'].includes(movementType(row))).length) }}</div><div class="stat-label">Other movements</div><p class="stat-description">Transfers and adjustments on this page.</p></article>
-            </section>
+      <section class="stats-grid" aria-label="Movement summary">
+        <article class="stat-card">
+          <div class="stat-top">
+            <span class="stat-icon blue"><Icon name="history" :size="19" /></span
+            ><span class="stat-caption">All pages</span>
+          </div>
+          <div class="stat-value">{{ qty(total) }}</div>
+          <div class="stat-label">Movement records</div>
+          <p class="stat-description">Recorded inventory ledger entries.</p>
+        </article>
+        <article class="stat-card">
+          <div class="stat-top">
+            <span class="stat-icon green"><Icon name="receipt" :size="19" /></span
+            ><span class="stat-caption">Current page</span>
+          </div>
+          <div class="stat-value">
+            {{ qty(rows.filter((row) => movementType(row) === "receive").length) }}
+          </div>
+          <div class="stat-label">Receipts</div>
+          <p class="stat-description">Stock entries received on this page.</p>
+        </article>
+        <article class="stat-card">
+          <div class="stat-top">
+            <span class="stat-icon amber"><Icon name="alert-triangle" :size="19" /></span
+            ><span class="stat-caption">Current page</span>
+          </div>
+          <div class="stat-value">
+            {{ qty(rows.filter((row) => movementType(row) === "issue").length) }}
+          </div>
+          <div class="stat-label">Issues</div>
+          <p class="stat-description">Stock issues on this page.</p>
+        </article>
+        <article class="stat-card">
+          <div class="stat-top">
+            <span class="stat-icon violet"><Icon name="dots" :size="19" /></span
+            ><span class="stat-caption">Current page</span>
+          </div>
+          <div class="stat-value">
+            {{
+              qty(
+                rows.filter((row) => ["transfer", "adjust"].includes(movementType(row)))
+                  .length
+              )
+            }}
+          </div>
+          <div class="stat-label">Other movements</div>
+          <p class="stat-description">Transfers and adjustments on this page.</p>
+        </article>
+      </section>
 
-            <section class="card">
-                <div class="section-heading"><div class="section-icon"><Icon name="history" :size="19" /></div><div class="section-heading-copy"><h2>Movement history</h2><p>Recorded stock transactions and their references.</p></div><span class="record-badge">{{ qty(total) }} records</span></div>
-                <div class="table-toolbar">
-                    <label class="search-box"><Icon name="search" :size="16" /><input v-model="search" type="search" placeholder="Search product, reference or location..." aria-label="Search stock movements" /><button v-if="search" class="clear-search" type="button" aria-label="Clear search" @click="search = ''"><Icon name="x" :size="14" /></button></label>
-                    <div class="toolbar-right"><label for="movement-type" class="rows-label">Type</label><div class="select-wrap wide"><select id="movement-type" v-model="typeFilter"><option v-for="option in typeOptions" :key="option.value" :value="option.value">{{ option.label }}</option></select><Icon name="chevron-down" :size="14" /></div><label for="movement-rows" class="rows-label rows-label-gap">Rows</label><div class="select-wrap"><select id="movement-rows" v-model.number="perPage" @change="page = 1; load(1)"><option :value="10">10</option><option :value="25">25</option><option :value="50">50</option><option :value="100">100</option></select><Icon name="chevron-down" :size="14" /></div></div>
-                </div>
-                <div v-if="error" class="state-panel" role="alert"><div class="state-icon error"><Icon name="alert-circle" :size="22" /></div><h3>Unable to load stock movements</h3><p>{{ error }}</p><button class="button" type="button" @click="load(page)">Try again</button></div>
-                <div v-else-if="loading && rows.length === 0" class="state-panel"><div class="state-icon"><Icon name="loader-2" :size="22" class="spin" /></div><h3>Loading movement history</h3><p>Retrieving stock ledger entries...</p></div>
-                <div v-else-if="filteredRows.length === 0" class="state-panel compact-state"><div class="state-icon"><Icon :name="search || typeFilter !== 'all' ? 'search' : 'history'" :size="22" /></div><h3>{{ search || typeFilter !== 'all' ? 'No matching movements' : 'No stock movements yet' }}</h3><p>{{ search || typeFilter !== 'all' ? 'Try changing the search term or movement type.' : 'Stock receipt, issue, adjustment and transfer records will appear here when transactions are recorded.' }}</p><button v-if="search || typeFilter !== 'all'" class="text-button" type="button" @click="search = ''; typeFilter = 'all'">Clear filters</button></div>
-                <div v-else class="table-container" :class="{ 'is-refreshing': loading }">
-                    <table><thead><tr><th>Movement</th><th>Product</th><th>Location / route</th><th class="numeric">Quantity</th><th>Reference</th><th>Date</th></tr></thead>
-                        <tbody><tr v-for="row in filteredRows" :key="row.id">
-                            <td><span class="movement-kind" :class="`kind-${movementType(row)}`"><Icon :name="typeIcon(row)" :size="14" />{{ typeLabel(row) }}</span></td>
-                            <td><div class="product-cell"><span class="product-avatar"><Icon name="package" :size="17" /></span><span class="product-details"><strong>{{ row.product?.name ?? 'Unknown product' }}</strong><small>{{ row.variant?.sku || row.product?.sku || 'No SKU' }}</small></span></div></td>
-                            <td><span class="location-cell"><strong>{{ row.from_location?.name && row.to_location?.name ? `${row.from_location.name} → ${row.to_location.name}` : row.location?.name ?? '—' }}</strong><small>{{ row.location?.code || '' }}</small></span></td>
-                            <td class="numeric quantity">{{ qty(row.quantity ?? row.quantity_change ?? row.quantity_delta) }}</td>
-                            <td><span class="reference-cell"><strong>{{ row.reference || (row.reference_type && row.reference_id ? `${row.reference_type} #${row.reference_id}` : '—') }}</strong><small>{{ row.notes || row.reason || '' }}</small></span></td>
-                            <td class="date-cell">{{ dateLabel(row.created_at) }}</td>
-                        </tr></tbody>
-                    </table>
-                </div>
-                <footer v-if="total > 0" class="table-footer"><p>Showing <strong>{{ (page - 1) * perPage + 1 }}</strong>–<strong>{{ Math.min(page * perPage, total) }}</strong> of <strong>{{ qty(total) }}</strong> records <span v-if="search || typeFilter !== 'all'">· {{ filteredRows.length }} visible on this page</span></p><nav class="pagination" aria-label="Movement pagination"><button class="pagination-button" type="button" :disabled="page <= 1 || loading" aria-label="Previous page" @click="changePage(page - 1)"><Icon name="chevron-left" :size="16" /></button><span>Page <strong>{{ page }}</strong> of <strong>{{ lastPage }}</strong></span><button class="pagination-button" type="button" :disabled="page >= lastPage || loading" aria-label="Next page" @click="changePage(page + 1)"><Icon name="chevron-right" :size="16" /></button></nav></footer>
-            </section>
-            <p class="page-footnote"><Icon name="info-circle" :size="14" />Movement history is an audit trail. Entries reflect transactions recorded by the inventory service.</p>
-        </main>
-    </ErpLayout>
+      <section class="card">
+        <div class="section-heading">
+          <div class="section-icon"><Icon name="history" :size="19" /></div>
+          <div class="section-heading-copy">
+            <h2>Movement history</h2>
+            <p>Recorded stock transactions and their references.</p>
+          </div>
+          <span class="record-badge">{{ qty(total) }} records</span>
+        </div>
+        <div class="table-toolbar">
+          <label class="search-box"
+            ><Icon name="search" :size="16" /><input
+              v-model="search"
+              type="search"
+              placeholder="Search product, reference or location..."
+              aria-label="Search stock movements" /><button
+              v-if="search"
+              class="clear-search"
+              type="button"
+              aria-label="Clear search"
+              @click="search = ''"
+            >
+              <Icon name="x" :size="14" /></button
+          ></label>
+          <div class="toolbar-right">
+            <label for="movement-type" class="rows-label">Type</label>
+            <div class="select-wrap wide">
+              <select id="movement-type" v-model="typeFilter">
+                <option
+                  v-for="option in typeOptions"
+                  :key="option.value"
+                  :value="option.value"
+                >
+                  {{ option.label }}
+                </option></select
+              ><Icon name="chevron-down" :size="14" />
+            </div>
+            <label for="movement-rows" class="rows-label rows-label-gap">Rows</label>
+            <div class="select-wrap">
+              <select
+                id="movement-rows"
+                v-model.number="perPage"
+                @change="
+                  page = 1;
+                  load(1);
+                "
+              >
+                <option :value="10">10</option>
+                <option :value="25">25</option>
+                <option :value="50">50</option>
+                <option :value="100">100</option></select
+              ><Icon name="chevron-down" :size="14" />
+            </div>
+          </div>
+        </div>
+        <div v-if="error" class="state-panel" role="alert">
+          <div class="state-icon error"><Icon name="alert-circle" :size="22" /></div>
+          <h3>Unable to load stock movements</h3>
+          <p>{{ error }}</p>
+          <button class="button" type="button" @click="load(page)">Try again</button>
+        </div>
+        <div v-else-if="loading && rows.length === 0" class="state-panel">
+          <div class="state-icon"><Icon name="loader-2" :size="22" class="spin" /></div>
+          <h3>Loading movement history</h3>
+          <p>Retrieving stock ledger entries...</p>
+        </div>
+        <div v-else-if="filteredRows.length === 0" class="state-panel compact-state">
+          <div class="state-icon">
+            <Icon
+              :name="search || typeFilter !== 'all' ? 'search' : 'history'"
+              :size="22"
+            />
+          </div>
+          <h3>
+            {{
+              search || typeFilter !== "all"
+                ? "No matching movements"
+                : "No stock movements yet"
+            }}
+          </h3>
+          <p>
+            {{
+              search || typeFilter !== "all"
+                ? "Try changing the search term or movement type."
+                : "Stock receipt, issue, adjustment and transfer records will appear here when transactions are recorded."
+            }}
+          </p>
+          <button
+            v-if="search || typeFilter !== 'all'"
+            class="text-button"
+            type="button"
+            @click="
+              search = '';
+              typeFilter = 'all';
+            "
+          >
+            Clear filters
+          </button>
+        </div>
+        <div v-else class="table-container" :class="{ 'is-refreshing': loading }">
+          <table>
+            <thead>
+              <tr>
+                <th>Movement</th>
+                <th>Product</th>
+                <th>Location / route</th>
+                <th class="numeric">Quantity</th>
+                <th>Reference</th>
+                <th>Date</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="row in filteredRows" :key="row.id">
+                <td>
+                  <span class="movement-kind" :class="`kind-${movementType(row)}`"
+                    ><Icon :name="typeIcon(row)" :size="14" />{{ typeLabel(row) }}</span
+                  >
+                </td>
+                <td>
+                  <div class="product-cell">
+                    <span class="product-avatar"><Icon name="package" :size="17" /></span
+                    ><span class="product-details"
+                      ><strong>{{ row.product?.name ?? "Unknown product" }}</strong
+                      ><small>{{
+                        row.variant?.sku || row.product?.sku || "No SKU"
+                      }}</small></span
+                    >
+                  </div>
+                </td>
+                <td>
+                  <span class="location-cell"
+                    ><strong>{{
+                      row.from_location?.name && row.to_location?.name
+                        ? `${row.from_location.name} → ${row.to_location.name}`
+                        : row.location?.name ?? "—"
+                    }}</strong
+                    ><small>{{ row.location?.code || "" }}</small></span
+                  >
+                </td>
+                <td class="numeric quantity">
+                  {{ qty(row.quantity ?? row.quantity_change ?? row.quantity_delta) }}
+                </td>
+                <td>
+                  <span class="reference-cell"
+                    ><strong>{{
+                      row.reference ||
+                      (row.reference_type && row.reference_id
+                        ? `${row.reference_type} #${row.reference_id}`
+                        : "—")
+                    }}</strong
+                    ><small>{{ row.notes || row.reason || "" }}</small></span
+                  >
+                </td>
+                <td class="date-cell">{{ dateLabel(row.created_at) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <footer v-if="total > 0" class="table-footer">
+          <p>
+            Showing <strong>{{ (page - 1) * perPage + 1 }}</strong
+            >–<strong>{{ Math.min(page * perPage, total) }}</strong> of
+            <strong>{{ qty(total) }}</strong> records
+            <span v-if="search || typeFilter !== 'all'"
+              >· {{ filteredRows.length }} visible on this page</span
+            >
+          </p>
+          <nav class="pagination" aria-label="Movement pagination">
+            <button
+              class="pagination-button"
+              type="button"
+              :disabled="page <= 1 || loading"
+              aria-label="Previous page"
+              @click="changePage(page - 1)"
+            >
+              <Icon name="chevron-left" :size="16" /></button
+            ><span
+              >Page <strong>{{ page }}</strong> of <strong>{{ lastPage }}</strong></span
+            ><button
+              class="pagination-button"
+              type="button"
+              :disabled="page >= lastPage || loading"
+              aria-label="Next page"
+              @click="changePage(page + 1)"
+            >
+              <Icon name="chevron-right" :size="16" />
+            </button>
+          </nav>
+        </footer>
+      </section>
+      <p class="page-footnote">
+        <Icon name="info-circle" :size="14" />Movement history is an audit trail. Entries
+        reflect transactions recorded by the inventory service.
+      </p>
+    </main>
+  </ErpLayout>
 </template>
 
 <style scoped>
@@ -1101,41 +1396,161 @@ tbody tr:last-child td {
 }
 
 /* Compact typography refinement aligned with Settings > Activity Logs. */
-.inventory-page{font-size:12px}
-.breadcrumb{font-size:10px}
-.title-copy h1{font-size:20px}
-.title-copy p{font-size:11px}
-.stat-value{font-size:21px}
-.stat-label{font-size:11px}
-.stat-description{font-size:10px}
-.section-heading-copy h2{font-size:13px}
-.section-heading-copy p{font-size:10px}
-.button,.text-button{font-size:11px}
-.table-toolbar input,.table-toolbar select,.rows-label{font-size:10px}
-table{font-size:11px}
-table th{font-size:9px}
-.product-details strong,.location-cell strong{font-size:11px}
-.product-details small,.location-cell small{font-size:9px}
-.table-footer,.pagination{font-size:10px}
-.state-panel h3{font-size:12px}
-.state-panel p{font-size:10px}
-@media(max-width:720px){.title-copy h1{font-size:18px}.stat-value{font-size:19px}}
+.inventory-page {
+  font-size: 12px;
+}
+.breadcrumb {
+  font-size: 10px;
+}
+.title-copy h1 {
+  font-size: 20px;
+}
+.title-copy p {
+  font-size: 11px;
+}
+.stat-value {
+  font-size: 21px;
+}
+.stat-label {
+  font-size: 11px;
+}
+.stat-description {
+  font-size: 10px;
+}
+.section-heading-copy h2 {
+  font-size: 13px;
+}
+.section-heading-copy p {
+  font-size: 10px;
+}
+.button,
+.text-button {
+  font-size: 11px;
+}
+.table-toolbar input,
+.table-toolbar select,
+.rows-label {
+  font-size: 10px;
+}
+table {
+  font-size: 11px;
+}
+table th {
+  font-size: 9px;
+}
+.product-details strong,
+.location-cell strong {
+  font-size: 11px;
+}
+.product-details small,
+.location-cell small {
+  font-size: 9px;
+}
+.table-footer,
+.pagination {
+  font-size: 10px;
+}
+.state-panel h3 {
+  font-size: 12px;
+}
+.state-panel p {
+  font-size: 10px;
+}
+@media (max-width: 720px) {
+  .title-copy h1 {
+    font-size: 18px;
+  }
+  .stat-value {
+    font-size: 19px;
+  }
+}
 
 /* Shared Inventory table variants */
-.numeric { text-align: right; font-variant-numeric: tabular-nums; }
-.muted { color: var(--text-secondary-color); font-variant-numeric: tabular-nums; }
-.available { color: var(--text-primary-color); font-weight: 700; font-variant-numeric: tabular-nums; }
-.quantity { color: var(--text-primary-color); font-weight: 700; font-variant-numeric: tabular-nums; }
-.reference-cell { display: flex; min-width: 0; flex-direction: column; gap: 4px; }
-.reference-cell strong { max-width: 260px; overflow: hidden; color: var(--text-primary-color); font-size: 11px; font-weight: 650; text-overflow: ellipsis; }
-.reference-cell small { max-width: 260px; overflow: hidden; color: var(--text-tertiary-color); font-size: 10px; text-overflow: ellipsis; }
-.date-cell { color: var(--text-secondary-color); font-size: 10px; white-space: nowrap; }
-.movement-kind { display: inline-flex; align-items: center; gap: 6px; width: fit-content; padding: 6px 9px; border: 1px solid var(--border-color); border-radius: 8px; background: #f8fafc; color: var(--text-secondary-color); font-size: 10px; font-weight: 650; }
-.movement-kind.kind-receive { border-color: #bbf7d0; background: #f0fdf4; color: #15803d; }
-.movement-kind.kind-issue { border-color: #fecaca; background: #fef2f2; color: #b91c1c; }
-.movement-kind.kind-transfer { border-color: #bfdbfe; background: #eff6ff; color: #1d4ed8; }
-.movement-kind.kind-adjust { border-color: #fed7aa; background: #fff7ed; color: #b45309; }
-.page-title-icon.warning { border-color: #fed7aa; background: #fff7ed; color: #d97706; }
-.section-icon.warning { border-color: #fed7aa; background: #fff7ed; color: #d97706; }
-
+.numeric {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.muted {
+  color: var(--text-secondary-color);
+  font-variant-numeric: tabular-nums;
+}
+.available {
+  color: var(--text-primary-color);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.quantity {
+  color: var(--text-primary-color);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.reference-cell {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+}
+.reference-cell strong {
+  max-width: 260px;
+  overflow: hidden;
+  color: var(--text-primary-color);
+  font-size: 11px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+}
+.reference-cell small {
+  max-width: 260px;
+  overflow: hidden;
+  color: var(--text-tertiary-color);
+  font-size: 10px;
+  text-overflow: ellipsis;
+}
+.date-cell {
+  color: var(--text-secondary-color);
+  font-size: 10px;
+  white-space: nowrap;
+}
+.movement-kind {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  padding: 6px 9px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: #f8fafc;
+  color: var(--text-secondary-color);
+  font-size: 10px;
+  font-weight: 650;
+}
+.movement-kind.kind-receive {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+  color: #15803d;
+}
+.movement-kind.kind-issue {
+  border-color: #fecaca;
+  background: #fef2f2;
+  color: #b91c1c;
+}
+.movement-kind.kind-transfer {
+  border-color: #bfdbfe;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+.movement-kind.kind-adjust {
+  border-color: #fed7aa;
+  background: #fff7ed;
+  color: #b45309;
+}
+.page-title-icon.warning {
+  border-color: #fed7aa;
+  background: #fff7ed;
+  color: #d97706;
+}
+.section-icon.warning {
+  border-color: #fed7aa;
+  background: #fff7ed;
+  color: #d97706;
+}
 </style>

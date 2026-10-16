@@ -104,7 +104,7 @@ export const primaryNavigation: NavigationItem[] = [
             {
                 label: 'Stock Operations',
                 href: '/inventory/operations',
-                icon: 'arrow-left-right',
+                icon: 'settings-2',
                 permission: 'system.inventory.view',
             },
         ],

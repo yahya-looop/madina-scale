@@ -334,7 +334,7 @@ onMounted(() => {
         <article class="stat-card">
           <div class="stat-top">
             <span class="stat-icon green">
-              <Icon name="package-check" :size="19" />
+              <Icon name="circle-check" :size="19" />
             </span>
             <span class="stat-caption">Current page</span>
           </div>
@@ -362,7 +362,7 @@ onMounted(() => {
         <article class="stat-card">
           <div class="stat-top">
             <span class="stat-icon violet">
-              <Icon name="package" :size="19" />
+              <Icon name="calendar-check" :size="19" />
             </span>
             <span class="stat-caption">Current page</span>
           </div>
@@ -1530,24 +1530,72 @@ tbody tr:last-child td {
 }
 
 /* Compact typography refinement aligned with Settings > Activity Logs. */
-.inventory-page{font-size:12px}
-.breadcrumb{font-size:10px}
-.title-copy h1{font-size:20px}
-.title-copy p{font-size:11px}
-.stat-value{font-size:21px}
-.stat-label{font-size:11px}
-.stat-description{font-size:10px}
-.section-heading-copy h2{font-size:13px}
-.section-heading-copy p{font-size:10px}
-.button,.text-button{font-size:11px}
-.table-toolbar input,.table-toolbar select,.rows-label{font-size:10px}
-table{font-size:11px}
-table th{font-size:9px}
-.product-details strong,.location-cell strong{font-size:11px}
-.product-details small,.location-cell small{font-size:9px}
-.table-footer,.pagination{font-size:10px}
-.state-panel h3{font-size:12px}
-.state-panel p{font-size:10px}
-@media(max-width:720px){.title-copy h1{font-size:18px}.stat-value{font-size:19px}}
-
+.inventory-page {
+  font-size: 12px;
+}
+.breadcrumb {
+  font-size: 10px;
+}
+.title-copy h1 {
+  font-size: 20px;
+}
+.title-copy p {
+  font-size: 11px;
+}
+.stat-value {
+  font-size: 21px;
+}
+.stat-label {
+  font-size: 11px;
+}
+.stat-description {
+  font-size: 10px;
+}
+.section-heading-copy h2 {
+  font-size: 13px;
+}
+.section-heading-copy p {
+  font-size: 10px;
+}
+.button,
+.text-button {
+  font-size: 11px;
+}
+.table-toolbar input,
+.table-toolbar select,
+.rows-label {
+  font-size: 10px;
+}
+table {
+  font-size: 11px;
+}
+table th {
+  font-size: 9px;
+}
+.product-details strong,
+.location-cell strong {
+  font-size: 11px;
+}
+.product-details small,
+.location-cell small {
+  font-size: 9px;
+}
+.table-footer,
+.pagination {
+  font-size: 10px;
+}
+.state-panel h3 {
+  font-size: 12px;
+}
+.state-panel p {
+  font-size: 10px;
+}
+@media (max-width: 720px) {
+  .title-copy h1 {
+    font-size: 18px;
+  }
+  .stat-value {
+    font-size: 19px;
+  }
+}
 </style>
