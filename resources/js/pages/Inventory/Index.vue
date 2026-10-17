@@ -35,6 +35,7 @@ interface InventoryStock {
     name: string;
     sku?: string | null;
     product_type?: string;
+    primary_media?: { id: number; path: string; alt_text?: string | null; is_primary?: boolean } | null;
   } | null;
   variant?: {
     id: number;
@@ -159,6 +160,13 @@ function formatQuantity(value: number | string): string {
 
 function productName(stock: InventoryStock): string {
   return stock.product?.name?.trim() || (stock.product_id ? `Product #${stock.product_id}` : "Product not linked");
+}
+
+function productImageUrl(stock: InventoryStock): string | null {
+  const path = stock.product?.primary_media?.path?.trim();
+  if (!path) return null;
+  if (/^https?:\/\//i.test(path)) return path;
+  return `/storage/${path.replace(/^\/+/, "")}`;
 }
 
 function productSku(stock: InventoryStock): string {
@@ -586,7 +594,8 @@ onMounted(() => {
                 <td>
                   <div class="product-cell">
                     <div class="product-avatar">
-                      <Icon name="package" :size="17" />
+                      <img v-if="productImageUrl(stock)" :src="productImageUrl(stock)!" :alt="stock.product?.primary_media?.alt_text || productName(stock)" loading="lazy" />
+                      <Icon v-else name="package" :size="17" />
                     </div>
 
                     <div class="product-details">
@@ -658,7 +667,10 @@ onMounted(() => {
             >
               <header class="stock-modal-header">
                 <div class="stock-modal-title-wrap">
-                  <div class="stock-modal-icon"><Icon name="package" :size="25" /></div>
+                  <div class="stock-modal-icon">
+                    <img v-if="productImageUrl(selectedStock)" :src="productImageUrl(selectedStock)!" :alt="selectedStock.product?.primary_media?.alt_text || productName(selectedStock)" />
+                    <Icon v-else name="package" :size="25" />
+                  </div>
                   <div class="stock-modal-heading">
                     <p class="stock-modal-eyebrow">INVENTORY RECORD #{{ selectedStock.id }}</p>
                     <h2 id="stock-modal-title">{{ productName(selectedStock) }}</h2>
@@ -1864,6 +1876,9 @@ table th{font-size:9px}
   background: linear-gradient(135deg, #fff 0%, #fbfcff 100%);
 }
 .stock-modal-title-wrap { display: flex; align-items: center; gap: 16px; min-width: 0; }
+.stock-modal-icon img { width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }
+.product-avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }
+
 .stock-modal-icon {
   display: grid;
   width: 58px;

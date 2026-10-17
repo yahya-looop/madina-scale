@@ -139,21 +139,29 @@ class ProductController extends Controller
             $validated['barcode'],
         );
 
-        // The uploaded file is media, not a products table column.
-        unset($validated['image']);
+        // Images are media records, not columns on the products table.
+        unset($validated['image'], $validated['images']);
+        $uploadedFiles = array_values(array_filter(array_merge(
+            [$request->file('image')],
+            $request->file('images', [])
+        )));
+        if (count($uploadedFiles) > 10) {
+            throw ValidationException::withMessages([
+                'images' => 'A product can have up to 10 images.',
+            ]);
+        }
 
-        $uploadedFile = $request->file('image');
-        $storedPath = null;
+        $storedPaths = [];
 
         try {
             $product = DB::transaction(function () use (
                 $validated,
-                $uploadedFile,
-                &$storedPath
+                $uploadedFiles,
+                &$storedPaths
             ) {
                 $product = Product::create($validated);
 
-                if ($uploadedFile !== null) {
+                foreach ($uploadedFiles as $index => $uploadedFile) {
                     $storedPath = $uploadedFile->store(
                         'products/' . $product->id . '/images',
                         'public'
@@ -161,13 +169,12 @@ class ProductController extends Controller
 
                     if ($storedPath === false) {
                         throw new \RuntimeException(
-                            'The product image could not be stored.'
+                            'A product image could not be stored.'
                         );
                     }
 
-                    $imageSize = @getimagesize(
-                        $uploadedFile->getRealPath()
-                    );
+                    $storedPaths[] = $storedPath;
+                    $imageSize = @getimagesize($uploadedFile->getRealPath());
 
                     ProductMedia::create([
                         'product_id' => $product->id,
@@ -177,23 +184,19 @@ class ProductController extends Controller
                         'original_name' => $uploadedFile->getClientOriginalName(),
                         'mime_type' => $uploadedFile->getMimeType(),
                         'size' => $uploadedFile->getSize(),
-                        'width' => $imageSize !== false
-                            ? ($imageSize[0] ?? null)
-                            : null,
-                        'height' => $imageSize !== false
-                            ? ($imageSize[1] ?? null)
-                            : null,
+                        'width' => $imageSize !== false ? ($imageSize[0] ?? null) : null,
+                        'height' => $imageSize !== false ? ($imageSize[1] ?? null) : null,
                         'alt_text' => $product->name,
-                        'sort_order' => 0,
-                        'is_primary' => true,
+                        'sort_order' => $index,
+                        'is_primary' => $index === 0,
                     ]);
                 }
 
                 return $product;
             });
         } catch (\Throwable $exception) {
-            if ($storedPath !== null) {
-                Storage::disk('public')->delete($storedPath);
+            foreach ($storedPaths as $path) {
+                Storage::disk('public')->delete($path);
             }
 
             throw $exception;
@@ -243,10 +246,18 @@ class ProductController extends Controller
         );
 
         // Keep image data out of the products table update.
-        unset($validated['image']);
+        unset($validated['image'], $validated['images']);
 
         $uploadedFile = $request->file('image');
+        $galleryFiles = array_values(array_filter($request->file('images', [])));
+        $existingImageCount = $product->media()->where('collection', 'images')->count();
+        if ($existingImageCount + count($galleryFiles) > 10) {
+            throw ValidationException::withMessages([
+                'images' => 'A product can have up to 10 images in total.',
+            ]);
+        }
         $storedPath = null;
+        $additionalStoredPaths = [];
         $oldMediaDisk = null;
         $oldMediaPath = null;
 
@@ -257,7 +268,9 @@ class ProductController extends Controller
                 $uploadedFile,
                 &$storedPath,
                 &$oldMediaDisk,
-                &$oldMediaPath
+                &$oldMediaPath,
+                $galleryFiles,
+                &$additionalStoredPaths
             ) {
                 $product->update($validated);
 
@@ -321,13 +334,61 @@ class ProductController extends Controller
                     ]);
                 }
 
+                // Additional gallery uploads are appended without replacing
+                // the existing primary image. The first image becomes primary
+                // only when this product has no active primary image.
+                $hasPrimary = ProductMedia::query()
+                    ->where('product_id', $product->id)
+                    ->where('collection', 'images')
+                    ->where('is_primary', true)
+                    ->exists();
+
+                $nextOrder = (int) ProductMedia::query()
+                    ->where('product_id', $product->id)
+                    ->where('collection', 'images')
+                    ->max('sort_order') + 1;
+
+                foreach ($galleryFiles as $index => $galleryFile) {
+                    $galleryPath = $galleryFile->store(
+                        'products/' . $product->id . '/images',
+                        'public'
+                    );
+
+                    if ($galleryPath === false) {
+                        throw new \RuntimeException(
+                            'A gallery image could not be stored.'
+                        );
+                    }
+
+                    $additionalStoredPaths[] = $galleryPath;
+                    $imageSize = @getimagesize($galleryFile->getRealPath());
+
+                    ProductMedia::create([
+                        'product_id' => $product->id,
+                        'disk' => 'public',
+                        'path' => $galleryPath,
+                        'collection' => 'images',
+                        'original_name' => $galleryFile->getClientOriginalName(),
+                        'mime_type' => $galleryFile->getMimeType(),
+                        'size' => $galleryFile->getSize(),
+                        'width' => $imageSize !== false ? ($imageSize[0] ?? null) : null,
+                        'height' => $imageSize !== false ? ($imageSize[1] ?? null) : null,
+                        'alt_text' => $product->name,
+                        'sort_order' => $nextOrder + $index,
+                        'is_primary' => !$hasPrimary && $index === 0,
+                    ]);
+                }
+
                 return $product;
             });
         } catch (\Throwable $exception) {
-            // The DB transaction rolls back on failure. Remove only the
-            // newly uploaded file; do not delete the previous image.
+            // The DB transaction rolls back on failure. Remove only files
+            // uploaded by this request; retain previous product media.
             if ($storedPath !== null) {
                 Storage::disk('public')->delete($storedPath);
+            }
+            foreach ($additionalStoredPaths as $path) {
+                Storage::disk('public')->delete($path);
             }
 
             throw $exception;
@@ -483,6 +544,13 @@ class ProductController extends Controller
 
             'image' => [
                 'nullable',
+                'file',
+                'image',
+                'mimes:jpg,jpeg,png,webp',
+                'max:5120',
+            ],
+            'images' => ['sometimes', 'array', 'max:10'],
+            'images.*' => [
                 'file',
                 'image',
                 'mimes:jpg,jpeg,png,webp',

@@ -92,17 +92,13 @@ test('authenticated user without inventory permission receives forbidden respons
         'location_id' => inventoryApiCreateLocation()->id,
         'quantity' => '10.0000',
         'reserved_quantity' => '0.0000',
-        'low_stock_threshold' => '2.0000',
+        'low_stock_threshold' => '20.0000',
     ]);
 
     $this->patchJson(
         '/api/inventory/stocks/' . $stock->id . '/threshold',
-        ['low_stock_threshold' => '5.0000']
+        ['low_stock_threshold' => '20']
     )->assertForbidden();
-
-    $this->patchJson('/api/inventory/stocks/1/threshold', [
-        'low_stock_threshold' => '5.0000',
-    ])->assertForbidden();
 
     $this->postJson('/api/inventory/receive', [])
         ->assertForbidden();
@@ -571,11 +567,11 @@ test('user with inventory update permission can update low stock threshold witho
     $this->actingAs($user);
 
     $this->patchJson('/api/inventory/stocks/' . $stock->id . '/threshold', [
-        'low_stock_threshold' => '8.5000',
+        'low_stock_threshold' => '20',
     ])
         ->assertOk()
         ->assertJsonPath('message', 'Low-stock threshold updated successfully.')
-        ->assertJsonPath('data.low_stock_threshold', '8.5000')
+        ->assertJsonPath('data.low_stock_threshold', '20.0000')
         ->assertJsonPath('data.available_quantity', '8.0000')
         ->assertJsonPath('data.is_low_stock', true);
 
@@ -583,14 +579,14 @@ test('user with inventory update permission can update low stock threshold witho
         'id' => $stock->id,
         'quantity' => '10.0000',
         'reserved_quantity' => '2.0000',
-        'low_stock_threshold' => '8.5000',
+        'low_stock_threshold' => '20.0000',
     ]);
 
     expect(\App\Models\StockMovement::query()->count())
         ->toBe($movementCount);
 });
 
-test('low stock threshold update accepts zero and rejects invalid precision or negative values', function () {
+test('low stock threshold requires an integer of at least 20', function () {
     $user = createInventoryApiUser([
         'system.inventory.update',
     ]);
@@ -600,29 +596,27 @@ test('low stock threshold update accepts zero and rejects invalid precision or n
         'location_id' => inventoryApiCreateLocation()->id,
         'quantity' => '5.0000',
         'reserved_quantity' => '0.0000',
-        'low_stock_threshold' => '2.0000',
+        'low_stock_threshold' => '20.0000',
     ]);
 
     $this->actingAs($user);
 
-    $this->patchJson('/api/inventory/stocks/' . $stock->id . '/threshold', [
-        'low_stock_threshold' => '0',
-    ])
-        ->assertOk()
-        ->assertJsonPath('data.low_stock_threshold', '0.0000')
-        ->assertJsonPath('data.is_low_stock', false);
+    // The minimum allowed threshold is 20, and valid values are whole numbers.
+    foreach (['20', '50', '100'] as $validThreshold) {
+        $this->patchJson('/api/inventory/stocks/' . $stock->id . '/threshold', [
+            'low_stock_threshold' => $validThreshold,
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.low_stock_threshold', number_format((int) $validThreshold, 4, '.', ''));
+    }
 
-    $this->patchJson('/api/inventory/stocks/' . $stock->id . '/threshold', [
-        'low_stock_threshold' => '-1',
-    ])
-        ->assertUnprocessable()
-        ->assertJsonValidationErrors(['low_stock_threshold']);
-
-    $this->patchJson('/api/inventory/stocks/' . $stock->id . '/threshold', [
-        'low_stock_threshold' => '1.12345',
-    ])
-        ->assertUnprocessable()
-        ->assertJsonValidationErrors(['low_stock_threshold']);
+    foreach (['0', '19', '-5', '50.5', '1.12345'] as $invalidThreshold) {
+        $this->patchJson('/api/inventory/stocks/' . $stock->id . '/threshold', [
+            'low_stock_threshold' => $invalidThreshold,
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['low_stock_threshold']);
+    }
 });
 
 test('low stock threshold update returns not found for a missing stock row', function () {

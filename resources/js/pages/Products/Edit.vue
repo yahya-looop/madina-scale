@@ -122,6 +122,8 @@ const slugManuallyEdited = ref(false);
 
 const selectedImage = ref<File | null>(null);
 const imagePreviewUrl = ref<string | null>(null);
+const galleryImages = ref<Array<{ file: File; preview: string }>>([]);
+const galleryInput = ref<HTMLInputElement | null>(null);
 
 const form = ref({
   category_id: "",
@@ -218,6 +220,17 @@ const primaryMedia = computed<ProductMedia | null>(() => {
     null
   );
 });
+
+const existingGalleryMedia = computed<ProductMedia[]>(() => {
+  return (product.value?.media ?? []).filter(
+    (media) => media.collection === "images" && !media.is_primary
+  );
+});
+
+function productMediaUrl(media: ProductMedia): string {
+  if (/^https?:\/\//i.test(media.path)) return media.path;
+  return `/storage/${media.path.replace(/^\/+/, "")}`;
+}
 
 const existingImageUrl = computed(() => {
   if (imagePreviewUrl.value) {
@@ -518,6 +531,29 @@ function removeSelectedImage(): void {
   selectedImage.value = null;
 }
 
+function onGallerySelected(event: Event): void {
+  const input = event.target as HTMLInputElement;
+  const files = Array.from(input.files ?? []);
+  const existingCount = product.value?.media?.filter((media) => media.collection === "images").length ?? 0;
+  const available = Math.max(0, 10 - existingCount - galleryImages.value.length);
+
+  for (const file of files.slice(0, available)) {
+    const validationError = validateImage(file);
+    if (validationError) {
+      errorMessage.value = `${file.name}: ${validationError}`;
+      continue;
+    }
+    galleryImages.value.push({ file, preview: URL.createObjectURL(file) });
+  }
+  if (files.length > available) errorMessage.value = "A product can have up to 10 images in total.";
+  input.value = "";
+}
+
+function removeGalleryImage(index: number): void {
+  const [removed] = galleryImages.value.splice(index, 1);
+  if (removed) URL.revokeObjectURL(removed.preview);
+}
+
 /* ==========================================================================
    UPDATE
    ========================================================================== */
@@ -600,6 +636,7 @@ async function updateProduct(): Promise<void> {
     if (selectedImage.value) {
       formData.append("image", selectedImage.value);
     }
+    galleryImages.value.forEach(({ file }) => formData.append("images[]", file));
 
     // Laravel multipart update-এর জন্য method spoofing
     formData.append("_method", "PUT");
@@ -658,6 +695,7 @@ onBeforeUnmount(() => {
   if (imagePreviewUrl.value) {
     URL.revokeObjectURL(imagePreviewUrl.value);
   }
+  galleryImages.value.forEach(({ preview }) => URL.revokeObjectURL(preview));
 });
 </script>
 
@@ -879,6 +917,16 @@ onBeforeUnmount(() => {
                   <span> No primary media is currently attached. </span>
                 </div>
 
+                <div v-if="existingGalleryMedia.length" class="existing-gallery">
+                  <strong>Current gallery · {{ existingGalleryMedia.length }} additional {{ existingGalleryMedia.length === 1 ? "image" : "images" }}</strong>
+                  <div class="gallery-preview-grid">
+                    <div v-for="media in existingGalleryMedia" :key="media.id" class="gallery-preview-item existing-gallery-item">
+                      <img :src="productMediaUrl(media)" :alt="media.alt_text || media.original_name || product.name" loading="lazy" />
+                      <small>{{ media.original_name || "Product image" }}</small>
+                    </div>
+                  </div>
+                </div>
+
                 <label class="media-upload">
                   <input
                     type="file"
@@ -905,6 +953,21 @@ onBeforeUnmount(() => {
                   <button type="button" @click="removeSelectedImage">
                     <Icon name="x" :size="14" />
                   </button>
+                </div>
+
+                <div class="gallery-upload-panel">
+                  <div class="gallery-upload-heading">
+                    <div><strong>Add gallery images</strong><p>Existing images stay intact. Up to 10 images per product.</p></div>
+                    <button type="button" class="browse-link" @click="galleryInput?.click()">Add images</button>
+                  </div>
+                  <input ref="galleryInput" class="gallery-hidden-input" type="file" accept="image/jpeg,image/png,image/webp" multiple @change="onGallerySelected" />
+                  <div v-if="galleryImages.length" class="gallery-preview-grid">
+                    <div v-for="(item, index) in galleryImages" :key="`${item.file.name}-${item.file.lastModified}`" class="gallery-preview-item">
+                      <img :src="item.preview" :alt="item.file.name" />
+                      <button type="button" :aria-label="`Remove ${item.file.name}`" @click="removeGalleryImage(index)"><Icon name="x" :size="13" /></button>
+                      <small>{{ item.file.name }}</small>
+                    </div>
+                  </div>
                 </div>
 
                 <div class="media-note">
@@ -1623,6 +1686,20 @@ onBeforeUnmount(() => {
 .summary-identity,
 .summary-row,
 .save-status,
+.existing-gallery { margin: 14px 0 18px; }
+.existing-gallery > strong { display: block; margin-bottom: 10px; font-size: 12px; }
+.existing-gallery-item img { cursor: default; }
+.gallery-hidden-input { display: none; }
+.gallery-upload-panel { margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--border, #e5e7eb); }
+.gallery-upload-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.gallery-upload-heading strong { display: block; font-size: 13px; }
+.gallery-upload-heading p { margin: 4px 0 0; color: var(--muted-foreground, #6b7280); font-size: 12px; }
+.gallery-preview-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 10px; }
+.gallery-preview-item { position: relative; min-width: 0; }
+.gallery-preview-item img { width: 100%; aspect-ratio: 1; object-fit: cover; border: 1px solid var(--border, #e5e7eb); border-radius: 10px; }
+.gallery-preview-item button { position: absolute; top: 5px; right: 5px; display: grid; place-items: center; width: 25px; height: 25px; border: 0; border-radius: 50%; background: #111827d9; color: white; cursor: pointer; }
+.gallery-preview-item small { display: block; margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted-foreground, #6b7280); font-size: 10px; }
+
 .media-note,
 .image-overlay,
 .image-file-info,

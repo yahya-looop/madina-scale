@@ -63,6 +63,8 @@ const form = ref({
 
 const selectedImage = ref<File | null>(null);
 const imagePreview = ref("");
+const galleryImages = ref<Array<{ file: File; preview: string }>>([]);
+const galleryInput = ref<HTMLInputElement | null>(null);
 const slugManuallyEdited = ref(false);
 const imageInput = ref<HTMLInputElement | null>(null);
 
@@ -264,6 +266,31 @@ function onDrop(event: DragEvent) {
   }
 }
 
+function onGallerySelected(event: Event) {
+  const input = event.target as HTMLInputElement;
+  const files = Array.from(input.files ?? []);
+  const available = Math.max(0, 9 - galleryImages.value.length);
+
+  for (const file of files.slice(0, available)) {
+    const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
+    if (!allowedTypes.includes(file.type) || file.size > 5 * 1024 * 1024) {
+      showToast(`${file.name}: use JPG, PNG or WebP up to 5 MB.`, "error");
+      continue;
+    }
+    galleryImages.value.push({ file, preview: URL.createObjectURL(file) });
+  }
+
+  if (files.length > available) {
+    showToast("A product can have up to 10 images in total.", "error");
+  }
+  input.value = "";
+}
+
+function removeGalleryImage(index: number) {
+  const [removed] = galleryImages.value.splice(index, 1);
+  if (removed) URL.revokeObjectURL(removed.preview);
+}
+
 function onDragOver(event: DragEvent) {
   event.preventDefault();
 }
@@ -363,6 +390,7 @@ async function createProduct() {
     if (selectedImage.value) {
       payload.append("image", selectedImage.value);
     }
+    galleryImages.value.forEach(({ file }) => payload.append("images[]", file));
 
     const response = await fetch("/api/products", {
       method: "POST",
@@ -420,6 +448,7 @@ onBeforeUnmount(() => {
   if (imagePreview.value) {
     URL.revokeObjectURL(imagePreview.value);
   }
+  galleryImages.value.forEach(({ preview }) => URL.revokeObjectURL(preview));
 });
 </script>
 
@@ -614,6 +643,21 @@ onBeforeUnmount(() => {
                 <button type="button" class="preview-action" @click="selectImage">
                   Replace image
                 </button>
+              </div>
+            </div>
+
+            <div class="gallery-upload-panel">
+              <div class="gallery-upload-heading">
+                <div><strong>Additional gallery images</strong><p>Upload up to 9 extra views. The primary image stays first.</p></div>
+                <button type="button" class="browse-link" @click="galleryInput?.click()">Add images</button>
+              </div>
+              <input ref="galleryInput" type="file" class="hidden-input" accept="image/jpeg,image/png,image/webp" multiple @change="onGallerySelected" />
+              <div v-if="galleryImages.length" class="gallery-preview-grid">
+                <div v-for="(item, index) in galleryImages" :key="`${item.file.name}-${item.file.lastModified}`" class="gallery-preview-item">
+                  <img :src="item.preview" :alt="item.file.name" />
+                  <button type="button" :aria-label="`Remove ${item.file.name}`" @click="removeGalleryImage(index)"><Icon name="x" :size="13" /></button>
+                  <small>{{ item.file.name }}</small>
+                </div>
               </div>
             </div>
           </section>
@@ -1721,6 +1765,16 @@ h1 {
 .hidden-input {
   display: none;
 }
+
+.gallery-upload-panel { margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--border, #e5e7eb); }
+.gallery-upload-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.gallery-upload-heading strong { display: block; font-size: 13px; }
+.gallery-upload-heading p { margin: 4px 0 0; color: var(--muted-foreground, #6b7280); font-size: 12px; }
+.gallery-preview-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 10px; }
+.gallery-preview-item { position: relative; min-width: 0; }
+.gallery-preview-item img { width: 100%; aspect-ratio: 1; object-fit: cover; border: 1px solid var(--border, #e5e7eb); border-radius: 10px; }
+.gallery-preview-item button { position: absolute; top: 5px; right: 5px; display: grid; place-items: center; width: 25px; height: 25px; border: 0; border-radius: 50%; background: #111827d9; color: white; cursor: pointer; }
+.gallery-preview-item small { display: block; margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted-foreground, #6b7280); font-size: 10px; }
 
 .upload-zone {
   display: flex;

@@ -28,6 +28,7 @@ class InventoryController extends Controller
         $query = InventoryStock::query()
             ->with([
                 'product:id,name,sku,product_type',
+                'product.primaryMedia:id,product_id,path,alt_text,is_primary',
                 'variant:id,product_id,name,sku,status',
                 'location:id,name,code,type',
             ])
@@ -58,6 +59,7 @@ class InventoryController extends Controller
         $query = InventoryStock::query()
             ->with([
                 'product:id,name,sku,product_type',
+                'product.primaryMedia:id,product_id,path,alt_text,is_primary',
                 'variant:id,product_id,name,sku,status',
                 'location:id,name,code,type',
             ])
@@ -106,6 +108,7 @@ class InventoryController extends Controller
 
         $stock->refresh()->load([
             'product:id,name,sku,product_type',
+                'product.primaryMedia:id,product_id,path,alt_text,is_primary',
             'variant:id,product_id,name,sku,status',
             'location:id,name,code,type',
         ]);
@@ -145,6 +148,7 @@ class InventoryController extends Controller
         $query = StockMovement::query()
             ->with([
                 'product:id,name,sku,product_type',
+                'product.primaryMedia:id,product_id,path,alt_text,is_primary',
                 'variant:id,product_id,name,sku',
                 'location:id,name,code',
                 'creator:id,name,email',

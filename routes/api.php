@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\InventoryController;
+use App\Http\Controllers\InventoryReservationController;
 use App\Http\Controllers\ProductCategoryController;
 use App\Http\Controllers\BrandController;
 use App\Http\Controllers\UnitController;
@@ -336,6 +337,27 @@ Route::middleware(['web', 'auth'])->group(function () {
 
     Route::get('/inventory/low-stock', [InventoryController::class, 'lowStock'])
         ->middleware('permission:system.inventory.view');
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Inventory Reservations
+    |--------------------------------------------------------------------------
+    */
+    Route::get('/inventory/reservations', [InventoryReservationController::class, 'index'])
+        ->middleware('permission:system.inventory.view');
+
+    Route::post('/inventory/reservations', [InventoryReservationController::class, 'store'])
+        ->middleware('permission:system.inventory.reservations.manage');
+
+    Route::post('/inventory/reservations/{reservation}/release', [InventoryReservationController::class, 'release'])
+        ->middleware('permission:system.inventory.reservations.manage');
+
+    Route::post('/inventory/reservations/{reservation}/cancel', [InventoryReservationController::class, 'cancel'])
+        ->middleware('permission:system.inventory.reservations.manage');
+
+    Route::post('/inventory/reservations/{reservation}/fulfill', [InventoryReservationController::class, 'fulfill'])
+        ->middleware('permission:system.inventory.reservations.manage');
 
 
 });

@@ -2063,6 +2063,11 @@ class SystemAuthorizationSeeder extends Seeder
                         'slug' => 'system.inventory.transfer',
                         'description' => 'Transfer stock between locations.',
                     ],
+                    [
+                        'name' => 'Manage Inventory Reservations',
+                        'slug' => 'system.inventory.reservations.manage',
+                        'description' => 'Create, release, cancel and fulfill stock reservations.',
+                    ],
                 ],
             ],
 
