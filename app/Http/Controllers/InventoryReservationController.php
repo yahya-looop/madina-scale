@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\InventoryReservation;
+use App\Models\InventoryReservationPurpose;
 use App\Services\InventoryReservationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -12,12 +13,31 @@ class InventoryReservationController extends Controller
 {
     public function __construct(private readonly InventoryReservationService $reservations) {}
 
+    public function purposes(): JsonResponse
+    {
+        return response()->json(['data' => InventoryReservationPurpose::query()
+            ->where('is_active', true)->orderBy('sort_order')->orderBy('label')->get(['id', 'key', 'label', 'is_active', 'sort_order'])]);
+    }
+
+    public function storePurpose(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'key' => ['required', 'string', 'max:24', 'regex:/^[a-z][a-z0-9_]*$/', 'unique:inventory_reservation_purposes,key'],
+            'label' => ['required', 'string', 'max:80'],
+        ]);
+        $purpose = InventoryReservationPurpose::query()->create([
+            'key' => $data['key'], 'label' => trim($data['label']), 'is_active' => true,
+            'sort_order' => (int) InventoryReservationPurpose::query()->max('sort_order') + 10,
+        ]);
+        return response()->json(['message' => 'Reservation purpose added successfully.', 'data' => $purpose], 201);
+    }
+
     public function index(Request $request): JsonResponse
     {
         $this->reservations->expireDue();
         $filters = $request->validate([
             'status' => ['nullable', Rule::in(['active', 'released', 'cancelled', 'fulfilled', 'expired'])],
-            'purpose' => ['nullable', Rule::in(['customer_order', 'internal_use'])],
+            'purpose' => ['nullable', 'string', 'max:24'],
             'location_id' => ['nullable', 'integer', 'min:1'],
             'product_id' => ['nullable', 'integer', 'min:1'],
             'product_variant_id' => ['nullable', 'integer', 'min:1'],
@@ -40,7 +60,7 @@ class InventoryReservationController extends Controller
             'product_variant_id' => ['nullable', 'integer', 'min:1', 'required_without:product_id', 'prohibits:product_id'],
             'location_id' => ['required', 'integer', 'min:1'],
             'quantity' => ['required', 'numeric', 'gt:0', 'decimal:0,4', 'max:99999999999999'],
-            'purpose' => ['required', Rule::in(['customer_order', 'internal_use'])],
+            'purpose' => ['required', 'string', 'max:24', Rule::exists('inventory_reservation_purposes', 'key')->where('is_active', true)],
             'reference_type' => ['nullable', 'string', 'max:80'],
             'reference_id' => ['nullable', 'string', 'max:120'],
             'reason' => ['nullable', 'string', 'max:2000'],

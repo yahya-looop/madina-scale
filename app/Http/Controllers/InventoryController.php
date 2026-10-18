@@ -134,6 +134,7 @@ class InventoryController extends Controller
                     'opening',
                     'receipt',
                     'issue',
+                    'order_fulfillment',
                     'adjustment',
                     'transfer_in',
                     'transfer_out',
@@ -248,6 +249,50 @@ class InventoryController extends Controller
                 'creator',
             ]),
         ]);
+    }
+
+    /**
+     * Transfer stock only for a product/variant that is currently low at the destination.
+     * This server-side check prevents clients from bypassing the Low Stock-only Restock UI.
+     */
+    public function restock(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'product_id' => ['nullable', 'integer', 'min:1', 'required_without:product_variant_id', 'prohibits:product_variant_id'],
+            'product_variant_id' => ['nullable', 'integer', 'min:1', 'required_without:product_id', 'prohibits:product_id'],
+            'source_location_id' => ['required', 'integer', 'min:1', 'different:destination_location_id'],
+            'destination_location_id' => ['required', 'integer', 'min:1'],
+            'quantity' => ['required', 'numeric', 'gt:0', 'regex:/^\d{1,14}(?:\.\d{1,4})?$/'],
+            'reason' => ['nullable', 'string', 'max:255'],
+            'reference_type' => ['nullable', 'string', 'max:100'],
+            'reference_id' => ['nullable', 'string', 'max:100'],
+            'idempotency_key' => ['nullable', 'uuid'],
+            'metadata' => ['nullable', 'array'],
+        ]);
+
+        $stockQuery = InventoryStock::query()
+            ->where('location_id', $data['destination_location_id'])
+            ->where('low_stock_threshold', '>', 0)
+            ->whereRaw('(quantity - reserved_quantity) <= low_stock_threshold');
+        if (isset($data['product_variant_id'])) {
+            $stockQuery->where('product_variant_id', $data['product_variant_id'])->whereNull('product_id');
+        } else {
+            $stockQuery->where('product_id', $data['product_id'])->whereNull('product_variant_id');
+        }
+        if (! $stockQuery->exists()) {
+            return response()->json([
+                'message' => 'Restock is only available for an item that is currently low in stock at the selected destination.',
+                'errors' => ['stock_id' => ['Choose a current low-stock item at the destination location.']],
+            ], 422);
+        }
+
+        $result = $this->inventoryService->transfer($data, $request->user());
+        foreach (['outgoing', 'incoming'] as $key) {
+            if (($result[$key] ?? null) instanceof StockMovement) {
+                $result[$key]->forceFill(['ip_address' => $request->ip()])->save();
+            }
+        }
+        return response()->json(['message' => 'Low-stock item restocked successfully by transfer.', 'data' => $result]);
     }
 
     public function transfer(Request $request): JsonResponse

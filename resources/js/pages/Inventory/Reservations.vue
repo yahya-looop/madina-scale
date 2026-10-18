@@ -14,7 +14,7 @@ interface Reservation {
   product_variant_id?: number | null;
   location_id: number;
   quantity: string | number;
-  purpose: "customer_order" | "internal_use";
+  purpose: string;
   status: "active" | "released" | "cancelled" | "fulfilled" | "expired";
   reference_type?: string | null;
   reference_id?: string | null;
@@ -44,6 +44,13 @@ const error = ref("");
 const notice = ref("");
 const statusFilter = ref("all");
 const purposeFilter = ref("all");
+interface ReservationPurpose { id: number; key: string; label: string; is_active: boolean; sort_order: number }
+const purposes = ref<ReservationPurpose[]>([]);
+const managePurposesOpen = ref(false);
+const purposeLabelDraft = ref("");
+const purposeKeyDraft = ref("");
+const purposeSaving = ref(false);
+const purposeError = ref("");
 const search = ref("");
 const page = ref(1);
 const lastPage = ref(1);
@@ -89,22 +96,46 @@ function date(v?: string | null): string {
         timeStyle: "short",
       }).format(d);
 }
+
 function statusLabel(s: Reservation["status"]): string {
   return (
     ({
       active: "Active",
-      released: "Released",
+      released: "Stock Freed",
       cancelled: "Cancelled",
-      fulfilled: "Fulfilled",
+      fulfilled: "Order Out (Fulfillment)",
       expired: "Expired",
     } as Record<string, string>)[s] ?? s
   );
 }
+
 function productLabel(r: Reservation): string {
   return r.variant
     ? `${r.product?.name ?? `Product #${r.variant.product_id}`} · ${r.variant.name}`
     : r.product?.name ??
         (r.product_id ? `Product #${r.product_id}` : `Variant #${r.product_variant_id}`);
+}
+async function loadPurposes(): Promise<void> {
+  try {
+    const response = await fetch("/api/inventory/reservation-purposes", { credentials: "same-origin", headers: { Accept: "application/json", "X-Requested-With": "XMLHttpRequest" } });
+    const payload = await response.json();
+    if (response.ok) purposes.value = Array.isArray(payload.data) ? payload.data : [];
+  } catch { /* The reservation table can still be read if purposes fail to load. */ }
+}
+function makePurposeKey(): void {
+  purposeKeyDraft.value = purposeLabelDraft.value.toLowerCase().trim().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 24);
+}
+async function createPurpose(): Promise<void> {
+  if (purposeSaving.value) return;
+  purposeSaving.value = true; purposeError.value = "";
+  try {
+    const token = decodeURIComponent(document.cookie.split("; ").find((v) => v.startsWith("XSRF-TOKEN="))?.split("=").slice(1).join("=") ?? "");
+    const response = await fetch("/api/inventory/reservation-purposes", { method: "POST", credentials: "same-origin", headers: { Accept: "application/json", "Content-Type": "application/json", "X-Requested-With": "XMLHttpRequest", "X-XSRF-TOKEN": token }, body: JSON.stringify({ key: purposeKeyDraft.value, label: purposeLabelDraft.value.trim() }) });
+    const payload = await response.json();
+    if (!response.ok) { const first = payload.errors ? Object.values(payload.errors).flat()[0] : null; throw new Error(String(first || payload.message || "Unable to add purpose.")); }
+    purposeLabelDraft.value = ""; purposeKeyDraft.value = ""; await loadPurposes(); notice.value = payload.message || "Reservation purpose added.";
+  } catch (e) { purposeError.value = e instanceof Error ? e.message : "Unable to add purpose."; }
+  finally { purposeSaving.value = false; }
 }
 async function load(target = page.value): Promise<void> {
   loading.value = true;
@@ -148,7 +179,11 @@ async function confirmResolution(): Promise<void> {
   const action = confirmationAction.value;
   if (!r || !action || busyId.value !== null) return;
   const label =
-    action === "fulfill" ? "fulfill" : action === "cancel" ? "cancel" : "release";
+    action === "fulfill"
+      ? "complete Order Out"
+      : action === "cancel"
+      ? "cancel"
+      : "free reserved stock";
   busyId.value = r.id;
   error.value = "";
   notice.value = "";
@@ -189,7 +224,7 @@ function changeFilter(): void {
   page.value = 1;
   void load(1);
 }
-onMounted(() => void load(1));
+onMounted(() => { void load(1); void loadPurposes(); });
 </script>
 
 <template>
@@ -250,7 +285,7 @@ onMounted(() => void load(1));
           /></span>
           <div>
             <strong>{{ rows.filter((r) => r.status === "fulfilled").length }}</strong
-            ><span>Fulfilled on this page</span>
+            ><span>Order Out on this page</span>
           </div>
         </article>
         <article>
@@ -267,7 +302,21 @@ onMounted(() => void load(1));
             <h2>Reservation records</h2>
             <p>Actions are available for active reservations only.</p>
           </div>
-          <span class="reservation-count">{{ quantity(total) }} records</span>
+          <div class="reservation-page-actions">
+            <span class="reservation-count">{{ quantity(total) }} records</span>
+            <button class="reservation-btn" type="button" @click="managePurposesOpen = !managePurposesOpen">Manage purposes</button>
+          </div>
+        </div>
+        <div v-if="managePurposesOpen" class="purpose-manager">
+          <strong>Reservation purposes</strong>
+          <p>Add a purpose here; it will appear in reservation creation and filters.</p>
+          <form class="purpose-manager-form" @submit.prevent="createPurpose">
+            <label>Purpose label<input v-model="purposeLabelDraft" required maxlength="80" placeholder="e.g. Quality inspection" @input="makePurposeKey" /></label>
+            <label>Purpose key<input v-model="purposeKeyDraft" required maxlength="24" pattern="[a-z][a-z0-9_]*" placeholder="quality_inspection" /></label>
+            <button class="reservation-btn reservation-btn-primary" type="submit" :disabled="purposeSaving">{{ purposeSaving ? "Adding…" : "Add purpose" }}</button>
+          </form>
+          <p v-if="purposeError" class="purpose-manager-error" role="alert">{{ purposeError }}</p>
+          <div class="purpose-manager-list"><span v-for="purpose in purposes" :key="purpose.id">{{ purpose.label }} <small>{{ purpose.key }}</small></span></div>
         </div>
         <div class="reservation-toolbar">
           <label class="reservation-search"
@@ -280,16 +329,15 @@ onMounted(() => void load(1));
             >Status<select v-model="statusFilter" @change="changeFilter">
               <option value="all">All statuses</option>
               <option value="active">Active</option>
-              <option value="fulfilled">Fulfilled</option>
-              <option value="released">Released</option>
+              <option value="fulfilled">Order Out (Fulfillment)</option>
+              <option value="released">Stock Freed</option>
               <option value="cancelled">Cancelled</option>
               <option value="expired">Expired</option>
             </select></label
           ><label class="filter-label"
             >Purpose<select v-model="purposeFilter" @change="changeFilter">
               <option value="all">All purposes</option>
-              <option value="customer_order">Customer order</option>
-              <option value="internal_use">Internal use</option>
+              <option v-for="purpose in purposes" :key="purpose.key" :value="purpose.key">{{ purpose.label }}</option>
             </select></label
           >
         </div>
@@ -343,9 +391,7 @@ onMounted(() => void load(1));
                   >
                 </td>
                 <td>
-                  <span class="purpose-pill">{{
-                    r.purpose === "customer_order" ? "Customer order" : "Internal use"
-                  }}</span
+                  <span class="purpose-pill">{{ purposes.find((p) => p.key === r.purpose)?.label || r.purpose }}</span
                   ><small>{{
                     [r.reference_type, r.reference_id].filter(Boolean).join(" · ") ||
                     r.reason ||
@@ -370,14 +416,14 @@ onMounted(() => void load(1));
                       :disabled="busyId === r.id"
                       @click="resolve(r, 'fulfill')"
                     >
-                      <Icon name="check" :size="13" /> Fulfill</button
+                      <Icon name="check" :size="13" /> Order Out</button
                     ><button
                       type="button"
                       class="action-release"
                       :disabled="busyId === r.id"
                       @click="resolve(r, 'release')"
                     >
-                      Release</button
+                      Free Stock</button
                     ><button
                       type="button"
                       class="action-cancel"
@@ -424,9 +470,8 @@ onMounted(() => void load(1));
         </footer>
       </section>
       <p class="reservation-footnote">
-        <Icon name="info" :size="14" /> Fulfilling a reservation issues the reserved
-        quantity from on-hand stock and records a stock movement. Releasing or cancelling
-        returns that quantity to available stock.
+        Order Out (Fulfillment) reduces on-hand stock and records a stock movement. Free
+        Stock or Cancel releases the reservation hold; on-hand stock does not change.
       </p>
 
       <Teleport to="body">
@@ -461,30 +506,30 @@ onMounted(() => void load(1));
             <h2 id="reservation-confirm-title">
               {{
                 confirmationAction === "fulfill"
-                  ? "Fulfill reservation?"
+                  ? "Order Out (Fulfillment)?"
                   : confirmationAction === "release"
-                  ? "Release reservation?"
+                  ? "Free reserved stock?"
                   : "Cancel reservation?"
               }}
             </h2>
             <p id="reservation-confirm-description">
               {{
                 confirmationAction === "fulfill"
-                  ? `This will issue ${quantity(
+                  ? `This will reduce on-hand stock by ${quantity(
                       confirmationReservation.quantity
                     )} unit(s) of ${productLabel(
                       confirmationReservation
-                    )} from on-hand stock, record a stock movement, and mark reservation #${
+                    )}, record an Order Out (Fulfillment) stock movement, and mark reservation #${
                       confirmationReservation.id
-                    } as Fulfilled. This action should be used when the reserved goods are actually being issued.`
+                    } as Fulfilled. Use this when the reserved goods are actually leaving stock.`
                   : confirmationAction === "release"
-                  ? `This will remove the hold on ${quantity(
+                  ? `This will free ${quantity(
                       confirmationReservation.quantity
-                    )} unit(s) of ${productLabel(
+                    )} reserved unit(s) of ${productLabel(
                       confirmationReservation
-                    )} and return them to available stock. Reservation #${
+                    )} so they are available again. Reservation #${
                       confirmationReservation.id
-                    } will be marked Released; stock will not be issued.`
+                    } will be marked Released. On-hand stock will not change.`
                   : `This will permanently mark reservation #${
                       confirmationReservation.id
                     } as Cancelled and return its ${quantity(
@@ -531,9 +576,9 @@ onMounted(() => void load(1));
                   busyId === confirmationReservation.id
                     ? "Processing…"
                     : confirmationAction === "fulfill"
-                    ? "Confirm fulfilment"
+                    ? "Confirm Order Out"
                     : confirmationAction === "release"
-                    ? "Confirm release"
+                    ? "Free Reserved Stock"
                     : "Confirm cancellation"
                 }}
               </button>
@@ -1350,4 +1395,14 @@ onMounted(() => void load(1));
     animation: none;
   }
 }
+.purpose-manager { margin: 0 20px 18px; padding: 16px; border: 1px solid var(--border, #e5e7eb); border-radius: 12px; background: var(--surface, #fff); }
+.purpose-manager > p { margin: 6px 0 12px; color: var(--text-secondary, #667085); }
+.purpose-manager-form { display: grid; grid-template-columns: minmax(140px, 1fr) minmax(140px, 1fr) auto; gap: 12px; align-items: end; }
+.purpose-manager-form label { display: grid; gap: 6px; font-size: 12px; font-weight: 600; }
+.purpose-manager-form input { min-width: 0; border: 1px solid var(--border, #d0d5dd); border-radius: 8px; padding: 10px; background: var(--surface, #fff); color: inherit; }
+.purpose-manager-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.purpose-manager-list span { display: inline-flex; gap: 8px; align-items: center; border-radius: 999px; background: var(--background, #f3f5f8); padding: 6px 10px; }
+.purpose-manager-list small { color: var(--text-secondary, #667085); }
+.purpose-manager-error { color: #b42318; }
+@media (max-width: 680px) { .purpose-manager-form { grid-template-columns: 1fr; } }
 </style>

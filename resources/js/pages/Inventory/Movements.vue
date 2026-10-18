@@ -50,9 +50,10 @@ const total = ref(0);
 let requestSequence = 0;
 const typeOptions = [
   { value: "all", label: "All types" },
-  { value: "receive", label: "Receive" },
-  { value: "issue", label: "Issue" },
-  { value: "adjust", label: "Adjustment" },
+  { value: "receive", label: "Stock In" },
+  { value: "issue", label: "Stock Out" },
+  { value: "order_out", label: "Order Out (Fulfillment)" },
+  { value: "adjust", label: "Stock Adjustment" },
   { value: "transfer", label: "Transfer" },
 ];
 const filteredRows = computed(() => {
@@ -102,6 +103,8 @@ function movementType(row: Movement): string {
     raw === "in"
   )
     return "receive";
+  if (raw.includes("order_fulfillment") || raw.includes("order fulfillment"))
+    return "order_out";
   if (raw.includes("issu") || raw.includes("outbound") || raw === "out") return "issue";
   if (raw.includes("transfer")) return "transfer";
   if (raw.includes("adjust")) return "adjust";
@@ -111,10 +114,11 @@ function typeLabel(row: Movement): string {
   const kind = movementType(row);
   return (
     ({
-      receive: "Receive",
-      issue: "Issue",
-      transfer: "Transfer",
-      adjust: "Adjustment",
+      receive: "Stock In",
+      issue: "Stock Out",
+      order_out: "Order Out (Fulfillment)",
+      transfer: "Stock Transfer",
+      adjust: "Stock Adjustment",
     } as Record<string, string>)[kind] ??
     kind.replace(/[_-]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
   );
@@ -123,7 +127,8 @@ function typeIcon(row: Movement): string {
   return (
     ({
       receive: "package-import",
-      issue: "alert-triangle",
+      issue: "stock-out",
+      order_out: "shopping-cart",
       transfer: "arrows-left-right",
       adjust: "sliders-horizontal",
     } as Record<string, string>)[movementType(row)] ?? "history"
@@ -198,7 +203,7 @@ onMounted(() => void load(1));
             <div class="page-title-icon"><Icon name="history" :size="22" /></div>
             <div class="title-copy">
               <h1>Stock Movements</h1>
-              <p>Review inventory receipts, issues, adjustments and transfers.</p>
+              <p>Review stock in, stock out, order out, adjustments and transfers.</p>
             </div>
           </div>
         </div>
@@ -232,14 +237,14 @@ onMounted(() => void load(1));
         </article>
         <article class="stat-card">
           <div class="stat-top">
-            <span class="stat-icon amber"><Icon name="alert-triangle" :size="19" /></span
+            <span class="stat-icon amber"><Icon name="stock-out" :size="19" /></span
             ><span class="stat-caption">Current page</span>
           </div>
           <div class="stat-value">
             {{ qty(rows.filter((row) => movementType(row) === "issue").length) }}
           </div>
-          <div class="stat-label">Issues</div>
-          <p class="stat-description">Stock issues on this page.</p>
+          <div class="stat-label">Stock Out</div>
+          <p class="stat-description">Manual stock-out records on this page.</p>
         </article>
         <article class="stat-card">
           <div class="stat-top">
@@ -343,7 +348,7 @@ onMounted(() => void load(1));
             {{
               search || typeFilter !== "all"
                 ? "Try changing the search term or movement type."
-                : "Stock receipt, issue, adjustment and transfer records will appear here when transactions are recorded."
+                : "Stock in, stock out, order out, adjustment and transfer records will appear here when transactions are recorded."
             }}
           </p>
           <button

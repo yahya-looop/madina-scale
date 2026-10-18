@@ -335,6 +335,9 @@ Route::middleware(['web', 'auth'])->group(function () {
     Route::post('/inventory/transfer', [InventoryController::class, 'transfer'])
         ->middleware('permission:system.inventory.transfer');
 
+    Route::post('/inventory/restock', [InventoryController::class, 'restock'])
+        ->middleware('permission:system.inventory.transfer');
+
     Route::get('/inventory/low-stock', [InventoryController::class, 'lowStock'])
         ->middleware('permission:system.inventory.view');
 
@@ -344,6 +347,11 @@ Route::middleware(['web', 'auth'])->group(function () {
     | Inventory Reservations
     |--------------------------------------------------------------------------
     */
+    Route::get('/inventory/reservation-purposes', [InventoryReservationController::class, 'purposes'])
+        ->middleware('permission:system.inventory.view');
+    Route::post('/inventory/reservation-purposes', [InventoryReservationController::class, 'storePurpose'])
+        ->middleware('permission:system.inventory.reservations.manage');
+
     Route::get('/inventory/reservations', [InventoryReservationController::class, 'index'])
         ->middleware('permission:system.inventory.view');
 

@@ -1,3 +1,4 @@
+
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { Head } from "@inertiajs/vue3";
@@ -10,6 +11,10 @@ interface Props {
 }
 interface StockRecord {
   id: number;
+  product_id?: number | null;
+  product_variant_id?: number | null;
+  variant_id?: number | null;
+  location_id?: number | null;
   quantity: string | number;
   reserved_quantity: string | number;
   available_quantity?: string | number;
@@ -38,6 +43,13 @@ const page = ref(1);
 const perPage = ref(10);
 const lastPage = ref(1);
 const total = ref(0);
+const restockOpen = ref(false);
+const restockSaving = ref(false);
+const restockError = ref("");
+const restockSuccess = ref("");
+const restockQuantity = ref("1");
+const restockReason = ref("");
+const restockStock = ref<StockRecord | null>(null);
 let requestSequence = 0;
 
 const filteredRecords = computed(() => {
@@ -118,6 +130,72 @@ function changePage(target: number): void {
   page.value = next;
   void load(next);
 }
+function openRestock(row: StockRecord): void {
+  restockStock.value = row;
+  restockQuantity.value = "1";
+  restockReason.value = "";
+  restockError.value = "";
+  restockSuccess.value = "";
+  restockOpen.value = true;
+}
+function closeRestock(): void {
+  if (restockSaving.value) return;
+  restockOpen.value = false;
+  restockStock.value = null;
+  restockError.value = "";
+}
+async function submitRestock(): Promise<void> {
+  const stock = restockStock.value;
+  if (!stock) return;
+  const quantity = String(restockQuantity.value ?? "").trim();
+  if (!/^\d{1,14}(?:\.\d{1,4})?$/.test(quantity) || Number(quantity) <= 0) {
+    restockError.value = "Enter a positive quantity with up to 4 decimal places.";
+    return;
+  }
+  if (!stock.location_id || (!stock.product_id && !(stock.product_variant_id ?? stock.variant_id))) {
+    restockError.value = "This stock record has no linked product/variant or location.";
+    return;
+  }
+
+  restockSaving.value = true;
+  restockError.value = "";
+  restockSuccess.value = "";
+  try {
+    const body: Record<string, unknown> = {
+      location_id: stock.location_id,
+      quantity,
+      reason: restockReason.value.trim() || `Restock from low-stock record #${stock.id}`,
+      idempotency_key: crypto.randomUUID(),
+    };
+    if (stock.product_id) body.product_id = stock.product_id;
+    else body.product_variant_id = stock.product_variant_id ?? stock.variant_id;
+
+    const response = await fetch("/api/inventory/receive", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        "X-Requested-With": "XMLHttpRequest",
+        "X-CSRF-TOKEN": document.querySelector<HTMLMetaElement>('meta[name="csrf-token"]')?.content ?? "",
+      },
+      body: JSON.stringify(body),
+    });
+    const payload = await response.json();
+    if (!response.ok) {
+      const validation = payload.errors?.quantity?.[0] || payload.errors?.location_id?.[0] || payload.errors?.product_id?.[0] || payload.errors?.product_variant_id?.[0];
+      throw new Error(validation || payload.message || `Unable to restock (HTTP ${response.status}).`);
+    }
+    restockSuccess.value = `Restocked ${qty(quantity)} successfully. Stock was added to ${stock.location?.name ?? "the selected location"}.`;
+    restockOpen.value = false;
+    restockStock.value = null;
+    await load(page.value);
+  } catch (err) {
+    restockError.value = err instanceof Error ? err.message : "Unable to restock this item.";
+  } finally {
+    restockSaving.value = false;
+  }
+}
 onMounted(() => void load(1));
 </script>
 
@@ -147,6 +225,10 @@ onMounted(() => void load(1));
           </button>
         </div>
       </header>
+
+      <p v-if="restockSuccess" class="reservation-success page-restock-success" role="status">
+        <Icon name="circle-check" :size="17" /> {{ restockSuccess }}
+      </p>
 
       <section class="stats-grid" aria-label="Low stock summary">
         <article class="stat-card">
@@ -280,6 +362,7 @@ onMounted(() => void load(1));
                 <th class="numeric">Available</th>
                 <th class="numeric">Threshold</th>
                 <th>Status</th>
+                <th class="actions-heading">Action</th>
               </tr>
             </thead>
             <tbody>
@@ -312,6 +395,16 @@ onMounted(() => void load(1));
                   <span class="status-badge"
                     ><span class="status-dot"></span>Low stock</span
                   >
+                </td>
+                <td class="actions-cell">
+                  <button
+                    class="button button-primary restock-row-button"
+                    type="button"
+                    :disabled="loading || !row.location_id || (!row.product_id && !(row.product_variant_id ?? row.variant_id))"
+                    @click="openRestock(row)"
+                  >
+                    <Icon name="package-plus" :size="14" /> Restock
+                  </button>
                 </td>
               </tr>
             </tbody>
@@ -347,6 +440,63 @@ onMounted(() => void load(1));
           </nav>
         </footer>
       </section>
+
+      <Teleport to="body">
+        <div
+          v-if="restockOpen && restockStock"
+          class="reservation-backdrop restock-backdrop"
+          @click.self="closeRestock"
+          @keydown.esc="closeRestock"
+        >
+          <section
+            class="reservation-modal restock-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="low-stock-restock-title"
+          >
+            <header class="reservation-modal-header">
+              <div class="reservation-modal-heading-icon"><Icon name="package-plus" :size="22" /></div>
+              <div class="reservation-modal-heading-copy">
+                <span>INVENTORY · STOCK RECEIPT</span>
+                <h2 id="low-stock-restock-title">Restock item</h2>
+                <p>{{ restockStock.product?.name ?? "Unknown product" }}<template v-if="restockStock.variant?.name"> · {{ restockStock.variant.name }}</template> · {{ restockStock.location?.name ?? "Unknown location" }}</p>
+              </div>
+              <button type="button" class="reservation-close" aria-label="Close restock form" :disabled="restockSaving" @click="closeRestock">
+                <Icon name="x" :size="19" />
+              </button>
+            </header>
+            <form class="reservation-form" @submit.prevent="submitRestock">
+              <div class="reservation-availability">
+                <div><span>On hand</span><strong>{{ qty(restockStock.quantity) }}</strong></div>
+                <div><span>Reserved</span><strong>{{ qty(restockStock.reserved_quantity) }}</strong></div>
+                <div><span>Available</span><strong>{{ qty(available(restockStock)) }}</strong></div>
+              </div>
+              <div class="reservation-form-grid">
+                <label class="reservation-field reservation-field-full">
+                  <span>Quantity to add <b>*</b></span>
+                  <input v-model="restockQuantity" type="number" min="0.0001" step="0.0001" required />
+                  <small>This adds quantity to the selected inventory location. Record the supplier or invoice in the optional reason/reference field below; this form does not create a purchase order.</small>
+                </label>
+                <label class="reservation-field reservation-field-full">
+                  <span>Reason / supplier reference <small>(optional)</small></span>
+                  <textarea v-model="restockReason" rows="3" maxlength="255" placeholder="e.g. Supplier delivery, invoice number..." />
+                </label>
+              </div>
+              <p v-if="restockError" class="reservation-error" role="alert"><Icon name="alert-circle" :size="16" /> {{ restockError }}</p>
+              <footer class="reservation-modal-footer">
+                <span class="reservation-history-link">Uses existing stock receipt workflow</span>
+                <div>
+                  <button type="button" class="button" :disabled="restockSaving" @click="closeRestock">Cancel</button>
+                  <button type="submit" class="button button-primary" :disabled="restockSaving || !restockStock.location_id || (!restockStock.product_id && !(restockStock.product_variant_id ?? restockStock.variant_id))">
+                    <Icon v-if="restockSaving" name="loader-2" :size="15" class="spin" /><Icon v-else name="package-plus" :size="15" />
+                    {{ restockSaving ? "Restocking…" : "Confirm restock" }}
+                  </button>
+                </div>
+              </footer>
+            </form>
+          </section>
+        </div>
+      </Teleport>
     </main>
   </ErpLayout>
 </template>
@@ -1447,4 +1597,68 @@ table th {
   background: #fff7ed;
   color: #d97706;
 }
+
+
+/* Restock modal shared with the Inventory page workflow. */
+.reservation-backdrop {
+  position: fixed; inset: 0; z-index: 1200; display: flex; align-items: center;
+  justify-content: center; padding: 20px; background: rgb(15 23 42 / 58%);
+  backdrop-filter: blur(3px);
+}
+.reservation-modal {
+  width: min(650px, 100%); max-height: min(90vh, 900px); overflow: auto;
+  border: 1px solid #e6eaf0; border-radius: 18px; background: #fff;
+  box-shadow: 0 24px 80px rgb(15 23 42 / 28%);
+}
+.reservation-modal-header { display: flex; align-items: center; gap: 13px; padding: 22px 24px; border-bottom: 1px solid #edf0f5; }
+.reservation-modal-heading-icon { display: grid; width: 46px; height: 46px; flex: 0 0 auto; place-items: center; border-radius: 13px; background: #eef4ff; color: #3159c9; }
+.reservation-modal-heading-copy { min-width: 0; flex: 1; }
+.reservation-modal-heading-copy > span { color: #64748b; font-size: 9px; font-weight: 800; letter-spacing: .1em; }
+.reservation-modal-heading-copy h2 { margin: 4px 0 3px; color: #101828; font-size: 21px; font-weight: 780; letter-spacing: -.03em; }
+.reservation-modal-heading-copy p { margin: 0; color: #667085; font-size: 11px; overflow-wrap: anywhere; }
+.reservation-close { display: grid; width: 35px; height: 35px; flex: 0 0 auto; place-items: center; border: 1px solid #e5e7eb; border-radius: 10px; background: #fff; color: #667085; cursor: pointer; }
+.reservation-form { padding: 20px 24px 0; }
+.reservation-availability { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; margin-bottom: 20px; }
+.reservation-availability > div { display: flex; flex-direction: column; gap: 7px; padding: 12px; border: 1px solid #e7edf5; border-radius: 11px; background: #f8fafc; }
+.reservation-availability span { color: #667085; font-size: 10px; }
+.reservation-availability strong { color: #101828; font-size: 20px; font-variant-numeric: tabular-nums; }
+.reservation-availability > div:last-child { border-color: #cfe0ff; background: #f1f6ff; }
+.reservation-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 15px 13px; }
+.reservation-field { display: flex; min-width: 0; flex-direction: column; gap: 7px; color: #344054; font-size: 11px; font-weight: 700; }
+.reservation-field-full { grid-column: 1 / -1; }
+.reservation-field b { color: #dc2626; }
+.reservation-field span small { color: #98a2b3; font-size: 10px; font-weight: 500; }
+.reservation-field input, .reservation-field textarea { width: 100%; min-width: 0; border: 1px solid #d0d5dd; border-radius: 9px; padding: 10px 11px; outline: none; background: #fff; color: #101828; font: inherit; font-size: 12px; font-weight: 500; }
+.reservation-field textarea { resize: vertical; }
+.reservation-field input:focus, .reservation-field textarea:focus { border-color: #6485e8; box-shadow: 0 0 0 3px rgb(79 110 220 / 12%); }
+.reservation-field > small { color: #98a2b3; font-size: 10px; font-weight: 500; }
+.reservation-error { display: flex; align-items: flex-start; gap: 8px; margin: 15px 0 0; padding: 11px 12px; border: 1px solid #fecaca; border-radius: 9px; background: #fef2f2; color: #b91c1c; font-size: 11px; line-height: 1.5; }
+.reservation-error svg { flex: 0 0 auto; margin-top: 1px; }
+.reservation-success { margin: 15px 0 0; padding: 11px 12px; border: 1px solid #86efac; border-radius: 9px; background: #f0fdf4; color: #166534; font-size: 11px; line-height: 1.5; }
+.reservation-modal-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 20px -24px 0; padding: 15px 24px; border-top: 1px solid #edf0f5; background: #fbfcfe; }
+.reservation-modal-footer > div { display: flex; gap: 8px; }
+.reservation-history-link { color: #475467; font-size: 10px; font-weight: 650; }
+.actions-heading, .actions-cell { text-align: right; white-space: nowrap; }
+.restock-row-button { min-height: 31px; padding: 0 9px; font-size: 11px; }
+.button-primary { border-color: #3159c9; background: #3159c9; color: #fff; }
+.button-primary:hover:not(:disabled) { border-color: #2547a7; background: #2547a7; color: #fff; }
+@media (max-width: 700px) { .actions-heading, .actions-cell { text-align: left; } }
+@media (max-width: 600px) {
+  .reservation-backdrop { align-items: flex-end; padding: 7px; }
+  .reservation-modal { max-height: 96vh; border-radius: 17px 17px 12px 12px; }
+  .reservation-modal-header { padding: 15px; }
+  .reservation-form { padding: 15px 14px 0; }
+  .reservation-modal-heading-copy h2 { font-size: 18px; }
+  .reservation-availability { gap: 6px; }
+  .reservation-availability > div { padding: 9px 7px; }
+  .reservation-availability strong { font-size: 17px; }
+  .reservation-availability span { font-size: 9px; }
+  .reservation-form-grid { grid-template-columns: minmax(0, 1fr); }
+  .reservation-field-full { grid-column: auto; }
+  .reservation-modal-footer { align-items: stretch; flex-direction: column-reverse; margin: 16px -14px 0; padding: 12px 14px; }
+  .reservation-modal-footer > div { width: 100%; }
+  .reservation-modal-footer > div button { flex: 1; }
+  .reservation-history-link { text-align: center; }
+}
+
 </style>

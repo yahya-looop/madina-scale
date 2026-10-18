@@ -54,6 +54,9 @@ class InventoryReservationService
         $this->expireDue();
         return DB::transaction(function () use ($reservation, $action, $actor): InventoryReservation {
             $locked = InventoryReservation::query()->lockForUpdate()->findOrFail($reservation->id);
+            if ($locked->status === 'expired') {
+                return $locked->refresh();
+            }
             if ($locked->status !== 'active') {
                 throw ValidationException::withMessages(['reservation' => 'Only active reservations can be changed.']);
             }
@@ -63,6 +66,18 @@ class InventoryReservationService
             $quantity = (string) $locked->quantity;
             if (bccomp((string) $stock->reserved_quantity, $quantity, 4) < 0) {
                 throw ValidationException::withMessages(['reservation' => 'Reserved balance is inconsistent; review stock ledger before proceeding.']);
+            }
+
+            // A large expiry backlog can leave this active row outside expireDue()'s
+            // bounded batch. Enforce expiry again while holding this reservation's lock.
+            if ($locked->expires_at && ! $locked->expires_at->isFuture()) {
+                $stock->reserved_quantity = bcsub((string) $stock->reserved_quantity, $quantity, 4);
+                $stock->save();
+                $locked->status = 'expired';
+                $locked->resolved_by = $actor->id;
+                $locked->resolved_at = now();
+                $locked->save();
+                return $locked->refresh();
             }
 
             $stock->reserved_quantity = bcsub((string) $stock->reserved_quantity, $quantity, 4);
@@ -78,11 +93,11 @@ class InventoryReservationService
                     'product_id' => $owner['product_id'],
                     'product_variant_id' => $owner['variant_id'],
                     'location_id' => $location->id,
-                    'movement_type' => 'issue',
+                    'movement_type' => $locked->purpose === 'customer_order' ? 'order_fulfillment' : 'issue',
                     'quantity_delta' => bcsub('0', $quantity, 4),
                     'balance_before' => $before,
                     'balance_after' => $after,
-                    'reason' => 'Reservation fulfilled: ' . $locked->id,
+                    'reason' => ($locked->purpose === 'customer_order' ? 'Order Out (Fulfillment)' : 'Reservation fulfilled') . ': ' . $locked->id,
                     'reference_type' => 'inventory_reservation',
                     'reference_id' => (string) $locked->id,
                     'idempotency_key' => (string) Str::uuid(),
