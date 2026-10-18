@@ -35,7 +35,12 @@ interface InventoryStock {
     name: string;
     sku?: string | null;
     product_type?: string;
-    primary_media?: { id: number; path: string; alt_text?: string | null; is_primary?: boolean } | null;
+    primary_media?: {
+      id: number;
+      path: string;
+      alt_text?: string | null;
+      is_primary?: boolean;
+    } | null;
   } | null;
   variant?: {
     id: number;
@@ -83,6 +88,123 @@ const thresholdDraft = ref("");
 const thresholdSaving = ref(false);
 const thresholdError = ref("");
 const thresholdMessage = ref("");
+
+const reservationOpen = ref(false);
+const reservationSaving = ref(false);
+const reservationError = ref("");
+const reservationSuccess = ref("");
+const reservationQuantity = ref("1");
+const reservationPurpose = ref<"customer_order" | "internal_use">("customer_order");
+const reservationReferenceType = ref("");
+const reservationReferenceId = ref("");
+const reservationReason = ref("");
+const reservationExpiresAt = ref("");
+const reservationStock = ref<InventoryStock | null>(null);
+
+function openReservation(stock: InventoryStock): void {
+  if (
+    availableQuantity(stock) <= 0 ||
+    (!stock.product_id && !stock.product_variant_id && !stock.variant_id)
+  )
+    return;
+  reservationStock.value = stock;
+  reservationQuantity.value = "1";
+  reservationPurpose.value = "customer_order";
+  reservationReferenceType.value = "";
+  reservationReferenceId.value = "";
+  reservationReason.value = "";
+  reservationExpiresAt.value = "";
+  reservationError.value = "";
+  reservationSuccess.value = "";
+  reservationOpen.value = true;
+}
+
+function closeReservation(): void {
+  if (reservationSaving.value) return;
+  reservationOpen.value = false;
+  reservationStock.value = null;
+  reservationError.value = "";
+}
+
+async function submitReservation(): Promise<void> {
+  const stock = reservationStock.value;
+  if (!stock) return;
+  const quantity = Number(reservationQuantity.value);
+  if (!Number.isFinite(quantity) || quantity <= 0) {
+    reservationError.value = "Enter a quantity greater than zero.";
+    return;
+  }
+  if (quantity > availableQuantity(stock)) {
+    reservationError.value = `Quantity cannot exceed available stock (${formatQuantity(
+      availableQuantity(stock)
+    )}).`;
+    return;
+  }
+  if (!stock.location_id) {
+    reservationError.value = "This stock record has no linked location.";
+    return;
+  }
+  if (!stock.product_id && !(stock.product_variant_id ?? stock.variant_id)) {
+    reservationError.value = "This stock record has no linked product or variant.";
+    return;
+  }
+
+  reservationSaving.value = true;
+  reservationError.value = "";
+  try {
+    const body: Record<string, unknown> = {
+      location_id: stock.location_id,
+      quantity: reservationQuantity.value,
+      purpose: reservationPurpose.value,
+    };
+    if (stock.product_id) body.product_id = stock.product_id;
+    else body.product_variant_id = stock.product_variant_id ?? stock.variant_id;
+    if (reservationReferenceType.value.trim())
+      body.reference_type = reservationReferenceType.value.trim();
+    if (reservationReferenceId.value.trim())
+      body.reference_id = reservationReferenceId.value.trim();
+    if (reservationReason.value.trim()) body.reason = reservationReason.value.trim();
+    if (reservationExpiresAt.value)
+      body.expires_at = new Date(reservationExpiresAt.value).toISOString();
+
+    const response = await fetch("/api/inventory/reservations", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        "X-Requested-With": "XMLHttpRequest",
+        "X-CSRF-TOKEN":
+          document.querySelector<HTMLMetaElement>('meta[name="csrf-token"]')?.content ??
+          "",
+      },
+      body: JSON.stringify(body),
+    });
+    const payload = await response.json();
+    if (!response.ok) {
+      const firstError = payload.errors ? Object.values(payload.errors).flat()[0] : null;
+      throw new Error(
+        String(
+          firstError ||
+            payload.message ||
+            `Unable to reserve stock (HTTP ${response.status}).`
+        )
+      );
+    }
+    reservationOpen.value = false;
+    reservationStock.value = null;
+    await loadStocks(currentPage.value);
+    reservationSuccess.value = payload.message || "Stock reserved successfully.";
+    window.setTimeout(() => {
+      reservationSuccess.value = "";
+    }, 5000);
+  } catch (error) {
+    reservationError.value =
+      error instanceof Error ? error.message : "Unable to reserve stock.";
+  } finally {
+    reservationSaving.value = false;
+  }
+}
 
 let activeRequest = 0;
 
@@ -159,7 +281,10 @@ function formatQuantity(value: number | string): string {
 }
 
 function productName(stock: InventoryStock): string {
-  return stock.product?.name?.trim() || (stock.product_id ? `Product #${stock.product_id}` : "Product not linked");
+  return (
+    stock.product?.name?.trim() ||
+    (stock.product_id ? `Product #${stock.product_id}` : "Product not linked")
+  );
 }
 
 function productImageUrl(stock: InventoryStock): string | null {
@@ -178,7 +303,10 @@ function variantName(stock: InventoryStock): string {
 }
 
 function locationName(stock: InventoryStock): string {
-  return stock.location?.name?.trim() || (stock.location_id ? `Location #${stock.location_id}` : "Location not linked");
+  return (
+    stock.location?.name?.trim() ||
+    (stock.location_id ? `Location #${stock.location_id}` : "Location not linked")
+  );
 }
 
 function locationCode(stock: InventoryStock): string {
@@ -190,9 +318,10 @@ function openStockDetails(stock: InventoryStock): void {
   // Only show a saved threshold when it is a valid whole number >= 20.
   // Empty/legacy DECIMAL values (e.g. "0.0000") must leave the field blank.
   const rawThreshold = stock.low_stock_threshold;
-  const existingThreshold = rawThreshold === null || rawThreshold === undefined || rawThreshold === ""
-    ? 0
-    : Number(rawThreshold);
+  const existingThreshold =
+    rawThreshold === null || rawThreshold === undefined || rawThreshold === ""
+      ? 0
+      : Number(rawThreshold);
   thresholdDraft.value =
     Number.isSafeInteger(existingThreshold) && existingThreshold >= 20
       ? String(existingThreshold)
@@ -222,7 +351,11 @@ async function saveThreshold(): Promise<void> {
   const stock = selectedStock.value;
   const threshold = thresholdDraft.value.trim();
   if (!stock) return;
-  if (!/^\d+$/.test(threshold) || Number(threshold) < 20 || !Number.isSafeInteger(Number(threshold))) {
+  if (
+    !/^\d+$/.test(threshold) ||
+    Number(threshold) < 20 ||
+    !Number.isSafeInteger(Number(threshold))
+  ) {
     thresholdError.value = "Threshold must be a whole number of at least 20.";
     return;
   }
@@ -238,14 +371,20 @@ async function saveThreshold(): Promise<void> {
         Accept: "application/json",
         "Content-Type": "application/json",
         "X-Requested-With": "XMLHttpRequest",
-        "X-CSRF-TOKEN": document.querySelector<HTMLMetaElement>('meta[name="csrf-token"]')?.content ?? "",
+        "X-CSRF-TOKEN":
+          document.querySelector<HTMLMetaElement>('meta[name="csrf-token"]')?.content ??
+          "",
       },
       body: JSON.stringify({ low_stock_threshold: threshold }),
     });
     const payload = await response.json();
     if (!response.ok) {
       const validation = payload.errors?.low_stock_threshold?.[0];
-      throw new Error(validation || payload.message || `Unable to update threshold (HTTP ${response.status}).`);
+      throw new Error(
+        validation ||
+          payload.message ||
+          `Unable to update threshold (HTTP ${response.status}).`
+      );
     }
     const updated = payload.data as InventoryStock;
     const index = stocks.value.findIndex((item) => item.id === updated.id);
@@ -254,7 +393,8 @@ async function saveThreshold(): Promise<void> {
     thresholdDraft.value = String(Number(updated.low_stock_threshold ?? threshold));
     thresholdMessage.value = "Low-stock threshold saved.";
   } catch (error) {
-    thresholdError.value = error instanceof Error ? error.message : "Unable to save threshold.";
+    thresholdError.value =
+      error instanceof Error ? error.message : "Unable to save threshold.";
   } finally {
     thresholdSaving.value = false;
   }
@@ -368,8 +508,12 @@ onMounted(() => {
         </div>
 
         <div class="header-actions">
+          <a class="button button-secondary" href="/inventory/reservations">
+            <Icon name="calendar-check" :size="15" />
+            Reservations
+          </a>
           <a class="button button-secondary" href="/inventory/operations">
-            <Icon name="arrow-left-right" :size="15" />
+            <Icon name="settings-2" :size="15" />
             Stock Operations
           </a>
           <button
@@ -433,7 +577,7 @@ onMounted(() => {
         <article class="stat-card">
           <div class="stat-top">
             <span class="stat-icon green">
-              <Icon name="package-check" :size="19" />
+              <Icon name="circle-check" :size="19" />
             </span>
             <span class="stat-caption">Current page</span>
           </div>
@@ -461,7 +605,7 @@ onMounted(() => {
         <article class="stat-card">
           <div class="stat-top">
             <span class="stat-icon violet">
-              <Icon name="package" :size="19" />
+              <Icon name="calendar-check" :size="19" />
             </span>
             <span class="stat-caption">Current page</span>
           </div>
@@ -474,6 +618,18 @@ onMounted(() => {
         </article>
       </section>
 
+      <div v-if="reservationSuccess" class="reservation-toast" role="status">
+        <Icon name="check-circle" :size="17" /> {{ reservationSuccess }}
+        <a href="/inventory/reservations">View reservations</a>
+        <button
+          type="button"
+          aria-label="Dismiss notification"
+          @click="reservationSuccess = ''"
+        >
+          <Icon name="x" :size="15" />
+        </button>
+      </div>
+
       <!-- Stock table -->
       <section class="card stock-card">
         <div class="section-heading">
@@ -483,7 +639,10 @@ onMounted(() => {
 
           <div class="section-heading-copy">
             <h2>Inventory records</h2>
-            <p>Review product stock, reservations and location balances. Select any row to view full details and edit its low-stock threshold.</p>
+            <p>
+              Review product stock, reservations and location balances. Select any row to
+              view full details and edit its low-stock threshold.
+            </p>
           </div>
 
           <span class="record-badge"> {{ formatQuantity(total) }} records </span>
@@ -577,6 +736,7 @@ onMounted(() => {
                 <th scope="col" class="numeric-cell">Available</th>
                 <th scope="col" class="numeric-cell">Threshold</th>
                 <th scope="col">Stock status</th>
+                <th scope="col" class="action-heading">Action</th>
               </tr>
             </thead>
 
@@ -594,7 +754,14 @@ onMounted(() => {
                 <td>
                   <div class="product-cell">
                     <div class="product-avatar">
-                      <img v-if="productImageUrl(stock)" :src="productImageUrl(stock)!" :alt="stock.product?.primary_media?.alt_text || productName(stock)" loading="lazy" />
+                      <img
+                        v-if="productImageUrl(stock)"
+                        :src="productImageUrl(stock)!"
+                        :alt="
+                          stock.product?.primary_media?.alt_text || productName(stock)
+                        "
+                        loading="lazy"
+                      />
                       <Icon v-else name="package" :size="17" />
                     </div>
 
@@ -646,10 +813,186 @@ onMounted(() => {
                     {{ isLowStock(stock) ? "Low stock" : "In stock" }}
                   </span>
                 </td>
+                <td class="stock-action-cell" @click.stop>
+                  <button
+                    type="button"
+                    class="button button-primary reserve-row-button"
+                    :disabled="
+                      availableQuantity(stock) <= 0 ||
+                      (!stock.product_id &&
+                        !(stock.product_variant_id ?? stock.variant_id))
+                    "
+                    :title="
+                      availableQuantity(stock) <= 0
+                        ? 'No available stock to reserve'
+                        : !stock.product_id &&
+                          !(stock.product_variant_id ?? stock.variant_id)
+                        ? 'This stock record is not linked to a product or variant'
+                        : 'Reserve this product'
+                    "
+                    :aria-label="`Reserve ${productName(stock)}`"
+                    @click.stop="openReservation(stock)"
+                  >
+                    <Icon name="calendar-check" :size="14" />
+                    <span>Reserve</span>
+                  </button>
+                </td>
               </tr>
             </tbody>
           </table>
         </div>
+
+        <!-- Create reservation modal -->
+        <Teleport to="body">
+          <div
+            v-if="reservationOpen && reservationStock"
+            class="reservation-backdrop"
+            @click.self="closeReservation"
+            @keydown.esc="closeReservation"
+          >
+            <section
+              class="reservation-modal"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="reservation-modal-title"
+            >
+              <header class="reservation-modal-header">
+                <div class="reservation-modal-heading-icon">
+                  <Icon name="package-check" :size="22" />
+                </div>
+                <div class="reservation-modal-heading-copy">
+                  <span>INVENTORY · RESERVE STOCK</span>
+                  <h2 id="reservation-modal-title">Reserve product</h2>
+                  <p>
+                    {{ productName(reservationStock) }} ·
+                    {{ locationName(reservationStock) }}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  class="reservation-close"
+                  aria-label="Close reservation form"
+                  :disabled="reservationSaving"
+                  @click="closeReservation"
+                >
+                  <Icon name="x" :size="19" />
+                </button>
+              </header>
+              <form class="reservation-form" @submit.prevent="submitReservation">
+                <div class="reservation-availability">
+                  <div>
+                    <span>On hand</span
+                    ><strong>{{ formatQuantity(reservationStock.quantity) }}</strong>
+                  </div>
+                  <div>
+                    <span>Already reserved</span
+                    ><strong>{{
+                      formatQuantity(reservationStock.reserved_quantity)
+                    }}</strong>
+                  </div>
+                  <div>
+                    <span>Available now</span
+                    ><strong>{{
+                      formatQuantity(availableQuantity(reservationStock))
+                    }}</strong>
+                  </div>
+                </div>
+                <div class="reservation-form-grid">
+                  <label class="reservation-field reservation-field-full">
+                    <span>Reservation purpose <b>*</b></span>
+                    <select v-model="reservationPurpose" required>
+                      <option value="customer_order">Customer order</option>
+                      <option value="internal_use">Internal use</option>
+                    </select>
+                  </label>
+                  <label class="reservation-field">
+                    <span>Quantity to reserve <b>*</b></span>
+                    <input
+                      v-model="reservationQuantity"
+                      type="number"
+                      min="0.0001"
+                      step="0.0001"
+                      :max="availableQuantity(reservationStock)"
+                      required
+                    />
+                    <small
+                      >Maximum available:
+                      {{ formatQuantity(availableQuantity(reservationStock)) }}</small
+                    >
+                  </label>
+                  <label class="reservation-field">
+                    <span>Expiry date/time <small>(optional)</small></span>
+                    <input
+                      v-model="reservationExpiresAt"
+                      type="datetime-local"
+                      :min="new Date(Date.now() + 60000).toISOString().slice(0, 16)"
+                    />
+                    <small>Leave blank for no automatic expiry.</small>
+                  </label>
+                  <label class="reservation-field">
+                    <span>Reference type <small>(optional)</small></span>
+                    <input
+                      v-model="reservationReferenceType"
+                      type="text"
+                      maxlength="80"
+                      placeholder="e.g. sales_order"
+                    />
+                  </label>
+                  <label class="reservation-field">
+                    <span>Reference ID <small>(optional)</small></span>
+                    <input
+                      v-model="reservationReferenceId"
+                      type="text"
+                      maxlength="120"
+                      placeholder="Order number or internal ref"
+                    />
+                  </label>
+                  <label class="reservation-field reservation-field-full">
+                    <span>Reason / notes <small>(optional)</small></span>
+                    <textarea
+                      v-model="reservationReason"
+                      rows="3"
+                      maxlength="2000"
+                      placeholder="Add a short note for the stock ledger..."
+                    />
+                  </label>
+                </div>
+                <p v-if="reservationError" class="reservation-error" role="alert">
+                  <Icon name="alert-circle" :size="16" /> {{ reservationError }}
+                </p>
+                <footer class="reservation-modal-footer">
+                  <a href="/inventory/reservations" class="reservation-history-link"
+                    >Manage existing reservations</a
+                  >
+                  <div>
+                    <button
+                      type="button"
+                      class="button button-secondary"
+                      :disabled="reservationSaving"
+                      @click="closeReservation"
+                    >
+                      Cancel</button
+                    ><button
+                      type="submit"
+                      class="button button-primary"
+                      :disabled="
+                        reservationSaving || availableQuantity(reservationStock) <= 0
+                      "
+                    >
+                      <Icon
+                        v-if="reservationSaving"
+                        name="loader-2"
+                        :size="15"
+                        class="spin"
+                      /><Icon v-else name="check" :size="15" />
+                      {{ reservationSaving ? "Reserving…" : "Confirm reservation" }}
+                    </button>
+                  </div>
+                </footer>
+              </form>
+            </section>
+          </div>
+        </Teleport>
 
         <!-- Stock details modal -->
         <Teleport to="body">
@@ -668,31 +1011,57 @@ onMounted(() => {
               <header class="stock-modal-header">
                 <div class="stock-modal-title-wrap">
                   <div class="stock-modal-icon">
-                    <img v-if="productImageUrl(selectedStock)" :src="productImageUrl(selectedStock)!" :alt="selectedStock.product?.primary_media?.alt_text || productName(selectedStock)" />
+                    <img
+                      v-if="productImageUrl(selectedStock)"
+                      :src="productImageUrl(selectedStock)!"
+                      :alt="
+                        selectedStock.product?.primary_media?.alt_text ||
+                        productName(selectedStock)
+                      "
+                    />
                     <Icon v-else name="package" :size="25" />
                   </div>
                   <div class="stock-modal-heading">
-                    <p class="stock-modal-eyebrow">INVENTORY RECORD #{{ selectedStock.id }}</p>
+                    <p class="stock-modal-eyebrow">
+                      INVENTORY RECORD #{{ selectedStock.id }}
+                    </p>
                     <h2 id="stock-modal-title">{{ productName(selectedStock) }}</h2>
                     <div class="stock-modal-subtitle">
                       <span>{{ productSku(selectedStock) }}</span>
-                      <span v-if="variantName(selectedStock)" class="subtitle-separator">·</span>
-                      <span v-if="variantName(selectedStock)">{{ variantName(selectedStock) }}</span>
-                      <span v-if="!selectedStock.product" class="record-status unlinked">Product not linked</span>
+                      <span v-if="variantName(selectedStock)" class="subtitle-separator"
+                        >·</span
+                      >
+                      <span v-if="variantName(selectedStock)">{{
+                        variantName(selectedStock)
+                      }}</span>
+                      <span v-if="!selectedStock.product" class="record-status unlinked"
+                        >Product not linked</span
+                      >
                     </div>
                   </div>
                 </div>
 
                 <div class="stock-modal-header-meta">
-                  <span class="stock-status-pill" :class="isLowStock(selectedStock) ? 'status-low' : 'status-good'">
+                  <span
+                    class="stock-status-pill"
+                    :class="isLowStock(selectedStock) ? 'status-low' : 'status-good'"
+                  >
                     <span class="status-dot"></span>
-                    {{ isLowStock(selectedStock) ? 'Low stock' : 'In stock' }}
+                    {{ isLowStock(selectedStock) ? "Low stock" : "In stock" }}
                   </span>
                   <div class="updated-meta">
                     <Icon name="clock" :size="16" />
-                    <span><small>Last updated</small><strong>{{ formatDate(selectedStock.updated_at) }}</strong></span>
+                    <span
+                      ><small>Last updated</small
+                      ><strong>{{ formatDate(selectedStock.updated_at) }}</strong></span
+                    >
                   </div>
-                  <button type="button" class="stock-modal-close" aria-label="Close details" @click="closeStockDetails">
+                  <button
+                    type="button"
+                    class="stock-modal-close"
+                    aria-label="Close details"
+                    @click="closeStockDetails"
+                  >
                     <Icon name="x" :size="19" />
                   </button>
                 </div>
@@ -702,25 +1071,71 @@ onMounted(() => {
                 <div class="stock-modal-main">
                   <section class="stock-detail-section">
                     <div class="stock-section-heading">
-                      <div class="stock-section-icon"><Icon name="clipboard-list" :size="17" /></div>
-                      <div><h3>Basic information</h3><p>Product, variant and storage location</p></div>
+                      <div class="stock-section-icon">
+                        <Icon name="clipboard-list" :size="17" />
+                      </div>
+                      <div>
+                        <h3>Basic information</h3>
+                        <p>Product, variant and storage location</p>
+                      </div>
                     </div>
                     <dl class="stock-detail-list basic-info-list">
-                      <div><dt>Product ID</dt><dd>{{ selectedStock.product?.id ?? selectedStock.product_id ?? 'Not linked' }}</dd></div>
-                      <div><dt>Product type</dt><dd>{{ selectedStock.product?.product_type || 'Not specified' }}</dd></div>
-                      <div><dt>Variant</dt><dd>{{ variantName(selectedStock) || 'No variant' }}</dd></div>
-                      <div><dt>Location</dt><dd>{{ locationName(selectedStock) }}</dd></div>
-                      <div><dt>Location code</dt><dd>{{ locationCode(selectedStock) || '—' }}</dd></div>
-                      <div><dt>Location ID</dt><dd>{{ selectedStock.location?.id ?? selectedStock.location_id ?? '—' }}</dd></div>
-                      <div><dt>Created at</dt><dd>{{ formatDate(selectedStock.created_at) }}</dd></div>
-                      <div><dt>Updated at</dt><dd>{{ formatDate(selectedStock.updated_at) }}</dd></div>
+                      <div>
+                        <dt>Product ID</dt>
+                        <dd>
+                          {{
+                            selectedStock.product?.id ??
+                            selectedStock.product_id ??
+                            "Not linked"
+                          }}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Product type</dt>
+                        <dd>
+                          {{ selectedStock.product?.product_type || "Not specified" }}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Variant</dt>
+                        <dd>{{ variantName(selectedStock) || "No variant" }}</dd>
+                      </div>
+                      <div>
+                        <dt>Location</dt>
+                        <dd>{{ locationName(selectedStock) }}</dd>
+                      </div>
+                      <div>
+                        <dt>Location code</dt>
+                        <dd>{{ locationCode(selectedStock) || "—" }}</dd>
+                      </div>
+                      <div>
+                        <dt>Location ID</dt>
+                        <dd>
+                          {{
+                            selectedStock.location?.id ?? selectedStock.location_id ?? "—"
+                          }}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Created at</dt>
+                        <dd>{{ formatDate(selectedStock.created_at) }}</dd>
+                      </div>
+                      <div>
+                        <dt>Updated at</dt>
+                        <dd>{{ formatDate(selectedStock.updated_at) }}</dd>
+                      </div>
                     </dl>
                   </section>
 
                   <section class="stock-detail-section">
                     <div class="stock-section-heading">
-                      <div class="stock-section-icon"><Icon name="layers" :size="17" /></div>
-                      <div><h3>Stock information</h3><p>Current balance for this location</p></div>
+                      <div class="stock-section-icon">
+                        <Icon name="layers" :size="17" />
+                      </div>
+                      <div>
+                        <h3>Stock information</h3>
+                        <p>Current balance for this location</p>
+                      </div>
                     </div>
                     <div class="stock-detail-grid">
                       <article class="stock-detail-tile quantity-on-hand">
@@ -730,40 +1145,60 @@ onMounted(() => {
                       </article>
                       <article class="stock-detail-tile quantity-reserved">
                         <span>Reserved quantity</span>
-                        <strong>{{ formatQuantity(selectedStock.reserved_quantity) }}</strong>
+                        <strong>{{
+                          formatQuantity(selectedStock.reserved_quantity)
+                        }}</strong>
                         <small>Units reserved</small>
                       </article>
                       <article class="stock-detail-tile quantity-available">
                         <span>Available quantity</span>
-                        <strong>{{ formatQuantity(availableQuantity(selectedStock)) }}</strong>
+                        <strong>{{
+                          formatQuantity(availableQuantity(selectedStock))
+                        }}</strong>
                         <small>Ready to use</small>
                       </article>
                     </div>
                     <div class="stock-inline-summary">
                       <div>
                         <span class="summary-label">Stock status</span>
-                        <strong :class="isLowStock(selectedStock) ? 'detail-low' : 'detail-normal'">
-                          <span class="status-dot"></span>{{ isLowStock(selectedStock) ? 'Low stock' : 'In stock' }}
+                        <strong
+                          :class="
+                            isLowStock(selectedStock) ? 'detail-low' : 'detail-normal'
+                          "
+                        >
+                          <span class="status-dot"></span
+                          >{{ isLowStock(selectedStock) ? "Low stock" : "In stock" }}
                         </strong>
                       </div>
                       <div>
                         <span class="summary-label">Last movement</span>
-                        <strong>{{ selectedStock.latest_movement?.movement_type || 'No movement recorded' }}</strong>
-                        <small>{{ selectedStock.latest_movement?.created_at ? formatDate(selectedStock.latest_movement.created_at) : 'No stock activity recorded yet' }}</small>
+                        <strong>{{
+                          selectedStock.latest_movement?.movement_type ||
+                          "No movement recorded"
+                        }}</strong>
+                        <small>{{
+                          selectedStock.latest_movement?.created_at
+                            ? formatDate(selectedStock.latest_movement.created_at)
+                            : "No stock activity recorded yet"
+                        }}</small>
                       </div>
                     </div>
                   </section>
 
                   <section class="stock-detail-section threshold-editor">
                     <div class="stock-section-heading">
-                      <div class="stock-section-icon threshold-icon"><Icon name="bell-ring" :size="17" /></div>
+                      <div class="stock-section-icon threshold-icon">
+                        <Icon name="alert-triangle" :size="17" />
+                      </div>
                       <div>
                         <h3>Low-stock alert threshold</h3>
                         <p>Get alerted when available stock reaches this level.</p>
                       </div>
                     </div>
                     <form class="threshold-form" @submit.prevent="saveThreshold">
-                      <label class="sr-only" for="stock-threshold-input">Low-stock threshold</label>
+                      <label class="sr-only" for="stock-threshold-input"
+                        >Low-stock threshold</label
+                      >
                       <input
                         id="stock-threshold-input"
                         v-model="thresholdDraft"
@@ -774,14 +1209,31 @@ onMounted(() => {
                         autocomplete="off"
                         aria-describedby="stock-threshold-help"
                       />
-                      <button type="submit" class="button button-primary threshold-save-button" :disabled="thresholdSaving">
+                      <button
+                        type="submit"
+                        class="button button-primary threshold-save-button"
+                        :disabled="thresholdSaving"
+                      >
                         <Icon name="check" :size="15" />
-                        {{ thresholdSaving ? 'Saving…' : 'Save threshold' }}
+                        {{ thresholdSaving ? "Saving…" : "Save threshold" }}
                       </button>
                     </form>
-                    <p id="stock-threshold-help" class="threshold-help">Use a whole number of 20 or more. Decimals and negative values are not allowed.</p>
-                    <p v-if="thresholdError" class="threshold-feedback threshold-error" role="alert">{{ thresholdError }}</p>
-                    <p v-if="thresholdMessage" class="threshold-feedback threshold-success" role="status">
+                    <p id="stock-threshold-help" class="threshold-help">
+                      Use a whole number of 20 or more. Decimals and negative values are
+                      not allowed.
+                    </p>
+                    <p
+                      v-if="thresholdError"
+                      class="threshold-feedback threshold-error"
+                      role="alert"
+                    >
+                      {{ thresholdError }}
+                    </p>
+                    <p
+                      v-if="thresholdMessage"
+                      class="threshold-feedback threshold-success"
+                      role="status"
+                    >
                       <Icon name="check-circle" :size="14" /> {{ thresholdMessage }}
                     </p>
                   </section>
@@ -790,37 +1242,107 @@ onMounted(() => {
                 <aside class="stock-modal-sidebar">
                   <section class="stock-detail-section quick-actions-section">
                     <div class="stock-section-heading">
-                      <div class="stock-section-icon"><Icon name="zap" :size="17" /></div>
-                      <div><h3>Quick actions</h3><p>Manage this stock record</p></div>
+                      <div class="stock-section-icon">
+                        <Icon name="activity" :size="17" />
+                      </div>
+                      <div>
+                        <h3>Quick actions</h3>
+                        <p>Manage this stock record</p>
+                      </div>
                     </div>
                     <a class="stock-operation-link" href="/inventory/operations">
-                      <span class="operation-link-icon"><Icon name="arrow-left-right" :size="17" /></span>
-                      <span><strong>Open stock operations</strong><small>Receive, issue, adjust or transfer stock</small></span>
+                      <span class="operation-link-icon"
+                        ><Icon name="settings" :size="17"
+                      /></span>
+                      <span
+                        ><strong>Open stock operations</strong
+                        ><small>Receive, issue, adjust or transfer stock</small></span
+                      >
                       <Icon name="chevron-right" :size="16" />
                     </a>
                   </section>
 
                   <section class="stock-detail-section audit-section">
                     <div class="stock-section-heading">
-                      <div class="stock-section-icon"><Icon name="shield-check" :size="17" /></div>
-                      <div><h3>Audit information</h3><p>Latest recorded stock activity</p></div>
+                      <div class="stock-section-icon">
+                        <Icon name="shield-check" :size="17" />
+                      </div>
+                      <div>
+                        <h3>Audit information</h3>
+                        <p>Latest recorded stock activity</p>
+                      </div>
                     </div>
                     <dl class="audit-detail-list">
-                      <div><dt>Activity</dt><dd>{{ selectedStock.latest_movement?.movement_type || 'No movement recorded' }}</dd></div>
-                      <div><dt>Performed by</dt><dd>{{ selectedStock.latest_movement?.creator?.name || 'Not recorded' }}</dd></div>
-                      <div><dt>Actor email</dt><dd>{{ selectedStock.latest_movement?.creator?.email || 'Not recorded' }}</dd></div>
-                      <div><dt>Request IP</dt><dd>{{ selectedStock.latest_movement?.ip_address || 'Not available' }}</dd></div>
-                      <div><dt>Activity time</dt><dd>{{ selectedStock.latest_movement?.created_at ? formatDate(selectedStock.latest_movement.created_at) : 'Not available' }}</dd></div>
-                      <div><dt>Reason</dt><dd>{{ selectedStock.latest_movement?.reason || '—' }}</dd></div>
+                      <div>
+                        <dt>Activity</dt>
+                        <dd>
+                          {{
+                            selectedStock.latest_movement?.movement_type ||
+                            "No movement recorded"
+                          }}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Performed by</dt>
+                        <dd>
+                          {{
+                            selectedStock.latest_movement?.creator?.name || "Not recorded"
+                          }}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Actor email</dt>
+                        <dd>
+                          {{
+                            selectedStock.latest_movement?.creator?.email ||
+                            "Not recorded"
+                          }}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Request IP</dt>
+                        <dd>
+                          {{
+                            selectedStock.latest_movement?.ip_address || "Not available"
+                          }}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Activity time</dt>
+                        <dd>
+                          {{
+                            selectedStock.latest_movement?.created_at
+                              ? formatDate(selectedStock.latest_movement.created_at)
+                              : "Not available"
+                          }}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Reason</dt>
+                        <dd>{{ selectedStock.latest_movement?.reason || "—" }}</dd>
+                      </div>
                     </dl>
-                    <p class="audit-note">Historical movements may not contain an IP address if tracking was not enabled when they were recorded.</p>
+                    <p class="audit-note">
+                      Historical movements may not contain an IP address if tracking was
+                      not enabled when they were recorded.
+                    </p>
                   </section>
                 </aside>
               </div>
 
               <footer class="stock-modal-footer">
-                <span><Icon name="info-circle" :size="14" /> Inventory record #{{ selectedStock.id }}</span>
-                <button type="button" class="button button-secondary" @click="closeStockDetails">Close details</button>
+                <span
+                  ><Icon name="info-circle" :size="14" /> Inventory record #{{
+                    selectedStock.id
+                  }}</span
+                >
+                <button
+                  type="button"
+                  class="button button-secondary"
+                  @click="closeStockDetails"
+                >
+                  Close details
+                </button>
               </footer>
             </section>
           </div>
@@ -1814,30 +2336,97 @@ tbody tr:last-child td {
 }
 
 /* Compact typography refinement aligned with Settings > Activity Logs. */
-.inventory-page{font-size:12px}
-.breadcrumb{font-size:10px}
-.title-copy h1{font-size:20px}
-.title-copy p{font-size:11px}
-.stat-value{font-size:21px}
-.stat-label{font-size:11px}
-.stat-description{font-size:10px}
-.section-heading-copy h2{font-size:13px}
-.section-heading-copy p{font-size:10px}
-.button,.text-button{font-size:11px}
-.table-toolbar input,.table-toolbar select,.rows-label{font-size:10px}
-table{font-size:11px}
-table th{font-size:9px}
-.product-details strong,.location-cell strong{font-size:11px}
-.product-details small,.location-cell small{font-size:9px}
-.table-footer,.pagination{font-size:10px}
-.state-panel h3{font-size:12px}
-.state-panel p{font-size:10px}
-@media(max-width:720px){.title-copy h1{font-size:18px}.stat-value{font-size:19px}}
+.inventory-page {
+  font-size: 12px;
+}
+.breadcrumb {
+  font-size: 10px;
+}
+.title-copy h1 {
+  font-size: 20px;
+}
+.title-copy p {
+  font-size: 11px;
+}
+.stat-value {
+  font-size: 21px;
+}
+.stat-label {
+  font-size: 11px;
+}
+.stat-description {
+  font-size: 10px;
+}
+.section-heading-copy h2 {
+  font-size: 13px;
+}
+.section-heading-copy p {
+  font-size: 10px;
+}
+.button,
+.text-button {
+  font-size: 11px;
+}
+.table-toolbar input,
+.table-toolbar select,
+.rows-label {
+  font-size: 10px;
+}
+table {
+  font-size: 11px;
+}
+table th {
+  font-size: 9px;
+}
+.product-details strong,
+.location-cell strong {
+  font-size: 11px;
+}
+.product-details small,
+.location-cell small {
+  font-size: 9px;
+}
+.table-footer,
+.pagination {
+  font-size: 10px;
+}
+.state-panel h3 {
+  font-size: 12px;
+}
+.state-panel p {
+  font-size: 10px;
+}
+@media (max-width: 720px) {
+  .title-copy h1 {
+    font-size: 18px;
+  }
+  .stat-value {
+    font-size: 19px;
+  }
+}
 
-
-.button-primary { border: 1px solid var(--primary, #059669); background: var(--primary, #059669); color: var(--primary-foreground, #fff); }.button-primary:hover { filter: brightness(.92); }.button-primary:disabled { opacity: .6; cursor: wait; }\n.clickable-stock-row { cursor: pointer; }
-.clickable-stock-row:focus-visible { outline: 2px solid var(--primary, #6366f1); outline-offset: -2px; }
-.clickable-stock-row:hover { background: rgba(99, 102, 241, .045); }
+.button-primary {
+  border: 1px solid var(--primary, #059669);
+  background: var(--primary, #059669);
+  color: var(--primary-foreground, #fff);
+}
+.button-primary:hover {
+  filter: brightness(0.92);
+}
+.button-primary:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+\n.clickable-stock-row {
+  cursor: pointer;
+}
+.clickable-stock-row:focus-visible {
+  outline: 2px solid var(--primary, #6366f1);
+  outline-offset: -2px;
+}
+.clickable-stock-row:hover {
+  background: rgba(99, 102, 241, 0.045);
+}
 .stock-modal-backdrop {
   position: fixed;
   inset: 0;
@@ -1848,7 +2437,7 @@ table th{font-size:9px}
   padding: 22px;
   background: rgb(15 23 42 / 54%);
   backdrop-filter: blur(7px);
-  animation: stock-backdrop-in .18s ease-out;
+  animation: stock-backdrop-in 0.18s ease-out;
 }
 .stock-modal {
   --modal-primary: var(--primary, #2563eb);
@@ -1864,7 +2453,7 @@ table th{font-size:9px}
   background: var(--card, #fff);
   color: var(--foreground, #111827);
   box-shadow: 0 30px 100px rgb(15 23 42 / 30%);
-  animation: stock-modal-in .22s ease-out;
+  animation: stock-modal-in 0.22s ease-out;
 }
 .stock-modal-header {
   display: flex;
@@ -1875,9 +2464,24 @@ table th{font-size:9px}
   border-bottom: 1px solid var(--modal-border);
   background: linear-gradient(135deg, #fff 0%, #fbfcff 100%);
 }
-.stock-modal-title-wrap { display: flex; align-items: center; gap: 16px; min-width: 0; }
-.stock-modal-icon img { width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }
-.product-avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }
+.stock-modal-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+}
+.stock-modal-icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+}
+.product-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+}
 
 .stock-modal-icon {
   display: grid;
@@ -1890,13 +2494,15 @@ table th{font-size:9px}
   background: rgb(37 99 235 / 7%);
   color: var(--modal-primary);
 }
-.stock-modal-heading { min-width: 0; }
+.stock-modal-heading {
+  min-width: 0;
+}
 .stock-modal-eyebrow {
   margin: 0 0 5px;
   color: var(--modal-primary);
   font-size: 10px;
   font-weight: 800;
-  letter-spacing: .12em;
+  letter-spacing: 0.12em;
 }
 .stock-modal-header h2 {
   margin: 0;
@@ -1905,21 +2511,84 @@ table th{font-size:9px}
   font-size: 24px;
   line-height: 1.25;
   font-weight: 760;
-  letter-spacing: -.035em;
+  letter-spacing: -0.035em;
 }
-.stock-modal-subtitle { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; margin-top: 7px; color: var(--modal-muted); font-size: 12px; }
-.subtitle-separator { color: #c0c7d3; }
-.record-status { padding: 3px 8px; border-radius: 999px; font-size: 10px; font-weight: 700; }
-.record-status.unlinked { background: #fff4e5; color: #b45309; }
-.stock-modal-header-meta { display: flex; flex: 0 0 auto; align-items: center; gap: 17px; }
-.stock-status-pill { display: inline-flex; align-items: center; gap: 7px; padding: 9px 12px; border-radius: 10px; font-size: 11px; font-weight: 750; white-space: nowrap; }
-.status-good { background: #eaf8ef; color: #15803d; }
-.status-low { background: #fff1f0; color: #c2413b; }
-.status-dot { display: inline-block; width: 7px; height: 7px; flex: 0 0 auto; border-radius: 50%; background: currentColor; }
-.updated-meta { display: flex; align-items: center; gap: 9px; padding-left: 16px; border-left: 1px solid var(--modal-border); color: var(--modal-muted); }
-.updated-meta span { display: flex; flex-direction: column; gap: 3px; }
-.updated-meta small { font-size: 10px; }
-.updated-meta strong { max-width: 180px; font-size: 11px; font-weight: 650; color: var(--foreground, #111827); }
+.stock-modal-subtitle {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+  margin-top: 7px;
+  color: var(--modal-muted);
+  font-size: 12px;
+}
+.subtitle-separator {
+  color: #c0c7d3;
+}
+.record-status {
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+}
+.record-status.unlinked {
+  background: #fff4e5;
+  color: #b45309;
+}
+.stock-modal-header-meta {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 17px;
+}
+.stock-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 750;
+  white-space: nowrap;
+}
+.status-good {
+  background: #eaf8ef;
+  color: #15803d;
+}
+.status-low {
+  background: #fff1f0;
+  color: #c2413b;
+}
+.status-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: currentColor;
+}
+.updated-meta {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding-left: 16px;
+  border-left: 1px solid var(--modal-border);
+  color: var(--modal-muted);
+}
+.updated-meta span {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.updated-meta small {
+  font-size: 10px;
+}
+.updated-meta strong {
+  max-width: 180px;
+  font-size: 11px;
+  font-weight: 650;
+  color: var(--foreground, #111827);
+}
 .stock-modal-close {
   display: grid;
   width: 36px;
@@ -1931,19 +2600,28 @@ table th{font-size:9px}
   background: #fff;
   color: #344054;
   cursor: pointer;
-  transition: background .15s ease, border-color .15s ease, transform .15s ease;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
 }
-.stock-modal-close:hover { border-color: #cbd5e1; background: #f8fafc; transform: rotate(3deg); }
+.stock-modal-close:hover {
+  border-color: #cbd5e1;
+  background: #f8fafc;
+  transform: rotate(3deg);
+}
 .stock-modal-body {
   display: grid;
-  grid-template-columns: minmax(0, 1.7fr) minmax(270px, .92fr);
+  grid-template-columns: minmax(0, 1.7fr) minmax(270px, 0.92fr);
   align-items: start;
   gap: 16px;
   overflow-y: auto;
   padding: 20px 24px;
   background: #fcfdff;
 }
-.stock-modal-main, .stock-modal-sidebar { display: grid; min-width: 0; gap: 15px; }
+.stock-modal-main,
+.stock-modal-sidebar {
+  display: grid;
+  min-width: 0;
+  gap: 15px;
+}
 .stock-detail-section {
   min-width: 0;
   padding: 17px;
@@ -1952,7 +2630,12 @@ table th{font-size:9px}
   background: #fff;
   box-shadow: 0 2px 7px rgb(16 24 40 / 2%);
 }
-.stock-section-heading { display: flex; align-items: center; gap: 10px; margin-bottom: 15px; }
+.stock-section-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 15px;
+}
 .stock-section-icon {
   display: grid;
   width: 34px;
@@ -1964,29 +2647,143 @@ table th{font-size:9px}
   background: rgb(37 99 235 / 6%);
   color: var(--modal-primary);
 }
-.stock-section-heading h3 { margin: 0; font-size: 13px; line-height: 1.35; font-weight: 760; }
-.stock-section-heading p { margin: 3px 0 0; color: var(--modal-muted); font-size: 10px; line-height: 1.45; }
-.stock-detail-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 20px; margin: 0; }
-.stock-detail-list > div { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; min-width: 0; padding: 10px 0; border-bottom: 1px solid #eef1f5; }
-.stock-detail-list > div:nth-last-child(-n+2) { border-bottom: 0; }
-.stock-detail-list dt { flex: 0 0 auto; color: var(--modal-muted); font-size: 10px; }
-.stock-detail-list dd { margin: 0; text-align: right; overflow-wrap: anywhere; color: var(--foreground, #111827); font-size: 10px; font-weight: 680; }
-.stock-detail-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
-.stock-detail-tile { min-width: 0; padding: 13px; border: 1px solid transparent; border-radius: 12px; }
-.stock-detail-tile span { display: block; margin-bottom: 9px; color: #475467; font-size: 10px; font-weight: 600; }
-.stock-detail-tile strong { display: block; overflow-wrap: anywhere; color: #101828; font-size: 24px; line-height: 1.1; font-weight: 780; letter-spacing: -.035em; font-variant-numeric: tabular-nums; }
-.stock-detail-tile small { display: block; margin-top: 6px; color: var(--modal-muted); font-size: 10px; }
-.quantity-on-hand { border-color: #d8f0e3; background: #f0faf5; }
-.quantity-reserved { border-color: #fbe3d6; background: #fff7f2; }
-.quantity-available { border-color: #dceafe; background: #f2f7ff; }
-.stock-inline-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 12px; }
-.stock-inline-summary > div { display: flex; min-width: 0; flex-direction: column; align-items: flex-start; gap: 6px; padding: 12px; border: 1px solid #edf0f5; border-radius: 11px; }
-.summary-label { color: var(--modal-muted); font-size: 10px; }
-.stock-inline-summary strong { display: inline-flex; align-items: center; gap: 7px; overflow-wrap: anywhere; font-size: 11px; font-weight: 730; }
-.stock-inline-summary small { color: var(--modal-muted); font-size: 10px; line-height: 1.45; }
-.detail-low { color: #c2413b; }.detail-normal { color: #15803d; }
-.threshold-icon { background: #f1efff; color: #6654e8; }
-.threshold-form { display: flex; align-items: stretch; gap: 9px; }
+.stock-section-heading h3 {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.35;
+  font-weight: 760;
+}
+.stock-section-heading p {
+  margin: 3px 0 0;
+  color: var(--modal-muted);
+  font-size: 10px;
+  line-height: 1.45;
+}
+.stock-detail-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 20px;
+  margin: 0;
+}
+.stock-detail-list > div {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+  padding: 10px 0;
+  border-bottom: 1px solid #eef1f5;
+}
+.stock-detail-list > div:nth-last-child(-n + 2) {
+  border-bottom: 0;
+}
+.stock-detail-list dt {
+  flex: 0 0 auto;
+  color: var(--modal-muted);
+  font-size: 10px;
+}
+.stock-detail-list dd {
+  margin: 0;
+  text-align: right;
+  overflow-wrap: anywhere;
+  color: var(--foreground, #111827);
+  font-size: 10px;
+  font-weight: 680;
+}
+.stock-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.stock-detail-tile {
+  min-width: 0;
+  padding: 13px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+}
+.stock-detail-tile span {
+  display: block;
+  margin-bottom: 9px;
+  color: #475467;
+  font-size: 10px;
+  font-weight: 600;
+}
+.stock-detail-tile strong {
+  display: block;
+  overflow-wrap: anywhere;
+  color: #101828;
+  font-size: 24px;
+  line-height: 1.1;
+  font-weight: 780;
+  letter-spacing: -0.035em;
+  font-variant-numeric: tabular-nums;
+}
+.stock-detail-tile small {
+  display: block;
+  margin-top: 6px;
+  color: var(--modal-muted);
+  font-size: 10px;
+}
+.quantity-on-hand {
+  border-color: #d8f0e3;
+  background: #f0faf5;
+}
+.quantity-reserved {
+  border-color: #fbe3d6;
+  background: #fff7f2;
+}
+.quantity-available {
+  border-color: #dceafe;
+  background: #f2f7ff;
+}
+.stock-inline-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+.stock-inline-summary > div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid #edf0f5;
+  border-radius: 11px;
+}
+.summary-label {
+  color: var(--modal-muted);
+  font-size: 10px;
+}
+.stock-inline-summary strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  overflow-wrap: anywhere;
+  font-size: 11px;
+  font-weight: 730;
+}
+.stock-inline-summary small {
+  color: var(--modal-muted);
+  font-size: 10px;
+  line-height: 1.45;
+}
+.detail-low {
+  color: #c2413b;
+}
+.detail-normal {
+  color: #15803d;
+}
+.threshold-icon {
+  background: #f1efff;
+  color: #6654e8;
+}
+.threshold-form {
+  display: flex;
+  align-items: stretch;
+  gap: 9px;
+}
 .threshold-form input {
   width: 0;
   min-width: 0;
@@ -2000,63 +2797,580 @@ table th{font-size:9px}
   color: var(--foreground, #111827);
   font: inherit;
   font-size: 13px;
-  transition: border-color .15s ease, box-shadow .15s ease;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
-.threshold-form input:focus { border-color: var(--modal-primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--modal-primary) 12%, transparent); }
-.threshold-form input::placeholder { color: #98a2b3; }
-.threshold-save-button { min-height: 42px; white-space: nowrap; }
-.threshold-help { margin: 9px 0 0; color: var(--modal-muted); font-size: 10px; line-height: 1.5; }
-.threshold-feedback { display: flex; align-items: center; gap: 5px; margin: 10px 0 0; font-size: 11px; }
-.threshold-error { color: #dc2626; }.threshold-success { color: #15803d; }
-.stock-operation-link { display: flex; align-items: center; gap: 10px; padding: 12px; border: 1px solid #e8edf4; border-radius: 11px; color: inherit; text-decoration: none; transition: border-color .15s ease, background .15s ease; }
-.stock-operation-link:hover { border-color: #c8d8f5; background: #f8faff; }
-.operation-link-icon { display: grid; width: 36px; height: 36px; flex: 0 0 auto; place-items: center; border-radius: 10px; background: #edf4ff; color: #2563eb; }
-.stock-operation-link > span:nth-child(2) { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 4px; }
-.stock-operation-link strong { font-size: 10px; font-weight: 750; }
-.stock-operation-link small { color: var(--modal-muted); font-size: 9px; line-height: 1.4; }
-.stock-operation-link > .icon { color: var(--modal-muted); }
-.audit-detail-list { margin: 0; }
-.audit-detail-list > div { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 9px 0; border-bottom: 1px solid #eef1f5; }
-.audit-detail-list > div:last-child { border-bottom: 0; }
-.audit-detail-list dt { color: var(--modal-muted); font-size: 10px; }
-.audit-detail-list dd { max-width: 62%; margin: 0; text-align: right; overflow-wrap: anywhere; color: var(--foreground, #111827); font-size: 10px; font-weight: 650; }
-.audit-note { margin: 10px 0 0; padding: 10px; border-radius: 9px; background: #f4f7fc; color: var(--modal-muted); font-size: 9px; line-height: 1.5; }
-.stock-modal-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 24px; border-top: 1px solid var(--modal-border); background: #fff; }
-.stock-modal-footer > span { display: inline-flex; align-items: center; gap: 7px; color: var(--modal-muted); font-size: 10px; }
-@keyframes stock-backdrop-in { from { opacity: 0; } to { opacity: 1; } }
-@keyframes stock-modal-in { from { opacity: 0; transform: translateY(8px) scale(.99); } to { opacity: 1; transform: translateY(0) scale(1); } }
+.threshold-form input:focus {
+  border-color: var(--modal-primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--modal-primary) 12%, transparent);
+}
+.threshold-form input::placeholder {
+  color: #98a2b3;
+}
+.threshold-save-button {
+  min-height: 42px;
+  white-space: nowrap;
+}
+.threshold-help {
+  margin: 9px 0 0;
+  color: var(--modal-muted);
+  font-size: 10px;
+  line-height: 1.5;
+}
+.threshold-feedback {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin: 10px 0 0;
+  font-size: 11px;
+}
+.threshold-error {
+  color: #dc2626;
+}
+.threshold-success {
+  color: #15803d;
+}
+.stock-operation-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid #e8edf4;
+  border-radius: 11px;
+  color: inherit;
+  text-decoration: none;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.stock-operation-link:hover {
+  border-color: #c8d8f5;
+  background: #f8faff;
+}
+.operation-link-icon {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 10px;
+  background: #edf4ff;
+  color: #2563eb;
+}
+.stock-operation-link > span:nth-child(2) {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+}
+.stock-operation-link strong {
+  font-size: 10px;
+  font-weight: 750;
+}
+.stock-operation-link small {
+  color: var(--modal-muted);
+  font-size: 9px;
+  line-height: 1.4;
+}
+.stock-operation-link > .icon {
+  color: var(--modal-muted);
+}
+.audit-detail-list {
+  margin: 0;
+}
+.audit-detail-list > div {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 0;
+  border-bottom: 1px solid #eef1f5;
+}
+.audit-detail-list > div:last-child {
+  border-bottom: 0;
+}
+.audit-detail-list dt {
+  color: var(--modal-muted);
+  font-size: 10px;
+}
+.audit-detail-list dd {
+  max-width: 62%;
+  margin: 0;
+  text-align: right;
+  overflow-wrap: anywhere;
+  color: var(--foreground, #111827);
+  font-size: 10px;
+  font-weight: 650;
+}
+.audit-note {
+  margin: 10px 0 0;
+  padding: 10px;
+  border-radius: 9px;
+  background: #f4f7fc;
+  color: var(--modal-muted);
+  font-size: 9px;
+  line-height: 1.5;
+}
+.stock-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 13px 24px;
+  border-top: 1px solid var(--modal-border);
+  background: #fff;
+}
+.stock-modal-footer > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--modal-muted);
+  font-size: 10px;
+}
+@keyframes stock-backdrop-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes stock-modal-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
 @media (max-width: 900px) {
-  .stock-modal { width: min(760px, 100%); }
-  .stock-modal-body { grid-template-columns: minmax(0, 1fr); }
-  .stock-modal-sidebar { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
+  .stock-modal {
+    width: min(760px, 100%);
+  }
+  .stock-modal-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .stock-modal-sidebar {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
 }
 @media (max-width: 640px) {
-  .stock-modal-backdrop { align-items: flex-end; padding: 7px; }
-  .stock-modal { max-height: 96vh; border-radius: 17px 17px 12px 12px; }
-  .stock-modal-header { align-items: flex-start; padding: 15px; gap: 10px; }
-  .stock-modal-title-wrap { gap: 10px; }
-  .stock-modal-icon { width: 42px; height: 42px; border-radius: 12px; }
-  .stock-modal-header h2 { font-size: 18px; }
-  .stock-modal-eyebrow { font-size: 9px; }
-  .stock-modal-header-meta { flex-wrap: wrap; justify-content: flex-end; gap: 7px; }
-  .updated-meta { display: none; }
-  .stock-status-pill { padding: 7px 8px; font-size: 9px; }
-  .stock-modal-body { padding: 12px; gap: 12px; }
-  .stock-modal-main, .stock-modal-sidebar { gap: 12px; }
-  .stock-modal-sidebar { grid-template-columns: minmax(0, 1fr); }
-  .stock-detail-section { padding: 13px; border-radius: 12px; }
-  .stock-section-heading { margin-bottom: 12px; }
-  .stock-detail-list { grid-template-columns: minmax(0, 1fr); }
-  .stock-detail-list > div:nth-last-child(2) { border-bottom: 1px solid #eef1f5; }
-  .stock-detail-list > div:last-child { border-bottom: 0; }
-  .stock-detail-grid { gap: 6px; }
-  .stock-detail-tile { padding: 10px 8px; }
-  .stock-detail-tile strong { font-size: 19px; }
-  .stock-detail-tile span, .stock-detail-tile small { font-size: 9px; }
-  .stock-inline-summary { grid-template-columns: minmax(0, 1fr); }
-  .threshold-form { flex-direction: column; }
-  .threshold-form input { width: 100%; flex: auto; }
-  .threshold-save-button { width: 100%; }
-  .stock-modal-footer { padding: 10px 13px; }
+  .stock-modal-backdrop {
+    align-items: flex-end;
+    padding: 7px;
+  }
+  .stock-modal {
+    max-height: 96vh;
+    border-radius: 17px 17px 12px 12px;
+  }
+  .stock-modal-header {
+    align-items: flex-start;
+    padding: 15px;
+    gap: 10px;
+  }
+  .stock-modal-title-wrap {
+    gap: 10px;
+  }
+  .stock-modal-icon {
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+  }
+  .stock-modal-header h2 {
+    font-size: 18px;
+  }
+  .stock-modal-eyebrow {
+    font-size: 9px;
+  }
+  .stock-modal-header-meta {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 7px;
+  }
+  .updated-meta {
+    display: none;
+  }
+  .stock-status-pill {
+    padding: 7px 8px;
+    font-size: 9px;
+  }
+  .stock-modal-body {
+    padding: 12px;
+    gap: 12px;
+  }
+  .stock-modal-main,
+  .stock-modal-sidebar {
+    gap: 12px;
+  }
+  .stock-modal-sidebar {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .stock-detail-section {
+    padding: 13px;
+    border-radius: 12px;
+  }
+  .stock-section-heading {
+    margin-bottom: 12px;
+  }
+  .stock-detail-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .stock-detail-list > div:nth-last-child(2) {
+    border-bottom: 1px solid #eef1f5;
+  }
+  .stock-detail-list > div:last-child {
+    border-bottom: 0;
+  }
+  .stock-detail-grid {
+    gap: 6px;
+  }
+  .stock-detail-tile {
+    padding: 10px 8px;
+  }
+  .stock-detail-tile strong {
+    font-size: 19px;
+  }
+  .stock-detail-tile span,
+  .stock-detail-tile small {
+    font-size: 9px;
+  }
+  .stock-inline-summary {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .threshold-form {
+    flex-direction: column;
+  }
+  .threshold-form input {
+    width: 100%;
+    flex: auto;
+  }
+  .threshold-save-button {
+    width: 100%;
+  }
+  .stock-modal-footer {
+    padding: 10px 13px;
+  }
 }
+
+/* Inventory reservation UI */
+.action-heading {
+  min-width: 125px;
+}
+.stock-action-cell {
+  white-space: nowrap;
+}
+.reserve-row-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 36px;
+  min-width: 96px;
+  padding: 0 12px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+.reserve-row-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+.reservation-toast {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 15px;
+  padding: 12px 14px;
+  border: 1px solid #bbf7d0;
+  border-radius: 11px;
+  background: #f0fdf4;
+  color: #166534;
+  font-size: 12px;
+}
+.reservation-toast a {
+  margin-left: auto;
+  color: #166534;
+  font-weight: 700;
+  text-decoration: underline;
+}
+.reservation-toast button {
+  display: grid;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.reservation-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgb(15 23 42 / 58%);
+  backdrop-filter: blur(3px);
+  animation: stock-backdrop-in 0.16s ease-out;
+}
+.reservation-modal {
+  width: min(650px, 100%);
+  max-height: min(90vh, 900px);
+  overflow: auto;
+  border: 1px solid #e6eaf0;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 24px 80px rgb(15 23 42 / 28%);
+  animation: stock-modal-in 0.18s ease-out;
+}
+.reservation-modal-header {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding: 22px 24px;
+  border-bottom: 1px solid #edf0f5;
+}
+.reservation-modal-heading-icon {
+  display: grid;
+  width: 46px;
+  height: 46px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 13px;
+  background: #eef4ff;
+  color: #3159c9;
+}
+.reservation-modal-heading-copy {
+  min-width: 0;
+  flex: 1;
+}
+.reservation-modal-heading-copy > span {
+  color: #64748b;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+}
+.reservation-modal-heading-copy h2 {
+  margin: 4px 0 3px;
+  color: #101828;
+  font-size: 21px;
+  font-weight: 780;
+  letter-spacing: -0.03em;
+}
+.reservation-modal-heading-copy p {
+  margin: 0;
+  color: #667085;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+.reservation-close {
+  display: grid;
+  width: 35px;
+  height: 35px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #fff;
+  color: #667085;
+  cursor: pointer;
+}
+.reservation-form {
+  padding: 20px 24px 0;
+}
+.reservation-availability {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 9px;
+  margin-bottom: 20px;
+}
+.reservation-availability > div {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 12px;
+  border: 1px solid #e7edf5;
+  border-radius: 11px;
+  background: #f8fafc;
+}
+.reservation-availability span {
+  color: #667085;
+  font-size: 10px;
+}
+.reservation-availability strong {
+  color: #101828;
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
+}
+.reservation-availability > div:last-child {
+  border-color: #cfe0ff;
+  background: #f1f6ff;
+}
+.reservation-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 15px 13px;
+}
+.reservation-field {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 7px;
+  color: #344054;
+  font-size: 11px;
+  font-weight: 700;
+}
+.reservation-field-full {
+  grid-column: 1 / -1;
+}
+.reservation-field b {
+  color: #dc2626;
+}
+.reservation-field span small {
+  color: #98a2b3;
+  font-size: 10px;
+  font-weight: 500;
+}
+.reservation-field input,
+.reservation-field select,
+.reservation-field textarea {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid #d0d5dd;
+  border-radius: 9px;
+  padding: 10px 11px;
+  outline: none;
+  background: #fff;
+  color: #101828;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+}
+.reservation-field textarea {
+  resize: vertical;
+}
+.reservation-field input:focus,
+.reservation-field select:focus,
+.reservation-field textarea:focus {
+  border-color: #6485e8;
+  box-shadow: 0 0 0 3px rgb(79 110 220 / 12%);
+}
+.reservation-field > small {
+  color: #98a2b3;
+  font-size: 10px;
+  font-weight: 500;
+}
+.reservation-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 15px 0 0;
+  padding: 11px 12px;
+  border: 1px solid #fecaca;
+  border-radius: 9px;
+  background: #fef2f2;
+  color: #b91c1c;
+  font-size: 11px;
+  line-height: 1.5;
+}
+.reservation-error svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+.reservation-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 20px -24px 0;
+  padding: 15px 24px;
+  border-top: 1px solid #edf0f5;
+  background: #fbfcfe;
+}
+.reservation-modal-footer > div {
+  display: flex;
+  gap: 8px;
+}
+.reservation-history-link {
+  color: #475467;
+  font-size: 10px;
+  font-weight: 650;
+  text-decoration: none;
+}
+.reservation-history-link:hover {
+  color: #3159c9;
+  text-decoration: underline;
+}
+@media (max-width: 600px) {
+  .reservation-backdrop {
+    align-items: flex-end;
+    padding: 7px;
+  }
+  .reservation-modal {
+    max-height: 96vh;
+    border-radius: 17px 17px 12px 12px;
+  }
+  .reservation-modal-header {
+    padding: 15px;
+  }
+  .reservation-form {
+    padding: 15px 14px 0;
+  }
+  .reservation-modal-heading-copy h2 {
+    font-size: 18px;
+  }
+  .reservation-availability {
+    gap: 6px;
+  }
+  .reservation-availability > div {
+    padding: 9px 7px;
+  }
+  .reservation-availability strong {
+    font-size: 17px;
+  }
+  .reservation-availability span {
+    font-size: 9px;
+  }
+  .reservation-form-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .reservation-field-full {
+    grid-column: auto;
+  }
+  .reservation-modal-footer {
+    align-items: stretch;
+    flex-direction: column-reverse;
+    margin: 16px -14px 0;
+    padding: 12px 14px;
+  }
+  .reservation-modal-footer > div {
+    width: 100%;
+  }
+  .reservation-modal-footer > div button {
+    flex: 1;
+  }
+  .reservation-history-link {
+    text-align: center;
+  }
+  .reservation-toast {
+    flex-wrap: wrap;
+  }
+  .reservation-toast a {
+    margin-left: 0;
+  }
+}
+
+/* Keep reservation button text readable on hover */
+.reserve-row-button:hover:not(:disabled),
+.reserve-row-button:focus-visible:not(:disabled) {
+  color: var(--primary-foreground, #ffffff);
+}
+
+.reserve-row-button:hover:not(:disabled) span,
+.reserve-row-button:hover:not(:disabled) svg,
+.reserve-row-button:focus-visible:not(:disabled) span,
+.reserve-row-button:focus-visible:not(:disabled) svg {
+  color: inherit;
+}
+
 </style>

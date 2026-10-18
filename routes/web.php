@@ -2,11 +2,29 @@
 
 use App\Http\Controllers\Access\RolesPermissionsController;
 use App\Http\Controllers\ProductController;
+use App\Http\Controllers\StorefrontController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\UserPageController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
+
+/*
+|--------------------------------------------------------------------------
+| Public Storefront
+|--------------------------------------------------------------------------
+|
+| Public, read-only product catalogue. Checkout and order processing will be
+| added in a later phase and will continue to use the ERP inventory source.
+|
+*/
+
+Route::get('/', [StorefrontController::class, 'index'])->name('storefront.home');
+Route::get('/shop', [StorefrontController::class, 'index'])->name('storefront.index');
+Route::get('/shop/{slug}', [StorefrontController::class, 'show'])
+    ->where('slug', '[A-Za-z0-9\-]+')
+    ->name('storefront.show');
+
 
 /*
 |--------------------------------------------------------------------------
@@ -264,6 +282,16 @@ Route::middleware('auth')->group(function () {
             'userEmail' => $user->email,
         ]);
     })->name('inventory.index');
+
+    Route::get('/inventory/reservations', function () {
+        $user = request()->user();
+        abort_unless($user !== null, 401);
+        abort_unless($user->can('system.inventory.view'), 403);
+        return Inertia::render('Inventory/Reservations', [
+            'userName' => $user->name,
+            'userEmail' => $user->email,
+        ]);
+    })->name('inventory.reservations');
 
     Route::get('/inventory/low-stock', function () {
         $user = request()->user();

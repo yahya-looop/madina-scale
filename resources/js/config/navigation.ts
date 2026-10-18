@@ -107,6 +107,12 @@ export const primaryNavigation: NavigationItem[] = [
                 icon: 'settings-2',
                 permission: 'system.inventory.view',
             },
+            {
+                label: 'Reservations',
+                href: '/inventory/reservations',
+                icon: 'clipboard-list',
+                permission: 'system.inventory.view',
+            },
         ],
     },
 
