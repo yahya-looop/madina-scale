@@ -39,7 +39,12 @@ interface LowStockRow {
   reserved_quantity: string | number;
   available_quantity?: string | number;
   low_stock_threshold: string | number;
-  product?: { id: number; name: string; sku?: string | null; product_type?: string } | null;
+  product?: {
+    id: number;
+    name: string;
+    sku?: string | null;
+    product_type?: string;
+  } | null;
   variant?: { id: number; name?: string | null; sku?: string | null } | null;
   location?: { id: number; name: string; code?: string | null } | null;
 }
@@ -59,6 +64,8 @@ const variants = ref<Variant[]>([]);
 const lowStockRows = ref<LowStockRow[]>([]);
 const restockStockId = ref("");
 const loadingLowStock = ref(false);
+const sourceStockRow = ref<LowStockRow | null>(null);
+const loadingSourceStock = ref(false);
 const productId = ref("");
 const variantId = ref("");
 const itemType = ref<"product" | "variant">("product");
@@ -83,11 +90,51 @@ const currentProduct = computed(() =>
   products.value.find((p) => String(p.id) === productId.value)
 );
 const isVariable = computed(() => currentProduct.value?.product_type === "variable");
-const selectedRestockStock = computed(() => lowStockRows.value.find((row) => String(row.id) === restockStockId.value) ?? null);
+const selectedRestockStock = computed(
+  () => lowStockRows.value.find((row) => String(row.id) === restockStockId.value) ?? null
+);
+const sourceAvailableQuantity = computed(() =>
+  sourceStockRow.value
+    ? numeric(
+        sourceStockRow.value.available_quantity ??
+          numeric(sourceStockRow.value.quantity) -
+            numeric(sourceStockRow.value.reserved_quantity)
+      )
+    : 0
+);
+const quantityExceedsSource = computed(
+  () =>
+    operation.value === "restock" &&
+    !!sourceLocationId.value &&
+    !!quantity.value &&
+    numeric(quantity.value) > sourceAvailableQuantity.value
+);
+const destinationLocation = computed(
+  () =>
+    locations.value.find(
+      (location) =>
+        String(location.id) === String(selectedRestockStock.value?.location_id ?? "")
+    ) ??
+    selectedRestockStock.value?.location ??
+    null
+);
 const lowStockProductLabel = (row: LowStockRow): string => {
-  const name = row.product?.name ?? `Product #${row.product_id ?? row.variant?.id ?? row.product_variant_id}`;
+  const name =
+    row.product?.name ??
+    `Product #${row.product_id ?? row.variant?.id ?? row.product_variant_id}`;
   const variant = row.variant?.name ? ` — ${row.variant.name}` : "";
-  return `${name}${variant} · Available ${qty(row.available_quantity ?? numeric(row.quantity) - numeric(row.reserved_quantity))} · Threshold ${qty(row.low_stock_threshold)}`;
+  return `${name}${variant} · Available ${qty(
+    row.available_quantity ?? numeric(row.quantity) - numeric(row.reserved_quantity)
+  )} · Threshold ${qty(row.low_stock_threshold)}`;
+};
+const restockCardSpanClass = (index: number): string => {
+  const count = lowStockRows.value.length;
+  if (count <= 1) return "restock-span-full";
+  if (count === 2) return "restock-span-half";
+  const remainder = count % 3;
+  if (remainder === 1 && index === count - 1) return "restock-span-full";
+  if (remainder === 2 && index >= count - 2) return "restock-span-half";
+  return "restock-span-third";
 };
 const selectedVariant = computed(() =>
   variants.value.find((v) => String(v.id) === variantId.value)
@@ -111,7 +158,8 @@ const operationMeta = computed(
       },
       issue: {
         title: "Stock Out",
-        description: "Record stock leaving a location for internal use or other approved reasons.",
+        description:
+          "Record stock leaving a location for internal use or other approved reasons.",
         icon: "stock-out",
         endpoint: "/api/inventory/issue",
         permission: "system.inventory.issue",
@@ -132,8 +180,9 @@ const operationMeta = computed(
       },
       restock: {
         title: "Restock Low-Stock Item",
-        description: "Transfer an item from a source warehouse to a location where it is low in stock.",
-        icon: "package-plus",
+        description:
+          "Transfer an item from a source warehouse to a location where it is low in stock.",
+        icon: "repeat-once",
         endpoint: "/api/inventory/restock",
         permission: "system.inventory.transfer",
       },
@@ -212,6 +261,8 @@ function resetForm(): void {
   productId.value = "";
   variantId.value = "";
   restockStockId.value = "";
+  sourceStockRow.value = null;
+  loadingSourceStock.value = false;
   itemType.value = "product";
   locationId.value = "";
   sourceLocationId.value = "";
@@ -269,9 +320,10 @@ async function loadOptions(): Promise<void> {
   }
 }
 async function loadLowStock(): Promise<void> {
-  if (operation.value !== "restock" || !destinationLocationId.value) {
+  if (operation.value !== "restock") {
     lowStockRows.value = [];
     restockStockId.value = "";
+    sourceStockRow.value = null;
     return;
   }
   loadingLowStock.value = true;
@@ -281,23 +333,103 @@ async function loadLowStock(): Promise<void> {
     let page = 1;
     let lastPage = 1;
     do {
-      const params = new URLSearchParams({ location_id: destinationLocationId.value, per_page: "100", page: String(page) });
-      const response = await fetch(`/api/inventory/low-stock?${params}`, { credentials: "same-origin", headers: { Accept: "application/json", "X-Requested-With": "XMLHttpRequest" } });
+      const params = new URLSearchParams({ per_page: "100", page: String(page) });
+      const response = await fetch(`/api/inventory/low-stock?${params}`, {
+        credentials: "same-origin",
+        headers: { Accept: "application/json", "X-Requested-With": "XMLHttpRequest" },
+      });
       const payload = await readApiPayload<LowStockRow[]>(response);
-      if (!response.ok) throw new Error(payload.message || `Unable to load low-stock items (HTTP ${response.status}).`);
+      if (!response.ok)
+        throw new Error(
+          payload.message || `Unable to load low-stock items (HTTP ${response.status}).`
+        );
       if (Array.isArray(payload.data)) allRows.push(...payload.data);
       lastPage = Math.max(1, payload.last_page ?? 1);
       page += 1;
     } while (page <= lastPage);
     lowStockRows.value = allRows;
-    if (!lowStockRows.value.some((row) => String(row.id) === restockStockId.value)) restockStockId.value = "";
+    if (!lowStockRows.value.some((row) => String(row.id) === restockStockId.value)) {
+      restockStockId.value = "";
+      destinationLocationId.value = "";
+      sourceStockRow.value = null;
+    }
   } catch (e) {
     error.value = e instanceof Error ? e.message : "Unable to load low-stock items.";
     lowStockRows.value = [];
-  } finally { loadingLowStock.value = false; }
+  } finally {
+    loadingLowStock.value = false;
+  }
 }
-watch(destinationLocationId, () => {
-  if (operation.value === "restock") void loadLowStock();
+function selectRestockStock(row: LowStockRow): void {
+  clearNotices();
+  restockStockId.value = String(row.id);
+  destinationLocationId.value = String(row.location_id);
+  sourceLocationId.value = "";
+  sourceStockRow.value = null;
+  quantity.value = "";
+  reason.value = "";
+  referenceType.value = "";
+  referenceId.value = "";
+  fieldErrors.value = {};
+}
+async function loadSourceStock(): Promise<void> {
+  const stock = selectedRestockStock.value;
+  const sourceId = sourceLocationId.value;
+  sourceStockRow.value = null;
+  if (
+    operation.value !== "restock" ||
+    !stock ||
+    !sourceId ||
+    sourceId === String(stock.location_id)
+  )
+    return;
+  loadingSourceStock.value = true;
+  try {
+    const params = new URLSearchParams({
+      location_id: sourceId,
+      per_page: "100",
+      page: "1",
+    });
+    if (stock.product_variant_id ?? stock.variant_id)
+      params.set(
+        "product_variant_id",
+        String(stock.product_variant_id ?? stock.variant_id)
+      );
+    else if (stock.product_id) params.set("product_id", String(stock.product_id));
+    else throw new Error("This stock row is not linked to a product or variant.");
+    const response = await fetch(`/api/inventory?${params}`, {
+      credentials: "same-origin",
+      headers: { Accept: "application/json", "X-Requested-With": "XMLHttpRequest" },
+    });
+    const payload = await readApiPayload<LowStockRow[]>(response);
+    if (!response.ok)
+      throw new Error(
+        payload.message || `Unable to check source stock (HTTP ${response.status}).`
+      );
+    if (
+      sourceLocationId.value !== sourceId ||
+      String(selectedRestockStock.value?.id ?? "") !== String(stock.id)
+    )
+      return;
+    const rows = Array.isArray(payload.data) ? payload.data : [];
+    sourceStockRow.value =
+      rows.find(
+        (row) =>
+          String(row.location_id) === sourceId &&
+          (stock.product_variant_id ?? stock.variant_id
+            ? String(row.product_variant_id ?? row.variant_id ?? "") ===
+              String(stock.product_variant_id ?? stock.variant_id)
+            : String(row.product_id ?? "") === String(stock.product_id ?? ""))
+      ) ?? null;
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "Unable to check source stock.";
+    sourceStockRow.value = null;
+  } finally {
+    loadingSourceStock.value = false;
+  }
+}
+watch(sourceLocationId, () => {
+  if (operation.value === "restock") void loadSourceStock();
 });
 async function loadVariants(): Promise<void> {
   variants.value = [];
@@ -342,16 +474,27 @@ watch(productId, async () => {
 watch(operation, () => {
   clearNotices();
   success.value = "";
-  if (operation.value === "restock") void loadLowStock();
-  else { lowStockRows.value = []; restockStockId.value = ""; }
+  if (operation.value === "restock") {
+    restockStockId.value = "";
+    destinationLocationId.value = "";
+    sourceLocationId.value = "";
+    sourceStockRow.value = null;
+    void loadLowStock();
+  } else {
+    lowStockRows.value = [];
+    restockStockId.value = "";
+    sourceStockRow.value = null;
+  }
 });
 function validateForm(): boolean {
   fieldErrors.value = {};
   if (operation.value === "restock") {
-    if (!restockStockId.value || !selectedRestockStock.value) fieldErrors.value.stock_id = "Select a low-stock item.";
+    if (!restockStockId.value || !selectedRestockStock.value)
+      fieldErrors.value.stock_id = "Select a low-stock item.";
   } else {
     if (!productId.value) fieldErrors.value.product_id = "Select a product.";
-    if (isVariable.value && !variantId.value) fieldErrors.value.product_variant_id = "Select an active variant.";
+    if (isVariable.value && !variantId.value)
+      fieldErrors.value.product_variant_id = "Select an active variant.";
   }
   if (operation.value === "transfer" || operation.value === "restock") {
     if (!sourceLocationId.value)
@@ -371,6 +514,16 @@ function validateForm(): boolean {
     fieldErrors.value.quantity = "Enter a non-zero quantity with up to 4 decimal places.";
   else if (operation.value !== "adjust" && n < 0)
     fieldErrors.value.quantity = "Quantity must be greater than zero.";
+  else if (
+    operation.value === "restock" &&
+    sourceLocationId.value &&
+    (!sourceStockRow.value || n > sourceAvailableQuantity.value)
+  )
+    fieldErrors.value.quantity = sourceStockRow.value
+      ? `Quantity cannot exceed the source available stock (${qty(
+          sourceAvailableQuantity.value
+        )}).`
+      : "The selected source location has no available stock for this product.";
   if (reason.value.length > 255)
     fieldErrors.value.reason = "Reason must be 255 characters or fewer.";
   return Object.keys(fieldErrors.value).length === 0;
@@ -391,7 +544,8 @@ async function submit(): Promise<void> {
   };
   if (operation.value === "restock" && selectedRestockStock.value) {
     const stock = selectedRestockStock.value;
-    if (stock.product_variant_id ?? stock.variant_id) payload.product_variant_id = Number(stock.product_variant_id ?? stock.variant_id);
+    if (stock.product_variant_id ?? stock.variant_id)
+      payload.product_variant_id = Number(stock.product_variant_id ?? stock.variant_id);
     else payload.product_id = Number(stock.product_id);
     payload.reason = reason.value.trim() || "Low-stock replenishment transfer";
     payload.reference_type = referenceType.value.trim() || "low_stock_restock";
@@ -440,7 +594,13 @@ async function submit(): Promise<void> {
     lastPayloadFingerprint = "";
     lastIdempotencyKey = "";
     quantity.value = "";
-    if (operation.value === "restock") { restockStockId.value = ""; await loadLowStock(); }
+    if (operation.value === "restock") {
+      restockStockId.value = "";
+      sourceLocationId.value = "";
+      destinationLocationId.value = "";
+      sourceStockRow.value = null;
+      await loadLowStock();
+    }
     reason.value = "";
     referenceType.value = "";
     referenceId.value = "";
@@ -457,7 +617,9 @@ async function submit(): Promise<void> {
     if (thisRequest === requestId.value) submitting.value = false;
   }
 }
-onMounted(() => { void loadOptions(); });
+onMounted(() => {
+  void loadOptions();
+});
 </script>
 
 <template>
@@ -477,7 +639,8 @@ onMounted(() => { void loadOptions(); });
             <div class="title-copy">
               <h1>Stock Operations</h1>
               <p>
-                Receive, move out, adjust, transfer or restock inventory with a recorded stock ledger.
+                Receive, move out, adjust, transfer or restock inventory with a recorded
+                stock ledger.
               </p>
             </div>
           </div>
@@ -494,9 +657,19 @@ onMounted(() => { void loadOptions(); });
           v-for="item in [
             { value: 'receive', label: 'Receive', icon: 'stock-in', tone: 'receive' },
             { value: 'issue', label: 'Stock Out', icon: 'stock-out', tone: 'stock-out' },
-            { value: 'adjust', label: 'Adjust', icon: 'sliders-horizontal', tone: 'adjust' },
-            { value: 'transfer', label: 'Transfer', icon: 'arrows-left-right', tone: 'transfer' },
-            { value: 'restock', label: 'Restock', icon: 'package-plus', tone: 'restock' },
+            {
+              value: 'adjust',
+              label: 'Adjust',
+              icon: 'sliders-horizontal',
+              tone: 'adjust',
+            },
+            {
+              value: 'transfer',
+              label: 'Transfer',
+              icon: 'arrows-left-right',
+              tone: 'transfer',
+            },
+            { value: 'restock', label: 'Restock', icon: 'repeat-once', tone: 'restock' },
           ]"
           :key="item.value"
           type="button"
@@ -511,7 +684,9 @@ onMounted(() => { void loadOptions(); });
 
       <section class="form-card">
         <div class="section-heading">
-          <div :class="['section-icon', `tone-${operation}`]"><Icon :name="operationMeta.icon" :size="17" /></div>
+          <div :class="['section-icon', `tone-${operation}`]">
+            <Icon :name="operationMeta.icon" :size="17" />
+          </div>
           <div class="section-heading-copy">
             <h2>{{ operationMeta.title }}</h2>
             <p>{{ operationMeta.description }}</p>
@@ -524,79 +699,512 @@ onMounted(() => { void loadOptions(); });
           >
         </div>
         <template v-else>
-          <div v-if="error" class="notice error" role="alert">
-            <Icon name="alert-circle" :size="17" /><span>{{ error }}</span
-            ><button
-              type="button"
-              class="notice-close"
-              aria-label="Dismiss error"
-              @click="error = ''"
-            >
-              <Icon name="x" :size="14" />
-            </button>
-          </div>
-          <div v-if="success" class="notice success" role="status">
-            <Icon name="check-circle-2" :size="17" /><span>{{ success }}</span
-            ><button
-              type="button"
-              class="notice-close"
-              aria-label="Dismiss success"
-              @click="success = ''"
-            >
-              <Icon name="x" :size="14" />
-            </button>
-          </div>
+          <template v-if="operation === 'restock'">
+            <div v-if="error" class="notice error" role="alert">
+              <Icon name="alert-circle" :size="17" /><span>{{ error }}</span>
+              <button
+                type="button"
+                class="notice-close"
+                aria-label="Dismiss error"
+                @click="error = ''"
+              >
+                <Icon name="x" :size="14" />
+              </button>
+            </div>
+            <div v-if="success" class="notice success" role="status">
+              <Icon name="check-circle-2" :size="17" /><span>{{ success }}</span>
+              <button
+                type="button"
+                class="notice-close"
+                aria-label="Dismiss success"
+                @click="success = ''"
+              >
+                <Icon name="x" :size="14" />
+              </button>
+            </div>
 
-          <form class="operation-form" @submit.prevent="submit">
-            <div class="form-grid">
-              <label v-if="operation !== 'restock'" class="field">
-                <span>Product <b>*</b></span>
-                <select
-                  v-model="productId"
-                  required
-                  :disabled="submitting || !products.length"
+            <section class="restock-queue" aria-labelledby="restock-queue-title">
+              <div class="restock-queue-heading">
+                <div>
+                  <span class="restock-eyebrow">INVENTORY REPLENISHMENT</span>
+                  <h3 id="restock-queue-title">Choose a low-stock item</h3>
+                  <p>
+                    Select a product below to see its destination stock and choose a
+                    source warehouse.
+                  </p>
+                </div>
+                <div class="restock-count">
+                  <strong>{{ lowStockRows.length }}</strong
+                  ><span>low-stock items</span>
+                </div>
+              </div>
+              <div v-if="loadingLowStock" class="restock-state">
+                <Icon name="loader-2" :size="20" class="spin" /><span
+                  >Loading low-stock items…</span
                 >
-                  <option value="">Select product</option>
-                  <option
-                    v-for="product in products"
-                    :key="product.id"
-                    :value="String(product.id)"
-                  >
-                    {{ product.name }}{{ product.sku ? ` · ${product.sku}` : ""
-                    }}{{ product.product_type === "variable" ? " · Variable" : "" }}
-                  </option>
-                </select>
-                <small v-if="fieldErrors.product_id">{{ fieldErrors.product_id }}</small>
-              </label>
-              <label v-if="operation !== 'restock' && isVariable" class="field">
-                <span>Variant <b>*</b></span>
-                <select
-                  v-model="variantId"
-                  required
-                  :disabled="submitting || loadingVariants || !variants.length"
+              </div>
+              <div v-else-if="lowStockRows.length === 0" class="restock-empty">
+                <Icon name="check-circle-2" :size="26" />
+                <strong>Everything looks stocked</strong>
+                <span>No low-stock items currently need replenishment.</span>
+              </div>
+              <div v-else class="restock-product-grid">
+                <button
+                  v-for="(stock, index) in lowStockRows"
+                  :key="stock.id"
+                  type="button"
+                  class="restock-product-card"
+                  :class="[
+                    restockCardSpanClass(index),
+                    { selected: restockStockId === String(stock.id) },
+                  ]"
+                  :aria-pressed="restockStockId === String(stock.id)"
+                  :disabled="submitting"
+                  @click="selectRestockStock(stock)"
                 >
-                  <option value="">
-                    {{ loadingVariants ? "Loading variants…" : "Select variant" }}
-                  </option>
-                  <option
-                    v-for="variant in variants"
-                    :key="variant.id"
-                    :value="String(variant.id)"
-                  >
-                    {{ variant.name || `Variant #${variant.id}`
-                    }}{{ variant.sku ? ` · ${variant.sku}` : "" }}
-                  </option>
-                </select>
-                <small v-if="fieldErrors.product_variant_id">{{
-                  fieldErrors.product_variant_id
-                }}</small>
-              </label>
+                  <span class="restock-product-icon"
+                    ><Icon name="package" :size="18"
+                  /></span>
+                  <span class="restock-product-main">
+                    <strong>{{
+                      stock.product?.name ??
+                      `Product #${
+                        stock.product_id ??
+                        stock.product_variant_id ??
+                        stock.variant_id ??
+                        stock.id
+                      }`
+                    }}</strong>
+                    <small v-if="stock.variant?.name">{{ stock.variant.name }}</small>
+                    <small>{{
+                      stock.product?.sku ?? stock.variant?.sku ?? "No SKU"
+                    }}</small>
+                    <span class="restock-product-location"
+                      ><Icon name="map-pin" :size="12" />
+                      {{
+                        stock.location?.name ??
+                        locations.find((location) => location.id === stock.location_id)
+                          ?.name ??
+                        `Location #${stock.location_id}`
+                      }}</span
+                    >
+                  </span>
+                  <span class="restock-product-stock">
+                    <strong>{{
+                      qty(
+                        stock.available_quantity ??
+                          numeric(stock.quantity) - numeric(stock.reserved_quantity)
+                      )
+                    }}</strong>
+                    <small>available</small>
+                    <span>Threshold {{ qty(stock.low_stock_threshold) }}</span>
+                  </span>
+                  <Icon name="chevron-right" :size="16" class="restock-card-chevron" />
+                </button>
+              </div>
+            </section>
 
-              <template v-if="operation === 'transfer' || operation === 'restock'">
-                <label class="field"
-                  ><span>{{ operation === 'restock' ? 'Source warehouse / location' : 'Source location' }} <b>*</b></span>
-                  <select v-model="sourceLocationId" required :disabled="submitting">
-                    <option value="">Select source location</option>
+            <Transition name="restock-reveal">
+              <section
+                v-if="selectedRestockStock"
+                class="restock-detail-panel"
+                aria-labelledby="restock-detail-title"
+              >
+                <div class="restock-detail-heading">
+                  <div class="restock-detail-icon">
+                    <Icon name="product" :size="19" />
+                  </div>
+                  <div class="restock-detail-title">
+                    <span class="restock-eyebrow">TRANSFER DETAILS</span>
+                    <h3 id="restock-detail-title">
+                      {{
+                        selectedRestockStock.product?.name ??
+                        `Product #${
+                          selectedRestockStock.product_id ?? selectedRestockStock.id
+                        }`
+                      }}<span v-if="selectedRestockStock.variant?.name">
+                        — {{ selectedRestockStock.variant.name }}</span
+                      >
+                    </h3>
+                    <p>
+                      Destination is fixed to the selected low-stock record to prevent
+                      stock being added to the wrong location.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    class="restock-change-button"
+                    :disabled="submitting"
+                    @click="
+                      restockStockId = '';
+                      sourceLocationId = '';
+                      sourceStockRow = null;
+                      quantity = '';
+                    "
+                  >
+                    Change item
+                  </button>
+                </div>
+
+                <div class="restock-location-summary">
+                  <div class="restock-location-card source">
+                    <span class="restock-location-label"
+                      ><Icon name="warehouse" :size="13" /> SOURCE · SELECT LOCATION</span
+                    >
+                    <label class="restock-source-select">
+                      <span class="sr-only">Source warehouse</span>
+                      <select v-model="sourceLocationId" required :disabled="submitting">
+                        <option value="">Choose source warehouse…</option>
+                        <option
+                          v-for="location in locations.filter(
+                            (location) =>
+                              String(location.id) !==
+                              String(selectedRestockStock?.location_id ?? '')
+                          )"
+                          :key="location.id"
+                          :value="String(location.id)"
+                        >
+                          {{ location.name
+                          }}{{ location.code ? ` · ${location.code}` : "" }}
+                        </option>
+                      </select>
+                    </label>
+                    <div v-if="!sourceLocationId" class="restock-source-placeholder">
+                      Select a source to check its stock.
+                    </div>
+                    <div
+                      v-else-if="loadingSourceStock"
+                      class="restock-source-placeholder"
+                    >
+                      <Icon name="loader-2" :size="14" class="spin" /> Checking available
+                      stock…
+                    </div>
+                    <div v-else-if="sourceStockRow" class="restock-stock-metrics">
+                      <span
+                        ><small>On hand</small
+                        ><b>{{ qty(sourceStockRow.quantity) }}</b></span
+                      >
+                      <span
+                        ><small>Reserved</small
+                        ><b>{{ qty(sourceStockRow.reserved_quantity) }}</b></span
+                      >
+                      <span
+                        ><small>Available</small
+                        ><b class="source-available-value">{{
+                          qty(sourceAvailableQuantity)
+                        }}</b></span
+                      >
+                    </div>
+                    <div v-else-if="sourceLocationId" class="restock-source-empty">
+                      <Icon name="alert-triangle" :size="14" /> No stock record for this
+                      item at the selected source.
+                    </div>
+                  </div>
+                  <div class="restock-transfer-arrow">
+                    <Icon name="arrow-right" :size="20" />
+                  </div>
+                  <div class="restock-location-card destination">
+                    <span class="restock-location-label"
+                      ><Icon name="map-pin" :size="13" /> DESTINATION · LOCKED</span
+                    >
+                    <strong>{{
+                      destinationLocation?.name ??
+                      selectedRestockStock.location?.name ??
+                      `Location #${selectedRestockStock.location_id}`
+                    }}</strong>
+                    <small>{{
+                      destinationLocation?.code ??
+                      selectedRestockStock.location?.code ??
+                      "Destination location"
+                    }}</small>
+                    <div class="restock-stock-metrics">
+                      <span
+                        ><small>On hand</small
+                        ><b>{{ qty(selectedRestockStock.quantity) }}</b></span
+                      >
+                      <span
+                        ><small>Reserved</small
+                        ><b>{{ qty(selectedRestockStock.reserved_quantity) }}</b></span
+                      >
+                      <span
+                        ><small>Available</small
+                        ><b>{{
+                          qty(
+                            selectedRestockStock.available_quantity ??
+                              numeric(selectedRestockStock.quantity) -
+                                numeric(selectedRestockStock.reserved_quantity)
+                          )
+                        }}</b></span
+                      >
+                    </div>
+                  </div>
+                </div>
+
+                <form class="restock-detail-form" @submit.prevent="submit">
+                  <div class="restock-quantity-field">
+                    <label for="restock-quantity">Quantity to transfer <b>*</b></label>
+                    <div class="restock-quantity-input-wrap">
+                      <input
+                        id="restock-quantity"
+                        v-model="quantity"
+                        type="number"
+                        inputmode="decimal"
+                        min="0.0001"
+                        step="0.0001"
+                        placeholder="Enter transfer quantity"
+                        :disabled="
+                          submitting ||
+                          !sourceLocationId ||
+                          loadingSourceStock ||
+                          !sourceStockRow
+                        "
+                        @input="fieldErrors.quantity = ''"
+                      /><span>units</span>
+                    </div>
+                    <div class="restock-quantity-hint" v-if="sourceStockRow">
+                      Maximum available to transfer:
+                      <strong>{{ qty(sourceAvailableQuantity) }}</strong>
+                    </div>
+                    <div class="restock-inline-error" v-if="quantityExceedsSource">
+                      Requested quantity exceeds source available stock. Reduce it to
+                      {{ qty(sourceAvailableQuantity) }} or less.
+                    </div>
+                    <div class="restock-inline-error" v-else-if="fieldErrors.quantity">
+                      {{ fieldErrors.quantity }}
+                    </div>
+                  </div>
+                  <div class="restock-detail-extra-fields">
+                    <label class="field"
+                      ><span>Reason <em>Optional</em></span
+                      ><input
+                        v-model="reason"
+                        maxlength="255"
+                        placeholder="e.g. Replenish branch stock"
+                        :disabled="submitting"
+                    /></label>
+                    <label class="field"
+                      ><span>Reference ID <em>Optional</em></span
+                      ><input
+                        v-model="referenceId"
+                        maxlength="100"
+                        placeholder="Transfer note or internal reference"
+                        :disabled="submitting"
+                    /></label>
+                  </div>
+                  <div
+                    class="restock-validation-note"
+                    :class="{
+                      error:
+                        !!sourceLocationId &&
+                        !loadingSourceStock &&
+                        (!sourceStockRow ||
+                          sourceAvailableQuantity <= 0 ||
+                          quantityExceedsSource ||
+                          !!fieldErrors.quantity),
+                      warning: !!sourceLocationId && loadingSourceStock,
+                    }"
+                  >
+                    <Icon
+                      :name="
+                        sourceLocationId &&
+                        !loadingSourceStock &&
+                        (!sourceStockRow ||
+                          sourceAvailableQuantity <= 0 ||
+                          quantityExceedsSource ||
+                          !!fieldErrors.quantity)
+                          ? 'alert-circle'
+                          : sourceStockRow &&
+                            sourceAvailableQuantity > 0 &&
+                            !quantityExceedsSource
+                          ? 'shield-check'
+                          : 'info'
+                      "
+                      :size="16"
+                    />
+                    <span v-if="!sourceLocationId"
+                      >Choose a source location to check stock availability.</span
+                    >
+                    <span v-else-if="loadingSourceStock">Checking source stock…</span>
+                    <span v-else-if="!sourceStockRow"
+                      >Restock unavailable: this item has no stock record at the selected
+                      source.</span
+                    >
+                    <span v-else-if="sourceAvailableQuantity <= 0"
+                      >Restock unavailable: the source has no available stock after
+                      reservations.</span
+                    >
+                    <span v-else-if="quantityExceedsSource"
+                      >Restock blocked: only {{ qty(sourceAvailableQuantity) }} units are
+                      available at the source.</span
+                    >
+                    <span v-else-if="fieldErrors.quantity"
+                      >Restock blocked: {{ fieldErrors.quantity }}</span
+                    >
+                    <span v-else
+                      >Ready to transfer up to
+                      {{ qty(sourceAvailableQuantity) }} available units. Stock is
+                      revalidated by the server.</span
+                    >
+                  </div>
+                  <div class="restock-detail-actions">
+                    <button
+                      type="button"
+                      class="button secondary"
+                      :disabled="submitting"
+                      @click="
+                        restockStockId = '';
+                        sourceLocationId = '';
+                        sourceStockRow = null;
+                        quantity = '';
+                        fieldErrors = {};
+                      "
+                    >
+                      Cancel selection
+                    </button>
+                    <button
+                      type="submit"
+                      class="button primary action-restock"
+                      :disabled="
+                        submitting ||
+                        loadingSourceStock ||
+                        loadingLowStock ||
+                        !sourceStockRow ||
+                        sourceAvailableQuantity <= 0 ||
+                        !quantity ||
+                        numeric(quantity) <= 0
+                      "
+                    >
+                      <Icon
+                        v-if="submitting"
+                        name="loader-2"
+                        :size="15"
+                        class="spin"
+                      /><Icon v-else name="file-plus" :size="15" />{{
+                        submitting ? "Transferring…" : "Confirm restock transfer"
+                      }}
+                    </button>
+                  </div>
+                </form>
+              </section>
+            </Transition>
+          </template>
+          <template v-else>
+            <div v-if="error" class="notice error" role="alert">
+              <Icon name="alert-circle" :size="17" /><span>{{ error }}</span
+              ><button
+                type="button"
+                class="notice-close"
+                aria-label="Dismiss error"
+                @click="error = ''"
+              >
+                <Icon name="x" :size="14" />
+              </button>
+            </div>
+            <div v-if="success" class="notice success" role="status">
+              <Icon name="check-circle-2" :size="17" /><span>{{ success }}</span
+              ><button
+                type="button"
+                class="notice-close"
+                aria-label="Dismiss success"
+                @click="success = ''"
+              >
+                <Icon name="x" :size="14" />
+              </button>
+            </div>
+
+            <form class="operation-form" @submit.prevent="submit">
+              <div class="form-grid">
+                <label class="field">
+                  <span>Product <b>*</b></span>
+                  <select
+                    v-model="productId"
+                    required
+                    :disabled="submitting || !products.length"
+                  >
+                    <option value="">Select product</option>
+                    <option
+                      v-for="product in products"
+                      :key="product.id"
+                      :value="String(product.id)"
+                    >
+                      {{ product.name }}{{ product.sku ? ` · ${product.sku}` : ""
+                      }}{{ product.product_type === "variable" ? " · Variable" : "" }}
+                    </option>
+                  </select>
+                  <small v-if="fieldErrors.product_id">{{
+                    fieldErrors.product_id
+                  }}</small>
+                </label>
+                <label v-if="isVariable" class="field">
+                  <span>Variant <b>*</b></span>
+                  <select
+                    v-model="variantId"
+                    required
+                    :disabled="submitting || loadingVariants || !variants.length"
+                  >
+                    <option value="">
+                      {{ loadingVariants ? "Loading variants…" : "Select variant" }}
+                    </option>
+                    <option
+                      v-for="variant in variants"
+                      :key="variant.id"
+                      :value="String(variant.id)"
+                    >
+                      {{ variant.name || `Variant #${variant.id}`
+                      }}{{ variant.sku ? ` · ${variant.sku}` : "" }}
+                    </option>
+                  </select>
+                  <small v-if="fieldErrors.product_variant_id">{{
+                    fieldErrors.product_variant_id
+                  }}</small>
+                </label>
+
+                <template v-if="operation === 'transfer'">
+                  <label class="field"
+                    ><span>Source location <b>*</b></span>
+                    <select v-model="sourceLocationId" required :disabled="submitting">
+                      <option value="">Select source location</option>
+                      <option
+                        v-for="location in locations"
+                        :key="location.id"
+                        :value="String(location.id)"
+                      >
+                        {{ location.name
+                        }}{{ location.code ? ` · ${location.code}` : "" }}
+                      </option>
+                    </select>
+                    <small v-if="fieldErrors.source_location_id">{{
+                      fieldErrors.source_location_id
+                    }}</small>
+                  </label>
+                  <label class="field"
+                    ><span>Destination location <b>*</b></span>
+                    <select
+                      v-model="destinationLocationId"
+                      required
+                      :disabled="submitting"
+                    >
+                      <option value="">Select destination location</option>
+                      <option
+                        v-for="location in locations.filter(
+                          (l) => String(l.id) !== sourceLocationId
+                        )"
+                        :key="location.id"
+                        :value="String(location.id)"
+                      >
+                        {{ location.name
+                        }}{{ location.code ? ` · ${location.code}` : "" }}
+                      </option>
+                    </select>
+                    <small v-if="fieldErrors.destination_location_id">{{
+                      fieldErrors.destination_location_id
+                    }}</small>
+                  </label>
+                </template>
+                <label v-else class="field"
+                  ><span>Location <b>*</b></span>
+                  <select v-model="locationId" required :disabled="submitting">
+                    <option value="">Select location</option>
                     <option
                       v-for="location in locations"
                       :key="location.id"
@@ -605,138 +1213,96 @@ onMounted(() => { void loadOptions(); });
                       {{ location.name }}{{ location.code ? ` · ${location.code}` : "" }}
                     </option>
                   </select>
-                  <small v-if="fieldErrors.source_location_id">{{
-                    fieldErrors.source_location_id
+                  <small v-if="fieldErrors.location_id">{{
+                    fieldErrors.location_id
+                  }}</small>
+                </label>
+
+                <label class="field"
+                  ><span>Quantity <b>*</b></span>
+                  <input
+                    v-model="quantity"
+                    type="number"
+                    inputmode="decimal"
+                    step="0.0001"
+                    required
+                    :placeholder="operation === 'adjust' ? 'e.g. 5 or -2' : 'e.g. 10'"
+                    :disabled="submitting"
+                  />
+                  <small>{{ quantityHelp }}</small>
+                  <small v-if="fieldErrors.quantity" class="field-error">{{
+                    fieldErrors.quantity
                   }}</small>
                 </label>
                 <label class="field"
-                  ><span>{{ operation === 'restock' ? 'Destination location (low stock)' : 'Destination location' }} <b>*</b></span>
-                  <select v-model="destinationLocationId" required :disabled="submitting">
-                    <option value="">Select destination location</option>
-                    <option
-                      v-for="location in locations.filter(
-                        (l) => String(l.id) !== sourceLocationId
-                      )"
-                      :key="location.id"
-                      :value="String(location.id)"
-                    >
-                      {{ location.name }}{{ location.code ? ` · ${location.code}` : "" }}
-                    </option>
-                  </select>
-                  <small v-if="fieldErrors.destination_location_id">{{
-                    fieldErrors.destination_location_id
+                  ><span>Reason <em>Optional</em></span>
+                  <input
+                    v-model="reason"
+                    type="text"
+                    maxlength="255"
+                    placeholder="e.g. supplier delivery, damaged stock"
+                    :disabled="submitting"
+                  />
+                  <small v-if="fieldErrors.reason" class="field-error">{{
+                    fieldErrors.reason
                   }}</small>
                 </label>
-                <label v-if="operation === 'restock'" class="field">
-                  <span>Low-stock product / variant <b>*</b></span>
-                  <select v-model="restockStockId" required :disabled="submitting || loadingLowStock || !destinationLocationId">
-                    <option value="">{{ !destinationLocationId ? "Select destination first" : loadingLowStock ? "Loading low-stock items…" : "Select low-stock item" }}</option>
-                    <option v-for="stock in lowStockRows" :key="stock.id" :value="String(stock.id)">{{ lowStockProductLabel(stock) }}</option>
-                  </select>
-                  <small v-if="fieldErrors.stock_id" class="field-error">{{ fieldErrors.stock_id }}</small>
-                  <small v-else-if="destinationLocationId && !loadingLowStock && lowStockRows.length === 0">No low-stock items at this location.</small>
-                </label>
-              </template>
-              <label v-else class="field"
-                ><span>Location <b>*</b></span>
-                <select v-model="locationId" required :disabled="submitting">
-                  <option value="">Select location</option>
-                  <option
-                    v-for="location in locations"
-                    :key="location.id"
-                    :value="String(location.id)"
-                  >
-                    {{ location.name }}{{ location.code ? ` · ${location.code}` : "" }}
-                  </option>
-                </select>
-                <small v-if="fieldErrors.location_id">{{
-                  fieldErrors.location_id
-                }}</small>
-              </label>
+                <label class="field"
+                  ><span>Reference type <em>Optional</em></span
+                  ><input
+                    v-model="referenceType"
+                    type="text"
+                    maxlength="100"
+                    placeholder="e.g. purchase_order"
+                    :disabled="submitting"
+                  /><small v-if="fieldErrors.reference_type" class="field-error">{{
+                    fieldErrors.reference_type
+                  }}</small></label
+                >
+                <label class="field"
+                  ><span>Reference ID <em>Optional</em></span
+                  ><input
+                    v-model="referenceId"
+                    type="text"
+                    maxlength="100"
+                    placeholder="Document or transaction ID"
+                    :disabled="submitting"
+                  /><small v-if="fieldErrors.reference_id" class="field-error">{{
+                    fieldErrors.reference_id
+                  }}</small></label
+                >
+              </div>
 
-              <label class="field"
-                ><span>Quantity <b>*</b></span>
-                <input
-                  v-model="quantity"
-                  type="number"
-                  inputmode="decimal"
-                  step="0.0001"
-                  required
-                  :placeholder="operation === 'adjust' ? 'e.g. 5 or -2' : 'e.g. 10'"
+              <div class="operation-note">
+                <Icon name="shield-check" :size="16" /><span
+                  >Stock updates are processed by the server and recorded in the movement
+                  ledger. The operation permission is enforced by the API.</span
+                >
+              </div>
+              <div class="form-actions">
+                <button
+                  type="button"
+                  class="button secondary"
                   :disabled="submitting"
-                />
-                <small>{{ quantityHelp }}</small>
-                <small v-if="fieldErrors.quantity" class="field-error">{{
-                  fieldErrors.quantity
-                }}</small>
-              </label>
-              <label class="field"
-                ><span>Reason <em>Optional</em></span>
-                <input
-                  v-model="reason"
-                  type="text"
-                  maxlength="255"
-                  placeholder="e.g. supplier delivery, damaged stock"
-                  :disabled="submitting"
-                />
-                <small v-if="fieldErrors.reason" class="field-error">{{
-                  fieldErrors.reason
-                }}</small>
-              </label>
-              <label class="field"
-                ><span>Reference type <em>Optional</em></span
-                ><input
-                  v-model="referenceType"
-                  type="text"
-                  maxlength="100"
-                  placeholder="e.g. purchase_order"
-                  :disabled="submitting"
-                /><small v-if="fieldErrors.reference_type" class="field-error">{{
-                  fieldErrors.reference_type
-                }}</small></label
-              >
-              <label class="field"
-                ><span>Reference ID <em>Optional</em></span
-                ><input
-                  v-model="referenceId"
-                  type="text"
-                  maxlength="100"
-                  placeholder="Document or transaction ID"
-                  :disabled="submitting"
-                /><small v-if="fieldErrors.reference_id" class="field-error">{{
-                  fieldErrors.reference_id
-                }}</small></label
-              >
-            </div>
-
-            <div class="operation-note">
-              <Icon name="shield-check" :size="16" /><span
-                >{{ operation === 'restock' ? 'Restock transfers stock out of the source location and into the selected destination. Only items currently flagged low-stock at that destination are selectable.' : 'Stock updates are processed by the server and recorded in the movement ledger. The operation permission is enforced by the API.' }}</span
-              >
-            </div>
-            <div class="form-actions">
-              <button
-                type="button"
-                class="button secondary"
-                :disabled="submitting"
-                @click="resetForm"
-              >
-                Reset form</button
-              ><button
-                type="submit"
-                :class="['button', 'primary', `action-${operation}`]"
-                :disabled="
-                  submitting || loadingOptions || !products.length || !locations.length
-                "
-              >
-                <Icon v-if="submitting" name="loader-2" :size="15" class="spin" /><Icon
-                  v-else
-                  :name="operationMeta.icon"
-                  :size="15"
-                />{{ submitting ? "Processing…" : operationMeta.title }}
-              </button>
-            </div>
-          </form>
+                  @click="resetForm"
+                >
+                  Reset form</button
+                ><button
+                  type="submit"
+                  :class="['button', 'primary', `action-${operation}`]"
+                  :disabled="
+                    submitting || loadingOptions || !products.length || !locations.length
+                  "
+                >
+                  <Icon v-if="submitting" name="loader-2" :size="15" class="spin" /><Icon
+                    v-else
+                    :name="operationMeta.icon"
+                    :size="15"
+                  />{{ submitting ? "Processing…" : operationMeta.title }}
+                </button>
+              </div>
+            </form>
+          </template>
         </template>
       </section>
       <p class="page-footnote">
@@ -1081,15 +1647,24 @@ h1 {
 .section-icon {
   width: 37px;
   height: 37px;
-  border: 1px solid color-mix(in srgb, var(--operation-color, var(--primary-color)) 18%, transparent);
+  border: 1px solid
+    color-mix(in srgb, var(--operation-color, var(--primary-color)) 18%, transparent);
   border-radius: 10px;
   background: color-mix(in srgb, var(--operation-color, var(--primary-color)) 9%, white);
   color: var(--operation-color, var(--primary-color));
 }
-.section-icon.tone-receive { --operation-color: #059669; }
-.section-icon.tone-issue { --operation-color: #dc2626; }
-.section-icon.tone-adjust { --operation-color: #d97706; }
-.section-icon.tone-transfer { --operation-color: #2563eb; }
+.section-icon.tone-receive {
+  --operation-color: #059669;
+}
+.section-icon.tone-issue {
+  --operation-color: #dc2626;
+}
+.section-icon.tone-adjust {
+  --operation-color: #d97706;
+}
+.section-icon.tone-transfer {
+  --operation-color: #2563eb;
+}
 
 .section-heading h2 {
   margin: 1px 0 3px;
@@ -1821,14 +2396,26 @@ table th {
   color: var(--text-primary-color);
 }
 .operation-tab.active {
-  border-color: color-mix(in srgb, var(--operation-color, var(--primary-color)) 25%, transparent);
+  border-color: color-mix(
+    in srgb,
+    var(--operation-color, var(--primary-color)) 25%,
+    transparent
+  );
   background: color-mix(in srgb, var(--operation-color, var(--primary-color)) 10%, white);
   color: var(--operation-color, var(--primary-color));
 }
-.operation-tab.receive { --operation-color: #059669; }
-.operation-tab.stock-out { --operation-color: #dc2626; }
-.operation-tab.adjust { --operation-color: #d97706; }
-.operation-tab.transfer { --operation-color: #2563eb; }
+.operation-tab.receive {
+  --operation-color: #059669;
+}
+.operation-tab.stock-out {
+  --operation-color: #dc2626;
+}
+.operation-tab.adjust {
+  --operation-color: #d97706;
+}
+.operation-tab.transfer {
+  --operation-color: #2563eb;
+}
 .operation-form {
   padding: 21px;
 }
@@ -1933,10 +2520,26 @@ table th {
   color: #fff;
   filter: brightness(0.93);
 }
-.button.primary.action-receive { --action-color: #059669; border-color: #059669; background: #059669; }
-.button.primary.action-issue { --action-color: #dc2626; border-color: #dc2626; background: #dc2626; }
-.button.primary.action-adjust { --action-color: #d97706; border-color: #d97706; background: #d97706; }
-.button.primary.action-transfer { --action-color: #2563eb; border-color: #2563eb; background: #2563eb; }
+.button.primary.action-receive {
+  --action-color: #059669;
+  border-color: #059669;
+  background: #059669;
+}
+.button.primary.action-issue {
+  --action-color: #dc2626;
+  border-color: #dc2626;
+  background: #dc2626;
+}
+.button.primary.action-adjust {
+  --action-color: #d97706;
+  border-color: #d97706;
+  background: #d97706;
+}
+.button.primary.action-transfer {
+  --action-color: #2563eb;
+  border-color: #2563eb;
+  background: #2563eb;
+}
 .notice {
   display: flex;
   align-items: flex-start;
@@ -2033,6 +2636,568 @@ table th {
   }
   .form-actions .button {
     flex: 1 1 auto;
+  }
+}
+
+/* Restock queue: adaptive 3-column product cards and clear source-to-destination transfer details. */
+.restock-queue {
+  display: grid;
+  gap: 14px;
+  padding: 20px 22px 22px;
+}
+.restock-queue-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding-bottom: 2px;
+}
+.restock-queue-heading > div:first-child {
+  min-width: 0;
+}
+.restock-queue-heading p {
+  max-width: 620px;
+}
+.restock-queue .restock-product-card {
+  width: 100%;
+  min-height: 86px;
+  padding: 14px 16px;
+}
+.restock-queue .restock-product-main strong {
+  font-size: 13px;
+}
+.restock-queue .restock-product-main small,
+.restock-queue .restock-product-location {
+  font-size: 10px;
+}
+.restock-queue .restock-product-stock {
+  min-width: 88px;
+  padding-left: 16px;
+  border-left: 1px solid var(--border-color);
+}
+.restock-queue .restock-product-stock strong {
+  font-size: 21px;
+}
+.restock-queue .restock-product-stock small,
+.restock-queue .restock-product-stock span {
+  font-size: 10px;
+}
+.restock-eyebrow {
+  display: block;
+  color: #0b9b72;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.11em;
+}
+.restock-queue-heading h3,
+.restock-detail-title h3 {
+  margin: 4px 0 0;
+  color: var(--text-primary-color);
+  font-size: 17px;
+  font-weight: 750;
+  letter-spacing: -0.025em;
+}
+.restock-queue-heading p,
+.restock-detail-title p {
+  margin: 5px 0 0;
+  color: var(--text-secondary-color);
+  font-size: 11px;
+  line-height: 1.55;
+}
+.restock-count {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 13px;
+  border: 1px solid #b7efdc;
+  border-radius: 12px;
+  background: #effcf7;
+  color: #087f5b;
+}
+.restock-count strong {
+  font-size: 22px;
+  line-height: 1;
+}
+.restock-count span {
+  max-width: 66px;
+  font-size: 10px;
+  line-height: 1.3;
+}
+.restock-product-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px;
+}
+.restock-span-third {
+  grid-column: span 2;
+}
+.restock-span-half {
+  grid-column: span 3;
+}
+.restock-span-full {
+  grid-column: 1 / -1;
+}
+.restock-product-card {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 11px;
+  padding: 13px;
+  border: 1px solid var(--border-color);
+  border-radius: 13px;
+  background: var(--surface-color);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease,
+    background 0.18s ease;
+}
+.restock-product-card:hover:not(:disabled) {
+  border-color: #6edbb8;
+  box-shadow: 0 7px 20px rgb(16 185 129 / 8%);
+  transform: translateY(-1px);
+}
+.restock-product-card.selected {
+  border-color: #10b981;
+  background: #f2fcf8;
+  box-shadow: 0 0 0 2px rgb(16 185 129 / 10%);
+}
+.restock-product-card:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+.restock-product-icon {
+  display: grid;
+  flex: 0 0 38px;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border: 1px solid #d5f5e8;
+  border-radius: 11px;
+  background: #edfcf5;
+  color: #079669;
+}
+.restock-product-main {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 3px;
+}
+.restock-product-main strong {
+  overflow: hidden;
+  color: var(--text-primary-color);
+  font-size: 12px;
+  font-weight: 750;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.restock-product-main small {
+  overflow: hidden;
+  color: var(--text-tertiary-color);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.restock-product-location {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 3px;
+  color: var(--text-secondary-color);
+  font-size: 10px;
+}
+.restock-product-stock {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+.restock-product-stock strong {
+  color: #d97706;
+  font-size: 18px;
+  line-height: 1;
+}
+.restock-product-stock small,
+.restock-product-stock span {
+  color: var(--text-tertiary-color);
+  font-size: 9px;
+}
+.restock-card-chevron {
+  flex: 0 0 auto;
+  color: var(--text-tertiary-color);
+}
+.restock-state,
+.restock-empty {
+  display: flex;
+  min-height: 120px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  border: 1px dashed var(--border-color);
+  border-radius: 13px;
+  color: var(--text-secondary-color);
+  text-align: center;
+}
+.restock-empty > :first-child {
+  color: #0b9b72;
+}
+.restock-empty strong {
+  color: var(--text-primary-color);
+  font-size: 13px;
+}
+.restock-empty span {
+  font-size: 11px;
+}
+.restock-detail-panel {
+  display: grid;
+  gap: 17px;
+  margin-top: 22px;
+  padding: 20px;
+  border: 1px solid #b9ecda;
+  border-radius: 16px;
+  background: linear-gradient(145deg, #f6fffb 0%, var(--surface-color) 52%);
+  box-shadow: 0 12px 34px rgb(16 24 40 / 5%);
+}
+.restock-detail-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.restock-detail-icon {
+  display: grid;
+  flex: 0 0 40px;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border: 1px solid #b7efdc;
+  border-radius: 12px;
+  background: #eafff5;
+  color: #07845f;
+}
+.restock-detail-title {
+  flex: 1;
+  min-width: 0;
+}
+.restock-change-button {
+  flex: 0 0 auto;
+  padding: 7px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--surface-color);
+  color: var(--text-secondary-color);
+  font: inherit;
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.restock-change-button:hover {
+  border-color: #10b981;
+  color: #087f5b;
+}
+.restock-location-summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 30px minmax(0, 1fr);
+  align-items: stretch;
+  gap: 10px;
+}
+.restock-location-card {
+  min-width: 0;
+  padding: 13px;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  background: var(--surface-color);
+}
+.restock-location-card.destination {
+  border-color: #cbdcff;
+  background: #f7f9ff;
+}
+.restock-location-card.source {
+  border-color: #c5f0df;
+  background: #f6fffb;
+}
+.restock-location-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 8px;
+  color: var(--text-tertiary-color);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+.restock-location-card.destination .restock-location-label {
+  color: #315fc7;
+}
+.restock-location-card.source .restock-location-label {
+  color: #07845f;
+}
+.restock-location-card > strong {
+  display: block;
+  overflow: hidden;
+  color: var(--text-primary-color);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.restock-location-card > small {
+  display: block;
+  margin-top: 3px;
+  color: var(--text-tertiary-color);
+  font-size: 10px;
+}
+.restock-transfer-arrow {
+  display: grid;
+  place-items: center;
+  color: #079669;
+}
+.restock-stock-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid rgb(148 163 184 / 18%);
+}
+.restock-stock-metrics > span {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+}
+.restock-stock-metrics small {
+  color: var(--text-tertiary-color);
+  font-size: 9px;
+}
+.restock-stock-metrics b {
+  color: var(--text-primary-color);
+  font-size: 15px;
+  font-weight: 750;
+}
+.restock-stock-metrics .source-available-value {
+  color: #07845f;
+}
+.restock-source-select select {
+  width: 100%;
+  min-height: 37px;
+  padding: 0 9px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--surface-color);
+  color: var(--text-primary-color);
+  font: inherit;
+  font-size: 11px;
+}
+.restock-source-select select:focus {
+  outline: 2px solid rgb(16 185 129 / 18%);
+  border-color: #10b981;
+}
+.restock-source-placeholder,
+.restock-source-empty {
+  display: flex;
+  min-height: 58px;
+  align-items: center;
+  gap: 7px;
+  color: var(--text-tertiary-color);
+  font-size: 10px;
+  line-height: 1.45;
+}
+.restock-source-empty {
+  color: #b45309;
+}
+.restock-detail-form {
+  display: grid;
+  gap: 15px;
+}
+.restock-quantity-field {
+  display: grid;
+  gap: 7px;
+}
+.restock-quantity-field > label {
+  color: var(--text-primary-color);
+  font-size: 11px;
+  font-weight: 750;
+}
+.restock-quantity-field > label b {
+  color: #dc2626;
+}
+.restock-quantity-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-right: 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  background: var(--surface-color);
+}
+.restock-quantity-input-wrap:focus-within {
+  border-color: #10b981;
+  box-shadow: 0 0 0 3px rgb(16 185 129 / 10%);
+}
+.restock-quantity-input-wrap input {
+  width: 100%;
+  min-width: 0;
+  min-height: 43px;
+  padding: 0 12px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--text-primary-color);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+}
+.restock-quantity-input-wrap > span {
+  color: var(--text-tertiary-color);
+  font-size: 10px;
+}
+.restock-quantity-hint {
+  color: var(--text-secondary-color);
+  font-size: 10px;
+}
+.restock-quantity-hint strong {
+  color: #07845f;
+}
+.restock-inline-error {
+  color: #b42318;
+  font-size: 10px;
+  font-weight: 650;
+}
+.restock-detail-extra-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.restock-validation-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid #b9ecda;
+  border-radius: 9px;
+  background: #effcf7;
+  color: #087f5b;
+  font-size: 10px;
+  line-height: 1.5;
+}
+.restock-validation-note > :first-child {
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+.restock-validation-note.warning {
+  border-color: #fed7aa;
+  background: #fff7ed;
+  color: #b45309;
+}
+.restock-validation-note.error {
+  border-color: #fecaca;
+  background: #fef2f2;
+  color: #b91c1c;
+}
+.restock-detail-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 9px;
+  padding-top: 2px;
+}
+.restock-reveal-enter-active,
+.restock-reveal-leave-active {
+  transition: opacity 0.22s ease, transform 0.22s ease, max-height 0.28s ease;
+  overflow: hidden;
+}
+.restock-reveal-enter-from,
+.restock-reveal-leave-to {
+  opacity: 0;
+  transform: translateY(-9px);
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+@media (max-width: 900px) {
+  .restock-product-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .restock-span-third {
+    grid-column: span 1;
+  }
+  .restock-span-half {
+    grid-column: span 1;
+  }
+  .restock-span-full {
+    grid-column: 1 / -1;
+  }
+}
+@media (max-width: 600px) {
+  .restock-product-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .restock-span-third,
+  .restock-span-half,
+  .restock-span-full {
+    grid-column: 1 / -1;
+  }
+}
+@media (max-width: 650px) {
+  .restock-queue {
+    padding: 15px 13px 17px;
+  }
+  .restock-queue-heading {
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .restock-count {
+    padding: 8px 9px;
+  }
+  .restock-queue .restock-product-card {
+    gap: 9px;
+    padding: 11px;
+  }
+  .restock-queue .restock-product-stock {
+    min-width: 62px;
+    padding-left: 9px;
+  }
+  .restock-location-summary {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .restock-transfer-arrow {
+    min-height: 20px;
+    transform: rotate(90deg);
+  }
+  .restock-detail-extra-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .restock-detail-panel {
+    padding: 13px;
+  }
+  .restock-detail-heading {
+    flex-wrap: wrap;
+  }
+  .restock-change-button {
+    margin-left: auto;
+  }
+  .restock-detail-actions {
+    flex-direction: column-reverse;
+  }
+  .restock-detail-actions .button {
+    width: 100%;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .restock-reveal-enter-active,
+  .restock-reveal-leave-active,
+  .restock-product-card {
+    transition: none;
   }
 }
 </style>

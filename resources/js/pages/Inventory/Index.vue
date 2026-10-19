@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from "vue";
 import { Head } from "@inertiajs/vue3";
 import ErpLayout from "@/layouts/ErpLayout.vue";
 import Icon from "@/components/dashboard/Icon.vue";
+import RestockTransferModal from "@/components/inventory/RestockTransferModal.vue";
 
 interface Props {
   userName?: string;
@@ -90,21 +91,15 @@ const thresholdError = ref("");
 const thresholdMessage = ref("");
 
 const restockOpen = ref(false);
-const restockSaving = ref(false);
-const restockError = ref("");
-const restockSuccess = ref("");
-const restockQuantity = ref("1");
-const restockReason = ref("");
 const restockStock = ref<InventoryStock | null>(null);
+const restockSuccess = ref("");
 
 const reservationOpen = ref(false);
 const reservationSaving = ref(false);
 const reservationError = ref("");
 const reservationSuccess = ref("");
 const reservationQuantity = ref("1");
-const reservationPurpose = ref("customer_order");
-interface ReservationPurposeOption { id: number; key: string; label: string; is_active: boolean; sort_order: number }
-const reservationPurposes = ref<ReservationPurposeOption[]>([]);
+const reservationPurpose = ref<"customer_order" | "internal_use">("customer_order");
 const reservationReferenceType = ref("");
 const reservationReferenceId = ref("");
 const reservationReason = ref("");
@@ -341,100 +336,24 @@ function openStockDetails(stock: InventoryStock): void {
 }
 
 function openRestock(stock: InventoryStock): void {
-  if (
-    !stock.location_id ||
-    (!stock.product_id && !(stock.product_variant_id ?? stock.variant_id))
-  ) {
-    restockError.value = "This stock record has no linked product/variant or location.";
-    restockStock.value = stock;
-    restockQuantity.value = "1";
-    restockReason.value = "";
-    restockSuccess.value = "";
-    restockOpen.value = true;
-    return;
-  }
+  if (!stock.location_id || (!stock.product_id && !(stock.product_variant_id ?? stock.variant_id))) return;
   restockStock.value = stock;
-  restockQuantity.value = "1";
-  restockReason.value = "";
-  restockError.value = "";
-  restockSuccess.value = "";
   restockOpen.value = true;
 }
 
 function closeRestock(): void {
-  if (restockSaving.value) return;
   restockOpen.value = false;
   restockStock.value = null;
-  restockError.value = "";
 }
 
-async function submitRestock(): Promise<void> {
-  const stock = restockStock.value;
-  if (!stock) return;
-  const quantity = String(restockQuantity.value ?? "").trim();
-  if (!/^\d{1,14}(?:\.\d{1,4})?$/.test(quantity) || Number(quantity) <= 0) {
-    restockError.value = "Enter a positive quantity with up to 4 decimal places.";
-    return;
-  }
-  if (
-    !stock.location_id ||
-    (!stock.product_id && !(stock.product_variant_id ?? stock.variant_id))
-  ) {
-    restockError.value = "This stock record has no linked product/variant or location.";
-    return;
-  }
-
-  restockSaving.value = true;
-  restockError.value = "";
-  restockSuccess.value = "";
-  try {
-    const body: Record<string, unknown> = {
-      location_id: stock.location_id,
-      quantity,
-      reason: restockReason.value.trim() || `Restock from inventory stock #${stock.id}`,
-      idempotency_key: crypto.randomUUID(),
-    };
-    if (stock.product_id) body.product_id = stock.product_id;
-    else body.product_variant_id = stock.product_variant_id ?? stock.variant_id;
-
-    const response = await fetch("/api/inventory/receive", {
-      method: "POST",
-      credentials: "same-origin",
-      headers: {
-        Accept: "application/json",
-        "Content-Type": "application/json",
-        "X-Requested-With": "XMLHttpRequest",
-        "X-CSRF-TOKEN":
-          document.querySelector<HTMLMetaElement>('meta[name="csrf-token"]')?.content ??
-          "",
-      },
-      body: JSON.stringify(body),
-    });
-    const payload = await response.json();
-    if (!response.ok) {
-      const validation =
-        payload.errors?.quantity?.[0] ||
-        payload.errors?.location_id?.[0] ||
-        payload.errors?.product_id?.[0] ||
-        payload.errors?.product_variant_id?.[0];
-      throw new Error(
-        validation || payload.message || `Unable to restock (HTTP ${response.status}).`
-      );
-    }
-
-    restockSuccess.value = `Restocked ${formatQuantity(quantity)} successfully.`;
-    await loadStocks(currentPage.value);
-    const refreshed = stocks.value.find((item) => item.id === stock.id);
-    if (refreshed) {
-      selectedStock.value = { ...refreshed };
-      restockStock.value = { ...refreshed };
-    }
-  } catch (error) {
-    restockError.value =
-      error instanceof Error ? error.message : "Unable to restock this item.";
-  } finally {
-    restockSaving.value = false;
-  }
+async function handleRestockCompleted(message: string): Promise<void> {
+  const stockId = restockStock.value?.id;
+  closeRestock();
+  restockSuccess.value = message;
+  await loadStocks(currentPage.value);
+  const refreshed = stocks.value.find((item) => item.id === stockId);
+  if (refreshed) selectedStock.value = { ...refreshed };
+  window.setTimeout(() => { restockSuccess.value = ""; }, 6000);
 }
 
 function closeStockDetails(): void {
@@ -580,19 +499,8 @@ watch(perPage, () => {
   void loadStocks(1);
 });
 
-async function loadReservationPurposes(): Promise<void> {
-  try {
-    const response = await fetch("/api/inventory/reservation-purposes", { credentials: "same-origin", headers: { Accept: "application/json", "X-Requested-With": "XMLHttpRequest" } });
-    const payload = await response.json();
-    if (response.ok && Array.isArray(payload.data)) {
-      reservationPurposes.value = payload.data;
-      if (!reservationPurposes.value.some((p) => p.key === reservationPurpose.value)) reservationPurpose.value = reservationPurposes.value[0]?.key ?? "";
-    }
-  } catch { /* Preserve inventory page availability if the purpose list cannot load. */ }
-}
 onMounted(() => {
   void loadStocks(1);
-  void loadReservationPurposes();
 });
 </script>
 
@@ -645,6 +553,10 @@ onMounted(() => {
           </button>
         </div>
       </header>
+
+      <p v-if="restockSuccess" class="reservation-success page-restock-success" role="status">
+        <Icon name="circle-check" :size="17" /> {{ restockSuccess }}
+      </p>
 
       <!-- Context strip -->
       <section class="context-strip" aria-label="Inventory information">
@@ -1019,7 +931,8 @@ onMounted(() => {
                   <label class="reservation-field reservation-field-full">
                     <span>Reservation purpose <b>*</b></span>
                     <select v-model="reservationPurpose" required>
-                      <option v-for="purpose in reservationPurposes" :key="purpose.key" :value="purpose.key">{{ purpose.label }}</option>
+                      <option value="customer_order">Customer order</option>
+                      <option value="internal_use">Internal use</option>
                     </select>
                   </label>
                   <label class="reservation-field">
@@ -1459,7 +1372,7 @@ onMounted(() => {
                     class="button button-primary"
                     @click="openRestock(selectedStock)"
                   >
-                    <Icon name="package-plus" :size="15" /> Restock
+                    <Icon name="repeat-once" :size="15" /> Restock
                   </button>
                   <button
                     type="button"
@@ -1474,126 +1387,12 @@ onMounted(() => {
           </div>
         </Teleport>
 
-        <!-- Restock modal: posts through the existing receipt API and stock ledger. -->
-        <Teleport to="body">
-          <div
-            v-if="restockOpen && restockStock"
-            class="reservation-backdrop restock-backdrop"
-            @click.self="closeRestock"
-            @keydown.esc="closeRestock"
-          >
-            <section
-              class="reservation-modal restock-modal"
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="restock-modal-title"
-            >
-              <header class="reservation-modal-header">
-                <div class="reservation-modal-heading-icon">
-                  <Icon name="package-plus" :size="22" />
-                </div>
-                <div class="reservation-modal-heading-copy">
-                  <span>INVENTORY · STOCK RECEIPT</span>
-                  <h2 id="restock-modal-title">Restock item</h2>
-                  <p>
-                    {{ productName(restockStock) }} · {{ locationName(restockStock) }}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  class="reservation-close"
-                  aria-label="Close restock form"
-                  :disabled="restockSaving"
-                  @click="closeRestock"
-                >
-                  <Icon name="x" :size="19" />
-                </button>
-              </header>
-              <form class="reservation-form" @submit.prevent="submitRestock">
-                <div class="reservation-availability">
-                  <div>
-                    <span>On hand</span
-                    ><strong>{{ formatQuantity(restockStock.quantity) }}</strong>
-                  </div>
-                  <div>
-                    <span>Reserved</span
-                    ><strong>{{ formatQuantity(restockStock.reserved_quantity) }}</strong>
-                  </div>
-                  <div>
-                    <span>Available</span
-                    ><strong>{{
-                      formatQuantity(availableQuantity(restockStock))
-                    }}</strong>
-                  </div>
-                </div>
-                <div class="reservation-form-grid">
-                  <label class="reservation-field reservation-field-full">
-                    <span>Quantity to add <b>*</b></span>
-                    <input
-                      v-model="restockQuantity"
-                      type="number"
-                      min="0.0001"
-                      step="0.0001"
-                      required
-                    />
-                    <small
-                      >Restock quantity will be added to the selected location and
-                      recorded in the stock ledger.</small
-                    >
-                  </label>
-                  <label class="reservation-field reservation-field-full">
-                    <span>Reason / supplier reference <small>(optional)</small></span>
-                    <textarea
-                      v-model="restockReason"
-                      rows="3"
-                      maxlength="255"
-                      placeholder="e.g. Supplier delivery, invoice number..."
-                    />
-                  </label>
-                </div>
-                <p v-if="restockError" class="reservation-error" role="alert">
-                  <Icon name="alert-circle" :size="16" /> {{ restockError }}
-                </p>
-                <p v-if="restockSuccess" class="reservation-success" role="status">
-                  {{ restockSuccess }}
-                </p>
-                <footer class="reservation-modal-footer">
-                  <span class="reservation-history-link"
-                    >Uses existing stock receipt workflow</span
-                  >
-                  <div>
-                    <button
-                      type="button"
-                      class="button button-secondary"
-                      :disabled="restockSaving"
-                      @click="closeRestock"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      class="button button-primary"
-                      :disabled="
-                        restockSaving ||
-                        !restockStock.location_id ||
-                        (!restockStock.product_id &&
-                          !(restockStock.product_variant_id ?? restockStock.variant_id))
-                      "
-                    >
-                      <Icon
-                        v-if="restockSaving"
-                        name="loader-2"
-                        :size="15"
-                        class="spin"
-                      /><Icon v-else name="package-plus" :size="15" />
-                      {{ restockSaving ? "Restocking…" : "Confirm restock" }}
-                    </button>
-                  </div>
-                </footer>
-              </form>
-            </section>
-          </div>
-        </Teleport>
+        <RestockTransferModal
+          v-if="restockOpen && restockStock"
+          :stock="restockStock"
+          @close="closeRestock"
+          @completed="handleRestockCompleted"
+        />
 
         <!-- Pagination -->
         <footer v-if="total > 0" class="table-footer">
