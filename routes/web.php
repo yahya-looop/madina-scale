@@ -263,6 +263,22 @@ Route::middleware('auth')->group(function () {
 
     /*
     |--------------------------------------------------------------------------
+    | Orders Management
+    |--------------------------------------------------------------------------
+    */
+    Route::get('/orders', function () {
+        $user = request()->user();
+        abort_unless($user !== null, 401);
+        abort_unless($user->can('system.orders.view'), 403);
+        return Inertia::render('Orders/Index', [
+            'userName' => $user->name,
+            'userEmail' => $user->email,
+        ]);
+    })->name('orders.index');
+
+
+    /*
+    |--------------------------------------------------------------------------
     | Inventory Pages
     |--------------------------------------------------------------------------
     */

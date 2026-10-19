@@ -18,9 +18,30 @@ use App\Http\Controllers\LocationController;
 use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\SalesOrderController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['web', 'auth'])->group(function () {
+
+    /*
+    |--------------------------------------------------------------------------
+    | Orders — API-first foundation for web and future mobile clients
+    |--------------------------------------------------------------------------
+    */
+    Route::get('/orders/options', [SalesOrderController::class, 'options'])
+        ->middleware('permission:system.orders.create');
+    Route::get('/orders', [SalesOrderController::class, 'index'])
+        ->middleware('permission:system.orders.view');
+    Route::post('/orders', [SalesOrderController::class, 'store'])
+        ->middleware('permission:system.orders.create');
+    Route::get('/orders/{order}', [SalesOrderController::class, 'show'])
+        ->middleware('permission:system.orders.view');
+    Route::post('/orders/{order}/confirm', [SalesOrderController::class, 'confirm'])
+        ->middleware('permission:system.orders.confirm');
+    Route::post('/orders/{order}/cancel', [SalesOrderController::class, 'cancel'])
+        ->middleware('permission:system.orders.cancel');
+
+
     /*
     |--------------------------------------------------------------------------
     | Users
