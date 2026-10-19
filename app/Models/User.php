@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use App\Models\Location;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Carbon;
@@ -73,6 +74,14 @@ class User extends Authenticatable
             'user_id',
             'role_id',
         );
+    }
+
+    /** Locations this user is explicitly assigned to. */
+    public function locations(): BelongsToMany
+    {
+        return $this->belongsToMany(Location::class, 'location_user', 'user_id', 'location_id')
+            ->withPivot(['access_level', 'assigned_by'])
+            ->withTimestamps();
     }
 
     /**

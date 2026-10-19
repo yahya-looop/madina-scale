@@ -67,6 +67,7 @@ if (! function_exists('inventoryApiCreateVariant')) {
     ]);
     $product = inventoryApiCreateProduct();
     $location = inventoryApiCreateLocation();
+    $user->locations()->attach($location->id, ['access_level' => 'manage']);
 
     $stock = InventoryStock::create([
         'product_id' => $product->id,
@@ -120,6 +121,7 @@ test('restock receipt supports a variant without creating parent-product stock',
     $product = inventoryApiCreateProduct('variable');
     $variant = inventoryApiCreateVariant($product);
     $location = inventoryApiCreateLocation();
+    $user->locations()->attach($location->id, ['access_level' => 'manage']);
 
     $this->actingAs($user);
 
@@ -161,22 +163,26 @@ test('low-stock restock transfers stock between locations and refuses non-low de
         'product_id' => $product->id, 'location_id' => $destination->id,
         'quantity' => '2.0000', 'reserved_quantity' => '0.0000', 'low_stock_threshold' => '20.0000',
     ]);
+    $user->locations()->attach($source->id, ['access_level' => 'manage']);
+    $receiver = createInventoryApiUser(['system.inventory.transfer']);
+    $receiver->locations()->attach($destination->id, ['access_level' => 'receive']);
     $this->actingAs($user);
 
     $this->postJson('/api/inventory/restock', [
         'product_id' => $product->id, 'source_location_id' => $source->id,
         'destination_location_id' => $destination->id, 'quantity' => '5',
         'reason' => 'Low-stock replenishment', 'idempotency_key' => (string) Str::uuid(),
-    ])->assertOk()->assertJsonPath('message', 'Low-stock item restocked successfully by transfer.');
+    ])->assertCreated()->assertJsonPath('message', 'Restock transfer dispatched and is awaiting destination confirmation.')
+        ->assertJsonPath('data.status', 'in_transit');
 
     $this->assertDatabaseHas('inventory_stocks', [
         'product_id' => $product->id, 'location_id' => $source->id, 'quantity' => '7.0000',
     ]);
     $this->assertDatabaseHas('inventory_stocks', [
-        'id' => $destinationStock->id, 'quantity' => '7.0000',
+        'id' => $destinationStock->id, 'quantity' => '2.0000',
     ]);
     $this->assertDatabaseHas('stock_movements', ['location_id' => $source->id, 'movement_type' => 'transfer_out', 'quantity_delta' => '-5.0000']);
-    $this->assertDatabaseHas('stock_movements', ['location_id' => $destination->id, 'movement_type' => 'transfer_in', 'quantity_delta' => '5.0000']);
+    $this->assertDatabaseMissing('stock_movements', ['location_id' => $destination->id, 'movement_type' => 'transfer_in', 'quantity_delta' => '5.0000']);
 
     $destinationStock->update(['quantity' => '25.0000']);
     $this->postJson('/api/inventory/restock', [

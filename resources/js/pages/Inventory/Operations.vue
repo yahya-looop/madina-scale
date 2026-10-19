@@ -48,12 +48,29 @@ interface LowStockRow {
   variant?: { id: number; name?: string | null; sku?: string | null } | null;
   location?: { id: number; name: string; code?: string | null } | null;
 }
+interface TransferRow {
+  id: number;
+  transfer_uuid: string;
+  status: string;
+  quantity_sent: string | number;
+  quantity_received: string | number;
+  reason?: string | null;
+  dispatched_at?: string | null;
+  received_at?: string | null;
+  product?: { name?: string; sku?: string | null } | null;
+  variant?: { name?: string | null; sku?: string | null } | null;
+  source_location?: { name?: string; code?: string | null } | null;
+  destination_location?: { name?: string; code?: string | null } | null;
+  dispatcher?: { name?: string } | null;
+  receiver?: { name?: string } | null;
+}
 interface ApiPayload<T> {
   data?: T;
   message?: string;
   errors?: Record<string, string[]>;
   current_page?: number;
   last_page?: number;
+  total?: number;
 }
 const props = withDefaults(defineProps<Props>(), { userName: "", userEmail: "" });
 
@@ -62,6 +79,12 @@ const products = ref<Product[]>([]);
 const locations = ref<Location[]>([]);
 const variants = ref<Variant[]>([]);
 const lowStockRows = ref<LowStockRow[]>([]);
+const transferRows = ref<TransferRow[]>([]);
+const loadingTransfers = ref(false);
+const transferActionId = ref<number | null>(null);
+const incomingPendingCount = ref(0);
+const outgoingPendingCount = ref(0);
+const visibleTransferRows = computed(() => transferRows.value.filter((row) => ['in_transit', 'partially_received'].includes(row.status)));
 const restockStockId = ref("");
 const loadingLowStock = ref(false);
 const sourceStockRow = ref<LowStockRow | null>(null);
@@ -175,7 +198,7 @@ const operationMeta = computed(
         title: "Transfer Stock",
         description: "Move inventory atomically between two locations.",
         icon: "arrows-left-right",
-        endpoint: "/api/inventory/transfer",
+        endpoint: "/api/inventory/transfers",
         permission: "system.inventory.transfer",
       },
       restock: {
@@ -274,6 +297,86 @@ function resetForm(): void {
   variants.value = [];
   clearNotices();
 }
+async function loadTransferCounts(): Promise<void> {
+  try {
+    const response = await fetch('/api/inventory/transfers/counts', {
+      credentials: 'same-origin',
+      headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+    });
+    if (!response.ok) return;
+    const counts = await response.json() as { incoming_pending?: number; outgoing_pending?: number };
+    incomingPendingCount.value = Number(counts.incoming_pending ?? 0);
+    outgoingPendingCount.value = Number(counts.outgoing_pending ?? 0);
+  } catch { /* Counts are supplementary; keep the operations page usable if unavailable. */ }
+}
+
+async function loadTransfers(): Promise<void> {
+  if (!['receive', 'transfer', 'restock'].includes(operation.value)) {
+    transferRows.value = [];
+    return;
+  }
+  loadingTransfers.value = true;
+  try {
+    const direction = operation.value === 'receive' ? 'incoming' : 'outgoing';
+    const params = new URLSearchParams({ direction, per_page: '50' });
+    const response = await fetch(`/api/inventory/transfers?${params}`, {
+      credentials: 'same-origin',
+      headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+    });
+    const payload = await readApiPayload<TransferRow[]>(response);
+    if (!response.ok) throw new Error(payload.message || `Unable to load ${direction} transfers.`);
+    transferRows.value = Array.isArray(payload.data) ? payload.data : [];
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : 'Unable to load transfer requests.';
+    transferRows.value = [];
+  } finally {
+    loadingTransfers.value = false;
+  }
+}
+
+async function actOnTransfer(row: TransferRow, action: 'accept' | 'reject'): Promise<void> {
+  const productName = row.variant?.name || row.product?.name || 'selected product';
+  const detail = `${productName} · ${qty(row.quantity_sent)} sent from ${row.source_location?.name || 'source'} to ${row.destination_location?.name || 'destination'}`;
+  const prompt = action === 'accept'
+    ? `Confirm receipt after physically checking the goods?\n\n${detail}\n\nAccepting will add the received quantity to this location's stock ledger.`
+    : `Flag this transfer for discrepancy resolution?\n\n${detail}\n\nThis will NOT silently return stock to the source.`;
+  if (!window.confirm(prompt)) return;
+  let reasonText = '';
+  if (action === 'reject') {
+    reasonText = window.prompt('Describe the discrepancy (required):', '')?.trim() || '';
+    if (reasonText.length < 3) {
+      error.value = 'Please provide a discrepancy reason of at least 3 characters.';
+      return;
+    }
+  }
+  transferActionId.value = row.id;
+  clearNotices();
+  try {
+    const response = await fetch(`/api/inventory/transfers/${row.id}/${action}`, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
+        'X-XSRF-TOKEN': getXsrfToken(),
+      },
+      body: JSON.stringify(action === 'accept'
+        ? { quantity_received: String(numeric(row.quantity_sent) - numeric(row.quantity_received)) }
+        : { reason: reasonText }),
+    });
+    const payload = await readApiPayload<TransferRow>(response);
+    if (!response.ok) throw new Error(payload.message || `Transfer ${action} failed.`);
+    success.value = payload.message || (action === 'accept' ? 'Transfer received.' : 'Transfer flagged for review.');
+    await Promise.all([loadTransfers(), loadTransferCounts()]);
+    window.dispatchEvent(new CustomEvent('inventory:operation-complete', { detail: { operation: 'transfer', action } }));
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : `Unable to ${action} transfer.`;
+  } finally {
+    transferActionId.value = null;
+  }
+}
+
 async function loadOptions(): Promise<void> {
   loadingOptions.value = true;
   error.value = "";
@@ -473,6 +576,7 @@ watch(productId, async () => {
 });
 watch(operation, () => {
   clearNotices();
+  void loadTransfers();
   success.value = "";
   if (operation.value === "restock") {
     restockStockId.value = "";
@@ -524,6 +628,8 @@ function validateForm(): boolean {
           sourceAvailableQuantity.value
         )}).`
       : "The selected source location has no available stock for this product.";
+  if (operation.value === "adjust" && !reason.value.trim())
+    fieldErrors.value.reason = "A reason is required for stock adjustments.";
   if (reason.value.length > 255)
     fieldErrors.value.reason = "Reason must be 255 characters or fewer.";
   return Object.keys(fieldErrors.value).length === 0;
@@ -533,6 +639,13 @@ async function submit(): Promise<void> {
   if (!validateForm()) {
     error.value = "Please correct the highlighted fields.";
     return;
+  }
+  if (operation.value === "adjust") {
+    const direction = numeric(quantity.value) > 0 ? "increase" : "decrease";
+    const confirmed = window.confirm(
+      `Confirm stock adjustment: ${direction} stock by ${Math.abs(numeric(quantity.value))}?\n\nReason: ${reason.value.trim()}\n\nThis will update the stock ledger and cannot be treated as a transfer or receipt.`,
+    );
+    if (!confirmed) return;
   }
   const thisRequest = ++requestId.value;
   submitting.value = true;
@@ -591,6 +704,7 @@ async function submit(): Promise<void> {
     if (thisRequest !== requestId.value) return;
     success.value =
       result.message || `${operationMeta.value.title} completed successfully.`;
+    if (operation.value === 'transfer' || operation.value === 'restock') await Promise.all([loadTransfers(), loadTransferCounts()]);
     lastPayloadFingerprint = "";
     lastIdempotencyKey = "";
     quantity.value = "";
@@ -619,6 +733,8 @@ async function submit(): Promise<void> {
 }
 onMounted(() => {
   void loadOptions();
+  void loadTransfers();
+  void loadTransferCounts();
 });
 </script>
 
@@ -679,6 +795,8 @@ onMounted(() => {
           @click="operation = item.value as Operation"
         >
           <Icon :name="item.icon" :size="16" /><span>{{ item.label }}</span>
+          <span v-if="item.value === 'receive' && incomingPendingCount > 0" class="operation-count-badge">{{ incomingPendingCount > 99 ? '99+' : incomingPendingCount }}</span>
+          <span v-if="item.value === 'transfer' && outgoingPendingCount > 0" class="operation-count-badge">{{ outgoingPendingCount > 99 ? '99+' : outgoingPendingCount }}</span>
         </button>
       </section>
 
@@ -1235,12 +1353,13 @@ onMounted(() => {
                   }}</small>
                 </label>
                 <label class="field"
-                  ><span>Reason <em>Optional</em></span>
+                  ><span>Reason <em>{{ operation === "adjust" ? "Required" : "Optional" }}</em></span>
                   <input
                     v-model="reason"
                     type="text"
                     maxlength="255"
-                    placeholder="e.g. supplier delivery, damaged stock"
+                    :placeholder="operation === 'adjust' ? 'e.g. physical count variance, damaged stock write-off' : 'e.g. supplier delivery, damaged stock'"
+                    :required="operation === 'adjust'"
                     :disabled="submitting"
                   />
                   <small v-if="fieldErrors.reason" class="field-error">{{
@@ -1305,6 +1424,37 @@ onMounted(() => {
           </template>
         </template>
       </section>
+      <section v-if="operation === 'receive' || operation === 'transfer'" class="transfer-queue-card" aria-labelledby="transfer-queue-title">
+        <div class="transfer-queue-heading">
+          <div>
+            <span class="transfer-queue-eyebrow">INVENTORY CONTROL</span>
+            <h2 id="transfer-queue-title">{{ operation === 'receive' ? 'Incoming transfers awaiting receipt' : 'Outgoing transfer tracking' }}</h2>
+            <p>{{ operation === 'receive' ? 'Verify the goods before accepting them into available stock.' : 'Track dispatched stock until the destination confirms receipt.' }}</p>
+          </div>
+          <button type="button" class="button secondary" :disabled="loadingTransfers" @click="loadTransfers"><Icon name="refresh-cw" :size="14" /> Refresh</button>
+        </div>
+        <div v-if="loadingTransfers" class="transfer-queue-empty"><Icon name="loader-2" :size="18" class="spin" /> Loading transfer records…</div>
+        <div v-else-if="!visibleTransferRows.length" class="transfer-queue-empty"><Icon name="package-check" :size="20" /><span>No transfer records to show for this view.</span></div>
+        <div v-else class="transfer-list">
+          <article v-for="row in visibleTransferRows" :key="row.id" class="transfer-row">
+            <div class="transfer-row-main">
+              <div class="transfer-product-icon"><Icon name="package" :size="17" /></div>
+              <div class="transfer-product-copy">
+                <strong>{{ row.variant?.name || row.product?.name || 'Inventory item' }}</strong>
+                <span>{{ row.variant?.sku || row.product?.sku || row.transfer_uuid }}</span>
+                <small>{{ row.source_location?.name || 'Source' }} → {{ row.destination_location?.name || 'Destination' }}</small>
+              </div>
+            </div>
+            <div class="transfer-row-quantity"><strong>{{ qty(row.quantity_received) }} / {{ qty(row.quantity_sent) }}</strong><span>Received / sent</span></div>
+            <div class="transfer-row-meta"><span :class="['transfer-status', `status-${row.status}`]">{{ row.status.replaceAll('_', ' ') }}</span><small>{{ row.dispatcher?.name ? `Sent by ${row.dispatcher.name}` : 'Transfer dispatch' }}</small><small>{{ row.dispatched_at ? new Date(row.dispatched_at).toLocaleString() : 'Date unavailable' }}</small></div>
+            <div v-if="operation === 'receive' && ['in_transit', 'partially_received'].includes(row.status)" class="transfer-row-actions">
+              <button type="button" class="button primary transfer-accept" :disabled="transferActionId === row.id" @click="actOnTransfer(row, 'accept')"><Icon name="check-circle-2" :size="14" /> Accept</button>
+              <button type="button" class="button secondary transfer-reject" :disabled="transferActionId === row.id" @click="actOnTransfer(row, 'reject')"><Icon name="alert-triangle" :size="14" /> Report issue</button>
+            </div>
+          </article>
+        </div>
+      </section>
+
       <p class="page-footnote">
         <Icon name="info" :size="14" /> Confirm the product, location and quantity before
         submitting. A successful request is written to Stock Movements.
@@ -3200,4 +3350,38 @@ table th {
     transition: none;
   }
 }
+
+
+.operation-count-badge { display: inline-grid; place-items: center; min-width: 19px; height: 19px; padding: 0 5px; border-radius: 999px; background: #dc2626; color: #fff; font-size: 10px; font-weight: 800; line-height: 1; }
+.operation-tab.active .operation-count-badge { background: #b91c1c; box-shadow: 0 0 0 2px rgba(255,255,255,.65); }
+
+.transfer-queue-card { margin-top: 18px; border: 1px solid var(--border-color); border-radius: 16px; background: var(--surface-color); overflow: hidden; }
+.transfer-queue-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 22px 24px; border-bottom: 1px solid var(--border-color); }
+.transfer-queue-heading h2 { margin: 5px 0 4px; color: var(--text-primary-color); font-size: 17px; font-weight: 750; letter-spacing: -.02em; }
+.transfer-queue-heading p { margin: 0; color: var(--text-secondary-color); font-size: 13px; }
+.transfer-queue-eyebrow { color: var(--primary-color); font-size: 10px; font-weight: 800; letter-spacing: .12em; }
+.transfer-queue-empty { display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 96px; padding: 20px; color: var(--text-secondary-color); font-size: 13px; }
+.transfer-list { display: grid; }
+.transfer-row { display: grid; grid-template-columns: minmax(220px, 1.6fr) minmax(110px, .6fr) minmax(170px, .9fr) auto; align-items: center; gap: 18px; padding: 17px 22px; border-bottom: 1px solid var(--border-color); }
+.transfer-row:last-child { border-bottom: 0; }
+.transfer-row-main { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.transfer-product-icon { display: grid; place-items: center; flex: 0 0 40px; width: 40px; height: 40px; border-radius: 12px; color: #047857; background: #ecfdf5; }
+.transfer-product-copy { display: grid; min-width: 0; gap: 3px; }
+.transfer-product-copy strong { color: var(--text-primary-color); font-size: 13px; font-weight: 750; }
+.transfer-product-copy span, .transfer-product-copy small, .transfer-row-meta small, .transfer-row-quantity span { color: var(--text-secondary-color); font-size: 11px; }
+.transfer-product-copy small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.transfer-row-quantity { display: grid; gap: 4px; }
+.transfer-row-quantity strong { color: var(--text-primary-color); font-size: 14px; font-variant-numeric: tabular-nums; }
+.transfer-row-meta { display: grid; justify-items: start; gap: 4px; }
+.transfer-status { display: inline-flex; padding: 4px 8px; border-radius: 999px; background: #eff6ff; color: #1d4ed8; font-size: 10px; font-weight: 750; text-transform: capitalize; }
+.transfer-status.status-received { background: #ecfdf3; color: #027a48; }
+.transfer-status.status-discrepancy { background: #fff1f2; color: #be123c; }
+.transfer-status.status-partially_received { background: #fff7ed; color: #c2410c; }
+.transfer-row-actions { display: flex; flex-wrap: wrap; gap: 7px; }
+.transfer-row-actions .button { min-height: 34px; padding: 0 10px; font-size: 11px; }
+.transfer-accept { background: #059669 !important; }
+.transfer-reject { color: #b42318 !important; }
+@media (max-width: 1100px) { .transfer-row { grid-template-columns: minmax(200px, 1fr) minmax(100px, .5fr); } .transfer-row-meta, .transfer-row-actions { grid-column: auto; } }
+@media (max-width: 650px) { .transfer-queue-heading { align-items: flex-start; flex-direction: column; padding: 18px; } .transfer-row { grid-template-columns: 1fr; gap: 12px; padding: 16px; } .transfer-row-actions { grid-column: 1; } }
+
 </style>

@@ -2,6 +2,8 @@
 
 use App\Http\Controllers\InventoryController;
 use App\Http\Controllers\InventoryReservationController;
+use App\Http\Controllers\InventoryTransferController;
+use App\Http\Controllers\LocationAssignmentController;
 use App\Http\Controllers\ProductCategoryController;
 use App\Http\Controllers\BrandController;
 use App\Http\Controllers\UnitController;
@@ -151,6 +153,10 @@ Route::middleware(['web', 'auth'])->group(function () {
         ->middleware('permission:system.locations.manage');
 
     Route::patch('/locations/{location}/deactivate', [LocationController::class, 'deactivate'])
+        ->middleware('permission:system.locations.manage');
+    Route::get('/locations/{location}/users', [LocationAssignmentController::class, 'index'])
+        ->middleware('permission:system.locations.manage');
+    Route::put('/locations/{location}/users', [LocationAssignmentController::class, 'sync'])
         ->middleware('permission:system.locations.manage');
 
 
@@ -333,6 +339,18 @@ Route::middleware(['web', 'auth'])->group(function () {
         ->middleware('permission:system.inventory.adjust');
 
     Route::post('/inventory/transfer', [InventoryController::class, 'transfer'])
+        ->middleware('permission:system.inventory.transfer');
+
+    // Dispatches move stock into transit; destination acceptance creates the incoming ledger entry.
+    Route::get('/inventory/transfers', [InventoryTransferController::class, 'index'])
+        ->middleware('permission:system.inventory.view');
+    Route::get('/inventory/transfers/counts', [InventoryTransferController::class, 'counts'])
+        ->middleware('permission:system.inventory.view');
+    Route::post('/inventory/transfers', [InventoryTransferController::class, 'store'])
+        ->middleware('permission:system.inventory.transfer');
+    Route::post('/inventory/transfers/{transfer}/accept', [InventoryTransferController::class, 'accept'])
+        ->middleware('permission:system.inventory.transfer');
+    Route::post('/inventory/transfers/{transfer}/reject', [InventoryTransferController::class, 'reject'])
         ->middleware('permission:system.inventory.transfer');
 
     Route::post('/inventory/restock', [InventoryController::class, 'restock'])

@@ -43,6 +43,20 @@ interface ApiPayload<T> {
     message?: string;
 }
 
+interface LocationUser {
+    id: number;
+    name: string;
+    email: string;
+    status?: string;
+    access_level?: "view" | "receive" | "manage";
+}
+
+interface LocationAssignmentsPayload {
+    data?: LocationUser[];
+    candidates?: LocationUser[];
+    message?: string;
+}
+
 const props = withDefaults(defineProps<Props>(), {
     userName: "",
     userEmail: "",
@@ -51,6 +65,14 @@ const props = withDefaults(defineProps<Props>(), {
 const location = ref<Location | null>(null);
 const isLoading = ref(true);
 const errorMessage = ref("");
+const assignmentUsers = ref<LocationUser[]>([]);
+const assignmentCandidates = ref<LocationUser[]>([]);
+const assignmentDraft = ref<Record<number, "view" | "receive" | "manage">>({});
+const assignmentLoading = ref(false);
+const assignmentSaving = ref(false);
+const assignmentMessage = ref("");
+const assignmentError = ref("");
+const assignmentAvailable = ref(false);
 
 const locationId = Number(
     window.location.pathname.match(/\/locations\/(\d+)/)?.[1] ?? 0,
@@ -191,8 +213,86 @@ function edit(): void {
     }
 }
 
+async function loadAssignments(): Promise<void> {
+    if (!locationId) return;
+    assignmentLoading.value = true;
+    assignmentError.value = "";
+    try {
+        const response = await fetch(`/api/locations/${locationId}/users`, {
+            headers: { Accept: "application/json", "X-Requested-With": "XMLHttpRequest" },
+            credentials: "same-origin",
+        });
+        const payload = (await response.json()) as LocationAssignmentsPayload;
+        if (!response.ok) {
+            if (response.status === 403) {
+                assignmentAvailable.value = false;
+                return;
+            }
+            throw new Error(payload.message ?? `Unable to load assignments. HTTP ${response.status}.`);
+        }
+        assignmentAvailable.value = true;
+        assignmentUsers.value = payload.data ?? [];
+        assignmentCandidates.value = payload.candidates ?? [];
+        assignmentDraft.value = Object.fromEntries(
+            assignmentUsers.value.map((user) => [user.id, user.access_level ?? "view"]),
+        ) as Record<number, "view" | "receive" | "manage">;
+    } catch (error) {
+        assignmentError.value = error instanceof Error ? error.message : "Unable to load location assignments.";
+    } finally {
+        assignmentLoading.value = false;
+    }
+}
+
+function addAssignment(userId: number): void {
+    if (!assignmentDraft.value[userId]) assignmentDraft.value[userId] = "receive";
+}
+
+function removeAssignment(userId: number): void {
+    const next = { ...assignmentDraft.value };
+    delete next[userId];
+    assignmentDraft.value = next;
+}
+
+async function saveAssignments(): Promise<void> {
+    if (!locationId) return;
+    assignmentSaving.value = true;
+    assignmentError.value = "";
+    assignmentMessage.value = "";
+    try {
+        const token = document.querySelector<HTMLMetaElement>('meta[name="csrf-token"]')?.content;
+        const response = await fetch(`/api/locations/${locationId}/users`, {
+            method: "PUT",
+            headers: {
+                Accept: "application/json",
+                "Content-Type": "application/json",
+                "X-Requested-With": "XMLHttpRequest",
+                ...(token ? { "X-CSRF-TOKEN": token } : {}),
+            },
+            credentials: "same-origin",
+            body: JSON.stringify({
+                assignments: Object.entries(assignmentDraft.value).map(([userId, accessLevel]) => ({
+                    user_id: Number(userId), access_level: accessLevel,
+                })),
+            }),
+        });
+        const payload = (await response.json()) as LocationAssignmentsPayload;
+        if (!response.ok) throw new Error(payload.message ?? `Unable to save assignments. HTTP ${response.status}.`);
+        assignmentUsers.value = payload.data ?? [];
+        assignmentCandidates.value = payload.candidates ?? [];
+        assignmentDraft.value = Object.fromEntries(
+            assignmentUsers.value.map((user) => [user.id, user.access_level ?? "view"]),
+        ) as Record<number, "view" | "receive" | "manage">;
+        assignmentMessage.value = "Location access assignments saved successfully.";
+    } catch (error) {
+        assignmentError.value = error instanceof Error ? error.message : "Unable to save assignments.";
+    } finally {
+        assignmentSaving.value = false;
+    }
+}
+
 onMounted(() => {
     void loadLocation();
+    void loadAssignments();
 });
 </script>
 
@@ -521,6 +621,50 @@ onMounted(() => {
       </template>
     </div>
   </ErpLayout>
+
+      <section v-if="assignmentAvailable" class="content-card access-card">
+        <div class="access-header">
+          <div>
+            <span class="eyebrow">INVENTORY SECURITY</span>
+            <h2>Location access assignments</h2>
+            <p>Choose which active inventory-transfer users can view, receive or manage stock at this location.</p>
+          </div>
+          <span class="access-count">{{ Object.keys(assignmentDraft).length }} assigned</span>
+        </div>
+
+        <div v-if="assignmentLoading" class="assignment-state">Loading location access...</div>
+        <div v-else class="assignment-list">
+          <div v-for="candidate in assignmentCandidates" :key="candidate.id" class="assignment-row">
+            <div class="assignment-identity">
+              <span class="assignment-avatar">{{ candidate.name.slice(0, 1).toUpperCase() }}</span>
+              <span class="assignment-user-copy"><strong>{{ candidate.name }}</strong><small>{{ candidate.email }}</small></span>
+            </div>
+            <div class="assignment-controls">
+              <template v-if="assignmentDraft[candidate.id]">
+                <select v-model="assignmentDraft[candidate.id]" :aria-label="`Access level for ${candidate.name}`">
+                  <option value="view">View only</option>
+                  <option value="receive">Receive stock</option>
+                  <option value="manage">Manage stock</option>
+                </select>
+                <button type="button" class="assignment-remove" @click="removeAssignment(candidate.id)">Remove</button>
+              </template>
+              <button v-else type="button" class="assignment-add" @click="addAssignment(candidate.id)">+ Assign</button>
+            </div>
+          </div>
+          <div v-if="!assignmentCandidates.length" class="assignment-state">No active users with inventory-transfer permission were found. Assign the permission to a role first.</div>
+        </div>
+
+        <div v-if="assignmentError" class="assignment-alert error">{{ assignmentError }}</div>
+        <div v-if="assignmentMessage" class="assignment-alert success">{{ assignmentMessage }}</div>
+        <div class="assignment-footer">
+          <span>Only active users with inventory-transfer permission are eligible.</span>
+          <button type="button" class="action-btn action-btn-primary" :disabled="assignmentSaving || assignmentLoading" @click="saveAssignments">
+            <Icon :name="assignmentSaving ? 'loader' : 'check'" :size="15" />
+            {{ assignmentSaving ? 'Saving...' : 'Save assignments' }}
+          </button>
+        </div>
+      </section>
+
 </template>
 
 <style scoped>
@@ -1000,4 +1144,32 @@ onMounted(() => {
     padding: 13px;
   }
 }
+
+.access-card { margin-top: 22px; padding: 22px; }
+.access-header { display:flex; align-items:flex-start; justify-content:space-between; gap:18px; margin-bottom:18px; }
+.access-header h2 { margin:5px 0 6px; font-size:19px; font-weight:750; color:#172033; }
+.access-header p { margin:0; max-width:650px; color:#64748b; font-size:13px; line-height:1.55; }
+.eyebrow { color:#64748b; font-size:10px; font-weight:800; letter-spacing:.12em; }
+.access-count { white-space:nowrap; padding:6px 10px; border-radius:999px; background:#f1f5f9; color:#334155; font-size:12px; font-weight:700; }
+.assignment-list { display:flex; flex-direction:column; border:1px solid #e8edf4; border-radius:13px; overflow:hidden; }
+.assignment-row { display:flex; align-items:center; justify-content:space-between; gap:14px; padding:12px 14px; border-bottom:1px solid #edf1f6; }
+.assignment-row:last-child { border-bottom:0; }
+.assignment-identity { display:flex; align-items:center; gap:11px; min-width:0; }
+.assignment-avatar { display:grid; place-items:center; width:36px; height:36px; border-radius:11px; background:#eff6ff; color:#1d4ed8; font-weight:800; flex-shrink:0; }
+.assignment-user-copy { display:flex; flex-direction:column; gap:3px; min-width:0; }
+.assignment-user-copy strong { font-size:13px; color:#172033; }
+.assignment-user-copy small { font-size:12px; color:#64748b; overflow-wrap:anywhere; }
+.assignment-controls { display:flex; align-items:center; gap:8px; flex-shrink:0; }
+.assignment-controls select { min-width:145px; border:1px solid #dbe3ee; border-radius:9px; padding:8px 10px; background:#fff; color:#334155; font-size:12px; }
+.assignment-add,.assignment-remove { border:1px solid #dbe3ee; border-radius:8px; padding:7px 10px; background:#fff; color:#334155; font-size:12px; font-weight:700; cursor:pointer; }
+.assignment-add { color:#1d4ed8; border-color:#bfdbfe; background:#eff6ff; }
+.assignment-remove { color:#b91c1c; }
+.assignment-state { padding:18px; color:#64748b; font-size:13px; text-align:center; }
+.assignment-footer { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-top:16px; color:#64748b; font-size:11px; }
+.assignment-footer button:disabled { opacity:.6; cursor:wait; }
+.assignment-alert { margin-top:12px; padding:10px 12px; border-radius:9px; font-size:12px; }
+.assignment-alert.error { color:#b91c1c; background:#fef2f2; border:1px solid #fecaca; }
+.assignment-alert.success { color:#166534; background:#f0fdf4; border:1px solid #bbf7d0; }
+@media (max-width: 640px) { .access-card { padding:14px; } .access-header,.assignment-row,.assignment-footer { align-items:stretch; flex-direction:column; } .assignment-controls { width:100%; } .assignment-controls select { flex:1; min-width:0; } .assignment-footer .action-btn { width:100%; justify-content:center; } }
+
 </style>

@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class Location extends Model
 {
@@ -42,6 +43,14 @@ class Location extends Model
             'business_hours' => 'array',
             'metadata' => 'array',
         ];
+    }
+
+    /** Users explicitly assigned to this location. */
+    public function users(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'location_user', 'location_id', 'user_id')
+            ->withPivot(['access_level', 'assigned_by'])
+            ->withTimestamps();
     }
 
     /**

@@ -41,6 +41,7 @@ test('reservation fulfillment affects only the selected variant stock and record
     $product = inventoryTestProduct('variable');
     $variant = inventoryTestVariant($product);
     $location = inventoryTestLocation();
+    $user->locations()->attach($location->id, ['access_level' => 'manage']);
 
     app(InventoryService::class)->receive([
         'product_variant_id' => $variant->id,

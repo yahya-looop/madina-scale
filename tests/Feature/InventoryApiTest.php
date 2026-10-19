@@ -234,6 +234,7 @@ test('authorized receive API increases stock and creates a movement', function (
     $user = createInventoryApiUser(['system.inventory.receive']);
     $product = inventoryApiCreateProduct();
     $location = inventoryApiCreateLocation();
+    $user->locations()->syncWithoutDetaching([$location->id => ['access_level' => 'manage']]);
 
     $this->actingAs($user);
 
@@ -267,6 +268,7 @@ test('authorized issue API reduces stock and records the balance', function () {
     $user = createInventoryApiUser(['system.inventory.issue']);
     $product = inventoryApiCreateProduct();
     $location = inventoryApiCreateLocation();
+    $user->locations()->syncWithoutDetaching([$location->id => ['access_level' => 'manage']]);
 
     app(\App\Services\InventoryService::class)->receive([
         'product_id' => $product->id,
@@ -299,6 +301,7 @@ test('insufficient stock API request leaves balance and ledger unchanged', funct
     $user = createInventoryApiUser(['system.inventory.issue']);
     $product = inventoryApiCreateProduct();
     $location = inventoryApiCreateLocation();
+    $user->locations()->syncWithoutDetaching([$location->id => ['access_level' => 'manage']]);
 
     app(\App\Services\InventoryService::class)->receive([
         'product_id' => $product->id,
@@ -330,6 +333,7 @@ test('repeated receive API request with the same idempotency key does not duplic
     $user = createInventoryApiUser(['system.inventory.receive']);
     $product = inventoryApiCreateProduct();
     $location = inventoryApiCreateLocation();
+    $user->locations()->syncWithoutDetaching([$location->id => ['access_level' => 'manage']]);
     $key = (string) Str::uuid();
 
     $payload = [
@@ -360,11 +364,14 @@ test('repeated receive API request with the same idempotency key does not duplic
     $this->assertDatabaseCount('stock_movements', 1);
 });
 
-test('authorized transfer API updates both locations and creates paired movements', function () {
+test('authorized transfer API dispatches to destination confirmation workflow', function () {
     $user = createInventoryApiUser(['system.inventory.transfer']);
+    $receiver = createInventoryApiUser(['system.inventory.transfer']);
     $product = inventoryApiCreateProduct();
     $source = inventoryApiCreateLocation();
     $destination = inventoryApiCreateLocation();
+    $user->locations()->attach($source->id, ['access_level' => 'manage']);
+    $receiver->locations()->attach($destination->id, ['access_level' => 'receive']);
 
     app(\App\Services\InventoryService::class)->receive([
         'product_id' => $product->id,
@@ -373,7 +380,6 @@ test('authorized transfer API updates both locations and creates paired movement
     ]);
 
     $this->actingAs($user);
-
     $response = $this->postJson('/api/inventory/transfer', [
         'product_id' => $product->id,
         'source_location_id' => $source->id,
@@ -383,25 +389,23 @@ test('authorized transfer API updates both locations and creates paired movement
         'idempotency_key' => (string) Str::uuid(),
     ]);
 
-    $response->assertOk()
-        ->assertJsonPath('data.outgoing.movement_type', 'transfer_out')
-        ->assertJsonPath('data.incoming.movement_type', 'transfer_in');
+    $response->assertCreated()
+        ->assertJsonPath('data.status', 'in_transit');
 
     $this->assertDatabaseHas('inventory_stocks', [
-        'product_id' => $product->id,
-        'location_id' => $source->id,
-        'quantity' => '6.0000',
+        'product_id' => $product->id, 'location_id' => $source->id, 'quantity' => '6.0000',
+    ]);
+    $this->assertDatabaseMissing('inventory_stocks', [
+        'product_id' => $product->id, 'location_id' => $destination->id,
     ]);
 
+    $transfer = \App\Models\InventoryTransfer::query()->firstOrFail();
+    $this->actingAs($receiver)->postJson("/api/inventory/transfers/{$transfer->id}/accept", ['quantity_received' => '4.0000'])
+        ->assertOk()->assertJsonPath('data.status', 'received');
     $this->assertDatabaseHas('inventory_stocks', [
-        'product_id' => $product->id,
-        'location_id' => $destination->id,
-        'quantity' => '4.0000',
+        'product_id' => $product->id, 'location_id' => $destination->id, 'quantity' => '4.0000',
     ]);
-
-    expect(\App\Models\StockMovement::query()
-        ->whereIn('movement_type', ['transfer_out', 'transfer_in'])
-        ->count())->toBe(2);
+    expect(\App\Models\StockMovement::query()->whereIn('movement_type', ['transfer_out', 'transfer_in'])->count())->toBe(2);
 });
 
 test('failed transfer API request leaves both location balances unchanged', function () {
@@ -409,6 +413,8 @@ test('failed transfer API request leaves both location balances unchanged', func
     $product = inventoryApiCreateProduct();
     $source = inventoryApiCreateLocation();
     $destination = inventoryApiCreateLocation();
+    $user->locations()->attach($source->id, ['access_level' => 'manage']);
+    $user->locations()->attach($destination->id, ['access_level' => 'receive']);
 
     app(\App\Services\InventoryService::class)->receive([
         'product_id' => $product->id,
@@ -450,6 +456,7 @@ test('low stock API returns only enabled thresholds using available quantity', f
     ]);
 
     $location = inventoryApiCreateLocation();
+    $user->locations()->syncWithoutDetaching([$location->id => ['access_level' => 'manage']]);
 
     $lowStockProduct = inventoryApiCreateProduct();
     $normalStockProduct = inventoryApiCreateProduct();
@@ -496,6 +503,7 @@ test('low stock API supports location and product filters with pagination', func
 
     $firstLocation = inventoryApiCreateLocation();
     $secondLocation = inventoryApiCreateLocation();
+    $user->locations()->attach($firstLocation->id, ['access_level' => 'view']);
 
     $firstProduct = inventoryApiCreateProduct();
     $secondProduct = inventoryApiCreateProduct();
@@ -553,6 +561,7 @@ test('user with inventory update permission can update low stock threshold witho
 
     $product = inventoryApiCreateProduct();
     $location = inventoryApiCreateLocation();
+    $user->locations()->syncWithoutDetaching([$location->id => ['access_level' => 'manage']]);
 
     $stock = InventoryStock::create([
         'product_id' => $product->id,
@@ -591,9 +600,11 @@ test('low stock threshold requires an integer of at least 20', function () {
         'system.inventory.update',
     ]);
 
+    $location = inventoryApiCreateLocation();
+    $user->locations()->attach($location->id, ['access_level' => 'manage']);
     $stock = InventoryStock::create([
         'product_id' => inventoryApiCreateProduct()->id,
-        'location_id' => inventoryApiCreateLocation()->id,
+        'location_id' => $location->id,
         'quantity' => '5.0000',
         'reserved_quantity' => '0.0000',
         'low_stock_threshold' => '20.0000',
@@ -631,3 +642,67 @@ test('low stock threshold update returns not found for a missing stock row', fun
     ])->assertNotFound();
 });
 
+
+test('inventory stock and low-stock queries are limited to assigned locations', function () {
+    $user = createInventoryApiUser(['system.inventory.view']);
+    $assigned = inventoryApiCreateLocation();
+    $unassigned = inventoryApiCreateLocation();
+    $product = inventoryApiCreateProduct();
+    $user->locations()->attach($assigned->id, ['access_level' => 'view']);
+
+    InventoryStock::query()->create([
+        'product_id' => $product->id, 'location_id' => $assigned->id,
+        'quantity' => '1.0000', 'reserved_quantity' => '0.0000', 'low_stock_threshold' => '5.0000',
+    ]);
+    InventoryStock::query()->create([
+        'product_id' => $product->id, 'location_id' => $unassigned->id,
+        'quantity' => '1.0000', 'reserved_quantity' => '0.0000', 'low_stock_threshold' => '5.0000',
+    ]);
+
+    $this->actingAs($user)->getJson('/api/inventory/stocks')->assertOk()
+        ->assertJsonCount(1, 'data')->assertJsonPath('data.0.location_id', $assigned->id);
+    $this->getJson('/api/inventory/low-stock')->assertOk()
+        ->assertJsonCount(1, 'data')->assertJsonPath('data.0.location_id', $assigned->id);
+    $this->getJson('/api/inventory/stocks?location_id=' . $unassigned->id)->assertForbidden();
+});
+
+test('receive requires receive or manage access to the target location', function () {
+    $user = createInventoryApiUser(['system.inventory.receive']);
+    $assigned = inventoryApiCreateLocation();
+    $unassigned = inventoryApiCreateLocation();
+    $product = inventoryApiCreateProduct();
+    $user->locations()->attach($assigned->id, ['access_level' => 'receive']);
+
+    $payload = ['product_id' => $product->id, 'quantity' => '2', 'reason' => 'Receiving test'];
+    $this->actingAs($user)->postJson('/api/inventory/receive', $payload + ['location_id' => $unassigned->id])
+        ->assertForbidden();
+    $this->postJson('/api/inventory/receive', $payload + ['location_id' => $assigned->id])
+        ->assertCreated();
+});
+
+test('issue and adjustment require manage access even when the global permission exists', function () {
+    $user = createInventoryApiUser(['system.inventory.issue', 'system.inventory.adjust']);
+    $receiveOnly = inventoryApiCreateLocation();
+    $managed = inventoryApiCreateLocation();
+    $product = inventoryApiCreateProduct();
+    $user->locations()->attach($receiveOnly->id, ['access_level' => 'receive']);
+    $user->locations()->attach($managed->id, ['access_level' => 'manage']);
+    InventoryStock::query()->create([
+        'product_id' => $product->id, 'location_id' => $receiveOnly->id,
+        'quantity' => '10.0000', 'reserved_quantity' => '0.0000', 'low_stock_threshold' => '0.0000',
+    ]);
+    InventoryStock::query()->create([
+        'product_id' => $product->id, 'location_id' => $managed->id,
+        'quantity' => '10.0000', 'reserved_quantity' => '0.0000', 'low_stock_threshold' => '0.0000',
+    ]);
+
+    $this->actingAs($user)->postJson('/api/inventory/issue', [
+        'product_id' => $product->id, 'location_id' => $receiveOnly->id, 'quantity' => '1',
+    ])->assertForbidden();
+    $this->postJson('/api/inventory/adjust', [
+        'product_id' => $product->id, 'location_id' => $receiveOnly->id, 'quantity' => '1',
+    ])->assertForbidden();
+    $this->postJson('/api/inventory/issue', [
+        'product_id' => $product->id, 'location_id' => $managed->id, 'quantity' => '1',
+    ])->assertOk();
+});

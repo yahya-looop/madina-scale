@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\InventoryStock;
 use App\Models\StockMovement;
 use App\Services\InventoryService;
+use App\Services\InventoryTransferService;
+use App\Services\LocationInventoryAccessService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -13,6 +15,8 @@ class InventoryController extends Controller
 {
     public function __construct(
         private readonly InventoryService $inventoryService,
+        private readonly InventoryTransferService $inventoryTransferService,
+        private readonly LocationInventoryAccessService $locationAccess,
     ) {
     }
 
@@ -34,6 +38,13 @@ class InventoryController extends Controller
             ])
             ->orderBy('location_id')
             ->orderBy('id');
+
+        if (isset($filters['location_id'])) {
+            $this->locationAccess->assertView($request->user(), (int) $filters['location_id']);
+        } else {
+            $this->locationAccess->scopeViewable($query, $request->user());
+        }
+
 
         foreach (['location_id', 'product_id', 'product_variant_id'] as $field) {
             if (isset($filters[$field])) {
@@ -70,6 +81,12 @@ class InventoryController extends Controller
             ->orderBy('location_id')
             ->orderBy('id');
 
+        if (isset($filters['location_id'])) {
+            $this->locationAccess->assertView($request->user(), (int) $filters['location_id']);
+        } else {
+            $this->locationAccess->scopeViewable($query, $request->user());
+        }
+
         foreach (['location_id', 'product_id', 'product_variant_id'] as $field) {
             if (isset($filters[$field])) {
                 $query->where($field, $filters[$field]);
@@ -94,6 +111,7 @@ class InventoryController extends Controller
         Request $request,
         InventoryStock $stock,
     ): JsonResponse {
+        $this->locationAccess->assertManage($request->user(), (int) $stock->location_id);
         $data = $request->validate([
             'low_stock_threshold' => [
                 'required',
@@ -183,6 +201,12 @@ class InventoryController extends Controller
             )
             ->orderByDesc('id');
 
+        if (isset($filters['location_id'])) {
+            $this->locationAccess->assertView($request->user(), (int) $filters['location_id']);
+        } else {
+            $this->locationAccess->scopeViewable($query, $request->user());
+        }
+
         return response()->json(
             $query->paginate($filters['per_page'] ?? 25)
         );
@@ -191,6 +215,7 @@ class InventoryController extends Controller
     public function receive(Request $request): JsonResponse
     {
         $data = $this->validateMovement($request, true);
+        $this->locationAccess->assertReceive($request->user(), (int) $data['location_id']);
 
         $movement = $this->inventoryService->receive(
             $data,
@@ -212,6 +237,7 @@ class InventoryController extends Controller
     public function issue(Request $request): JsonResponse
     {
         $data = $this->validateMovement($request, true);
+        $this->locationAccess->assertManage($request->user(), (int) $data['location_id']);
 
         $movement = $this->inventoryService->issue(
             $data,
@@ -233,6 +259,7 @@ class InventoryController extends Controller
     public function adjust(Request $request): JsonResponse
     {
         $data = $this->validateMovement($request, true);
+        $this->locationAccess->assertManage($request->user(), (int) $data['location_id']);
 
         $movement = $this->inventoryService->adjust(
             $data,
@@ -270,6 +297,10 @@ class InventoryController extends Controller
             'metadata' => ['nullable', 'array'],
         ]);
 
+        // Dispatch authorization is based on the source location. The destination
+        // receiver is authorized independently when accepting the transfer.
+        $this->locationAccess->assertManage($request->user(), (int) $data['source_location_id']);
+
         $stockQuery = InventoryStock::query()
             ->where('location_id', $data['destination_location_id'])
             ->where('low_stock_threshold', '>', 0)
@@ -286,13 +317,12 @@ class InventoryController extends Controller
             ], 422);
         }
 
-        $result = $this->inventoryService->transfer($data, $request->user());
-        foreach (['outgoing', 'incoming'] as $key) {
-            if (($result[$key] ?? null) instanceof StockMovement) {
-                $result[$key]->forceFill(['ip_address' => $request->ip()])->save();
-            }
-        }
-        return response()->json(['message' => 'Low-stock item restocked successfully by transfer.', 'data' => $result]);
+        $transfer = $this->inventoryTransferService->dispatch($data, $request->user(), $request->ip());
+
+        return response()->json([
+            'message' => 'Restock transfer dispatched and is awaiting destination confirmation.',
+            'data' => $transfer,
+        ], 201);
     }
 
     public function transfer(Request $request): JsonResponse
@@ -310,20 +340,15 @@ class InventoryController extends Controller
             'metadata' => ['nullable', 'array'],
         ]);
 
-        $result = $this->inventoryService->transfer(
-            $data,
-            $request->user(),
-        );
-        foreach (['outgoing', 'incoming'] as $key) {
-            if (($result[$key] ?? null) instanceof StockMovement) {
-                $result[$key]->forceFill(['ip_address' => $request->ip()])->save();
-            }
-        }
+        // Dispatch authorization is based on the source location. The destination
+        // receiver is authorized independently when accepting the transfer.
+        $this->locationAccess->assertManage($request->user(), (int) $data['source_location_id']);
+        $transfer = $this->inventoryTransferService->dispatch($data, $request->user(), $request->ip());
 
         return response()->json([
-            'message' => 'Stock transferred successfully.',
-            'data' => $result,
-        ]);
+            'message' => 'Transfer dispatched and is awaiting destination confirmation.',
+            'data' => $transfer,
+        ], 201);
     }
 
     private function attachLatestMovementAudit($stocks): void

@@ -34,6 +34,7 @@ test('reservation reduces available quantity and release restores it', function 
     $user = reservationTestUser();
     $product = inventoryTestProduct();
     $location = inventoryTestLocation();
+    $user->locations()->attach($location->id, ['access_level' => 'manage']);
     app(InventoryService::class)->receive(['product_id' => $product->id, 'location_id' => $location->id, 'quantity' => '10']);
     $this->actingAs($user);
 
@@ -52,6 +53,7 @@ test('fulfilling a reservation reduces both on-hand and reserved stock and write
     $user = reservationTestUser();
     $product = inventoryTestProduct();
     $location = inventoryTestLocation();
+    $user->locations()->attach($location->id, ['access_level' => 'manage']);
     app(InventoryService::class)->receive(['product_id' => $product->id, 'location_id' => $location->id, 'quantity' => '10']);
     $this->actingAs($user);
     $id = $this->postJson('/api/inventory/reservations', [
@@ -67,6 +69,7 @@ test('reservation cannot exceed available stock', function () {
     $user = reservationTestUser();
     $product = inventoryTestProduct();
     $location = inventoryTestLocation();
+    $user->locations()->attach($location->id, ['access_level' => 'manage']);
     app(InventoryService::class)->receive(['product_id' => $product->id, 'location_id' => $location->id, 'quantity' => '2']);
     $this->actingAs($user);
 
@@ -80,6 +83,7 @@ test('fulfilling a customer-order reservation creates an order fulfillment movem
     $user = reservationTestUser();
     $product = inventoryTestProduct();
     $location = inventoryTestLocation();
+    $user->locations()->attach($location->id, ['access_level' => 'manage']);
     app(InventoryService::class)->receive(['product_id' => $product->id, 'location_id' => $location->id, 'quantity' => '10']);
     $this->actingAs($user);
 
@@ -118,6 +122,7 @@ test('cancelling an active reservation releases reserved quantity without changi
     $user = reservationTestUser();
     $product = inventoryTestProduct();
     $location = inventoryTestLocation();
+    $user->locations()->attach($location->id, ['access_level' => 'manage']);
     app(InventoryService::class)->receive(['product_id' => $product->id, 'location_id' => $location->id, 'quantity' => '8']);
     $this->actingAs($user);
 
@@ -141,6 +146,7 @@ test('a reservation cannot be fulfilled twice or deduct stock twice', function (
     $user = reservationTestUser();
     $product = inventoryTestProduct();
     $location = inventoryTestLocation();
+    $user->locations()->attach($location->id, ['access_level' => 'manage']);
     app(InventoryService::class)->receive(['product_id' => $product->id, 'location_id' => $location->id, 'quantity' => '8']);
     $this->actingAs($user);
 
@@ -162,6 +168,7 @@ test('an expired reservation releases its reserved quantity and cannot be fulfil
     $user = reservationTestUser();
     $product = inventoryTestProduct();
     $location = inventoryTestLocation();
+    $user->locations()->attach($location->id, ['access_level' => 'manage']);
     app(InventoryService::class)->receive(['product_id' => $product->id, 'location_id' => $location->id, 'quantity' => '8']);
     $this->actingAs($user);
 
@@ -185,6 +192,7 @@ test('reservation purposes can be added without changing frontend code or valida
     $user = reservationTestUser();
     $product = inventoryTestProduct();
     $location = inventoryTestLocation();
+    $user->locations()->attach($location->id, ['access_level' => 'manage']);
     app(InventoryService::class)->receive(['product_id' => $product->id, 'location_id' => $location->id, 'quantity' => '8']);
     $this->actingAs($user);
 
@@ -199,4 +207,37 @@ test('reservation purposes can be added without changing frontend code or valida
         'product_id' => $product->id, 'location_id' => $location->id,
         'quantity' => '2', 'purpose' => 'quality_check',
     ])->assertCreated()->assertJsonPath('data.purpose', 'quality_check');
+});
+
+test('reservation endpoints are scoped to locations assigned to the actor', function () {
+    $user = reservationTestUser();
+    $assigned = inventoryTestLocation();
+    $unassigned = inventoryTestLocation();
+    $user->locations()->attach($assigned->id, ['access_level' => 'manage']);
+    $product = inventoryTestProduct();
+    app(InventoryService::class)->receive(['product_id' => $product->id, 'location_id' => $assigned->id, 'quantity' => '10']);
+    app(InventoryService::class)->receive(['product_id' => $product->id, 'location_id' => $unassigned->id, 'quantity' => '10']);
+
+    $this->actingAs($user);
+    $created = $this->postJson('/api/inventory/reservations', [
+        'product_id' => $product->id, 'location_id' => $assigned->id,
+        'quantity' => '2', 'purpose' => 'customer_order',
+    ])->assertCreated();
+    $reservationId = $created->json('data.id');
+
+    $this->getJson('/api/inventory/reservations')->assertOk()
+        ->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0.location_id', $assigned->id);
+    $this->postJson('/api/inventory/reservations', [
+        'product_id' => $product->id, 'location_id' => $unassigned->id,
+        'quantity' => '2', 'purpose' => 'customer_order',
+    ])->assertForbidden();
+
+    $unassignedReservation = \App\Models\InventoryReservation::query()->create([
+        'product_id' => $product->id, 'location_id' => $unassigned->id,
+        'quantity' => '1.0000', 'purpose' => 'customer_order', 'status' => 'active',
+        'created_by' => $user->id,
+    ]);
+    $this->postJson('/api/inventory/reservations/' . $unassignedReservation->id . '/release')->assertForbidden();
+    $this->assertDatabaseHas('inventory_reservations', ['id' => $reservationId, 'status' => 'active']);
 });
