@@ -9,6 +9,7 @@ use App\Services\LocationInventoryAccessService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\DB;
 
 class InventoryReservationController extends Controller
 {
@@ -23,6 +24,14 @@ class InventoryReservationController extends Controller
             ->where('is_active', true)->orderBy('sort_order')->orderBy('label')->get(['id', 'key', 'label', 'is_active', 'sort_order'])]);
     }
 
+    public function managePurposes(): JsonResponse
+    {
+        return response()->json(['data' => InventoryReservationPurpose::query()
+            ->where('is_active', true)
+            ->orderBy('sort_order')->orderBy('label')
+            ->get(['id', 'key', 'label', 'is_active', 'sort_order'])]);
+    }
+
     public function storePurpose(Request $request): JsonResponse
     {
         $data = $request->validate([
@@ -34,6 +43,64 @@ class InventoryReservationController extends Controller
             'sort_order' => (int) InventoryReservationPurpose::query()->max('sort_order') + 10,
         ]);
         return response()->json(['message' => 'Reservation purpose added successfully.', 'data' => $purpose], 201);
+    }
+
+    public function updatePurpose(Request $request, InventoryReservationPurpose $purpose): JsonResponse
+    {
+        $data = $request->validate([
+            'key' => ['required', 'string', 'max:24', 'regex:/^[a-z][a-z0-9_]*$/', Rule::unique('inventory_reservation_purposes', 'key')->ignore($purpose->id)],
+            'label' => ['required', 'string', 'max:80'],
+        ]);
+
+        if ($data['key'] !== $purpose->key && InventoryReservation::query()->where('purpose', $purpose->key)->exists()) {
+            return response()->json([
+                'message' => 'This purpose is used by existing reservations. Its key cannot be changed; update the label instead.',
+            ], 422);
+        }
+
+        $purpose->update(['key' => $data['key'], 'label' => trim($data['label'])]);
+        return response()->json(['message' => 'Reservation purpose updated successfully.', 'data' => $purpose->fresh()]);
+    }
+
+    public function destroyPurpose(InventoryReservationPurpose $purpose): JsonResponse
+    {
+        return DB::transaction(function () use ($purpose): JsonResponse {
+            // Lock active purposes so concurrent deletes cannot violate the minimum.
+            $activePurposes = InventoryReservationPurpose::query()
+                ->where('is_active', true)
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->get();
+
+            $lockedPurpose = $activePurposes->firstWhere('id', $purpose->id);
+            if (! $lockedPurpose) {
+                return response()->json([
+                    'message' => 'This reservation purpose has already been deleted.',
+                ], 404);
+            }
+
+            if ($activePurposes->count() <= 2) {
+                return response()->json([
+                    'message' => 'At least two reservation purposes must remain. Add another purpose before deleting this one.',
+                    'minimum_required' => 2,
+                    'active_count' => $activePurposes->count(),
+                ], 422);
+            }
+
+            // Preserve the display label on any legacy row before removing the purpose.
+            InventoryReservation::query()
+                ->where('purpose', $lockedPurpose->key)
+                ->whereNull('purpose_label')
+                ->update(['purpose_label' => $lockedPurpose->label]);
+
+            $lockedPurpose->delete();
+
+            return response()->json([
+                'message' => 'Reservation purpose deleted. Existing reservation history has been preserved.',
+                'minimum_required' => 2,
+                'active_count' => $activePurposes->count() - 1,
+            ]);
+        }, 3);
     }
 
     public function index(Request $request): JsonResponse
@@ -76,6 +143,10 @@ class InventoryReservationController extends Controller
             'expires_at' => ['nullable', 'date', 'after:now'],
         ]);
         $this->locationAccess->assertManage($request->user(), (int) $data['location_id']);
+        // Enforce the 72-hour default for all API clients, including requests without expires_at.
+        if (empty($data['expires_at'])) {
+            $data['expires_at'] = now()->addHours(72);
+        }
         $reservation = $this->reservations->reserve($data, $request->user());
         return response()->json(['message' => 'Stock reserved successfully.', 'data' => $reservation->load(['product:id,name,sku', 'variant:id,product_id,name,sku', 'location:id,name,code', 'creator:id,name,email'])], 201);
     }

@@ -241,3 +241,59 @@ test('reservation endpoints are scoped to locations assigned to the actor', func
     $this->postJson('/api/inventory/reservations/' . $unassignedReservation->id . '/release')->assertForbidden();
     $this->assertDatabaseHas('inventory_reservations', ['id' => $reservationId, 'status' => 'active']);
 });
+
+
+test('reservation purposes cannot be deleted below the minimum of two', function () {
+    $user = reservationTestUser();
+    $this->actingAs($user);
+
+    $purposes = \App\Models\InventoryReservationPurpose::query()->where('is_active', true)->orderBy('id')->get();
+    expect($purposes)->toHaveCount(2);
+
+    $this->deleteJson('/api/inventory/reservation-purposes/' . $purposes[0]->id)
+        ->assertUnprocessable()
+        ->assertJsonPath('minimum_required', 2);
+
+    $this->assertDatabaseHas('inventory_reservation_purposes', ['id' => $purposes[0]->id]);
+    $this->assertDatabaseCount('inventory_reservation_purposes', 2);
+});
+
+test('deleting a used reservation purpose removes it without archiving and preserves historical label', function () {
+    $user = reservationTestUser();
+    $product = inventoryTestProduct();
+    $location = inventoryTestLocation();
+    $user->locations()->attach($location->id, ['access_level' => 'manage']);
+    app(InventoryService::class)->receive(['product_id' => $product->id, 'location_id' => $location->id, 'quantity' => '10']);
+    $this->actingAs($user);
+
+    $purpose = $this->postJson('/api/inventory/reservation-purposes', [
+        'key' => 'quality_check',
+        'label' => 'Quality Check',
+    ])->assertCreated()->json('data');
+
+    $reservationId = $this->postJson('/api/inventory/reservations', [
+        'product_id' => $product->id,
+        'location_id' => $location->id,
+        'quantity' => '2',
+        'purpose' => 'quality_check',
+        'reason' => 'Incoming quality inspection',
+    ])->assertCreated()
+        ->assertJsonPath('data.purpose_label', 'Quality Check')
+        ->json('data.id');
+
+    $this->deleteJson('/api/inventory/reservation-purposes/' . $purpose['id'])
+        ->assertOk()
+        ->assertJsonPath('active_count', 2);
+
+    $this->assertDatabaseMissing('inventory_reservation_purposes', ['id' => $purpose['id']]);
+    $this->assertDatabaseHas('inventory_reservations', [
+        'id' => $reservationId,
+        'purpose' => 'quality_check',
+        'purpose_label' => 'Quality Check',
+        'reason' => 'Incoming quality inspection',
+    ]);
+
+    $this->getJson('/api/inventory/reservations')
+        ->assertOk()
+        ->assertJsonPath('data.0.purpose_label', 'Quality Check');
+});

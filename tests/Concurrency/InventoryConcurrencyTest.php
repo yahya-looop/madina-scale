@@ -6,7 +6,6 @@ use App\Models\Module;
 use App\Models\Permission;
 use App\Models\Role;
 use App\Models\User;
-use Illuminate\Process\PendingProcess;
 use Symfony\Component\Process\Process;
 use Illuminate\Support\Str;
 
@@ -37,6 +36,8 @@ function concurrencyUser(array $permissionSlugs): User
 function startConcurrentWorkers(array $first, array $second): array
 {
     $barrier = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'madina-concurrency-' . Str::uuid() . '.go';
+    $firstToken = (string) Str::uuid();
+    $secondToken = (string) Str::uuid();
     $connection = config('database.connections.pgsql');
     $env = [
         'APP_ENV' => 'testing',
@@ -49,20 +50,59 @@ function startConcurrentWorkers(array $first, array $second): array
         'DB_URL' => '',
     ];
     $script = base_path('tests/Concurrency/worker.php');
-    foreach ([$first, $second] as &$payload) {
-        $payload['barrier'] = $barrier;
-    }
-    unset($payload);
+    $first['barrier'] = $barrier;
+    $first['worker_token'] = $firstToken;
+    $second['barrier'] = $barrier;
+    $second['worker_token'] = $secondToken;
+
     $one = new Process([PHP_BINARY, $script, base64_encode(json_encode($first, JSON_THROW_ON_ERROR))], base_path(), $env, null, 35);
     $two = new Process([PHP_BINARY, $script, base64_encode(json_encode($second, JSON_THROW_ON_ERROR))], base_path(), $env, null, 35);
     $one->start();
     $two->start();
-    // Give both child processes time to boot and wait at the barrier.
-    usleep(500_000);
-    file_put_contents($barrier, 'go');
-    $one->wait();
-    $two->wait();
-    @unlink($barrier);
+
+    $readyFiles = [$barrier . '.' . $firstToken . '.ready', $barrier . '.' . $secondToken . '.ready'];
+    $deadline = microtime(true) + 20;
+    try {
+        // Release only after both workers have bootstrapped Laravel and reached the barrier.
+        while (! is_file($readyFiles[0]) || ! is_file($readyFiles[1])) {
+            if (microtime(true) >= $deadline) {
+                $details = sprintf(
+                    "Timed out waiting for workers to become ready. Worker 1 running=%s, exit=%s, stderr=%s; Worker 2 running=%s, exit=%s, stderr=%s",
+                    $one->isRunning() ? 'yes' : 'no', var_export($one->getExitCode(), true), $one->getErrorOutput(),
+                    $two->isRunning() ? 'yes' : 'no', var_export($two->getExitCode(), true), $two->getErrorOutput(),
+                );
+                throw new RuntimeException($details);
+            }
+
+            // Fail early when a child process exits before reporting readiness.
+            if ((! $one->isRunning() && ! is_file($readyFiles[0])) || (! $two->isRunning() && ! is_file($readyFiles[1]))) {
+                throw new RuntimeException(sprintf(
+                    "A concurrency worker exited before reaching the barrier. Worker 1 exit=%s, stdout=%s, stderr=%s; Worker 2 exit=%s, stdout=%s, stderr=%s",
+                    var_export($one->getExitCode(), true), $one->getOutput(), $one->getErrorOutput(),
+                    var_export($two->getExitCode(), true), $two->getOutput(), $two->getErrorOutput(),
+                ));
+            }
+            usleep(10_000);
+        }
+
+        file_put_contents($barrier, 'go', LOCK_EX);
+        $one->wait();
+        $two->wait();
+    } catch (Throwable $exception) {
+        if ($one->isRunning()) {
+            $one->stop(1);
+        }
+        if ($two->isRunning()) {
+            $two->stop(1);
+        }
+        throw $exception;
+    } finally {
+        @unlink($barrier);
+        foreach ($readyFiles as $readyFile) {
+            @unlink($readyFile);
+        }
+    }
+
     return [$one, $two, $barrier];
 }
 

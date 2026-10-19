@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\InventoryReservation;
+use App\Models\InventoryReservationPurpose;
 use App\Models\InventoryStock;
 use App\Models\Location;
 use App\Models\Product;
@@ -33,17 +34,23 @@ class InventoryReservationService
             $stock->reserved_quantity = bcadd((string) $stock->reserved_quantity, $quantity, 4);
             $stock->save();
 
+            $purpose = InventoryReservationPurpose::query()
+                ->where('key', $data['purpose'])
+                ->where('is_active', true)
+                ->firstOrFail();
+
             return InventoryReservation::query()->create([
                 'product_id' => $owner['product_id'],
                 'product_variant_id' => $owner['variant_id'],
                 'location_id' => $location->id,
                 'quantity' => $quantity,
-                'purpose' => $data['purpose'],
+                'purpose' => $purpose->key,
+                'purpose_label' => $purpose->label,
                 'status' => 'active',
                 'reference_type' => $data['reference_type'] ?? null,
                 'reference_id' => isset($data['reference_id']) ? (string) $data['reference_id'] : null,
                 'reason' => $data['reason'] ?? null,
-                'expires_at' => $data['expires_at'] ?? null,
+                'expires_at' => $data['expires_at'] ?? now()->addHours(72),
                 'created_by' => $actor->id,
             ]);
         }, 3);
@@ -97,12 +104,12 @@ class InventoryReservationService
                     'quantity_delta' => bcsub('0', $quantity, 4),
                     'balance_before' => $before,
                     'balance_after' => $after,
-                    'reason' => ($locked->purpose === 'customer_order' ? 'Order Out (Fulfillment)' : 'Reservation fulfilled') . ': ' . $locked->id,
+                    'reason' => ($locked->purpose === 'customer_order' ? 'Order Out (Fulfillment)' : 'Reservation fulfilled') . ' (' . ($locked->purpose_label ?: $locked->purpose) . '): ' . $locked->id,
                     'reference_type' => 'inventory_reservation',
                     'reference_id' => (string) $locked->id,
                     'idempotency_key' => (string) Str::uuid(),
                     'created_by' => $actor->id,
-                    'metadata' => ['reservation_id' => $locked->id, 'purpose' => $locked->purpose],
+                    'metadata' => ['reservation_id' => $locked->id, 'purpose' => $locked->purpose, 'purpose_label' => $locked->purpose_label ?: $locked->purpose],
                 ]);
                 $locked->status = 'fulfilled';
             } else {

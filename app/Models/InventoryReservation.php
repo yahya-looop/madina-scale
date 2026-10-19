@@ -9,7 +9,7 @@ class InventoryReservation extends Model
 {
     protected $fillable = [
         'product_id', 'product_variant_id', 'location_id', 'quantity',
-        'purpose', 'status', 'reference_type', 'reference_id', 'reason',
+        'purpose', 'purpose_label', 'status', 'reference_type', 'reference_id', 'reason',
         'expires_at', 'created_by', 'resolved_by', 'resolved_at',
     ];
 

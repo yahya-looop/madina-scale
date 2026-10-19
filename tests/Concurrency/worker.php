@@ -21,16 +21,30 @@ if (! is_array($payload)) {
 
 // A filesystem barrier makes the parent start multiple independent PHP/DB
 // processes together, rather than merely issuing sequential service calls.
+// Report readiness only after this worker has bootstrapped Laravel and decoded
+// its payload; the parent waits for both readiness markers before releasing us.
 $barrier = $payload['barrier'] ?? null;
-if (is_string($barrier) && $barrier !== '') {
+$workerToken = $payload['worker_token'] ?? null;
+$readyFile = null;
+if (is_string($barrier) && $barrier !== '' && is_string($workerToken) && $workerToken !== '') {
+    $readyFile = $barrier . '.' . $workerToken . '.ready';
+    if (file_put_contents($readyFile, (string) getmypid(), LOCK_EX) === false) {
+        fwrite(STDERR, "Unable to report concurrency worker readiness.\n");
+        exit(66);
+    }
+
     $deadline = microtime(true) + 20;
     while (! is_file($barrier) && microtime(true) < $deadline) {
         usleep(10_000);
     }
+    @unlink($readyFile);
     if (! is_file($barrier)) {
         fwrite(STDERR, "Timed out waiting for concurrency barrier.\n");
         exit(65);
     }
+} else {
+    fwrite(STDERR, "Missing concurrency barrier or worker token.\n");
+    exit(64);
 }
 
 try {

@@ -99,12 +99,60 @@ const reservationSaving = ref(false);
 const reservationError = ref("");
 const reservationSuccess = ref("");
 const reservationQuantity = ref("1");
-const reservationPurpose = ref<"customer_order" | "internal_use">("customer_order");
+interface ReservationPurposeOption {
+  id: number;
+  key: string;
+  label: string;
+}
+const reservationPurposes = ref<ReservationPurposeOption[]>([]);
+const reservationPurposesLoading = ref(false);
+const reservationPurpose = ref("customer_order");
+const reservationPurposesError = ref("");
+const reservationMinExpiry = computed(() =>
+  new Date(Date.now() + 60_000).toISOString().slice(0, 16)
+);
 const reservationReferenceType = ref("");
 const reservationReferenceId = ref("");
 const reservationReason = ref("");
 const reservationExpiresAt = ref("");
 const reservationStock = ref<InventoryStock | null>(null);
+
+async function loadReservationPurposes(): Promise<void> {
+  reservationPurposesLoading.value = true;
+  reservationPurposesError.value = "";
+  try {
+    const response = await fetch("/api/inventory/reservation-purposes", {
+      credentials: "same-origin",
+      headers: { Accept: "application/json", "X-Requested-With": "XMLHttpRequest" },
+    });
+    const payload = await response.json();
+    if (!response.ok)
+      throw new Error(payload.message || "Unable to load reservation purposes.");
+    const options = Array.isArray(payload.data) ? payload.data : [];
+    reservationPurposes.value = options.filter(
+      (item: ReservationPurposeOption) => item && item.key && item.label
+    );
+    if (
+      !reservationPurposes.value.some((item) => item.key === reservationPurpose.value)
+    ) {
+      reservationPurpose.value = reservationPurposes.value[0]?.key ?? "";
+    }
+  } catch (error) {
+    reservationPurposesError.value =
+      error instanceof Error ? error.message : "Unable to load reservation purposes.";
+  } finally {
+    reservationPurposesLoading.value = false;
+  }
+}
+
+function toLocalDateTimeInput(date: Date): string {
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+  return local.toISOString().slice(0, 16);
+}
+
+function defaultReservationExpiry(): string {
+  return toLocalDateTimeInput(new Date(Date.now() + 72 * 60 * 60 * 1000));
+}
 
 function openReservation(stock: InventoryStock): void {
   if (
@@ -114,11 +162,13 @@ function openReservation(stock: InventoryStock): void {
     return;
   reservationStock.value = stock;
   reservationQuantity.value = "1";
-  reservationPurpose.value = "customer_order";
+  if (!reservationPurposes.value.some((item) => item.key === reservationPurpose.value)) {
+    reservationPurpose.value = reservationPurposes.value[0]?.key ?? "";
+  }
   reservationReferenceType.value = "";
   reservationReferenceId.value = "";
   reservationReason.value = "";
-  reservationExpiresAt.value = "";
+  reservationExpiresAt.value = defaultReservationExpiry();
   reservationError.value = "";
   reservationSuccess.value = "";
   reservationOpen.value = true;
@@ -139,10 +189,24 @@ async function submitReservation(): Promise<void> {
     reservationError.value = "Enter a quantity greater than zero.";
     return;
   }
+  if (
+    !reservationPurpose.value ||
+    !reservationPurposes.value.some((item) => item.key === reservationPurpose.value)
+  ) {
+    reservationError.value = "Choose an active reservation purpose.";
+    return;
+  }
   if (quantity > availableQuantity(stock)) {
     reservationError.value = `Quantity cannot exceed available stock (${formatQuantity(
       availableQuantity(stock)
     )}).`;
+    return;
+  }
+  if (
+    reservationExpiresAt.value &&
+    new Date(reservationExpiresAt.value).getTime() <= Date.now()
+  ) {
+    reservationError.value = "Expiry date/time must be in the future.";
     return;
   }
   if (!stock.location_id) {
@@ -169,8 +233,9 @@ async function submitReservation(): Promise<void> {
     if (reservationReferenceId.value.trim())
       body.reference_id = reservationReferenceId.value.trim();
     if (reservationReason.value.trim()) body.reason = reservationReason.value.trim();
-    if (reservationExpiresAt.value)
-      body.expires_at = new Date(reservationExpiresAt.value).toISOString();
+    // If cleared, still submit the 72-hour default (never silently create a no-expiry reservation).
+    const expiryInput = reservationExpiresAt.value || defaultReservationExpiry();
+    body.expires_at = new Date(expiryInput).toISOString();
 
     const response = await fetch("/api/inventory/reservations", {
       method: "POST",
@@ -336,7 +401,11 @@ function openStockDetails(stock: InventoryStock): void {
 }
 
 function openRestock(stock: InventoryStock): void {
-  if (!stock.location_id || (!stock.product_id && !(stock.product_variant_id ?? stock.variant_id))) return;
+  if (
+    !stock.location_id ||
+    (!stock.product_id && !(stock.product_variant_id ?? stock.variant_id))
+  )
+    return;
   restockStock.value = stock;
   restockOpen.value = true;
 }
@@ -353,7 +422,9 @@ async function handleRestockCompleted(message: string): Promise<void> {
   await loadStocks(currentPage.value);
   const refreshed = stocks.value.find((item) => item.id === stockId);
   if (refreshed) selectedStock.value = { ...refreshed };
-  window.setTimeout(() => { restockSuccess.value = ""; }, 6000);
+  window.setTimeout(() => {
+    restockSuccess.value = "";
+  }, 6000);
 }
 
 function closeStockDetails(): void {
@@ -494,12 +565,17 @@ function goToPage(page: number): void {
   void loadStocks(target);
 }
 
+onMounted(() => {
+  void loadReservationPurposes();
+});
+
 watch(perPage, () => {
   currentPage.value = 1;
   void loadStocks(1);
 });
 
 onMounted(() => {
+  void loadReservationPurposes();
   void loadStocks(1);
 });
 </script>
@@ -554,7 +630,11 @@ onMounted(() => {
         </div>
       </header>
 
-      <p v-if="restockSuccess" class="reservation-success page-restock-success" role="status">
+      <p
+        v-if="restockSuccess"
+        class="reservation-success page-restock-success"
+        role="status"
+      >
         <Icon name="circle-check" :size="17" /> {{ restockSuccess }}
       </p>
 
@@ -888,7 +968,7 @@ onMounted(() => {
             >
               <header class="reservation-modal-header">
                 <div class="reservation-modal-heading-icon">
-                  <Icon name="package-check" :size="22" />
+                  <Icon name="calendar-check" :size="22" />
                 </div>
                 <div class="reservation-modal-heading-copy">
                   <span>INVENTORY · RESERVE STOCK</span>
@@ -930,10 +1010,35 @@ onMounted(() => {
                 <div class="reservation-form-grid">
                   <label class="reservation-field reservation-field-full">
                     <span>Reservation purpose <b>*</b></span>
-                    <select v-model="reservationPurpose" required>
-                      <option value="customer_order">Customer order</option>
-                      <option value="internal_use">Internal use</option>
+                    <select
+                      v-model="reservationPurpose"
+                      required
+                      :disabled="
+                        reservationPurposesLoading || reservationPurposes.length === 0
+                      "
+                    >
+                      <option value="" disabled>
+                        {{
+                          reservationPurposesLoading
+                            ? "Loading purposes…"
+                            : "Choose a purpose"
+                        }}
+                      </option>
+                      <option
+                        v-for="purpose in reservationPurposes"
+                        :key="purpose.id"
+                        :value="purpose.key"
+                      >
+                        {{ purpose.label }}
+                      </option>
                     </select>
+                    <small
+                      v-if="reservationPurposesError"
+                      class="reservation-field-error"
+                      role="alert"
+                    >
+                      {{ reservationPurposesError }}
+                    </small>
                   </label>
                   <label class="reservation-field">
                     <span>Quantity to reserve <b>*</b></span>
@@ -951,11 +1056,11 @@ onMounted(() => {
                     >
                   </label>
                   <label class="reservation-field">
-                    <span>Expiry date/time <small>(optional)</small></span>
+                    <span>Expiry date &amp; time <small>(default: 72 hours)</small></span>
                     <input
                       v-model="reservationExpiresAt"
                       type="datetime-local"
-                      :min="new Date(Date.now() + 60000).toISOString().slice(0, 16)"
+                      :min="reservationMinExpiry"
                     />
                     <small>Leave blank for no automatic expiry.</small>
                   </label>
@@ -3433,5 +3538,266 @@ table th {
   background: #f0fdf4;
   color: #166534;
   font-size: 0.875rem;
+}
+/* Reservation modal — refined enterprise styling */
+.reservation-backdrop {
+  padding: clamp(12px, 2.4vw, 28px);
+  background: rgb(7 15 31 / 68%);
+  backdrop-filter: blur(8px) saturate(115%);
+}
+.reservation-modal {
+  display: flex;
+  flex-direction: column;
+  width: min(760px, 100%);
+  max-height: min(88dvh, 920px);
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--border, #e4e9f1) 78%, #8aa5ff);
+  border-radius: 22px;
+  background: var(--card, #fff);
+  color: var(--foreground, #101828);
+  box-shadow: 0 34px 100px rgb(2 8 23 / 36%), 0 0 0 1px rgb(255 255 255 / 35%) inset;
+}
+.reservation-modal-header {
+  flex: 0 0 auto;
+  padding: 22px 26px;
+  background: linear-gradient(
+    125deg,
+    color-mix(in srgb, var(--card, #fff) 94%, #dce8ff),
+    var(--card, #fff) 64%
+  );
+}
+.reservation-modal-heading-icon {
+  width: 50px;
+  height: 50px;
+  border: 1px solid #dbe6ff;
+  border-radius: 15px;
+  background: linear-gradient(145deg, #eff5ff, #e7efff);
+  color: #2858cc;
+  box-shadow: 0 5px 14px rgb(49 89 201 / 9%);
+}
+.reservation-modal-heading-copy > span {
+  font-size: 10px;
+  letter-spacing: 0.13em;
+}
+.reservation-modal-heading-copy h2 {
+  font-size: clamp(21px, 2vw, 25px);
+  line-height: 1.2;
+}
+.reservation-modal-heading-copy p {
+  margin-top: 5px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.reservation-close {
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  background: var(--card, #fff);
+  transition: background 0.16s ease, border-color 0.16s ease, transform 0.16s ease;
+}
+.reservation-close:hover:not(:disabled) {
+  border-color: #c7d5f7;
+  background: #f3f6ff;
+  transform: rotate(4deg);
+}
+.reservation-form {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 22px 26px 0;
+  scrollbar-gutter: stable;
+}
+.reservation-availability {
+  gap: 12px;
+  margin-bottom: 23px;
+}
+.reservation-availability > div {
+  position: relative;
+  gap: 9px;
+  min-height: 92px;
+  padding: 15px 16px;
+  border-color: var(--border, #e7edf5);
+  border-radius: 14px;
+  background: var(--muted, #f8fafc);
+}
+.reservation-availability span {
+  font-size: 11px;
+  font-weight: 550;
+}
+.reservation-availability strong {
+  font-size: clamp(20px, 2vw, 25px);
+  letter-spacing: -0.035em;
+}
+.reservation-availability > div:last-child {
+  border-color: #cbdcff;
+  background: linear-gradient(145deg, #f0f5ff, #f8faff);
+}
+.reservation-availability > div:last-child::after {
+  position: absolute;
+  top: 13px;
+  right: 13px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #16a36a;
+  box-shadow: 0 0 0 4px rgb(22 163 106 / 10%);
+  content: "";
+}
+.reservation-form-grid {
+  gap: 18px 16px;
+}
+.reservation-field {
+  gap: 8px;
+  font-size: 12px;
+}
+.reservation-field input,
+.reservation-field select,
+.reservation-field textarea {
+  min-height: 45px;
+  padding: 11px 13px;
+  border-color: var(--input, #d6deea);
+  border-radius: 11px;
+  background: var(--background, #fff);
+  color: var(--foreground, #101828);
+  font-size: 13px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+.reservation-field textarea {
+  min-height: 94px;
+  line-height: 1.55;
+}
+.reservation-field input:hover,
+.reservation-field select:hover,
+.reservation-field textarea:hover {
+  border-color: #b9c8e4;
+}
+.reservation-field input:focus-visible,
+.reservation-field select:focus-visible,
+.reservation-field textarea:focus-visible {
+  border-color: #6a8cff;
+  box-shadow: 0 0 0 4px rgb(79 110 220 / 13%);
+}
+.reservation-field > small {
+  line-height: 1.45;
+}
+.reservation-field-error {
+  color: #b42318 !important;
+}
+.reservation-error {
+  margin: 17px 0 0;
+  padding: 12px 14px;
+  border-radius: 11px;
+  font-size: 12px;
+}
+.reservation-modal-footer {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  flex: 0 0 auto;
+  margin: 22px -26px 0;
+  padding: 16px 26px;
+  border-top-color: var(--border, #edf0f5);
+  background: color-mix(in srgb, var(--card, #fff) 92%, transparent);
+  backdrop-filter: blur(14px);
+}
+.reservation-history-link {
+  font-size: 11px;
+}
+.reservation-modal-footer > div button {
+  min-height: 42px;
+  border-radius: 11px;
+  padding-inline: 16px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .reservation-modal,
+  .reservation-backdrop,
+  .reservation-close,
+  .reservation-field input,
+  .reservation-field select,
+  .reservation-field textarea {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+@media (max-width: 600px) {
+  .reservation-backdrop {
+    align-items: flex-end;
+    padding: 7px;
+  }
+  .reservation-modal {
+    width: 100%;
+    max-height: 96dvh;
+    border-radius: 20px 20px 12px 12px;
+  }
+  .reservation-modal-header {
+    padding: 16px;
+  }
+  .reservation-form {
+    padding: 16px 15px 0;
+  }
+  .reservation-availability {
+    gap: 7px;
+    margin-bottom: 19px;
+  }
+  .reservation-availability > div {
+    min-height: 78px;
+    padding: 10px 8px;
+  }
+  .reservation-availability strong {
+    font-size: 16px;
+    overflow-wrap: anywhere;
+  }
+  .reservation-form-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 15px;
+  }
+  .reservation-field-full {
+    grid-column: auto;
+  }
+  .reservation-modal-footer {
+    margin: 17px -15px 0;
+    padding: 12px 15px max(12px, env(safe-area-inset-bottom));
+  }
+}
+
+/* Reservation expiry picker: clearer, accessible native date/time control */
+.reservation-field input[type="datetime-local"] {
+  min-height: 48px;
+  width: 100%;
+  padding: 11px 13px;
+  border: 1px solid var(--input, #d6deea);
+  border-radius: 12px;
+  background: linear-gradient(
+    180deg,
+    var(--background, #fff),
+    color-mix(in srgb, var(--muted, #f8fafc) 55%, var(--background, #fff))
+  );
+  color: var(--foreground, #101828);
+  font-variant-numeric: tabular-nums;
+  color-scheme: light;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
+}
+.reservation-field input[type="datetime-local"]:hover {
+  border-color: #aebfe0;
+  background: var(--background, #fff);
+}
+.reservation-field input[type="datetime-local"]:focus-visible {
+  outline: none;
+  border-color: #5d80f5;
+  box-shadow: 0 0 0 4px rgb(59 97 224 / 13%);
+}
+.reservation-field input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  width: 19px;
+  height: 19px;
+  margin-left: 8px;
+  padding: 5px;
+  border-radius: 7px;
+  cursor: pointer;
+  opacity: 0.78;
+  transition: background 0.15s ease, opacity 0.15s ease;
+}
+.reservation-field input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover {
+  background: rgb(76 110 220 / 12%);
+  opacity: 1;
 }
 </style>

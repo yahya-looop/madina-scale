@@ -15,6 +15,7 @@ interface Reservation {
   location_id: number;
   quantity: string | number;
   purpose: string;
+  purpose_label?: string | null;
   status: "active" | "released" | "cancelled" | "fulfilled" | "expired";
   reference_type?: string | null;
   reference_id?: string | null;
@@ -46,11 +47,16 @@ const statusFilter = ref("all");
 const purposeFilter = ref("all");
 interface ReservationPurpose { id: number; key: string; label: string; is_active: boolean; sort_order: number }
 const purposes = ref<ReservationPurpose[]>([]);
+const allPurposes = ref<ReservationPurpose[]>([]);
 const managePurposesOpen = ref(false);
 const purposeLabelDraft = ref("");
 const purposeKeyDraft = ref("");
 const purposeSaving = ref(false);
 const purposeError = ref("");
+const editingPurposeId = ref<number | null>(null);
+const purposeDeleteTarget = ref<ReservationPurpose | null>(null);
+const purposeDeleting = ref(false);
+const activePurposes = computed(() => purposes.value.filter((purpose) => purpose.is_active));
 const search = ref("");
 const page = ref(1);
 const lastPage = ref(1);
@@ -115,6 +121,13 @@ function productLabel(r: Reservation): string {
     : r.product?.name ??
         (r.product_id ? `Product #${r.product_id}` : `Variant #${r.product_variant_id}`);
 }
+async function loadAllPurposes(): Promise<void> {
+  try {
+    const response = await fetch("/api/inventory/reservation-purposes/manage", { credentials: "same-origin", headers: { Accept: "application/json", "X-Requested-With": "XMLHttpRequest" } });
+    const payload = await response.json();
+    if (response.ok) allPurposes.value = Array.isArray(payload.data) ? payload.data : [];
+  } catch { /* Purpose manager remains usable if this request fails. */ }
+}
 async function loadPurposes(): Promise<void> {
   try {
     const response = await fetch("/api/inventory/reservation-purposes", { credentials: "same-origin", headers: { Accept: "application/json", "X-Requested-With": "XMLHttpRequest" } });
@@ -125,17 +138,56 @@ async function loadPurposes(): Promise<void> {
 function makePurposeKey(): void {
   purposeKeyDraft.value = purposeLabelDraft.value.toLowerCase().trim().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 24);
 }
+function handlePurposeLabelInput(): void {
+  if (editingPurposeId.value === null) makePurposeKey();
+}
+function togglePurposeManager(): void {
+  managePurposesOpen.value = !managePurposesOpen.value;
+  if (!managePurposesOpen.value) resetPurposeForm();
+}
+function resetPurposeForm(): void {
+  editingPurposeId.value = null;
+  purposeLabelDraft.value = "";
+  purposeKeyDraft.value = "";
+  purposeError.value = "";
+}
+function editPurpose(purpose: ReservationPurpose): void {
+  editingPurposeId.value = purpose.id;
+  purposeLabelDraft.value = purpose.label;
+  purposeKeyDraft.value = purpose.key;
+  purposeError.value = "";
+  managePurposesOpen.value = true;
+}
 async function createPurpose(): Promise<void> {
   if (purposeSaving.value) return;
   purposeSaving.value = true; purposeError.value = "";
   try {
     const token = decodeURIComponent(document.cookie.split("; ").find((v) => v.startsWith("XSRF-TOKEN="))?.split("=").slice(1).join("=") ?? "");
-    const response = await fetch("/api/inventory/reservation-purposes", { method: "POST", credentials: "same-origin", headers: { Accept: "application/json", "Content-Type": "application/json", "X-Requested-With": "XMLHttpRequest", "X-XSRF-TOKEN": token }, body: JSON.stringify({ key: purposeKeyDraft.value, label: purposeLabelDraft.value.trim() }) });
+    const editing = editingPurposeId.value !== null;
+    const response = await fetch(editing ? `/api/inventory/reservation-purposes/${editingPurposeId.value}` : "/api/inventory/reservation-purposes", { method: editing ? "PUT" : "POST", credentials: "same-origin", headers: { Accept: "application/json", "Content-Type": "application/json", "X-Requested-With": "XMLHttpRequest", "X-XSRF-TOKEN": token }, body: JSON.stringify({ key: purposeKeyDraft.value, label: purposeLabelDraft.value.trim() }) });
     const payload = await response.json();
     if (!response.ok) { const first = payload.errors ? Object.values(payload.errors).flat()[0] : null; throw new Error(String(first || payload.message || "Unable to add purpose.")); }
-    purposeLabelDraft.value = ""; purposeKeyDraft.value = ""; await loadPurposes(); notice.value = payload.message || "Reservation purpose added.";
+    resetPurposeForm(); await loadPurposes(); await loadAllPurposes(); notice.value = payload.message || (editing ? "Reservation purpose updated." : "Reservation purpose added.");
   } catch (e) { purposeError.value = e instanceof Error ? e.message : "Unable to add purpose."; }
   finally { purposeSaving.value = false; }
+}
+async function deletePurpose(): Promise<void> {
+  const target = purposeDeleteTarget.value;
+  if (!target || purposeDeleting.value) return;
+  purposeDeleting.value = true;
+  purposeError.value = "";
+  try {
+    const token = decodeURIComponent(document.cookie.split("; ").find((v) => v.startsWith("XSRF-TOKEN="))?.split("=").slice(1).join("=") ?? "");
+    const response = await fetch(`/api/inventory/reservation-purposes/${target.id}`, { method: "DELETE", credentials: "same-origin", headers: { Accept: "application/json", "X-Requested-With": "XMLHttpRequest", "X-XSRF-TOKEN": token } });
+    const payload = await response.json();
+    if (!response.ok) { const first = payload.errors ? Object.values(payload.errors).flat()[0] : null; throw new Error(String(first || payload.message || "Unable to delete purpose.")); }
+    notice.value = payload.message || "Reservation purpose removed.";
+    purposeDeleteTarget.value = null;
+    await loadPurposes();
+    await loadAllPurposes();
+  } catch (e) {
+    purposeError.value = e instanceof Error ? e.message : "Unable to delete purpose.";
+  } finally { purposeDeleting.value = false; }
 }
 async function load(target = page.value): Promise<void> {
   loading.value = true;
@@ -224,7 +276,7 @@ function changeFilter(): void {
   page.value = 1;
   void load(1);
 }
-onMounted(() => { void load(1); void loadPurposes(); });
+onMounted(() => { void load(1); void loadPurposes(); void loadAllPurposes(); });
 </script>
 
 <template>
@@ -296,50 +348,54 @@ onMounted(() => { void load(1); void loadPurposes(); });
           </div>
         </article>
       </section>
+      <section class="purpose-section">
+        <div class="purpose-section-heading">
+          <div>
+            <h2>Reservation purposes</h2>
+            <p>Keep reservation reasons organized. Changes apply to new reservations.</p>
+          </div>
+          <button class="reservation-btn reservation-btn-primary purpose-toggle" type="button" @click="togglePurposeManager">
+            <Icon :name="managePurposesOpen ? 'x' : 'plus'" :size="14" />{{ managePurposesOpen ? "Close" : "Add purpose" }}
+          </button>
+        </div>
+        <div v-if="managePurposesOpen" class="purpose-editor">
+          <form class="purpose-manager-form" @submit.prevent="createPurpose">
+            <label>Purpose label<input v-model="purposeLabelDraft" required maxlength="80" placeholder="e.g. Quality inspection" @input="handlePurposeLabelInput" /></label>
+            <label>Purpose key<input v-model="purposeKeyDraft" required maxlength="24" pattern="[a-z][a-z0-9_]*" placeholder="quality_inspection" /></label>
+            <div class="purpose-form-actions">
+              <button class="reservation-btn reservation-btn-primary" type="submit" :disabled="purposeSaving"><Icon :name="editingPurposeId !== null ? 'check' : 'plus'" :size="14" />{{ purposeSaving ? "Saving…" : editingPurposeId !== null ? "Save changes" : "Add purpose" }}</button>
+              <button v-if="editingPurposeId !== null" class="reservation-btn" type="button" @click="resetPurposeForm">Cancel edit</button>
+            </div>
+          </form>
+          <p v-if="purposeError" class="purpose-manager-error" role="alert">{{ purposeError }}</p>
+        </div>
+        <div class="purpose-manager-list">
+          <div v-for="purpose in allPurposes" :key="purpose.id" class="purpose-chip">
+            <span class="purpose-chip-copy"><strong>{{ purpose.label }}</strong><small>{{ purpose.key }}</small></span>
+            
+            <button class="purpose-icon-action" type="button" :aria-label="`Edit ${purpose.label}`" title="Edit purpose" @click="editPurpose(purpose)"><Icon name="edit" :size="13" /></button>
+            <button class="purpose-icon-action purpose-delete-action" type="button" :aria-label="`Delete ${purpose.label}`" title="Delete purpose" :disabled="purposeDeleting || allPurposes.length <= 2" :aria-disabled="allPurposes.length <= 2" @click="purposeDeleteTarget = purpose; purposeError = ''"><Icon name="trash-2" :size="13" /></button>
+          </div>
+          <p v-if="allPurposes.length === 0" class="purpose-empty">No purposes configured yet. Add your first purpose.</p>
+        </div>
+      </section>
       <section class="reservation-table-card">
         <div class="reservation-table-heading">
           <div>
             <h2>Reservation records</h2>
             <p>Actions are available for active reservations only.</p>
           </div>
-          <div class="reservation-page-actions">
+          <div class="reservation-heading-actions">
             <span class="reservation-count">{{ quantity(total) }} records</span>
-            <button class="reservation-btn" type="button" @click="managePurposesOpen = !managePurposesOpen">Manage purposes</button>
+            <button class="reservation-btn" type="button" :disabled="loading" @click="load(page)"><Icon name="refresh-cw" :size="13" />Refresh</button>
           </div>
         </div>
-        <div v-if="managePurposesOpen" class="purpose-manager">
-          <strong>Reservation purposes</strong>
-          <p>Add a purpose here; it will appear in reservation creation and filters.</p>
-          <form class="purpose-manager-form" @submit.prevent="createPurpose">
-            <label>Purpose label<input v-model="purposeLabelDraft" required maxlength="80" placeholder="e.g. Quality inspection" @input="makePurposeKey" /></label>
-            <label>Purpose key<input v-model="purposeKeyDraft" required maxlength="24" pattern="[a-z][a-z0-9_]*" placeholder="quality_inspection" /></label>
-            <button class="reservation-btn reservation-btn-primary" type="submit" :disabled="purposeSaving">{{ purposeSaving ? "Adding…" : "Add purpose" }}</button>
-          </form>
-          <p v-if="purposeError" class="purpose-manager-error" role="alert">{{ purposeError }}</p>
-          <div class="purpose-manager-list"><span v-for="purpose in purposes" :key="purpose.id">{{ purpose.label }} <small>{{ purpose.key }}</small></span></div>
-        </div>
         <div class="reservation-toolbar">
-          <label class="reservation-search"
-            ><Icon name="search" :size="16" /><input
-              v-model="search"
-              type="search"
-              placeholder="Search product, reference or location…"
-              aria-label="Search reservations" /></label
-          ><label class="filter-label"
-            >Status<select v-model="statusFilter" @change="changeFilter">
-              <option value="all">All statuses</option>
-              <option value="active">Active</option>
-              <option value="fulfilled">Order Out (Fulfillment)</option>
-              <option value="released">Stock Freed</option>
-              <option value="cancelled">Cancelled</option>
-              <option value="expired">Expired</option>
-            </select></label
-          ><label class="filter-label"
-            >Purpose<select v-model="purposeFilter" @change="changeFilter">
-              <option value="all">All purposes</option>
-              <option v-for="purpose in purposes" :key="purpose.key" :value="purpose.key">{{ purpose.label }}</option>
-            </select></label
-          >
+          <label class="reservation-search"><Icon name="search" :size="16" /><input v-model="search" type="search" placeholder="Search product, reference or location…" aria-label="Search reservations" /></label>
+          <div class="reservation-filter-group">
+            <label class="filter-label">Purpose<select v-model="purposeFilter" @change="changeFilter"><option value="all">All purposes</option><option v-for="purpose in activePurposes" :key="purpose.key" :value="purpose.key">{{ purpose.label }}</option></select></label>
+            <label class="filter-label">Status<select v-model="statusFilter" @change="changeFilter"><option value="all">All statuses</option><option value="active">Active</option><option value="fulfilled">Order Out (Fulfillment)</option><option value="released">Stock Freed</option><option value="cancelled">Cancelled</option><option value="expired">Expired</option></select></label>
+          </div>
         </div>
         <div v-if="error" class="reservation-state reservation-state-error" role="alert">
           <Icon name="alert-circle" :size="22" /><strong
@@ -582,6 +638,21 @@ onMounted(() => { void load(1); void loadPurposes(); });
                     : "Confirm cancellation"
                 }}
               </button>
+            </div>
+          </section>
+        </div>
+      </Teleport>
+      <Teleport to="body">
+        <div v-if="purposeDeleteTarget" class="reservation-confirm-backdrop" @click.self="purposeDeleteTarget = null">
+          <section class="reservation-confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="purpose-delete-title">
+            <span class="confirm-icon confirm-icon-danger"><Icon name="trash-2" :size="22" /></span>
+            <h2 id="purpose-delete-title">Remove reservation purpose?</h2>
+            <p><strong>{{ purposeDeleteTarget.label }}</strong> ({{ purposeDeleteTarget.key }}) will be permanently removed from purpose choices. Existing reservations will retain their saved purpose label and history.</p>
+            <p v-if="allPurposes.length <= 2" class="purpose-manager-error" role="alert">At least two purposes must remain. Add another purpose before deleting one.</p>
+            <p v-if="purposeError" class="purpose-manager-error" role="alert">{{ purposeError }}</p>
+            <div class="reservation-confirm-actions">
+              <button class="reservation-btn" type="button" :disabled="purposeDeleting" @click="purposeDeleteTarget = null">Keep purpose</button>
+              <button class="reservation-btn reservation-btn-danger" type="button" :disabled="purposeDeleting || allPurposes.length <= 2" @click="deletePurpose">{{ purposeDeleting ? "Removing…" : "Remove purpose" }}</button>
             </div>
           </section>
         </div>
@@ -842,16 +913,44 @@ onMounted(() => { void load(1); void loadPurposes(); });
   font-weight: 650;
   font-variant-numeric: tabular-nums;
 }
-.reservation-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  padding: 18px 21px;
+.purpose-section {
+  max-width: 1480px;
+  margin: 0 auto 14px;
+  padding: 13px 16px;
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  background: var(--surface-color);
+  box-shadow: 0 2px 10px rgb(16 24 40 / 2.5%);
 }
+.purpose-section-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px; }
+.purpose-section-heading h2 { margin:0 0 3px; font-size:12px; font-weight:750; }
+.purpose-section-heading p { margin:0; color:var(--text-secondary-color); font-size:10px; }
+.purpose-toggle { min-height:32px; padding:0 10px; }
+.purpose-editor { padding:10px; margin-bottom:10px; border:1px solid var(--border-color); border-radius:10px; background:var(--page-bg); }
+.purpose-manager-form { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto; align-items:end; gap:10px; }
+.purpose-manager-form label { display:flex; min-width:0; flex-direction:column; gap:5px; color:var(--text-secondary-color); font-size:10px; font-weight:650; }
+.purpose-manager-form input { width:100%; height:34px; padding:0 10px; border:1px solid var(--border-color); border-radius:8px; outline:none; background:var(--surface-color); color:var(--text-primary-color); font:inherit; }
+.purpose-form-actions { display:flex; gap:6px; }
+.purpose-manager-error { margin:8px 0 0; color:#b91c1c; font-size:10px; }
+.purpose-manager-list { display:flex; flex-wrap:wrap; align-items:center; gap:6px; }
+.purpose-chip { display:inline-flex; min-width:0; max-width:100%; align-items:center; gap:7px; padding:5px 6px 5px 9px; border:1px solid var(--border-color); border-radius:8px; background:var(--page-bg); }
+.purpose-chip-copy { display:flex; min-width:0; align-items:baseline; gap:6px; }
+.purpose-chip-copy strong { overflow:hidden; color:var(--text-primary-color); font-size:10px; font-weight:650; text-overflow:ellipsis; white-space:nowrap; }
+.purpose-chip-copy small { color:var(--text-tertiary-color); font-size:9px; white-space:nowrap; }
+.purpose-icon-action { display:grid; width:24px; height:24px; flex:0 0 auto; place-items:center; border:1px solid transparent; border-radius:6px; background:transparent; color:var(--text-secondary-color); cursor:pointer; }
+.purpose-icon-action:hover { border-color:var(--border-color); background:var(--surface-color); color:var(--primary-color); }
+.purpose-icon-action:disabled { opacity:.35; cursor:not-allowed; }
+.purpose-delete-action:hover { color:#b91c1c; }
+.purpose-chip-inactive { opacity:.72; }
+.purpose-inactive-label { color:#b45309; font-size:9px; }
+.purpose-empty { margin:0; color:var(--text-tertiary-color); font-size:10px; }
+.reservation-heading-actions { display:flex; align-items:center; gap:8px; margin-left:auto; }
+.reservation-heading-actions .reservation-btn { min-height:30px; }
+.reservation-toolbar { display:flex; align-items:center; gap:16px; padding:14px 21px; }
 .reservation-search {
   display: flex;
-  width: min(100%, 390px);
+  flex: 0 0 60%;
+  width: 60%;
   min-width: 0;
   height: 39px;
   align-items: center;
@@ -878,6 +977,9 @@ onMounted(() => { void load(1); void loadPurposes(); });
 .reservation-search input::placeholder {
   color: var(--text-tertiary-color);
 }
+.reservation-filter-group { display:flex; flex:1 1 0; min-width:0; justify-content:flex-end; gap:12px; }
+.reservation-filter-group .filter-label { flex:1 1 0; min-width:0; }
+.reservation-filter-group .filter-label select { width:100%; min-width:0; max-width:none; }
 .filter-label {
   display: flex;
   align-items: center;
@@ -1126,21 +1228,11 @@ onMounted(() => { void load(1); void loadPurposes(); });
   .reservation-page-actions {
     padding-top: 0;
   }
-  .reservation-toolbar {
-    flex-wrap: wrap;
-  }
-  .reservation-search {
-    flex-basis: 100%;
-    width: 100%;
-  }
-  .filter-label {
-    flex: 1;
-    justify-content: space-between;
-  }
-  .filter-label select {
-    flex: 1;
-    max-width: none;
-  }
+  .reservation-toolbar { flex-wrap:wrap; }
+  .reservation-search { flex:1 1 100%; width:100%; }
+  .reservation-filter-group { flex:1 1 100%; justify-content:stretch; }
+  .filter-label { flex:1; justify-content:space-between; }
+  .filter-label select { flex:1; max-width:none; }
 }
 @media (max-width: 720px) {
   .reservation-title-row h1 {
@@ -1177,14 +1269,9 @@ onMounted(() => { void load(1); void loadPurposes(); });
   .reservation-toolbar {
     padding: 14px;
   }
-  .filter-label {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 5px;
-  }
-  .filter-label select {
-    width: 100%;
-  }
+  .reservation-filter-group { gap:8px; }
+  .filter-label { align-items:stretch; flex-direction:column; gap:5px; }
+  .filter-label select { width:100%; }
   .reservation-pagination {
     align-items: flex-start;
     flex-direction: column;
@@ -1395,14 +1482,6 @@ onMounted(() => { void load(1); void loadPurposes(); });
     animation: none;
   }
 }
-.purpose-manager { margin: 0 20px 18px; padding: 16px; border: 1px solid var(--border, #e5e7eb); border-radius: 12px; background: var(--surface, #fff); }
-.purpose-manager > p { margin: 6px 0 12px; color: var(--text-secondary, #667085); }
-.purpose-manager-form { display: grid; grid-template-columns: minmax(140px, 1fr) minmax(140px, 1fr) auto; gap: 12px; align-items: end; }
-.purpose-manager-form label { display: grid; gap: 6px; font-size: 12px; font-weight: 600; }
-.purpose-manager-form input { min-width: 0; border: 1px solid var(--border, #d0d5dd); border-radius: 8px; padding: 10px; background: var(--surface, #fff); color: inherit; }
-.purpose-manager-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
-.purpose-manager-list span { display: inline-flex; gap: 8px; align-items: center; border-radius: 999px; background: var(--background, #f3f5f8); padding: 6px 10px; }
-.purpose-manager-list small { color: var(--text-secondary, #667085); }
-.purpose-manager-error { color: #b42318; }
-@media (max-width: 680px) { .purpose-manager-form { grid-template-columns: 1fr; } }
+@media (max-width: 600px) { .purpose-manager-form { grid-template-columns:1fr; } .purpose-form-actions { flex-wrap:wrap; } .purpose-section { padding:12px; } .purpose-section-heading { align-items:flex-start; } .purpose-chip-copy { align-items:flex-start; flex-direction:column; gap:1px; } .reservation-table-heading { flex-wrap:wrap; } .reservation-heading-actions { width:100%; margin-left:0; } }
 </style>
+

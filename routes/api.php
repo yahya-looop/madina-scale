@@ -369,6 +369,12 @@ Route::middleware(['web', 'auth'])->group(function () {
         ->middleware('permission:system.inventory.view');
     Route::post('/inventory/reservation-purposes', [InventoryReservationController::class, 'storePurpose'])
         ->middleware('permission:system.inventory.reservations.manage');
+    Route::get('/inventory/reservation-purposes/manage', [InventoryReservationController::class, 'managePurposes'])
+        ->middleware('permission:system.inventory.reservations.manage');
+    Route::put('/inventory/reservation-purposes/{purpose}', [InventoryReservationController::class, 'updatePurpose'])
+        ->middleware('permission:system.inventory.reservations.manage');
+    Route::delete('/inventory/reservation-purposes/{purpose}', [InventoryReservationController::class, 'destroyPurpose'])
+        ->middleware('permission:system.inventory.reservations.manage');
 
     Route::get('/inventory/reservations', [InventoryReservationController::class, 'index'])
         ->middleware('permission:system.inventory.view');
