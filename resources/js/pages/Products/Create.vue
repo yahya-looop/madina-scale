@@ -1,44 +1,57 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
-import { Head, router } from "@inertiajs/vue3";
-import ErpLayout from "@/layouts/ErpLayout.vue";
-import Icon from "@/components/dashboard/Icon.vue";
 
+import { Head, router } from "@inertiajs/vue3";
+
+import ErpLayout from "@/layouts/ErpLayout.vue";
+
+import Icon from "@/components/dashboard/Icon.vue";
 
 interface Props {
   userName?: string;
+
   userEmail?: string;
 }
 
 interface Option {
   id: number;
+
   name: string;
+
   short_name?: string;
 }
 
 interface ApiPayload<T> {
   data?: T;
+
   message?: string;
+
   errors?: Record<string, string[]>;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   userName: "",
+
   userEmail: "",
 });
 
 const categories = ref<Option[]>([]);
+
 const brands = ref<Option[]>([]);
+
 const units = ref<Option[]>([]);
 
 const isLoadingOptions = ref(true);
+
 const isSaving = ref(false);
 
 const errors = ref<Record<string, string>>({});
 
 const toast = ref({
   visible: false,
+
   type: "success" as "success" | "error",
+
   message: "",
 });
 
@@ -46,30 +59,52 @@ let toastTimer: ReturnType<typeof setTimeout> | null = null;
 
 const form = ref({
   category_id: "",
+
   brand_id: "",
+
   unit_id: "",
+
   name: "",
+
   slug: "",
+
   sku: "",
+
   model_number: "",
+
   barcode: "",
+
   product_type: "simple",
+
   short_description: "",
+
   description: "",
+
   status: "draft",
+
   visibility: "visible",
+
   sort_order: 0,
+
   cost_price: "0.00",
+
   selling_price: "0.00",
+
   wholesale_price: "",
+
   promotional_price: "",
 });
 
 const selectedImage = ref<File | null>(null);
+
 const imagePreview = ref("");
+
 const galleryImages = ref<Array<{ file: File; preview: string }>>([]);
+
 const galleryInput = ref<HTMLInputElement | null>(null);
+
 const slugManuallyEdited = ref(false);
+
 const imageInput = ref<HTMLInputElement | null>(null);
 
 const isFormReady = computed(() => {
@@ -111,8 +146,11 @@ const productTypeLabel = computed(() => {
 const statusLabel = computed(() => {
   const labels: Record<string, string> = {
     draft: "Draft",
+
     active: "Active",
+
     inactive: "Inactive",
+
     archived: "Archived",
   };
 
@@ -122,7 +160,9 @@ const statusLabel = computed(() => {
 function showToast(message: string, type: "success" | "error" = "success") {
   toast.value = {
     visible: true,
+
     type,
+
     message,
   };
 
@@ -145,7 +185,9 @@ async function loadOptions() {
   try {
     const [categoryResponse, brandResponse, unitResponse] = await Promise.all([
       fetch("/api/product-categories"),
+
       fetch("/api/brands"),
+
       fetch("/api/units"),
     ]);
 
@@ -168,11 +210,14 @@ async function loadOptions() {
     const unitPayload = (await unitResponse.json()) as ApiPayload<Option[]>;
 
     categories.value = categoryPayload.data ?? [];
+
     brands.value = brandPayload.data ?? [];
+
     units.value = unitPayload.data ?? [];
   } catch (error) {
     showToast(
       error instanceof Error ? error.message : "Unable to load product options.",
+
       "error"
     );
   } finally {
@@ -182,16 +227,23 @@ async function loadOptions() {
 
 function slugify(value: string): string {
   return value
+
     .toLowerCase()
+
     .trim()
+
     .replace(/[^a-z0-9\s-]/g, "")
+
     .replace(/\s+/g, "-")
+
     .replace(/-+/g, "-")
+
     .replace(/^-|-$/g, "");
 }
 
 watch(
   () => form.value.name,
+
   (value) => {
     if (!slugManuallyEdited.value) {
       form.value.slug = slugify(value);
@@ -201,13 +253,17 @@ watch(
 
 function onSlugInput() {
   slugManuallyEdited.value = true;
+
   form.value.slug = slugify(form.value.slug);
+
   clearError("slug");
 }
 
 function generateSlug() {
   form.value.slug = slugify(form.value.name);
+
   slugManuallyEdited.value = false;
+
   clearError("slug");
 }
 
@@ -217,6 +273,7 @@ function selectImage() {
 
 function onImageSelected(event: Event) {
   const input = event.target as HTMLInputElement;
+
   const file = input.files?.[0];
 
   if (!file) {
@@ -231,11 +288,13 @@ function setImage(file: File) {
 
   if (!allowedTypes.includes(file.type)) {
     showToast("Please select a JPG, PNG, or WebP image.", "error");
+
     return;
   }
 
   if (file.size > 5 * 1024 * 1024) {
     showToast("Image size must be 5 MB or smaller.", "error");
+
     return;
   }
 
@@ -244,6 +303,7 @@ function setImage(file: File) {
   }
 
   selectedImage.value = file;
+
   imagePreview.value = URL.createObjectURL(file);
 }
 
@@ -253,6 +313,7 @@ function removeImage() {
   }
 
   selectedImage.value = null;
+
   imagePreview.value = "";
 
   if (imageInput.value) {
@@ -272,26 +333,33 @@ function onDrop(event: DragEvent) {
 
 function onGallerySelected(event: Event) {
   const input = event.target as HTMLInputElement;
+
   const files = Array.from(input.files ?? []);
+
   const available = Math.max(0, 9 - galleryImages.value.length);
 
   for (const file of files.slice(0, available)) {
     const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
+
     if (!allowedTypes.includes(file.type) || file.size > 5 * 1024 * 1024) {
       showToast(`${file.name}: use JPG, PNG or WebP up to 5 MB.`, "error");
+
       continue;
     }
+
     galleryImages.value.push({ file, preview: URL.createObjectURL(file) });
   }
 
   if (files.length > available) {
     showToast("A product can have up to 10 images in total.", "error");
   }
+
   input.value = "";
 }
 
 function removeGalleryImage(index: number) {
   const [removed] = galleryImages.value.splice(index, 1);
+
   if (removed) URL.revokeObjectURL(removed.preview);
 }
 
@@ -344,6 +412,7 @@ async function createProduct() {
 
   if (Object.keys(errors.value).length > 0) {
     showToast("Please complete the required fields.", "error");
+
     return;
   }
 
@@ -359,6 +428,7 @@ async function createProduct() {
     }
 
     payload.append("unit_id", form.value.unit_id);
+
     payload.append("name", form.value.name.trim());
 
     if (form.value.slug) {
@@ -388,30 +458,44 @@ async function createProduct() {
     }
 
     payload.append("status", form.value.status);
+
     payload.append("visibility", form.value.visibility);
+
     payload.append("sort_order", String(form.value.sort_order));
+
     payload.append("cost_price", form.value.cost_price || "0");
+
     payload.append("selling_price", form.value.selling_price || "0");
-    if (form.value.wholesale_price !== "") payload.append("wholesale_price", form.value.wholesale_price);
-    if (form.value.promotional_price !== "") payload.append("promotional_price", form.value.promotional_price);
+
+    if (form.value.wholesale_price !== "")
+      payload.append("wholesale_price", form.value.wholesale_price);
+
+    if (form.value.promotional_price !== "")
+      payload.append("promotional_price", form.value.promotional_price);
 
     if (selectedImage.value) {
       payload.append("image", selectedImage.value);
     }
+
     galleryImages.value.forEach(({ file }) => payload.append("images[]", file));
 
     const response = await fetch("/api/products", {
       method: "POST",
+
       headers: {
         Accept: "application/json",
+
         "X-CSRF-TOKEN": getCsrfToken(),
+
         "X-Requested-With": "XMLHttpRequest",
       },
+
       body: payload,
     });
 
     const responsePayload = (await response.json()) as ApiPayload<{
       id?: number;
+
       name?: string;
     }>;
 
@@ -433,6 +517,7 @@ async function createProduct() {
   } catch (error) {
     showToast(
       error instanceof Error ? error.message : "Unable to create product.",
+
       "error"
     );
   } finally {
@@ -456,6 +541,7 @@ onBeforeUnmount(() => {
   if (imagePreview.value) {
     URL.revokeObjectURL(imagePreview.value);
   }
+
   galleryImages.value.forEach(({ preview }) => URL.revokeObjectURL(preview));
 });
 </script>
@@ -466,11 +552,13 @@ onBeforeUnmount(() => {
   <ErpLayout :user-name="props.userName" :user-email="props.userEmail">
     <div class="product-create-page">
       <!-- Page Header -->
+
       <header class="page-header">
         <div class="page-heading">
           <div class="breadcrumb">
             <button type="button" class="breadcrumb-back" @click="cancel">
               <Icon name="arrow-left" :size="14" />
+
               Products
             </button>
 
@@ -520,43 +608,12 @@ onBeforeUnmount(() => {
         </div>
       </header>
 
-      <!-- Progress / Context Strip -->
-      <section class="context-strip">
-        <div class="context-item">
-          <span class="context-dot active"></span>
-
-          <div>
-            <strong>Product foundation</strong>
-            <span>Core catalog information</span>
-          </div>
-        </div>
-
-        <div class="context-divider"></div>
-
-        <div class="context-item">
-          <span class="context-number">02</span>
-          <div>
-            <strong>Pricing</strong>
-            <span>Set prices now</span>
-          </div>
-        </div>
-
-        <div class="context-divider"></div>
-
-        <div class="context-item">
-          <span class="context-number">03</span>
-
-          <div>
-            <strong>Variants & Inventory</strong>
-            <span>Connected later</span>
-          </div>
-        </div>
-      </section>
-
       <div class="content-grid">
         <!-- Main -->
+
         <main class="main-column">
           <!-- Media -->
+
           <section class="card media-card">
             <div class="section-heading">
               <div class="section-icon">
@@ -565,6 +622,7 @@ onBeforeUnmount(() => {
 
               <div>
                 <h2>Product Media</h2>
+
                 <p>Add a professional primary image for your product catalog.</p>
               </div>
 
@@ -600,6 +658,7 @@ onBeforeUnmount(() => {
 
               <p>
                 Drag and drop your image here or
+
                 <button type="button" class="browse-link" @click.stop="selectImage">
                   browse files
                 </button>
@@ -607,9 +666,13 @@ onBeforeUnmount(() => {
 
               <div class="upload-meta">
                 <span>JPG</span>
+
                 <span>PNG</span>
+
                 <span>WebP</span>
+
                 <i></i>
+
                 <span>Maximum 5 MB</span>
               </div>
             </div>
@@ -620,6 +683,7 @@ onBeforeUnmount(() => {
               <div class="preview-topbar">
                 <span class="primary-label">
                   <Icon name="circle-check" :size="13" />
+
                   Primary image
                 </span>
 
@@ -643,6 +707,7 @@ onBeforeUnmount(() => {
                     {{
                       selectedImage ? (selectedImage.size / 1024 / 1024).toFixed(2) : "0"
                     }}
+
                     MB
                   </span>
                 </div>
@@ -655,36 +720,49 @@ onBeforeUnmount(() => {
 
             <div class="gallery-upload-panel">
               <div class="gallery-upload-heading">
-                <div><strong>Additional gallery images</strong><p>Upload up to 9 extra views. The primary image stays first.</p></div>
-                <button type="button" class="browse-link" @click="galleryInput?.click()">Add images</button>
+                <div>
+                  <strong>Additional gallery images</strong>
+                  <p>Upload up to 9 extra views. The primary image stays first.</p>
+                </div>
+
+                <button type="button" class="browse-link" @click="galleryInput?.click()">
+                  Add images
+                </button>
               </div>
-              <input ref="galleryInput" type="file" class="hidden-input" accept="image/jpeg,image/png,image/webp" multiple @change="onGallerySelected" />
+
+              <input
+                ref="galleryInput"
+                type="file"
+                class="hidden-input"
+                accept="image/jpeg,image/png,image/webp"
+                multiple
+                @change="onGallerySelected"
+              />
+
               <div v-if="galleryImages.length" class="gallery-preview-grid">
-                <div v-for="(item, index) in galleryImages" :key="`${item.file.name}-${item.file.lastModified}`" class="gallery-preview-item">
+                <div
+                  v-for="(item, index) in galleryImages"
+                  :key="`${item.file.name}-${item.file.lastModified}`"
+                  class="gallery-preview-item"
+                >
                   <img :src="item.preview" :alt="item.file.name" />
-                  <button type="button" :aria-label="`Remove ${item.file.name}`" @click="removeGalleryImage(index)"><Icon name="x" :size="13" /></button>
+
+                  <button
+                    type="button"
+                    :aria-label="`Remove ${item.file.name}`"
+                    @click="removeGalleryImage(index)"
+                  >
+                    <Icon name="x" :size="13" />
+                  </button>
+
                   <small>{{ item.file.name }}</small>
                 </div>
               </div>
             </div>
           </section>
 
-          <section class="card pricing-card">
-            <div class="section-heading">
-              <div class="section-icon"><Icon name="coins" :size="18" /></div>
-              <div><h2>Pricing</h2><p>Set the initial prices now. You can refine variant pricing later.</p></div>
-              <span class="section-badge">BDT</span>
-            </div>
-            <div class="form-grid pricing-grid">
-              <div class="field"><label>Cost price</label><div class="price-input"><span>৳</span><input v-model="form.cost_price" type="number" min="0" step="0.01" placeholder="0.00" /></div><small class="field-hint">Your purchase / acquisition cost.</small></div>
-              <div class="field"><label>Selling price <span>*</span></label><div class="price-input"><span>৳</span><input v-model="form.selling_price" type="number" min="0" step="0.01" required placeholder="0.00" /></div><small class="field-hint">The standard customer price.</small></div>
-              <div class="field"><label>Wholesale price <em>Optional</em></label><div class="price-input"><span>৳</span><input v-model="form.wholesale_price" type="number" min="0" step="0.01" placeholder="Not set" /></div></div>
-              <div class="field"><label>Promotional price <em>Optional</em></label><div class="price-input"><span>৳</span><input v-model="form.promotional_price" type="number" min="0" step="0.01" placeholder="Not set" /></div><small class="field-hint">A lower price for an active promotion.</small></div>
-            </div>
-            <div class="price-summary"><Icon name="info-circle" :size="16" /><span>For variable products, these values initialize the first/default variant. Additional variants can have their own prices.</span></div>
-          </section>
-
           <!-- Basic Information -->
+
           <section class="card">
             <div class="section-heading">
               <div class="section-icon">
@@ -693,6 +771,7 @@ onBeforeUnmount(() => {
 
               <div>
                 <h2>Basic Information</h2>
+
                 <p>Define the product's core catalog identity.</p>
               </div>
             </div>
@@ -701,6 +780,7 @@ onBeforeUnmount(() => {
               <div class="field field-full">
                 <label>
                   Product Name
+
                   <span>*</span>
                 </label>
 
@@ -718,6 +798,7 @@ onBeforeUnmount(() => {
 
                 <small v-if="errors.name" class="field-error">
                   <Icon name="alert-circle" :size="12" />
+
                   {{ errors.name }}
                 </small>
               </div>
@@ -728,6 +809,7 @@ onBeforeUnmount(() => {
 
                   <button type="button" class="generate-button" @click="generateSlug">
                     <Icon name="stars" :size="12" />
+
                     Auto Generate
                   </button>
                 </div>
@@ -746,6 +828,7 @@ onBeforeUnmount(() => {
 
                 <small v-if="errors.slug" class="field-error">
                   <Icon name="alert-circle" :size="12" />
+
                   {{ errors.slug }}
                 </small>
 
@@ -757,6 +840,7 @@ onBeforeUnmount(() => {
               <div class="field">
                 <label>
                   Category
+
                   <span>*</span>
                 </label>
 
@@ -782,6 +866,7 @@ onBeforeUnmount(() => {
 
                 <small v-if="errors.category_id" class="field-error">
                   <Icon name="alert-circle" :size="12" />
+
                   {{ errors.category_id }}
                 </small>
               </div>
@@ -811,6 +896,7 @@ onBeforeUnmount(() => {
               <div class="field">
                 <label>
                   Base Unit
+
                   <span>*</span>
                 </label>
 
@@ -824,6 +910,7 @@ onBeforeUnmount(() => {
 
                     <option v-for="unit in units" :key="unit.id" :value="String(unit.id)">
                       {{ unit.name }}
+
                       {{ unit.short_name ? `(${unit.short_name})` : "" }}
                     </option>
                   </select>
@@ -833,6 +920,7 @@ onBeforeUnmount(() => {
 
                 <small v-if="errors.unit_id" class="field-error">
                   <Icon name="alert-circle" :size="12" />
+
                   {{ errors.unit_id }}
                 </small>
               </div>
@@ -848,6 +936,7 @@ onBeforeUnmount(() => {
                     }"
                     @click="
                       form.product_type = 'simple';
+
                       clearError('product_type');
                     "
                   >
@@ -855,10 +944,15 @@ onBeforeUnmount(() => {
 
                     <span>
                       <strong>Simple</strong>
+
                       <small> Single SKU product </small>
                     </span>
 
-                    <Icon name="circle-check" v-if="form.product_type === 'simple'" :size="15" />
+                    <Icon
+                      name="circle-check"
+                      v-if="form.product_type === 'simple'"
+                      :size="15"
+                    />
                   </button>
 
                   <button
@@ -868,6 +962,7 @@ onBeforeUnmount(() => {
                     }"
                     @click="
                       form.product_type = 'variable';
+
                       clearError('product_type');
                     "
                   >
@@ -875,10 +970,15 @@ onBeforeUnmount(() => {
 
                     <span>
                       <strong>Variable</strong>
+
                       <small> Supports variants </small>
                     </span>
 
-                    <Icon name="circle-check" v-if="form.product_type === 'variable'" :size="15" />
+                    <Icon
+                      name="circle-check"
+                      v-if="form.product_type === 'variable'"
+                      :size="15"
+                    />
                   </button>
                 </div>
 
@@ -889,7 +989,105 @@ onBeforeUnmount(() => {
             </div>
           </section>
 
+          <Transition name="pricing-reveal" mode="out-in">
+            <section class="card pricing-card" :key="form.product_type">
+              <div class="section-heading">
+                <div class="section-icon"><Icon name="coins" :size="18" /></div>
+
+                <div>
+                  <h2>
+                    {{
+                      form.product_type === "simple"
+                        ? "Product Pricing"
+                        : "Default Variant Pricing"
+                    }}
+                  </h2>
+                  <p>
+                    {{
+                      form.product_type === "simple"
+                        ? "Set the selling and cost prices for this product."
+                        : "Set initial prices for the default variant. You can add attribute-based variants after creating the product."
+                    }}
+                  </p>
+                </div>
+
+                <span class="section-badge">BDT</span>
+              </div>
+
+              <div class="form-grid pricing-grid">
+                <div class="field">
+                  <label>Cost price</label>
+                  <div class="price-input">
+                    <span>৳</span
+                    ><input
+                      v-model="form.cost_price"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="0.00"
+                    />
+                  </div>
+                  <small class="field-hint">Your purchase / acquisition cost.</small>
+                </div>
+
+                <div class="field">
+                  <label>Selling price <span>*</span></label>
+                  <div class="price-input">
+                    <span>৳</span
+                    ><input
+                      v-model="form.selling_price"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      required
+                      placeholder="0.00"
+                    />
+                  </div>
+                  <small class="field-hint">The standard customer price.</small>
+                </div>
+
+                <div class="field">
+                  <label>Wholesale price <em>Optional</em></label>
+                  <div class="price-input">
+                    <span>৳</span
+                    ><input
+                      v-model="form.wholesale_price"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="Not set"
+                    />
+                  </div>
+                </div>
+
+                <div class="field">
+                  <label>Promotional price <em>Optional</em></label>
+                  <div class="price-input">
+                    <span>৳</span
+                    ><input
+                      v-model="form.promotional_price"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="Not set"
+                    />
+                  </div>
+                  <small class="field-hint">A lower price for an active promotion.</small>
+                </div>
+              </div>
+
+              <div class="price-summary">
+                <Icon name="info-circle" :size="16" /><span>{{
+                  form.product_type === "simple"
+                    ? "These prices will be saved directly to this product."
+                    : "These prices initialize the default variant. Create additional variants and set their individual prices from the product details after saving."
+                }}</span>
+              </div>
+            </section>
+          </Transition>
+
           <!-- Product Identity -->
+
           <section class="card">
             <div class="section-heading">
               <div class="section-icon">
@@ -898,6 +1096,7 @@ onBeforeUnmount(() => {
 
               <div>
                 <h2>Product Identity</h2>
+
                 <p>Internal identifiers used across operations and inventory.</p>
               </div>
             </div>
@@ -906,6 +1105,7 @@ onBeforeUnmount(() => {
               <div class="field">
                 <label>
                   SKU
+
                   <span v-if="form.product_type === 'simple'"> * </span>
                 </label>
 
@@ -919,6 +1119,7 @@ onBeforeUnmount(() => {
 
                 <small v-if="errors.sku" class="field-error">
                   <Icon name="alert-circle" :size="12" />
+
                   {{ errors.sku }}
                 </small>
 
@@ -938,6 +1139,7 @@ onBeforeUnmount(() => {
 
                 <small v-if="errors.model_number" class="field-error">
                   <Icon name="alert-circle" :size="12" />
+
                   {{ errors.model_number }}
                 </small>
               </div>
@@ -955,6 +1157,7 @@ onBeforeUnmount(() => {
 
                 <small v-if="errors.barcode" class="field-error">
                   <Icon name="alert-circle" :size="12" />
+
                   {{ errors.barcode }}
                 </small>
 
@@ -966,6 +1169,7 @@ onBeforeUnmount(() => {
           </section>
 
           <!-- Description -->
+
           <section class="card">
             <div class="section-heading">
               <div class="section-icon">
@@ -974,6 +1178,7 @@ onBeforeUnmount(() => {
 
               <div>
                 <h2>Product Description</h2>
+
                 <p>Add customer-facing product information.</p>
               </div>
             </div>
@@ -1026,8 +1231,10 @@ onBeforeUnmount(() => {
         </main>
 
         <!-- Sidebar -->
+
         <aside class="side-column">
           <!-- Product Preview -->
+
           <section class="card preview-card">
             <div class="section-heading compact">
               <div class="section-icon">
@@ -1036,6 +1243,7 @@ onBeforeUnmount(() => {
 
               <div>
                 <h2>Product Summary</h2>
+
                 <p>Live overview of this product.</p>
               </div>
             </div>
@@ -1066,6 +1274,7 @@ onBeforeUnmount(() => {
             <div class="summary-list">
               <div>
                 <span>Category</span>
+
                 <strong>
                   {{ selectedCategoryName }}
                 </strong>
@@ -1073,6 +1282,7 @@ onBeforeUnmount(() => {
 
               <div>
                 <span>Brand</span>
+
                 <strong>
                   {{ selectedBrandName }}
                 </strong>
@@ -1080,6 +1290,7 @@ onBeforeUnmount(() => {
 
               <div>
                 <span>Base Unit</span>
+
                 <strong>
                   {{ selectedUnitName }}
                 </strong>
@@ -1087,8 +1298,10 @@ onBeforeUnmount(() => {
 
               <div>
                 <span>Status</span>
+
                 <strong class="status-value">
                   <i :class="['status-dot', form.status]"></i>
+
                   {{ statusLabel }}
                 </strong>
               </div>
@@ -1096,6 +1309,7 @@ onBeforeUnmount(() => {
           </section>
 
           <!-- Publishing -->
+
           <section class="card">
             <div class="section-heading compact">
               <div class="section-icon">
@@ -1104,6 +1318,7 @@ onBeforeUnmount(() => {
 
               <div>
                 <h2>Publishing</h2>
+
                 <p>Control product availability.</p>
               </div>
             </div>
@@ -1152,6 +1367,7 @@ onBeforeUnmount(() => {
           </section>
 
           <!-- Foundation Info -->
+
           <section class="info-card">
             <div class="info-icon">
               <Icon name="info-circle" :size="17" />
@@ -1168,11 +1384,13 @@ onBeforeUnmount(() => {
           </section>
 
           <!-- Save -->
+
           <div class="save-panel">
             <div class="save-status">
               <span
                 :class="[
                   'ready-dot',
+
                   {
                     ready: isFormReady,
                   },
@@ -1201,6 +1419,7 @@ onBeforeUnmount(() => {
       </div>
 
       <!-- Toast -->
+
       <Transition name="toast">
         <div v-if="toast.visible" class="toast" :class="`toast-${toast.type}`">
           <Icon name="circle-check" v-if="toast.type === 'success'" :size="18" />
@@ -1217,19 +1436,31 @@ onBeforeUnmount(() => {
 <style scoped>
 .product-create-page {
   --page-bg: var(--background, #f6f8fb);
+
   --surface-color: var(--surface, #ffffff);
+
   --border-color: var(--border, #e5e7eb);
+
   --border-strong: #d8dee8;
+
   --text-primary-color: var(--text-primary, #111827);
+
   --text-secondary-color: var(--text-secondary, #667085);
+
   --text-tertiary-color: var(--text-tertiary, #98a2b3);
+
   --primary-color: var(--primary, #2563eb);
+
   --danger-color: #dc2626;
+
   --success-color: #16a34a;
 
   min-height: 100%;
+
   padding: 0;
+
   color: var(--text-primary-color);
+
   background: var(--page-bg);
 }
 
@@ -1237,10 +1468,15 @@ onBeforeUnmount(() => {
 
 .page-header {
   display: flex;
+
   align-items: flex-start;
+
   justify-content: space-between;
+
   gap: 24px;
+
   max-width: 1480px;
+
   margin: 0 auto 18px;
 }
 
@@ -1250,23 +1486,37 @@ onBeforeUnmount(() => {
 
 .breadcrumb {
   display: flex;
+
   align-items: center;
+
   gap: 7px;
+
   margin-bottom: 9px;
+
   color: var(--text-tertiary-color);
+
   font-size: 12px;
 }
 
 .breadcrumb-back {
   display: inline-flex;
+
   align-items: center;
+
   gap: 5px;
+
   padding: 0;
+
   border: 0;
+
   background: transparent;
+
   color: var(--text-secondary-color);
+
   font: inherit;
+
   font-weight: 600;
+
   cursor: pointer;
 }
 
@@ -1280,194 +1530,170 @@ onBeforeUnmount(() => {
 
 .breadcrumb strong {
   color: var(--text-secondary-color);
+
   font-weight: 600;
 }
 
 .title-row {
   display: flex;
+
   align-items: flex-start;
+
   gap: 12px;
 }
 
 .page-title-icon {
   display: grid;
+
   flex: 0 0 auto;
+
   place-items: center;
+
   width: 42px;
+
   height: 42px;
+
   margin-top: 2px;
+
   border: 1px solid rgb(37 99 235 / 11%);
+
   border-radius: 12px;
+
   background: rgb(37 99 235 / 8%);
+
   color: var(--primary-color);
 }
 
 h1 {
   margin: 0;
+
   color: var(--text-primary-color);
+
   font-size: 26px;
+
   line-height: 1.2;
+
   font-weight: 750;
+
   letter-spacing: -0.03em;
 }
 
 .page-header p {
   max-width: 680px;
+
   margin: 6px 0 0;
+
   color: var(--text-secondary-color);
+
   font-size: 13px;
+
   line-height: 1.5;
 }
 
 .header-actions {
   display: flex;
+
   align-items: center;
+
   gap: 9px;
+
   padding-top: 25px;
 }
 
 .button {
   display: inline-flex;
+
   align-items: center;
+
   justify-content: center;
+
   gap: 7px;
+
   min-height: 40px;
+
   padding: 0 14px;
+
   border-radius: 9px;
+
   font-size: 12px;
+
   font-weight: 650;
+
   cursor: pointer;
+
   transition: border-color 0.2s ease, background 0.2s ease, color 0.2s ease,
     transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 .button-secondary {
   border: 1px solid var(--border-color);
+
   background: var(--surface-color);
+
   color: var(--text-secondary-color);
 }
 
 .button-secondary:hover:not(:disabled) {
   border-color: var(--primary-color);
+
   color: var(--primary-color);
 }
 
 .button-primary {
   border: 1px solid var(--primary-color);
+
   background: var(--primary-color);
+
   color: #fff;
+
   box-shadow: 0 4px 13px rgb(37 99 235 / 15%);
 }
 
 .button-primary:hover:not(:disabled) {
   transform: translateY(-1px);
+
   box-shadow: 0 7px 18px rgb(37 99 235 / 20%);
 }
 
 .button:disabled,
 .save-button:disabled {
   cursor: not-allowed;
+
   opacity: 0.55;
-}
-
-/* Context strip */
-
-.context-strip {
-  display: flex;
-  align-items: center;
-  gap: 17px;
-  max-width: 1480px;
-  margin: 0 auto 20px;
-  padding: 12px 15px;
-  border: 1px solid var(--border-color);
-  border-radius: 12px;
-  background: var(--surface-color);
-  box-shadow: 0 2px 8px rgb(16 24 40 / 2%);
-}
-
-.context-item {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  min-width: 0;
-}
-
-.context-item > div {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.context-item strong {
-  color: var(--text-primary-color);
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.context-item span:last-child {
-  color: var(--text-tertiary-color);
-  font-size: 10px;
-}
-
-.context-dot,
-.context-number {
-  display: grid;
-  flex: 0 0 auto;
-  place-items: center;
-  width: 27px;
-  height: 27px;
-  border-radius: 8px;
-}
-
-.context-dot {
-  position: relative;
-  background: rgb(37 99 235 / 9%);
-}
-
-.context-dot::after {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--primary-color);
-  content: "";
-}
-
-.context-number {
-  border: 1px solid var(--border-color);
-  background: #fafbfc;
-  color: var(--text-tertiary-color);
-  font-size: 9px;
-  font-weight: 700;
-}
-
-.context-divider {
-  width: 1px;
-  height: 27px;
-  background: var(--border-color);
 }
 
 /* Layout */
 
 .content-grid {
   display: grid;
+
   grid-template-columns: minmax(0, 1fr) 325px;
+
   gap: 20px;
+
   max-width: 1480px;
+
   margin: 0 auto;
 }
 
 .main-column,
 .side-column {
   display: flex;
+
   flex-direction: column;
+
   gap: 18px;
 }
 
 .card {
   padding: 21px;
+
   border: 1px solid var(--border-color);
+
   border-radius: 14px;
+
   background: var(--surface-color);
+
   box-shadow: 0 2px 10px rgb(16 24 40 / 2.5%);
 }
 
@@ -1475,8 +1701,11 @@ h1 {
 
 .section-heading {
   display: flex;
+
   align-items: flex-start;
+
   gap: 11px;
+
   margin-bottom: 20px;
 }
 
@@ -1486,13 +1715,21 @@ h1 {
 
 .section-icon {
   display: grid;
+
   flex: 0 0 auto;
+
   place-items: center;
+
   width: 37px;
+
   height: 37px;
+
   border: 1px solid rgb(37 99 235 / 10%);
+
   border-radius: 10px;
+
   background: rgb(37 99 235 / 7%);
+
   color: var(--primary-color);
 }
 
@@ -1502,27 +1739,41 @@ h1 {
 
 .section-heading h2 {
   margin: 1px 0 3px;
+
   color: var(--text-primary-color);
+
   font-size: 14px;
+
   font-weight: 700;
 }
 
 .section-heading p {
   margin: 0;
+
   color: var(--text-secondary-color);
+
   font-size: 11px;
+
   line-height: 1.45;
 }
 
 .section-badge {
   margin-left: auto;
+
   padding: 4px 7px;
+
   border: 1px solid var(--border-color);
+
   border-radius: 6px;
+
   color: var(--text-tertiary-color);
+
   font-size: 9px;
+
   font-weight: 650;
+
   text-transform: uppercase;
+
   letter-spacing: 0.04em;
 }
 
@@ -1530,13 +1781,17 @@ h1 {
 
 .form-grid {
   display: grid;
+
   grid-template-columns: repeat(2, minmax(0, 1fr));
+
   gap: 17px;
 }
 
 .form-stack {
   display: flex;
+
   flex-direction: column;
+
   gap: 17px;
 }
 
@@ -1550,14 +1805,19 @@ h1 {
 
 .field label {
   display: block;
+
   margin-bottom: 7px;
+
   color: var(--text-primary-color);
+
   font-size: 11px;
+
   font-weight: 650;
 }
 
 .field label span {
   margin-left: 2px;
+
   color: #ef4444;
 }
 
@@ -1565,26 +1825,38 @@ h1 {
 .field select,
 .field textarea {
   width: 100%;
+
   border: 1px solid var(--border-color);
+
   border-radius: 8px;
+
   outline: none;
+
   background: var(--surface-color);
+
   color: var(--text-primary-color);
+
   font: inherit;
+
   font-size: 12px;
+
   transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
 }
 
 .field input,
 .field select {
   height: 41px;
+
   padding: 0 11px;
 }
 
 .field textarea {
   min-height: 91px;
+
   padding: 10px 11px;
+
   resize: vertical;
+
   line-height: 1.55;
 }
 
@@ -1598,6 +1870,7 @@ h1 {
 .field select:focus,
 .field textarea:focus {
   border-color: var(--primary-color);
+
   box-shadow: 0 0 0 3px rgb(37 99 235 / 7%);
 }
 
@@ -1612,11 +1885,17 @@ h1 {
 
 .input-with-icon > svg {
   position: absolute;
+
   top: 50%;
+
   left: 12px;
+
   z-index: 1;
+
   color: var(--text-tertiary-color);
+
   transform: translateY(-50%);
+
   pointer-events: none;
 }
 
@@ -1630,65 +1909,97 @@ h1 {
 
 .select-wrap select {
   appearance: none;
+
   padding-right: 35px;
 }
 
 .select-wrap svg {
   position: absolute;
+
   top: 50%;
+
   right: 11px;
+
   color: var(--text-tertiary-color);
+
   transform: translateY(-50%);
+
   pointer-events: none;
 }
 
 .slug-field {
   display: flex;
+
   align-items: center;
+
   overflow: hidden;
+
   height: 41px;
+
   border: 1px solid var(--border-color);
+
   border-radius: 8px;
+
   background: var(--surface-color);
+
   transition: border-color 0.18s ease, box-shadow 0.18s ease;
 }
 
 .slug-field:focus-within {
   border-color: var(--primary-color);
+
   box-shadow: 0 0 0 3px rgb(37 99 235 / 7%);
 }
 
 .slug-field > span {
   flex: 0 0 auto;
+
   padding-left: 11px;
+
   color: var(--text-tertiary-color);
+
   font-size: 11px;
 }
 
 .slug-field input {
   height: 39px;
+
   padding-left: 4px;
+
   border: 0;
+
   box-shadow: none !important;
 }
 
 .label-row {
   display: flex;
+
   align-items: center;
+
   justify-content: space-between;
+
   gap: 10px;
 }
 
 .generate-button {
   display: inline-flex;
+
   align-items: center;
+
   gap: 4px;
+
   padding: 0;
+
   border: 0;
+
   background: transparent;
+
   color: var(--primary-color);
+
   font-size: 10px;
+
   font-weight: 650;
+
   cursor: pointer;
 }
 
@@ -1698,24 +2009,35 @@ h1 {
 
 .character-count {
   color: var(--text-tertiary-color);
+
   font-size: 9px;
 }
 
 .field-hint {
   display: block;
+
   margin-top: 5px;
+
   color: var(--text-tertiary-color);
+
   font-size: 10px;
+
   line-height: 1.45;
 }
 
 .field-error {
   display: flex;
+
   align-items: center;
+
   gap: 4px;
+
   margin-top: 5px;
+
   color: var(--danger-color);
+
   font-size: 10px;
+
   line-height: 1.4;
 }
 
@@ -1723,24 +2045,39 @@ h1 {
 
 .type-selector {
   display: grid;
+
   grid-template-columns: repeat(2, minmax(0, 1fr));
+
   gap: 7px;
 }
 
 .type-selector button {
   position: relative;
+
   display: flex;
+
   align-items: center;
+
   gap: 8px;
+
   min-width: 0;
+
   min-height: 52px;
+
   padding: 8px 9px;
+
   border: 1px solid var(--border-color);
+
   border-radius: 8px;
+
   background: var(--surface-color);
+
   color: var(--text-secondary-color);
+
   text-align: left;
+
   cursor: pointer;
+
   transition: border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
 }
 
@@ -1750,35 +2087,49 @@ h1 {
 
 .type-selector button.selected {
   border-color: rgb(37 99 235 / 40%);
+
   background: rgb(37 99 235 / 5%);
+
   color: var(--primary-color);
+
   box-shadow: 0 0 0 2px rgb(37 99 235 / 5%);
 }
 
 .type-selector button > span {
   display: flex;
+
   min-width: 0;
+
   flex-direction: column;
+
   gap: 2px;
 }
 
 .type-selector strong {
   color: var(--text-primary-color);
+
   font-size: 10px;
+
   font-weight: 700;
 }
 
 .type-selector small {
   overflow: hidden;
+
   color: var(--text-tertiary-color);
+
   font-size: 9px;
+
   text-overflow: ellipsis;
+
   white-space: nowrap;
 }
 
 .type-selector button > svg:last-child {
   margin-left: auto;
+
   flex: 0 0 auto;
+
   color: var(--primary-color);
 }
 
@@ -1788,164 +2139,308 @@ h1 {
   display: none;
 }
 
-.gallery-upload-panel { margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--border, #e5e7eb); }
-.gallery-upload-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
-.gallery-upload-heading strong { display: block; font-size: 13px; }
-.gallery-upload-heading p { margin: 4px 0 0; color: var(--muted-foreground, #6b7280); font-size: 12px; }
-.gallery-preview-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 10px; }
-.gallery-preview-item { position: relative; min-width: 0; }
-.gallery-preview-item img { width: 100%; aspect-ratio: 1; object-fit: cover; border: 1px solid var(--border, #e5e7eb); border-radius: 10px; }
-.gallery-preview-item button { position: absolute; top: 5px; right: 5px; display: grid; place-items: center; width: 25px; height: 25px; border: 0; border-radius: 50%; background: #111827d9; color: white; cursor: pointer; }
-.gallery-preview-item small { display: block; margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted-foreground, #6b7280); font-size: 10px; }
+.gallery-upload-panel {
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border, #e5e7eb);
+}
+
+.gallery-upload-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.gallery-upload-heading strong {
+  display: block;
+  font-size: 13px;
+}
+
+.gallery-upload-heading p {
+  margin: 4px 0 0;
+  color: var(--muted-foreground, #6b7280);
+  font-size: 12px;
+}
+
+.gallery-preview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+  gap: 10px;
+}
+
+.gallery-preview-item {
+  position: relative;
+  min-width: 0;
+}
+
+.gallery-preview-item img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 10px;
+}
+
+.gallery-preview-item button {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  display: grid;
+  place-items: center;
+  width: 25px;
+  height: 25px;
+  border: 0;
+  border-radius: 50%;
+  background: #111827d9;
+  color: white;
+  cursor: pointer;
+}
+
+.gallery-preview-item small {
+  display: block;
+  margin-top: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted-foreground, #6b7280);
+  font-size: 10px;
+}
 
 .upload-zone {
   display: flex;
+
   flex-direction: column;
+
   align-items: center;
+
   justify-content: center;
+
   min-height: 245px;
+
   padding: 30px;
+
   border: 1.5px dashed #cbd5e1;
+
   border-radius: 12px;
+
   background: radial-gradient(circle at top, rgb(37 99 235 / 4%), transparent 42%),
     #fafbfc;
+
   text-align: center;
+
   cursor: pointer;
+
   transition: border-color 0.2s ease, background 0.2s ease, transform 0.2s ease;
 }
 
 .upload-zone:hover {
   border-color: var(--primary-color);
+
   background: radial-gradient(circle at top, rgb(37 99 235 / 7%), transparent 45%),
     #fafbfc;
+
   transform: translateY(-1px);
 }
 
 .upload-visual {
   position: relative;
+
   margin-bottom: 15px;
 }
 
 .upload-icon {
   display: grid;
+
   place-items: center;
+
   width: 58px;
+
   height: 58px;
+
   border: 1px solid rgb(37 99 235 / 10%);
+
   border-radius: 17px;
+
   background: rgb(37 99 235 / 8%);
+
   color: var(--primary-color);
 }
 
 .upload-plus {
   position: absolute;
+
   right: -5px;
+
   bottom: -4px;
+
   display: grid;
+
   place-items: center;
+
   width: 22px;
+
   height: 22px;
+
   border: 2px solid var(--surface-color);
+
   border-radius: 7px;
+
   background: var(--primary-color);
+
   color: #fff;
 }
 
 .upload-zone h3 {
   margin: 0 0 5px;
+
   color: var(--text-primary-color);
+
   font-size: 13px;
+
   font-weight: 700;
 }
 
 .upload-zone p {
   margin: 0 0 12px;
+
   color: var(--text-secondary-color);
+
   font-size: 11px;
 }
 
 .browse-link {
   padding: 0;
+
   border: 0;
+
   background: transparent;
+
   color: var(--primary-color);
+
   font: inherit;
+
   font-weight: 700;
+
   cursor: pointer;
 }
 
 .upload-meta {
   display: flex;
+
   align-items: center;
+
   gap: 5px;
+
   color: var(--text-tertiary-color);
+
   font-size: 9px;
 }
 
 .upload-meta span {
   padding: 3px 6px;
+
   border: 1px solid var(--border-color);
+
   border-radius: 5px;
+
   background: var(--surface-color);
 }
 
 .upload-meta i {
   width: 3px;
+
   height: 3px;
+
   border-radius: 50%;
+
   background: var(--text-tertiary-color);
 }
 
 .image-preview-wrapper {
   position: relative;
+
   overflow: hidden;
+
   min-height: 315px;
+
   border: 1px solid var(--border-color);
+
   border-radius: 12px;
+
   background: #f8fafc;
 }
 
 .image-preview {
   display: block;
+
   width: 100%;
+
   height: 315px;
+
   object-fit: contain;
 }
 
 .preview-topbar {
   position: absolute;
+
   top: 11px;
+
   right: 11px;
+
   left: 11px;
+
   display: flex;
+
   align-items: center;
+
   justify-content: space-between;
 }
 
 .primary-label {
   display: inline-flex;
+
   align-items: center;
+
   gap: 5px;
+
   padding: 5px 8px;
+
   border: 1px solid rgb(255 255 255 / 20%);
+
   border-radius: 6px;
+
   background: rgb(15 23 42 / 65%);
+
   color: #fff;
+
   font-size: 9px;
+
   font-weight: 650;
+
   backdrop-filter: blur(8px);
 }
 
 .preview-close {
   display: grid;
+
   place-items: center;
+
   width: 29px;
+
   height: 29px;
+
   border: 1px solid rgb(255 255 255 / 20%);
+
   border-radius: 7px;
+
   background: rgb(15 23 42 / 65%);
+
   color: #fff;
+
   cursor: pointer;
+
   backdrop-filter: blur(8px);
 }
 
@@ -1955,50 +2450,79 @@ h1 {
 
 .image-preview-overlay {
   position: absolute;
+
   right: 0;
+
   bottom: 0;
+
   left: 0;
+
   display: flex;
+
   align-items: center;
+
   justify-content: space-between;
+
   gap: 14px;
+
   padding: 30px 14px 13px;
+
   background: linear-gradient(180deg, transparent, rgb(15 23 42 / 91%));
 }
 
 .image-file-info {
   display: flex;
+
   min-width: 0;
+
   flex-direction: column;
+
   gap: 3px;
 }
 
 .image-file-info strong {
   overflow: hidden;
+
   max-width: 400px;
+
   color: #fff;
+
   font-size: 10px;
+
   font-weight: 650;
+
   text-overflow: ellipsis;
+
   white-space: nowrap;
 }
 
 .image-file-info span {
   color: rgb(255 255 255 / 68%);
+
   font-size: 9px;
 }
 
 .preview-action {
   flex: 0 0 auto;
+
   min-height: 30px;
+
   padding: 0 10px;
+
   border: 1px solid rgb(255 255 255 / 20%);
+
   border-radius: 7px;
+
   background: rgb(255 255 255 / 10%);
+
   color: #fff;
+
   font-size: 10px;
+
   font-weight: 650;
+
   cursor: pointer;
+
   backdrop-filter: blur(8px);
 }
 
@@ -2010,98 +2534,143 @@ h1 {
 
 .summary-preview {
   display: flex;
+
   align-items: center;
+
   gap: 11px;
+
   padding-bottom: 15px;
+
   border-bottom: 1px solid var(--border-color);
 }
 
 .summary-image {
   display: grid;
+
   flex: 0 0 auto;
+
   place-items: center;
+
   width: 58px;
+
   height: 58px;
+
   overflow: hidden;
+
   border: 1px solid var(--border-color);
+
   border-radius: 9px;
+
   background: #f8fafc;
+
   color: var(--text-tertiary-color);
 }
 
 .summary-image img {
   display: block;
+
   width: 100%;
+
   height: 100%;
+
   object-fit: cover;
 }
 
 .summary-content {
   display: flex;
+
   min-width: 0;
+
   flex-direction: column;
+
   gap: 4px;
 }
 
 .summary-content strong {
   overflow: hidden;
+
   color: var(--text-primary-color);
+
   font-size: 12px;
+
   font-weight: 700;
+
   text-overflow: ellipsis;
+
   white-space: nowrap;
 }
 
 .summary-content span {
   color: var(--text-tertiary-color);
+
   font-size: 10px;
 }
 
 .summary-list {
   display: flex;
+
   flex-direction: column;
 }
 
 .summary-list > div {
   display: flex;
+
   align-items: center;
+
   justify-content: space-between;
+
   gap: 10px;
+
   padding: 10px 0;
+
   border-bottom: 1px solid rgb(229 231 235 / 70%);
 }
 
 .summary-list > div:last-child {
   border-bottom: 0;
+
   padding-bottom: 0;
 }
 
 .summary-list span {
   color: var(--text-tertiary-color);
+
   font-size: 10px;
 }
 
 .summary-list strong {
   max-width: 170px;
+
   overflow: hidden;
+
   color: var(--text-secondary-color);
+
   font-size: 10px;
+
   font-weight: 650;
+
   text-align: right;
+
   text-overflow: ellipsis;
+
   white-space: nowrap;
 }
 
 .status-value {
   display: inline-flex;
+
   align-items: center;
+
   gap: 5px;
 }
 
 .status-dot {
   width: 6px;
+
   height: 6px;
+
   border-radius: 50%;
+
   background: #98a2b3;
 }
 
@@ -2125,36 +2694,55 @@ h1 {
 
 .info-card {
   display: flex;
+
   align-items: flex-start;
+
   gap: 10px;
+
   padding: 14px;
+
   border: 1px solid rgb(37 99 235 / 10%);
+
   border-radius: 11px;
+
   background: rgb(37 99 235 / 4%);
 }
 
 .info-icon {
   display: grid;
+
   flex: 0 0 auto;
+
   place-items: center;
+
   width: 31px;
+
   height: 31px;
+
   border-radius: 8px;
+
   background: rgb(37 99 235 / 9%);
+
   color: var(--primary-color);
 }
 
 .info-card strong {
   display: block;
+
   margin: 1px 0 4px;
+
   color: var(--text-primary-color);
+
   font-size: 11px;
 }
 
 .info-card p {
   margin: 0;
+
   color: var(--text-secondary-color);
+
   font-size: 10px;
+
   line-height: 1.5;
 }
 
@@ -2162,29 +2750,45 @@ h1 {
 
 .save-panel {
   position: sticky;
+
   bottom: 18px;
+
   padding: 12px;
+
   border: 1px solid var(--border-color);
+
   border-radius: 12px;
+
   background: rgb(255 255 255 / 92%);
+
   box-shadow: 0 12px 30px rgb(15 23 42 / 10%);
+
   backdrop-filter: blur(12px);
 }
 
 .save-status {
   display: flex;
+
   align-items: center;
+
   gap: 6px;
+
   margin-bottom: 9px;
+
   color: var(--text-tertiary-color);
+
   font-size: 9px;
+
   font-weight: 600;
 }
 
 .ready-dot {
   width: 6px;
+
   height: 6px;
+
   border-radius: 50%;
+
   background: #f59e0b;
 }
 
@@ -2194,24 +2798,39 @@ h1 {
 
 .save-button {
   display: flex;
+
   align-items: center;
+
   justify-content: center;
+
   gap: 7px;
+
   width: 100%;
+
   min-height: 42px;
+
   border: 1px solid var(--primary-color);
+
   border-radius: 8px;
+
   background: var(--primary-color);
+
   color: #fff;
+
   font-size: 11px;
+
   font-weight: 700;
+
   cursor: pointer;
+
   box-shadow: 0 4px 12px rgb(37 99 235 / 15%);
+
   transition: transform 0.18s ease, box-shadow 0.18s ease;
 }
 
 .save-button:hover:not(:disabled) {
   transform: translateY(-1px);
+
   box-shadow: 0 7px 17px rgb(37 99 235 / 20%);
 }
 
@@ -2219,29 +2838,45 @@ h1 {
 
 .toast {
   position: fixed;
+
   z-index: 1000;
+
   right: 25px;
+
   bottom: 25px;
+
   display: flex;
+
   align-items: center;
+
   gap: 9px;
+
   max-width: 420px;
+
   padding: 12px 15px;
+
   border: 1px solid;
+
   border-radius: 10px;
+
   background: var(--surface-color);
+
   box-shadow: 0 15px 40px rgb(15 23 42 / 15%);
+
   font-size: 11px;
+
   font-weight: 600;
 }
 
 .toast-success {
   border-color: rgb(34 197 94 / 22%);
+
   color: #15803d;
 }
 
 .toast-error {
   border-color: rgb(239 68 68 / 22%);
+
   color: #b91c1c;
 }
 
@@ -2253,6 +2888,7 @@ h1 {
 .toast-enter-from,
 .toast-leave-to {
   opacity: 0;
+
   transform: translateY(9px);
 }
 
@@ -2266,15 +2902,22 @@ h1 {
   }
 }
 
+/* Pricing section enters smoothly after product type selection. */
+.pricing-reveal-enter-active,
+.pricing-reveal-leave-active {
+  transition: opacity 220ms ease, transform 220ms ease;
+}
+.pricing-reveal-enter-from,
+.pricing-reveal-leave-to {
+  opacity: 0;
+  transform: translateY(10px);
+}
+
 /* Responsive */
 
 @media (max-width: 1120px) {
   .content-grid {
     grid-template-columns: minmax(0, 1fr) 290px;
-  }
-
-  .context-strip {
-    overflow-x: auto;
   }
 }
 
@@ -2285,7 +2928,9 @@ h1 {
 
   .side-column {
     display: grid;
+
     grid-template-columns: repeat(2, minmax(0, 1fr));
+
     align-items: start;
   }
 
@@ -2305,29 +2950,18 @@ h1 {
 
   .page-header {
     flex-direction: column;
+
     gap: 15px;
   }
 
   .header-actions {
     width: 100%;
+
     padding-top: 0;
   }
 
   .header-actions .button {
     flex: 1;
-  }
-
-  .context-strip {
-    gap: 13px;
-    padding: 10px 12px;
-  }
-
-  .context-divider {
-    display: none;
-  }
-
-  .context-item {
-    flex: 0 0 auto;
   }
 
   .form-grid {
@@ -2348,18 +2982,22 @@ h1 {
 
   .upload-zone {
     min-height: 220px;
+
     padding: 23px;
   }
 
   .image-preview-wrapper,
   .image-preview {
     min-height: 240px;
+
     height: 240px;
   }
 
   .image-preview-overlay {
     align-items: flex-start;
+
     flex-direction: column;
+
     gap: 7px;
   }
 
@@ -2369,8 +3007,11 @@ h1 {
 
   .toast {
     right: 15px;
+
     bottom: 15px;
+
     left: 15px;
+
     max-width: none;
   }
 }
@@ -2402,18 +3043,69 @@ h1 {
 
   .upload-meta {
     flex-wrap: wrap;
+
     justify-content: center;
   }
 }
 
 /* Pricing controls follow the Inventory page's compact, neutral form language. */
-.pricing-card .section-heading p { margin: 4px 0 0; color: var(--text-secondary, #64748b); font-size: 12px; }
-.pricing-grid { margin-top: 6px; }
-.price-input { display: flex; align-items: center; gap: 9px; min-height: 44px; padding: 0 12px; border: 1px solid var(--border, #dbe2ea); border-radius: 10px; background: var(--surface, #fff); }
-.price-input > span { color: var(--text-secondary, #64748b); font-weight: 700; }
-.price-input input { width: 100%; min-width: 0; border: 0 !important; outline: 0; background: transparent; box-shadow: none !important; }
-.price-summary { display: flex; align-items: flex-start; gap: 9px; margin-top: 18px; padding: 12px 14px; border-radius: 10px; color: var(--text-secondary, #64748b); background: var(--surface-muted, #f8fafc); font-size: 12px; line-height: 1.5; }
-.price-summary :deep(svg) { flex: 0 0 auto; margin-top: 1px; }
-@media (max-width: 700px) { .pricing-grid { grid-template-columns: 1fr; } }
 
+.pricing-card .section-heading p {
+  margin: 4px 0 0;
+  color: var(--text-secondary, #64748b);
+  font-size: 12px;
+}
+
+.pricing-grid {
+  margin-top: 6px;
+}
+
+.price-input {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--border, #dbe2ea);
+  border-radius: 10px;
+  background: var(--surface, #fff);
+}
+
+.price-input > span {
+  color: var(--text-secondary, #64748b);
+  font-weight: 700;
+}
+
+.price-input input {
+  width: 100%;
+  min-width: 0;
+  border: 0 !important;
+  outline: 0;
+  background: transparent;
+  box-shadow: none !important;
+}
+
+.price-summary {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin-top: 18px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  color: var(--text-secondary, #64748b);
+  background: var(--surface-muted, #f8fafc);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.price-summary :deep(svg) {
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+
+@media (max-width: 700px) {
+  .pricing-grid {
+    grid-template-columns: 1fr;
+  }
+}
 </style>
