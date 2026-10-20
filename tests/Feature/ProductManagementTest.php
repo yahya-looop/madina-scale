@@ -158,6 +158,46 @@ test('authorized user can create a product', function () {
     ]);
 });
 
+test('product creation can save initial pricing on a default variant', function () {
+    $user = User::factory()->create();
+    productTestGrantPermission($user, 'system.products.create');
+    $masterData = productTestMasterData();
+    $payload = productTestPayload($masterData, [
+        'cost_price' => 42.50,
+        'selling_price' => 79.99,
+        'wholesale_price' => 69.00,
+        'promotional_price' => 74.99,
+    ]);
+
+    $response = $this->actingAs($user)->postJson('/api/products', $payload);
+    $response->assertCreated();
+    $productId = (int) $response->json('data.id');
+
+    $this->assertDatabaseHas('product_variants', [
+        'product_id' => $productId,
+        'selling_price' => '79.99',
+        'cost_price' => '42.50',
+        'wholesale_price' => '69.00',
+        'promotional_price' => '74.99',
+        'is_default' => true,
+    ]);
+
+    $this->assertDatabaseHas('product_variants', [
+        'product_id' => $productId,
+        'sku' => null,
+        'barcode' => null,
+    ]);
+
+    // The price-only variant must not block ordinary simple-product edits.
+    productTestGrantPermission($user, 'system.products.update');
+    $this->actingAs($user)
+        ->putJson('/api/products/' . $productId, array_merge($payload, [
+            'name' => 'Updated Test Product',
+        ]))
+        ->assertOk()
+        ->assertJsonPath('data.name', 'Updated Test Product');
+});
+
 test('product creation rejects a missing required category', function () {
     $user = User::factory()->create();
 

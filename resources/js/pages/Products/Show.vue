@@ -894,8 +894,9 @@ onMounted(() => {
              Keep this after core product information and before lifecycle.
              ======================================================= -->
         <ProductVariantsPanel
-          v-if="product.product_type === 'variable'"
+          
           :product-id="product.id"
+          :product-type="product.product_type"
         />
 
         <!-- =======================================================

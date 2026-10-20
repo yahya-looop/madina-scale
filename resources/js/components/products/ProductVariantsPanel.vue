@@ -66,7 +66,7 @@ interface VariantForm {
   sort_order: number;
 }
 
-const props = defineProps<{ productId: number }>();
+const props = defineProps<{ productId: number; productType?: "simple" | "variable" }>();
 
 const variants = ref<ProductVariant[]>([]);
 const attributes = ref<CatalogAttribute[]>([]);
@@ -182,6 +182,10 @@ async function loadVariants(): Promise<void> {
 }
 
 function openCreate(): void {
+  if (props.productType === "simple" && variants.value.length > 0) {
+    openEdit(variants.value[0]);
+    return;
+  }
   editingId.value = null;
   form.value = emptyForm();
   fieldErrors.value = {};
@@ -325,12 +329,13 @@ watch(() => props.productId, () => void loadVariants());
     <div class="section-heading variants-heading">
       <div class="section-icon"><Icon name="stack-2" :size="18" /></div>
       <div>
-        <h2>Product Variants</h2>
-        <p>Manage variant identifiers, pricing, promotions and the default selection.</p>
+        <h2>{{ props.productType === "simple" ? "Product Pricing" : "Product Variants & Pricing" }}</h2>
+        <p>{{ props.productType === "simple" ? "Manage the product price, cost and promotions." : "Manage variant identifiers, pricing, promotions and the default selection." }}</p>
       </div>
       <span class="section-count">{{ variants.length }} {{ variants.length === 1 ? "variant" : "variants" }}</span>
       <button type="button" class="primary-button variant-add-button" @click="openCreate">
-        <Icon name="plus" :size="15" /> Add Variant
+        <Icon :name="props.productType === 'simple' ? 'edit' : 'plus'" :size="15" />
+        {{ props.productType === "simple" ? (variants.length ? "Edit Pricing" : "Add Pricing") : "Add Variant" }}
       </button>
     </div>
 
@@ -349,13 +354,13 @@ watch(() => props.productId, () => void loadVariants());
     <div v-else-if="variants.length === 0" class="variants-state variants-empty">
       <div class="no-variants-icon"><Icon name="package" :size="25" /></div>
       <strong>No variants yet</strong>
-      <span>Create the first variant to assign a SKU, barcode and variant-specific prices.</span>
-      <button type="button" class="primary-button" @click="openCreate"><Icon name="plus" :size="15" /> Create first variant</button>
+      <span>{{ props.productType === "simple" ? "Add the product's cost, selling and promotional prices." : "Create the first variant to assign a SKU, barcode and variant-specific prices." }}</span>
+      <button type="button" class="primary-button" @click="openCreate"><Icon name="plus" :size="15" /> {{ props.productType === "simple" ? "Add pricing" : "Create first variant" }}</button>
     </div>
     <div v-else class="variants-table-wrap">
       <table class="variants-table">
         <thead>
-          <tr><th>Variant</th><th>SKU / Barcode</th><th>Cost</th><th>Selling</th><th>Promotion</th><th>Status</th><th class="actions-heading">Actions</th></tr>
+          <tr><th>Variant</th><th v-if="props.productType !== 'simple'">SKU / Barcode</th><th>Cost</th><th>Selling</th><th>Promotion</th><th>Status</th><th class="actions-heading">Actions</th></tr>
         </thead>
         <tbody>
           <tr v-for="variant in variants" :key="variant.id">
@@ -368,7 +373,7 @@ watch(() => props.productId, () => void loadVariants());
                 </small>
               </div>
             </td>
-            <td><div class="identifiers"><span><b>SKU</b>{{ variant.sku || "—" }}</span><span><b>EAN</b>{{ variant.barcode || "—" }}</span></div></td>
+            <td v-if="props.productType !== 'simple'"><div class="identifiers"><span><b>SKU</b>{{ variant.sku || "—" }}</span><span><b>EAN</b>{{ variant.barcode || "—" }}</span></div></td>
             <td class="money">{{ money(variant.cost_price) }}</td>
             <td class="money selling">{{ money(variant.selling_price) }}</td>
             <td><div class="promotion"><strong>{{ money(variant.promotional_price) }}</strong><small v-if="variant.promotion_starts_at || variant.promotion_ends_at">{{ dateTime(variant.promotion_starts_at) }} – {{ dateTime(variant.promotion_ends_at) }}</small></div></td>
@@ -391,9 +396,9 @@ watch(() => props.productId, () => void loadVariants());
       </div>
       <div class="form-grid">
         <label class="field"><span>Variant name</span><input v-model="form.name" type="text" maxlength="200" placeholder="e.g. 500 ml / Blue / XL" /><small v-if="fieldError('name')" class="field-error">{{ fieldError("name") }}</small></label>
-        <label class="field"><span>SKU</span><input v-model="form.sku" type="text" maxlength="100" placeholder="Unique SKU" /><small v-if="fieldError('sku')" class="field-error">{{ fieldError("sku") }}</small></label>
-        <label class="field"><span>Barcode</span><input v-model="form.barcode" type="text" maxlength="100" placeholder="Barcode / EAN" /><small v-if="fieldError('barcode')" class="field-error">{{ fieldError("barcode") }}</small></label>
-        <label class="field"><span>Status</span><select v-model="form.status"><option value="active">Active</option><option value="inactive">Inactive</option><option value="archived">Archived</option></select><small v-if="fieldError('status')" class="field-error">{{ fieldError("status") }}</small></label>
+        <label v-if="props.productType !== 'simple'" class="field"><span>SKU</span><input v-model="form.sku" type="text" maxlength="100" placeholder="Unique SKU" /><small v-if="fieldError('sku')" class="field-error">{{ fieldError("sku") }}</small></label>
+        <label v-if="props.productType !== 'simple'" class="field"><span>Barcode</span><input v-model="form.barcode" type="text" maxlength="100" placeholder="Barcode / EAN" /><small v-if="fieldError('barcode')" class="field-error">{{ fieldError("barcode") }}</small></label>
+        <label v-if="props.productType !== 'simple'" class="field"><span>Status</span><select v-model="form.status"><option value="active">Active</option><option value="inactive">Inactive</option><option value="archived">Archived</option></select><small v-if="fieldError('status')" class="field-error">{{ fieldError("status") }}</small></label>
         <label class="field"><span>Cost price</span><input v-model="form.cost_price" type="number" min="0" step="0.01" required /><small v-if="fieldError('cost_price')" class="field-error">{{ fieldError("cost_price") }}</small></label>
         <label class="field"><span>Selling price</span><input v-model="form.selling_price" type="number" min="0" step="0.01" required /><small v-if="fieldError('selling_price')" class="field-error">{{ fieldError("selling_price") }}</small></label>
         <label class="field"><span>Wholesale price <em>Optional</em></span><input v-model="form.wholesale_price" type="number" min="0" step="0.01" /><small v-if="fieldError('wholesale_price')" class="field-error">{{ fieldError("wholesale_price") }}</small></label>
@@ -402,7 +407,7 @@ watch(() => props.productId, () => void loadVariants());
         <label class="field"><span>Promotion ends <em>Optional</em></span><input v-model="form.promotion_ends_at" type="datetime-local" /><small v-if="fieldError('promotion_ends_at')" class="field-error">{{ fieldError("promotion_ends_at") }}</small></label>
         <label class="field"><span>Sort order</span><input v-model.number="form.sort_order" type="number" min="0" step="1" /><small v-if="fieldError('sort_order')" class="field-error">{{ fieldError("sort_order") }}</small></label>
         <div v-if="isLoadingAttributes" class="attribute-loading">Loading selectable attributes…</div>
-        <template v-else-if="attributes.length">
+        <template v-else-if="props.productType !== 'simple' && attributes.length">
           <label v-for="attribute in attributes" :key="attribute.id" class="field">
             <span>{{ attribute.name }} <em>Variant attribute</em></span>
             <select v-model="selectedAttributeValues[attribute.id]">
@@ -413,8 +418,8 @@ watch(() => props.productId, () => void loadVariants());
             </select>
           </label>
         </template>
-        <p v-else class="attribute-loading">No active selectable attributes are configured. You can still create a variant without attributes.</p>
-        <label class="default-field"><input v-model="form.is_default" type="checkbox" /><span><strong>Default variant</strong><small>Only one active variant can be the default for this product.</small></span></label>
+        <p v-else-if="props.productType !== 'simple'" class="attribute-loading">No active selectable attributes are configured. You can still create a variant without attributes.</p>
+        <label v-if="props.productType !== 'simple'" class="default-field"><input v-model="form.is_default" type="checkbox" /><span><strong>Default variant</strong><small>Only one active variant can be the default for this product.</small></span></label>
       </div>
       <div class="form-actions">
         <button type="button" class="secondary-button" :disabled="isSaving" @click="isFormOpen = false">Cancel</button>

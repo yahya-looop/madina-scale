@@ -32,4 +32,8 @@ class SalesOrder extends Model
     public function creator(): BelongsTo { return $this->belongsTo(User::class, 'created_by'); }
     public function items(): HasMany { return $this->hasMany(SalesOrderItem::class, 'sales_order_id'); }
     public function statusHistory(): HasMany { return $this->hasMany(SalesOrderStatusHistory::class, 'sales_order_id')->latest('id'); }
+    public function fulfillments(): HasMany { return $this->hasMany(SalesOrderFulfillment::class, 'sales_order_id')->latest('id'); }
+    public function shipments(): HasMany { return $this->hasMany(SalesOrderShipment::class, 'sales_order_id')->latest('id'); }
+    public function riskAssessments(): HasMany { return $this->hasMany(SalesOrderRiskAssessment::class, 'sales_order_id')->latest('id'); }
+    public function smsLogs(): HasMany { return $this->hasMany(SalesOrderSmsLog::class, 'sales_order_id')->latest('id'); }
 }

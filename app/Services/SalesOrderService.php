@@ -8,6 +8,8 @@ use App\Models\Location;
 use App\Models\ProductVariant;
 use App\Models\SalesOrder;
 use App\Models\SalesOrderItem;
+use App\Models\SalesOrderFulfillment;
+use App\Models\SalesOrderFulfillmentItem;
 use App\Models\SalesOrderStatusHistory;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -16,7 +18,7 @@ use Illuminate\Validation\ValidationException;
 
 class SalesOrderService
 {
-    public function __construct(private readonly InventoryReservationService $reservations) {}
+    public function __construct(private readonly InventoryReservationService $reservations, private readonly OrderRiskService $risk) {}
 
     public function create(array $data, User $actor): SalesOrder
     {
@@ -104,7 +106,8 @@ class SalesOrderService
                 'changed_by' => $actor->id, 'created_at' => now(),
             ]);
 
-            return $order->load(['items', 'location', 'creator', 'statusHistory.actor']);
+            $this->risk->assess($order);
+            return $order->load(['items', 'location', 'creator', 'statusHistory.actor', 'riskAssessments']);
         }, 3);
     }
 
@@ -139,6 +142,81 @@ class SalesOrderService
             ]);
 
             return $locked->load(['items', 'location', 'statusHistory.actor']);
+        }, 3);
+    }
+
+    public function fulfill(SalesOrder $order, array $data, User $actor): SalesOrder
+    {
+        return DB::transaction(function () use ($order, $data, $actor): SalesOrder {
+            $locked = SalesOrder::query()->lockForUpdate()->findOrFail($order->id);
+            if (!in_array($locked->status, ['confirmed', 'processing', 'partially_fulfilled'], true)) {
+                throw ValidationException::withMessages(['status' => 'Only confirmed orders with an active workflow can be fulfilled.']);
+            }
+
+            if (!empty($data['idempotency_key'])) {
+                $existing = SalesOrderFulfillment::query()->where('idempotency_key', $data['idempotency_key'])->first();
+                if ($existing) {
+                    if ((int) $existing->sales_order_id !== (int) $locked->id) {
+                        throw ValidationException::withMessages(['idempotency_key' => 'This request key has already been used for another fulfillment.']);
+                    }
+                    return $locked->load(['items', 'location', 'statusHistory.actor', 'fulfillments.items']);
+                }
+            }
+
+            $items = SalesOrderItem::query()->where('sales_order_id', $locked->id)->lockForUpdate()->get()->keyBy('id');
+            $requested = collect($data['items'])->keyBy(fn (array $line): int => (int) $line['sales_order_item_id']);
+            $fulfillment = SalesOrderFulfillment::query()->create([
+                'fulfillment_number' => 'FUL-' . now()->format('ymd') . '-' . Str::upper(Str::random(8)),
+                'sales_order_id' => $locked->id,
+                'status' => 'completed',
+                'notes' => $data['notes'] ?? null,
+                'created_by' => $actor->id,
+                'fulfilled_at' => now(),
+                'idempotency_key' => $data['idempotency_key'] ?? null,
+            ]);
+
+            foreach ($requested as $itemId => $line) {
+                /** @var SalesOrderItem|null $item */
+                $item = $items->get((int) $itemId);
+                if (!$item) throw ValidationException::withMessages(['items' => 'A selected item does not belong to this order.']);
+                $qty = number_format((float) $line['quantity'], 4, '.', '');
+                $alreadyFulfilled = SalesOrderFulfillmentItem::query()
+                    ->where('sales_order_item_id', $item->id)->sum('quantity');
+                $remaining = bcsub((string) $item->quantity, (string) $alreadyFulfilled, 4);
+                if (bccomp($qty, '0', 4) <= 0 || bccomp($qty, $remaining, 4) > 0) {
+                    throw ValidationException::withMessages(['items' => "Fulfillment quantity for {$item->product_name} exceeds the remaining quantity ({$remaining})."]);
+                }
+                if (!$item->reservation_id) throw ValidationException::withMessages(['items' => 'An order item is missing its stock reservation.']);
+                $reservation = InventoryReservation::query()->lockForUpdate()->find($item->reservation_id);
+                if (!$reservation || $reservation->status !== 'active') {
+                    throw ValidationException::withMessages(['items' => 'A stock reservation is no longer active. Review or re-reserve stock before fulfillment.']);
+                }
+                $this->reservations->fulfillPartial($reservation, $qty, $actor);
+                SalesOrderFulfillmentItem::query()->create([
+                    'sales_order_fulfillment_id' => $fulfillment->id,
+                    'sales_order_item_id' => $item->id,
+                    'quantity' => $qty,
+                ]);
+            }
+
+            $allFulfilled = true;
+            $anyFulfilled = false;
+            foreach ($items as $item) {
+                $done = (string) SalesOrderFulfillmentItem::query()->where('sales_order_item_id', $item->id)->sum('quantity');
+                if (bccomp($done, '0', 4) > 0) $anyFulfilled = true;
+                if (bccomp($done, (string) $item->quantity, 4) < 0) $allFulfilled = false;
+            }
+            $from = $locked->status;
+            $locked->status = $allFulfilled ? 'fulfilled' : ($anyFulfilled ? 'partially_fulfilled' : 'processing');
+            $locked->save();
+            SalesOrderStatusHistory::query()->create([
+                'sales_order_id' => $locked->id, 'from_status' => $from, 'to_status' => $locked->status,
+                'reason' => 'Order fulfillment ' . $fulfillment->fulfillment_number . ' recorded.',
+                'metadata' => ['fulfillment_id' => $fulfillment->id, 'fulfillment_number' => $fulfillment->fulfillment_number],
+                'changed_by' => $actor->id, 'created_at' => now(),
+            ]);
+
+            return $locked->load(['items', 'location', 'statusHistory.actor', 'fulfillments.items']);
         }, 3);
     }
 

@@ -43,9 +43,12 @@ class ProductVariantController extends Controller
         Request $request,
         Product $product
     ): JsonResponse {
-        $this->ensureVariableProduct($product);
+        // Simple products may expose their single price-only record through
+        // index/show/update, but creating additional variants is variable-only.
+        $this->ensureVariantCreationAllowed($product);
 
         $data = $this->validateVariant($request);
+        $data = $this->normalizeSimplePriceData($product, $data);
 
         $attributeValues = $data['attribute_values'] ?? [];
 
@@ -155,6 +158,7 @@ class ProductVariantController extends Controller
             $request,
             true
         );
+        $data = $this->normalizeSimplePriceData($product, $data, true);
 
         $attributeValues = $data['attribute_values'] ?? null;
 
@@ -787,14 +791,54 @@ class ProductVariantController extends Controller
     }
 
     /**
-     * Ensure that this product supports variants.
+     * Simple products use one price-only record. Never accept variant identifiers,
+     * attribute combinations or variable-variant lifecycle settings for them.
+     * Database constraints remain the final integrity boundary.
+     *
+     * @param array<string, mixed> $data
+     * @return array<string, mixed>
      */
-    private function ensureVariableProduct(Product $product): void
+    private function normalizeSimplePriceData(
+        Product $product,
+        array $data,
+        bool $isUpdate = false
+    ): array {
+        if ($product->product_type !== 'simple') {
+            return $data;
+        }
+
+        $data['sku'] = null;
+        $data['barcode'] = null;
+        $data['is_default'] = true;
+        $data['status'] = 'active';
+        $data['sort_order'] = 0;
+        $data['attribute_values'] = [];
+
+        return $data;
+    }
+
+    /**
+     * Only variable products may create new variant records.
+     * Simple products can still manage their single price-only record via
+     * the existing record's read/update routes, but cannot add variants.
+     */
+    private function ensureVariantCreationAllowed(Product $product): void
     {
         if ($product->product_type !== 'variable') {
             throw ValidationException::withMessages([
-                'product_type' =>
-                    'Variants can only be managed for variable products.',
+                'product_type' => 'Variants can only be created for variable products.',
+            ]);
+        }
+    }
+
+    /**
+     * Ensure that this product supports pricing records.
+     */
+    private function ensureVariableProduct(Product $product): void
+    {
+        if (! in_array($product->product_type, ['simple', 'variable'], true)) {
+            throw ValidationException::withMessages([
+                'product_type' => 'This product type does not support pricing records.',
             ]);
         }
     }

@@ -6,6 +6,7 @@ use App\Models\Brand;
 use App\Models\Product;
 use App\Models\ProductCategory;
 use App\Models\ProductMedia;
+use App\Models\ProductVariant;
 use App\Models\Unit;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -25,6 +26,7 @@ class ProductController extends Controller
                 'brand:id,name,slug',
                 'unit:id,name,short_name,slug',
                 'primaryMedia',
+                'defaultVariant:id,product_id,name,cost_price,selling_price,wholesale_price,promotional_price,is_default,status',
             ])
             ->orderBy('sort_order')
             ->orderBy('name');
@@ -111,6 +113,7 @@ class ProductController extends Controller
             'unit:id,name,short_name,slug',
             'media',
             'primaryMedia',
+            'defaultVariant',
         ]);
 
         return response()->json([
@@ -127,18 +130,30 @@ class ProductController extends Controller
             $validated['name'],
         );
 
-        $validated['sku'] = $this->resolveSku(
-            $validated['sku'] ?? null,
-        );
+        // Variable products own identifiers at variant level; simple products
+        // keep SKU/barcode at product level and use an identifier-free price record.
+        $requestedSku = $this->normalizeNullableValue($validated['sku'] ?? null);
+        $requestedBarcode = $this->normalizeNullableValue($validated['barcode'] ?? null);
+        if (($validated['product_type'] ?? 'simple') === 'variable') {
+            unset($validated['sku'], $validated['barcode']);
+        } else {
+            $validated['sku'] = $this->resolveSku($requestedSku);
+            $validated['barcode'] = $requestedBarcode;
+            $this->ensureBarcodeAvailable($validated['barcode']);
+        }
 
-        $validated['barcode'] = $this->normalizeNullableValue(
-            $validated['barcode'] ?? null,
-        );
-
-        $this->ensureBarcodeAvailable(
-            $validated['barcode'],
-        );
-
+        // Initial prices belong to the default variant, not the product row.
+        $initialPricing = [];
+        foreach (['cost_price', 'selling_price', 'wholesale_price', 'promotional_price'] as $priceField) {
+            if (array_key_exists($priceField, $validated)) {
+                $initialPricing[$priceField] = $validated[$priceField] === '' ? null : $validated[$priceField];
+                unset($validated[$priceField]);
+            }
+        }
+        if (($request->input('product_type') ?? 'simple') === 'variable') {
+            $initialPricing['sku'] = $requestedSku;
+            $initialPricing['barcode'] = $requestedBarcode;
+        }
         // Images are media records, not columns on the products table.
         unset($validated['image'], $validated['images']);
         $uploadedFiles = array_values(array_filter(array_merge(
@@ -157,9 +172,23 @@ class ProductController extends Controller
             $product = DB::transaction(function () use (
                 $validated,
                 $uploadedFiles,
+                $initialPricing,
                 &$storedPaths
             ) {
                 $product = Product::create($validated);
+
+                if (array_key_exists('selling_price', $initialPricing)) {
+                    $product->variants()->create(array_merge([
+                        'name' => 'Standard',
+                        'sku' => $product->product_type === 'variable' ? ($initialPricing['sku'] ?? null) : null,
+                        'barcode' => $product->product_type === 'variable' ? ($initialPricing['barcode'] ?? null) : null,
+                        'cost_price' => 0,
+                        'selling_price' => 0,
+                        'is_default' => true,
+                        'status' => 'active',
+                        'sort_order' => 0,
+                    ], array_intersect_key($initialPricing, array_flip(['cost_price', 'selling_price', 'wholesale_price', 'promotional_price']))));
+                }
 
                 foreach ($uploadedFiles as $index => $uploadedFile) {
                     $storedPath = $uploadedFile->store(
@@ -245,6 +274,15 @@ class ProductController extends Controller
             $product,
         );
 
+        // Prices live on the default price record, not on the products table.
+        $initialPricing = [];
+        foreach (['cost_price', 'selling_price', 'wholesale_price', 'promotional_price'] as $priceField) {
+            if (array_key_exists($priceField, $validated)) {
+                $initialPricing[$priceField] = $validated[$priceField] === '' ? null : $validated[$priceField];
+                unset($validated[$priceField]);
+            }
+        }
+
         // Keep image data out of the products table update.
         unset($validated['image'], $validated['images']);
 
@@ -265,6 +303,7 @@ class ProductController extends Controller
             $product = DB::transaction(function () use (
                 $product,
                 $validated,
+                $initialPricing,
                 $uploadedFile,
                 &$storedPath,
                 &$oldMediaDisk,
@@ -273,6 +312,36 @@ class ProductController extends Controller
                 &$additionalStoredPaths
             ) {
                 $product->update($validated);
+
+                if (
+                    $product->product_type === 'simple'
+                    && array_key_exists('selling_price', $initialPricing)
+                ) {
+                    $priceRecord = $product->variants()
+                        ->whereNull('deleted_at')
+                        ->lockForUpdate()
+                        ->first();
+
+                    $priceData = array_merge([
+                        'name' => 'Standard',
+                        'sku' => null,
+                        'barcode' => null,
+                        'cost_price' => 0,
+                        'selling_price' => 0,
+                        'is_default' => true,
+                        'status' => 'active',
+                        'sort_order' => 0,
+                    ], array_intersect_key(
+                        $initialPricing,
+                        array_flip(['cost_price', 'selling_price', 'wholesale_price', 'promotional_price'])
+                    ));
+
+                    if ($priceRecord) {
+                        $priceRecord->update($priceData);
+                    } else {
+                        $product->variants()->create($priceData);
+                    }
+                }
 
                 if ($uploadedFile !== null) {
                     // Store the replacement before changing the current
@@ -495,6 +564,11 @@ class ProductController extends Controller
                 'string',
                 'max:100',
             ],
+
+            'cost_price' => ['sometimes', 'numeric', 'min:0'],
+            'selling_price' => ['sometimes', 'required', 'numeric', 'min:0'],
+            'wholesale_price' => ['nullable', 'numeric', 'min:0'],
+            'promotional_price' => ['nullable', 'numeric', 'min:0'],
 
             'product_type' => [
                 'required',

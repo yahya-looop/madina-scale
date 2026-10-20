@@ -19,6 +19,7 @@ use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\SalesOrderController;
+use App\Http\Controllers\OrderOperationsController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['web', 'auth'])->group(function () {
@@ -40,6 +41,23 @@ Route::middleware(['web', 'auth'])->group(function () {
         ->middleware('permission:system.orders.confirm');
     Route::post('/orders/{order}/cancel', [SalesOrderController::class, 'cancel'])
         ->middleware('permission:system.orders.cancel');
+    Route::post('/orders/{order}/fulfill', [SalesOrderController::class, 'fulfill'])
+        ->middleware('permission:system.orders.fulfill');
+
+    Route::post('/orders/{order}/risk-assessment', [OrderOperationsController::class, 'assessRisk'])
+        ->middleware('permission:system.orders.risk.manage');
+    Route::post('/orders/risk-assessments/{assessment}/review', [OrderOperationsController::class, 'reviewRisk'])
+        ->middleware('permission:system.orders.risk.manage');
+    Route::post('/orders/{order}/phone-verification/request', [OrderOperationsController::class, 'requestPhoneVerification'])
+        ->middleware('permission:system.orders.communication.manage');
+    Route::post('/orders/{order}/phone-verification/verify', [OrderOperationsController::class, 'verifyPhone'])
+        ->middleware('permission:system.orders.communication.manage');
+    Route::post('/orders/{order}/sms', [OrderOperationsController::class, 'sendSms'])
+        ->middleware('permission:system.orders.communication.manage');
+    Route::get('/orders/{order}/shipments', [OrderOperationsController::class, 'shipments'])
+        ->middleware('permission:system.orders.view');
+    Route::post('/orders/{order}/shipments', [OrderOperationsController::class, 'bookShipment'])
+        ->middleware('permission:system.orders.shipment.manage');
 
 
     /*
@@ -414,3 +432,6 @@ Route::middleware(['web', 'auth'])->group(function () {
 
 
 });
+
+// Provider callbacks authenticate with a dedicated bearer secret and must not require a staff session.
+Route::post('/webhooks/couriers/{provider}', [OrderOperationsController::class, 'courierWebhook']);

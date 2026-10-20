@@ -27,7 +27,7 @@ class SalesOrderWorkflowTest extends TestCase
             'name' => 'Orders', 'description' => 'Order management.',
             'sort_order' => 30, 'is_system' => true, 'is_active' => true,
         ]);
-        $slugs = ['system.orders.view', 'system.orders.create', 'system.orders.confirm', 'system.orders.cancel'];
+        $slugs = ['system.orders.view', 'system.orders.create', 'system.orders.confirm', 'system.orders.cancel', 'system.orders.fulfill'];
         $permissions = [];
         foreach ($slugs as $slug) {
             $permissions[] = Permission::firstOrCreate(['slug' => $slug], [
@@ -110,6 +110,66 @@ class SalesOrderWorkflowTest extends TestCase
             'product_variant_id' => $variant->id, 'location_id' => $location->id,
             'reserved_quantity' => '0.0000',
         ]);
+    }
+
+
+    public function test_confirmed_order_supports_partial_then_complete_fulfillment_without_double_deduction(): void
+    {
+        [$location, $variant] = $this->orderFixture();
+        $user = $this->orderUser($location);
+        $this->actingAs($user)->postJson('/api/orders', [
+            'location_id' => $location->id, 'customer_name' => 'Partial Buyer',
+            'items' => [['product_variant_id' => $variant->id, 'quantity' => 2]],
+        ])->assertCreated();
+        $order = SalesOrder::query()->firstOrFail();
+        $this->postJson("/api/orders/{$order->id}/confirm", [])->assertOk();
+        $item = $order->items()->firstOrFail();
+
+        $this->postJson("/api/orders/{$order->id}/fulfill", [
+            'idempotency_key' => (string) Str::uuid(),
+            'items' => [['sales_order_item_id' => $item->id, 'quantity' => 1]],
+        ])->assertOk()->assertJsonPath('data.status', 'partially_fulfilled');
+        $this->assertDatabaseHas('inventory_stocks', [
+            'product_variant_id' => $variant->id, 'location_id' => $location->id,
+            'quantity' => '9.0000', 'reserved_quantity' => '1.0000',
+        ]);
+
+        $this->postJson("/api/orders/{$order->id}/fulfill", [
+            'idempotency_key' => (string) Str::uuid(),
+            'items' => [['sales_order_item_id' => $item->id, 'quantity' => 1]],
+        ])->assertOk()->assertJsonPath('data.status', 'fulfilled');
+        $this->assertDatabaseHas('inventory_stocks', [
+            'product_variant_id' => $variant->id, 'location_id' => $location->id,
+            'quantity' => '8.0000', 'reserved_quantity' => '0.0000',
+        ]);
+        $this->assertDatabaseCount('sales_order_fulfillments', 2);
+    }
+
+
+    public function test_order_list_and_detail_are_scoped_to_assigned_locations(): void
+    {
+        [$location, $variant] = $this->orderFixture();
+        $user = $this->orderUser($location);
+        $this->actingAs($user)->postJson('/api/orders', [
+            'location_id' => $location->id, 'customer_name' => 'Scoped Buyer',
+            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1]],
+        ])->assertCreated();
+        $order = SalesOrder::query()->firstOrFail();
+
+        $otherLocation = Location::query()->create([
+            'name' => 'Unassigned Store', 'code' => 'UN-' . Str::upper(Str::random(5)),
+            'type' => 'store', 'is_active' => true,
+        ]);
+        $otherOrder = SalesOrder::query()->create([
+            'order_number' => 'MS-UN-' . Str::upper(Str::random(8)), 'status' => 'pending',
+            'channel' => 'backoffice', 'location_id' => $otherLocation->id,
+            'customer_name' => 'Private Buyer', 'currency' => 'BDT', 'subtotal' => 0,
+            'discount_total' => 0, 'tax_total' => 0, 'grand_total' => 0, 'created_by' => $user->id,
+        ]);
+
+        $this->getJson('/api/orders')->assertOk()->assertJsonCount(1, 'data');
+        $this->getJson("/api/orders/{$order->id}")->assertOk();
+        $this->getJson("/api/orders/{$otherOrder->id}")->assertForbidden();
     }
 
     public function test_user_without_order_permission_cannot_list_orders(): void

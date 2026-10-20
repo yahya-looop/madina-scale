@@ -62,6 +62,15 @@ interface Product {
     short_name: string;
   } | null;
 
+  default_variant?: {
+    id: number;
+    selling_price: string | number;
+    promotional_price: string | number | null;
+    wholesale_price: string | number | null;
+    is_default: boolean;
+    status: string;
+  } | null;
+
   primary_media?: {
     id: number;
 
@@ -437,6 +446,27 @@ function productImageUrl(product: Product): string | null {
   }
 
   return `/storage/${path.replace(/^\/+/, "")}`;
+}
+
+function formatMoney(value: string | number | null | undefined): string {
+  if (value === null || value === undefined || value === "") return "—";
+  const amount = Number(value);
+  if (!Number.isFinite(amount)) return "—";
+  return new Intl.NumberFormat("en-BD", {
+    style: "currency",
+    currency: "BDT",
+    maximumFractionDigits: 2,
+  }).format(amount);
+}
+
+function productPrice(product: Product): string {
+  const variant = product.default_variant;
+  if (!variant) return "Not set";
+  const promo = variant.promotional_price === null ? null : Number(variant.promotional_price);
+  const selling = Number(variant.selling_price);
+  return promo !== null && Number.isFinite(promo) && promo > 0 && promo < selling
+    ? formatMoney(promo)
+    : formatMoney(variant.selling_price);
 }
 
 function statusLabel(status: Product["status"]): string {
@@ -896,6 +926,8 @@ onMounted(() => {
 
                 <th>BRAND</th>
 
+                <th>SELLING PRICE</th>
+
                 <th>TYPE</th>
 
                 <th>STATUS</th>
@@ -912,7 +944,7 @@ onMounted(() => {
               <!-- Loading -->
 
               <tr v-if="isLoading">
-                <td colspan="9" class="table-state">
+                <td colspan="10" class="table-state">
                   <div class="loading-state">
                     <span class="loading-spinner"></span>
 
@@ -924,7 +956,7 @@ onMounted(() => {
               <!-- Empty -->
 
               <tr v-else-if="filteredProducts.length === 0">
-                <td colspan="9" class="table-state">
+                <td colspan="10" class="table-state">
                   <div class="empty-state">
                     <div class="empty-icon">
                       <Icon name="products" :size="24" />
@@ -996,6 +1028,10 @@ onMounted(() => {
                   <span class="brand-value">
                     {{ product.brand?.name || "—" }}
                   </span>
+                </td>
+
+                <td>
+                  <span class="plain-value price-value">{{ productPrice(product) }}</span>
                 </td>
 
                 <td>
@@ -1212,6 +1248,7 @@ onMounted(() => {
 </template>
 
 <style scoped>
+.price-value { font-weight: 700; white-space: nowrap; }
 /* ==========================================================================
 
    PRODUCTS

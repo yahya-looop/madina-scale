@@ -679,6 +679,11 @@ function cancel(): void {
   router.visit(`/products/${productId.value}`);
 }
 
+/** Pricing and variant management lives on the product details page. */
+function managePricingAndVariants(): void {
+  router.visit(`/products/${productId.value}`);
+}
+
 function backToProducts(): void {
   router.visit("/products");
 }
@@ -844,7 +849,7 @@ onBeforeUnmount(() => {
             <div>
               <strong> Pricing </strong>
 
-              <span> Connected later </span>
+              <span> Manage on product details </span>
             </div>
           </div>
 
@@ -856,7 +861,7 @@ onBeforeUnmount(() => {
             <div>
               <strong> Variants &amp; Inventory </strong>
 
-              <span> Connected later </span>
+              <span> Manage variants on product details </span>
             </div>
           </div>
         </section>
@@ -1630,8 +1635,17 @@ onBeforeUnmount(() => {
                 <strong> Product foundation </strong>
 
                 <span>
-                  Pricing, variants and inventory will connect to this product later.
+                  Core product information is edited here. Manage pricing, promotions, SKU/barcode variants and default variant settings from the product details page. Inventory quantities remain managed through Inventory workflows.
                 </span>
+                <button
+                  type="button"
+                  class="secondary-button info-manage-button"
+                  :disabled="isSaving || isLoading"
+                  @click="managePricingAndVariants"
+                >
+                  <Icon name="sliders-horizontal" :size="14" />
+                  Manage pricing &amp; variants
+                </button>
               </div>
             </section>
           </aside>
@@ -3124,6 +3138,13 @@ onBeforeUnmount(() => {
 
   font-size: 8px;
   line-height: 1.45;
+}
+
+.info-manage-button {
+  align-self: flex-start;
+  margin-top: 8px;
+  min-height: 34px;
+  font-size: 11px;
 }
 
 /* ==========================================================================

@@ -59,6 +59,10 @@ const form = ref({
   status: "draft",
   visibility: "visible",
   sort_order: 0,
+  cost_price: "0.00",
+  selling_price: "0.00",
+  wholesale_price: "",
+  promotional_price: "",
 });
 
 const selectedImage = ref<File | null>(null);
@@ -386,6 +390,10 @@ async function createProduct() {
     payload.append("status", form.value.status);
     payload.append("visibility", form.value.visibility);
     payload.append("sort_order", String(form.value.sort_order));
+    payload.append("cost_price", form.value.cost_price || "0");
+    payload.append("selling_price", form.value.selling_price || "0");
+    if (form.value.wholesale_price !== "") payload.append("wholesale_price", form.value.wholesale_price);
+    if (form.value.promotional_price !== "") payload.append("promotional_price", form.value.promotional_price);
 
     if (selectedImage.value) {
       payload.append("image", selectedImage.value);
@@ -527,10 +535,9 @@ onBeforeUnmount(() => {
 
         <div class="context-item">
           <span class="context-number">02</span>
-
           <div>
             <strong>Pricing</strong>
-            <span>Connected later</span>
+            <span>Set prices now</span>
           </div>
         </div>
 
@@ -660,6 +667,21 @@ onBeforeUnmount(() => {
                 </div>
               </div>
             </div>
+          </section>
+
+          <section class="card pricing-card">
+            <div class="section-heading">
+              <div class="section-icon"><Icon name="coins" :size="18" /></div>
+              <div><h2>Pricing</h2><p>Set the initial prices now. You can refine variant pricing later.</p></div>
+              <span class="section-badge">BDT</span>
+            </div>
+            <div class="form-grid pricing-grid">
+              <div class="field"><label>Cost price</label><div class="price-input"><span>৳</span><input v-model="form.cost_price" type="number" min="0" step="0.01" placeholder="0.00" /></div><small class="field-hint">Your purchase / acquisition cost.</small></div>
+              <div class="field"><label>Selling price <span>*</span></label><div class="price-input"><span>৳</span><input v-model="form.selling_price" type="number" min="0" step="0.01" required placeholder="0.00" /></div><small class="field-hint">The standard customer price.</small></div>
+              <div class="field"><label>Wholesale price <em>Optional</em></label><div class="price-input"><span>৳</span><input v-model="form.wholesale_price" type="number" min="0" step="0.01" placeholder="Not set" /></div></div>
+              <div class="field"><label>Promotional price <em>Optional</em></label><div class="price-input"><span>৳</span><input v-model="form.promotional_price" type="number" min="0" step="0.01" placeholder="Not set" /></div><small class="field-hint">A lower price for an active promotion.</small></div>
+            </div>
+            <div class="price-summary"><Icon name="info-circle" :size="16" /><span>For variable products, these values initialize the first/default variant. Additional variants can have their own prices.</span></div>
           </section>
 
           <!-- Basic Information -->
@@ -2383,4 +2405,15 @@ h1 {
     justify-content: center;
   }
 }
+
+/* Pricing controls follow the Inventory page's compact, neutral form language. */
+.pricing-card .section-heading p { margin: 4px 0 0; color: var(--text-secondary, #64748b); font-size: 12px; }
+.pricing-grid { margin-top: 6px; }
+.price-input { display: flex; align-items: center; gap: 9px; min-height: 44px; padding: 0 12px; border: 1px solid var(--border, #dbe2ea); border-radius: 10px; background: var(--surface, #fff); }
+.price-input > span { color: var(--text-secondary, #64748b); font-weight: 700; }
+.price-input input { width: 100%; min-width: 0; border: 0 !important; outline: 0; background: transparent; box-shadow: none !important; }
+.price-summary { display: flex; align-items: flex-start; gap: 9px; margin-top: 18px; padding: 12px 14px; border-radius: 10px; color: var(--text-secondary, #64748b); background: var(--surface-muted, #f8fafc); font-size: 12px; line-height: 1.5; }
+.price-summary :deep(svg) { flex: 0 0 auto; margin-top: 1px; }
+@media (max-width: 700px) { .pricing-grid { grid-template-columns: 1fr; } }
+
 </style>

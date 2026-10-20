@@ -25,9 +25,9 @@ export const primaryNavigation: NavigationItem[] = [
     },
 
     {
-        label: 'Orders',
+        label: 'Order Management',
+        href: '/orders',
         icon: 'orders',
-        badge: '18',
         permission: 'system.orders.view',
     },
 

@@ -360,6 +360,36 @@ class SystemAuthorizationSeeder extends Seeder
 
                     [
 
+                        'name' => 'Manage Order Risk Reviews',
+
+                        'slug' => 'system.orders.risk.manage',
+
+                        'description' => 'Review suspicious orders and verification signals.',
+
+                    ],
+
+                    [
+
+                        'name' => 'Manage Order Communications',
+
+                        'slug' => 'system.orders.communication.manage',
+
+                        'description' => 'Send and review order SMS communications.',
+
+                    ],
+
+                    [
+
+                        'name' => 'Manage Order Shipments',
+
+                        'slug' => 'system.orders.shipment.manage',
+
+                        'description' => 'Book and manage courier shipments.',
+
+                    ],
+
+                    [
+
                         'name' => 'View Order Analytics',
 
                         'slug' => 'system.orders.analytics.view',

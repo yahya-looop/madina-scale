@@ -123,6 +123,61 @@ class InventoryReservationService
         }, 3);
     }
 
+    /** Fulfill part of an active reservation while preserving the remaining hold. */
+    public function fulfillPartial(InventoryReservation $reservation, string $quantity, User $actor): InventoryReservation
+    {
+        $requested = bcadd($quantity, '0', 4);
+        if (bccomp($requested, '0', 4) <= 0) {
+            throw ValidationException::withMessages(['quantity' => 'Fulfillment quantity must be greater than zero.']);
+        }
+
+        $current = InventoryReservation::query()->findOrFail($reservation->id);
+        if (bccomp($requested, (string) $current->quantity, 4) > 0) {
+            throw ValidationException::withMessages(['quantity' => 'Fulfillment quantity exceeds the active reservation.']);
+        }
+        if (bccomp($requested, (string) $current->quantity, 4) === 0) {
+            return $this->resolve($current, 'fulfill', $actor);
+        }
+
+        return DB::transaction(function () use ($reservation, $requested, $actor): InventoryReservation {
+            $locked = InventoryReservation::query()->lockForUpdate()->findOrFail($reservation->id);
+            if ($locked->status !== 'active') {
+                throw ValidationException::withMessages(['reservation' => 'Only active reservations can be partially fulfilled.']);
+            }
+            if ($locked->expires_at && ! $locked->expires_at->isFuture()) {
+                throw ValidationException::withMessages(['reservation' => 'This reservation has expired. Re-reserve stock before fulfillment.']);
+            }
+            if (bccomp($requested, (string) $locked->quantity, 4) >= 0) {
+                throw ValidationException::withMessages(['quantity' => 'Reservation changed during fulfillment. Refresh and retry.']);
+            }
+
+            $owner = ['product_id' => $locked->product_id, 'variant_id' => $locked->product_variant_id];
+            $stock = $this->stockForUpdate($owner, (int) $locked->location_id);
+            if (bccomp((string) $stock->reserved_quantity, $requested, 4) < 0 || bccomp((string) $stock->quantity, $requested, 4) < 0) {
+                throw ValidationException::withMessages(['reservation' => 'Stock balance is inconsistent; review the stock ledger before proceeding.']);
+            }
+
+            $before = (string) $stock->quantity;
+            $stock->quantity = bcsub($before, $requested, 4);
+            $stock->reserved_quantity = bcsub((string) $stock->reserved_quantity, $requested, 4);
+            $stock->save();
+
+            StockMovement::query()->create([
+                'product_id' => $owner['product_id'], 'product_variant_id' => $owner['variant_id'],
+                'location_id' => $locked->location_id, 'movement_type' => 'order_fulfillment',
+                'quantity_delta' => bcsub('0', $requested, 4), 'balance_before' => $before,
+                'balance_after' => $stock->quantity, 'reason' => 'Partial order fulfillment (Reservation ' . $locked->id . ')',
+                'reference_type' => 'inventory_reservation', 'reference_id' => (string) $locked->id,
+                'idempotency_key' => (string) Str::uuid(), 'created_by' => $actor->id,
+                'metadata' => ['reservation_id' => $locked->id, 'partial' => true, 'fulfilled_quantity' => $requested],
+            ]);
+
+            $locked->quantity = bcsub((string) $locked->quantity, $requested, 4);
+            $locked->save();
+            return $locked->refresh();
+        }, 3);
+    }
+
     public function expireDue(): void
     {
         $ids = InventoryReservation::query()->where('status', 'active')->whereNotNull('expires_at')->where('expires_at', '<=', now())->orderBy('id')->limit(200)->pluck('id');
