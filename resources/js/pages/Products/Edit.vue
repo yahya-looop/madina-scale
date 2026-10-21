@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { Head, router } from "@inertiajs/vue3";
 import ErpLayout from "@/layouts/ErpLayout.vue";
 import Icon from "@/components/dashboard/Icon.vue";
+import ProductVariantsPanel from "@/components/products/ProductVariantsPanel.vue";
 
 
 interface Option {
@@ -1407,6 +1408,12 @@ onBeforeUnmount(() => {
                 </div>
               </div>
             </section>
+
+            <ProductVariantsPanel
+              v-if="product && product.product_type === 'variable'"
+              :product-id="product.id"
+              :product-type="product.product_type"
+            />
           </main>
 
           <!-- =====================================================
@@ -1635,7 +1642,7 @@ onBeforeUnmount(() => {
                 <strong> Product foundation </strong>
 
                 <span>
-                  Core product information is edited here. Manage pricing, promotions, SKU/barcode variants and default variant settings from the product details page. Inventory quantities remain managed through Inventory workflows.
+                  Product identity and classification are edited above. Variable-product variants can be created and edited here; inventory quantities remain managed through Inventory workflows.
                 </span>
                 <button
                   type="button"
@@ -1644,7 +1651,7 @@ onBeforeUnmount(() => {
                   @click="managePricingAndVariants"
                 >
                   <Icon name="sliders-horizontal" :size="14" />
-                  Manage pricing &amp; variants
+                  View Product Details
                 </button>
               </div>
             </section>

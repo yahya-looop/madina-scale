@@ -142,6 +142,32 @@ class ProductController extends Controller
             $this->ensureBarcodeAvailable($validated['barcode']);
         }
 
+        // Variable products may submit multiple variant drafts from the create form.
+        $initialVariants = $validated['variants'] ?? [];
+        unset($validated['variants']);
+
+        // Backward compatibility for older API clients that submit one default
+        // variant through the legacy top-level pricing fields.
+        if (
+            ($validated['product_type'] ?? 'simple') === 'variable'
+            && $initialVariants === []
+            && array_key_exists('selling_price', $validated)
+        ) {
+            $initialVariants = [[
+                'name' => 'Standard',
+                'sku' => $requestedSku,
+                'barcode' => $requestedBarcode,
+                'cost_price' => $validated['cost_price'] ?? 0,
+                'selling_price' => $validated['selling_price'],
+                'wholesale_price' => $validated['wholesale_price'] ?? null,
+                'promotional_price' => $validated['promotional_price'] ?? null,
+            ]];
+        }
+
+        if (($validated['product_type'] ?? 'simple') === 'variable') {
+            $this->validateInitialVariantIdentifiers($initialVariants);
+        }
+
         // Initial prices belong to the default variant, not the product row.
         $initialPricing = [];
         foreach (['cost_price', 'selling_price', 'wholesale_price', 'promotional_price'] as $priceField) {
@@ -149,10 +175,6 @@ class ProductController extends Controller
                 $initialPricing[$priceField] = $validated[$priceField] === '' ? null : $validated[$priceField];
                 unset($validated[$priceField]);
             }
-        }
-        if (($request->input('product_type') ?? 'simple') === 'variable') {
-            $initialPricing['sku'] = $requestedSku;
-            $initialPricing['barcode'] = $requestedBarcode;
         }
         // Images are media records, not columns on the products table.
         unset($validated['image'], $validated['images']);
@@ -173,15 +195,33 @@ class ProductController extends Controller
                 $validated,
                 $uploadedFiles,
                 $initialPricing,
+                $initialVariants,
                 &$storedPaths
             ) {
                 $product = Product::create($validated);
 
-                if (array_key_exists('selling_price', $initialPricing)) {
+                if ($product->product_type === 'variable') {
+                    foreach (array_values($initialVariants) as $index => $variantData) {
+                        $variantData['name'] = trim((string) $variantData['name']);
+                        $variantData['sku'] = $this->normalizeNullableValue($variantData['sku'] ?? null);
+                        $variantData['barcode'] = $this->normalizeNullableValue($variantData['barcode'] ?? null);
+                        foreach (['wholesale_price', 'promotional_price'] as $optionalPrice) {
+                            if (($variantData[$optionalPrice] ?? null) === '') {
+                                $variantData[$optionalPrice] = null;
+                            }
+                        }
+                        unset($variantData['is_default'], $variantData['status'], $variantData['sort_order']);
+                        $product->variants()->create(array_merge($variantData, [
+                            'is_default' => $index === 0,
+                            'status' => 'active',
+                            'sort_order' => $index,
+                        ]));
+                    }
+                } elseif (array_key_exists('selling_price', $initialPricing)) {
                     $product->variants()->create(array_merge([
                         'name' => 'Standard',
-                        'sku' => $product->product_type === 'variable' ? ($initialPricing['sku'] ?? null) : null,
-                        'barcode' => $product->product_type === 'variable' ? ($initialPricing['barcode'] ?? null) : null,
+                        'sku' => null,
+                        'barcode' => null,
                         'cost_price' => 0,
                         'selling_price' => 0,
                         'is_default' => true,
@@ -507,6 +547,44 @@ class ProductController extends Controller
         ]);
     }
 
+    /**
+     * Validate variant identifiers submitted with a new variable product.
+     * Database unique indexes remain the final protection against races.
+     */
+    private function validateInitialVariantIdentifiers(array $variants): void
+    {
+        foreach (['sku', 'barcode'] as $field) {
+            $seen = [];
+            foreach ($variants as $index => $variant) {
+                $value = $this->normalizeNullableValue($variant[$field] ?? null);
+                if ($value === null) {
+                    continue;
+                }
+                $normalized = mb_strtolower($value);
+                if (isset($seen[$normalized])) {
+                    throw ValidationException::withMessages([
+                        "variants.$index.$field" => "Each variant must have a unique $field.",
+                    ]);
+                }
+                $seen[$normalized] = true;
+
+                $productExists = DB::table('products')
+                    ->whereNull('deleted_at')
+                    ->whereRaw("LOWER($field) = ?", [$normalized])
+                    ->exists();
+                $variantExists = DB::table('product_variants')
+                    ->whereNull('deleted_at')
+                    ->whereRaw("LOWER($field) = ?", [$normalized])
+                    ->exists();
+                if ($productExists || $variantExists) {
+                    throw ValidationException::withMessages([
+                        "variants.$index.$field" => "This $field is already in use.",
+                    ]);
+                }
+            }
+        }
+    }
+
     private function validateProduct(
         Request $request,
         ?Product $product = null
@@ -569,6 +647,17 @@ class ProductController extends Controller
             'selling_price' => ['sometimes', 'required', 'numeric', 'min:0'],
             'wholesale_price' => ['nullable', 'numeric', 'min:0'],
             'promotional_price' => ['nullable', 'numeric', 'min:0'],
+            'variants' => ['sometimes', 'array', 'min:1', 'max:100'],
+            'variants.*.name' => ['required', 'string', 'max:200'],
+            'variants.*.sku' => ['nullable', 'string', 'max:100'],
+            'variants.*.barcode' => ['nullable', 'string', 'max:100'],
+            'variants.*.cost_price' => ['required', 'numeric', 'min:0'],
+            'variants.*.selling_price' => ['required', 'numeric', 'min:0'],
+            'variants.*.wholesale_price' => ['nullable', 'numeric', 'min:0'],
+            'variants.*.promotional_price' => ['nullable', 'numeric', 'min:0'],
+            'variants.*.is_default' => ['sometimes', 'boolean'],
+            'variants.*.status' => ['sometimes', Rule::in(['active', 'inactive', 'archived'])],
+            'variants.*.sort_order' => ['sometimes', 'integer', 'min:0', 'max:4294967295'],
 
             'product_type' => [
                 'required',
