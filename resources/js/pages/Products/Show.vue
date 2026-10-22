@@ -1,64 +1,104 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
-import { Head, router } from "@inertiajs/vue3";
-import ErpLayout from "@/layouts/ErpLayout.vue";
-import Icon from "@/components/dashboard/Icon.vue";
-import ProductVariantsPanel from "@/components/products/ProductVariantsPanel.vue";
 
+import { Head, router } from "@inertiajs/vue3";
+
+import ErpLayout from "@/layouts/ErpLayout.vue";
+
+import Icon from "@/components/dashboard/Icon.vue";
+
+import ProductVariantsPanel from "@/components/products/ProductVariantsPanel.vue";
 
 interface ProductMedia {
   id: number;
+
   product_id: number;
+
   disk: string;
+
   path: string;
+
   collection: string;
+
   original_name: string | null;
+
   mime_type: string | null;
+
   size: number | null;
+
   width: number | null;
+
   height: number | null;
+
   alt_text: string | null;
+
   sort_order: number;
+
   is_primary: boolean;
+
   created_at: string;
+
   updated_at: string;
 }
 
 interface Product {
   id: number;
+
   category_id: number;
+
   brand_id: number | null;
+
   unit_id: number;
+
   name: string;
+
   slug: string;
+
   sku: string | null;
+
   model_number: string | null;
+
   barcode: string | null;
+
   product_type: "simple" | "variable";
+
   short_description: string | null;
+
   description: string | null;
+
   status: "draft" | "active" | "inactive" | "archived";
+
   visibility: "visible" | "hidden";
+
   sort_order: number;
+
   created_at: string;
+
   updated_at: string;
 
   category?: {
     id: number;
+
     name: string;
+
     slug: string;
   } | null;
 
   brand?: {
     id: number;
+
     name: string;
+
     slug: string;
   } | null;
 
   unit?: {
     id: number;
+
     name: string;
+
     short_name: string;
+
     slug: string;
   } | null;
 
@@ -69,16 +109,20 @@ interface Product {
 
 interface ApiPayload<T> {
   data?: T;
+
   message?: string;
 }
 
 const props = withDefaults(
   defineProps<{
     userName?: string;
+
     userEmail?: string;
   }>(),
+
   {
     userName: "Yahya Admin",
+
     userEmail: "",
   }
 );
@@ -86,8 +130,11 @@ const props = withDefaults(
 const product = ref<Product | null>(null);
 
 const isLoading = ref(true);
+
 const isDeleting = ref(false);
+
 const errorMessage = ref("");
+
 const copiedField = ref("");
 
 const activeMediaIndex = ref(0);
@@ -175,15 +222,19 @@ function getCsrfToken(): string {
 async function apiRequest<T>(url: string, method: "GET" | "DELETE" = "GET"): Promise<T> {
   const response = await fetch(url, {
     method,
+
     headers: {
       Accept: "application/json",
+
       ...(getCsrfToken()
         ? {
             "X-CSRF-TOKEN": getCsrfToken(),
           }
         : {}),
+
       "X-Requested-With": "XMLHttpRequest",
     },
+
     credentials: "same-origin",
   });
 
@@ -199,12 +250,14 @@ async function apiRequest<T>(url: string, method: "GET" | "DELETE" = "GET"): Pro
 async function loadProduct(): Promise<void> {
   if (!productId.value) {
     errorMessage.value = "Invalid product ID.";
+
     isLoading.value = false;
 
     return;
   }
 
   isLoading.value = true;
+
   errorMessage.value = "";
 
   try {
@@ -265,9 +318,13 @@ function formatDateTime(value: string): string {
 
   return new Intl.DateTimeFormat("en-GB", {
     day: "2-digit",
+
     month: "short",
+
     year: "numeric",
+
     hour: "2-digit",
+
     minute: "2-digit",
   }).format(date);
 }
@@ -302,7 +359,9 @@ function copyValue(value: string | null, field: string): void {
   }
 
   navigator.clipboard
+
     ?.writeText(value)
+
     .then(() => {
       copiedField.value = field;
 
@@ -312,6 +371,7 @@ function copyValue(value: string | null, field: string): void {
         }
       }, 1200);
     })
+
     .catch(() => {
       copiedField.value = "";
     });
@@ -331,6 +391,7 @@ async function deleteProduct(): Promise<void> {
   }
 
   isDeleting.value = true;
+
   errorMessage.value = "";
 
   try {
@@ -356,8 +417,11 @@ onMounted(() => {
   <ErpLayout :user-name="props.userName" :user-email="props.userEmail">
     <div class="product-show-page">
       <!-- =========================================================
+
            PAGE HEADER
+
            ========================================================= -->
+
       <header class="page-header">
         <div class="header-main">
           <button
@@ -389,6 +453,7 @@ onMounted(() => {
 
                   <span class="status-badge" :class="product.status">
                     <span class="status-dot"></span>
+
                     {{ statusLabel }}
                   </span>
                 </div>
@@ -404,6 +469,7 @@ onMounted(() => {
 
             <div v-else class="loading-heading">
               <div class="loading-line loading-title"></div>
+
               <div class="loading-line loading-subtitle"></div>
             </div>
           </div>
@@ -412,19 +478,24 @@ onMounted(() => {
         <div class="header-actions">
           <button type="button" class="secondary-button" @click="goBack">
             <Icon name="arrow-left" :size="16" />
+
             Back
           </button>
 
           <button v-if="product" type="button" class="primary-button" @click="goToEdit">
             <Icon name="edit" :size="16" />
+
             Edit Product
           </button>
         </div>
       </header>
 
       <!-- =========================================================
+
            ERROR
+
            ========================================================= -->
+
       <div v-if="errorMessage" class="error-banner" role="alert">
         <Icon name="info" :size="16" />
 
@@ -436,62 +507,37 @@ onMounted(() => {
       </div>
 
       <!-- =========================================================
+
            LOADING
+
            ========================================================= -->
+
       <section v-if="isLoading" class="loading-card">
         <Icon name="loader-2" class="spin" :size="24" />
 
         <div>
           <strong>Loading product...</strong>
+
           <span>Preparing product details and media.</span>
         </div>
       </section>
 
       <!-- =========================================================
+
            PRODUCT CONTENT
+
            ========================================================= -->
+
       <template v-else-if="product">
-        <!-- Product workflow -->
-        <section class="workflow-card">
-          <div class="workflow-step active">
-            <span class="workflow-number">
-              <Icon name="check" :size="14" />
-            </span>
-
-            <div>
-              <strong>Product foundation</strong>
-              <span>Core catalog information</span>
-            </div>
-          </div>
-
-          <span class="workflow-divider"></span>
-
-          <div class="workflow-step">
-            <span class="workflow-number">02</span>
-
-            <div>
-              <strong>Pricing</strong>
-              <span>Variant-level pricing available</span>
-            </div>
-          </div>
-
-          <span class="workflow-divider"></span>
-
-          <div class="workflow-step">
-            <span class="workflow-number">03</span>
-
-            <div>
-              <strong>Variants &amp; Inventory</strong>
-              <span>Variant management enabled</span>
-            </div>
-          </div>
-        </section>
-
         <!-- =======================================================
+
              HERO GRID
+
              ======================================================= -->
+
         <div class="hero-grid">
           <!-- Product media -->
+
           <section class="card media-card">
             <div class="section-heading">
               <div class="section-icon">
@@ -500,11 +546,13 @@ onMounted(() => {
 
               <div>
                 <h2>Product Media</h2>
+
                 <p>Visual identity of this product.</p>
               </div>
 
               <span class="section-count">
                 {{ mediaItems.length }}
+
                 {{ mediaItems.length === 1 ? "image" : "images" }}
               </span>
             </div>
@@ -579,12 +627,14 @@ onMounted(() => {
 
               <span v-if="activeMedia.width && activeMedia.height">
                 {{ activeMedia.width }} ×
+
                 {{ activeMedia.height }}
               </span>
             </div>
           </section>
 
           <!-- Product summary -->
+
           <aside class="card summary-card">
             <div class="section-heading">
               <div class="section-icon">
@@ -593,6 +643,7 @@ onMounted(() => {
 
               <div>
                 <h2>Product Summary</h2>
+
                 <p>Live overview of this product.</p>
               </div>
             </div>
@@ -604,6 +655,7 @@ onMounted(() => {
 
               <div>
                 <strong>{{ product.name }}</strong>
+
                 <span>{{ productTypeLabel }} Product</span>
               </div>
             </div>
@@ -646,6 +698,7 @@ onMounted(() => {
 
                 <strong class="summary-status" :class="product.status">
                   <span class="status-dot"></span>
+
                   {{ statusLabel }}
                 </strong>
               </div>
@@ -654,6 +707,7 @@ onMounted(() => {
             <div class="summary-actions">
               <button type="button" class="summary-edit-button" @click="goToEdit">
                 <Icon name="edit" :size="15" />
+
                 Edit Product
               </button>
             </div>
@@ -661,11 +715,18 @@ onMounted(() => {
         </div>
 
         <!-- =======================================================
+
              IDENTITY + CLASSIFICATION
+
              ======================================================= -->
-        <div class="details-grid">
+
+        <div
+          class="details-grid"
+          :class="{ 'details-grid-variable': product.product_type === 'variable' }"
+        >
           <!-- Identity -->
-          <section class="card detail-card">
+
+          <section v-if="product.product_type === 'simple'" class="card detail-card">
             <div class="section-heading">
               <div class="section-icon">
                 <Icon name="hash" :size="18" />
@@ -673,6 +734,7 @@ onMounted(() => {
 
               <div>
                 <h2>Product Identity</h2>
+
                 <p>Core identifiers used across the ERP.</p>
               </div>
             </div>
@@ -681,6 +743,7 @@ onMounted(() => {
               <div class="info-item">
                 <span class="info-label">
                   <Icon name="hash" :size="13" />
+
                   SKU
                 </span>
 
@@ -695,6 +758,7 @@ onMounted(() => {
                     @click="copyValue(product.sku, 'sku')"
                   >
                     <Icon name="check" v-if="copiedField === 'sku'" :size="13" />
+
                     <Icon name="copy" v-else :size="13" />
                   </button>
                 </div>
@@ -703,6 +767,7 @@ onMounted(() => {
               <div class="info-item">
                 <span class="info-label">
                   <Icon name="package" :size="13" />
+
                   Model Number
                 </span>
 
@@ -719,6 +784,7 @@ onMounted(() => {
                     @click="copyValue(product.model_number, 'model')"
                   >
                     <Icon name="check" v-if="copiedField === 'model'" :size="13" />
+
                     <Icon name="copy" v-else :size="13" />
                   </button>
                 </div>
@@ -727,6 +793,7 @@ onMounted(() => {
               <div class="info-item">
                 <span class="info-label">
                   <Icon name="barcode" :size="13" />
+
                   Barcode
                 </span>
 
@@ -743,6 +810,7 @@ onMounted(() => {
                     @click="copyValue(product.barcode, 'barcode')"
                   >
                     <Icon name="check" v-if="copiedField === 'barcode'" :size="13" />
+
                     <Icon name="copy" v-else :size="13" />
                   </button>
                 </div>
@@ -751,6 +819,7 @@ onMounted(() => {
               <div class="info-item">
                 <span class="info-label">
                   <Icon name="tag" :size="13" />
+
                   Product Type
                 </span>
 
@@ -764,6 +833,7 @@ onMounted(() => {
               <div class="info-item info-item-wide">
                 <span class="info-label">
                   <Icon name="world" :size="13" />
+
                   Product Slug
                 </span>
 
@@ -779,6 +849,7 @@ onMounted(() => {
                     @click="copyValue(product.slug, 'slug')"
                   >
                     <Icon name="check" v-if="copiedField === 'slug'" :size="13" />
+
                     <Icon name="copy" v-else :size="13" />
                   </button>
                 </div>
@@ -787,6 +858,7 @@ onMounted(() => {
           </section>
 
           <!-- Classification -->
+
           <section class="card detail-card">
             <div class="section-heading">
               <div class="section-icon">
@@ -795,6 +867,7 @@ onMounted(() => {
 
               <div>
                 <h2>Catalog Classification</h2>
+
                 <p>Where this product belongs.</p>
               </div>
             </div>
@@ -807,9 +880,11 @@ onMounted(() => {
 
                 <div>
                   <span>Category</span>
+
                   <strong>
                     {{ product.category?.name || "Not selected" }}
                   </strong>
+
                   <small>
                     {{
                       product.category?.slug
@@ -827,9 +902,11 @@ onMounted(() => {
 
                 <div>
                   <span>Brand</span>
+
                   <strong>
                     {{ product.brand?.name || "No brand" }}
                   </strong>
+
                   <small>
                     {{ product.brand?.slug ? product.brand.slug : "No brand assigned" }}
                   </small>
@@ -843,9 +920,11 @@ onMounted(() => {
 
                 <div>
                   <span>Base Unit</span>
+
                   <strong>
                     {{ product.unit?.name || "Not selected" }}
                   </strong>
+
                   <small>
                     {{
                       product.unit?.short_name ? product.unit.short_name : "No short name"
@@ -858,8 +937,11 @@ onMounted(() => {
         </div>
 
         <!-- =======================================================
+
              DESCRIPTION
+
              ======================================================= -->
+
         <section v-if="hasDescription" class="card description-card">
           <div class="section-heading">
             <div class="section-icon">
@@ -868,6 +950,7 @@ onMounted(() => {
 
             <div>
               <h2>Product Description</h2>
+
               <p>Customer-facing and internal product content.</p>
             </div>
           </div>
@@ -890,18 +973,24 @@ onMounted(() => {
         </section>
 
         <!-- =======================================================
+
              VARIANT MANAGEMENT
+
              Keep this after core product information and before lifecycle.
+
              ======================================================= -->
+
         <ProductVariantsPanel
-          
           :product-id="product.id"
           :product-type="product.product_type"
         />
 
         <!-- =======================================================
+
              LIFECYCLE
+
              ======================================================= -->
+
         <section class="card lifecycle-card">
           <div class="section-heading">
             <div class="section-icon">
@@ -910,6 +999,7 @@ onMounted(() => {
 
             <div>
               <h2>Product Lifecycle</h2>
+
               <p>Record and publication state.</p>
             </div>
           </div>
@@ -922,6 +1012,7 @@ onMounted(() => {
 
               <div>
                 <span>Created</span>
+
                 <strong>{{ createdDate }}</strong>
               </div>
             </div>
@@ -933,6 +1024,7 @@ onMounted(() => {
 
               <div>
                 <span>Last Updated</span>
+
                 <strong>{{ updatedDate }}</strong>
               </div>
             </div>
@@ -944,6 +1036,7 @@ onMounted(() => {
 
               <div>
                 <span>Visibility</span>
+
                 <strong>{{ visibilityLabel }}</strong>
               </div>
             </div>
@@ -955,6 +1048,7 @@ onMounted(() => {
 
               <div>
                 <span>Sort Order</span>
+
                 <strong>{{ product.sort_order }}</strong>
               </div>
             </div>
@@ -962,36 +1056,11 @@ onMounted(() => {
         </section>
 
         <!-- =======================================================
-             NEXT WORKFLOW
-             ======================================================= -->
-        <section class="future-grid">
-          <article class="future-card">
-            <div class="future-icon">
-              <Icon name="tag" :size="18" />
-            </div>
-            <div>
-              <span>Next product layer</span>
-              <strong>Price Lists</strong>
-              <p>Centralized pricing rules and customer-specific price lists can connect here.</p>
-            </div>
-            <span class="future-status">Planned</span>
-          </article>
-          <article class="future-card">
-            <div class="future-icon">
-              <Icon name="package" :size="18" />
-            </div>
-            <div>
-              <span>Inventory layer</span>
-              <strong>Stock &amp; Warehouses</strong>
-              <p>Stock balances and warehouse movements can connect to each product variant.</p>
-            </div>
-            <span class="future-status">Planned</span>
-          </article>
-        </section>
 
-        <!-- =======================================================
              BOTTOM ACTION BAR
+
              ======================================================= -->
+
         <div class="bottom-actions">
           <button
             type="button"
@@ -1009,11 +1078,13 @@ onMounted(() => {
           <div class="bottom-actions-right">
             <button type="button" class="secondary-button" @click="goBack">
               <Icon name="arrow-left" :size="15" />
+
               Back to Products
             </button>
 
             <button type="button" class="primary-button" @click="goToEdit">
               <Icon name="edit" :size="15" />
+
               Edit Product
             </button>
           </div>
@@ -1025,22 +1096,29 @@ onMounted(() => {
 
 <style scoped>
 /* ==========================================================================
+
    PRODUCT SHOW
+
    Madina Scale enterprise product detail design
+
    ========================================================================== */
 
 .product-show-page {
   --product-radius: 14px;
+
   --product-radius-sm: 9px;
 
   min-height: 100%;
-  padding: 0;
+
+  padding: 2px 0 18px;
 
   color: var(--text-primary);
 }
 
 /* ==========================================================================
+
    SHARED
+
    ========================================================================== */
 
 .page-header,
@@ -1055,32 +1133,43 @@ onMounted(() => {
 .bottom-actions,
 .bottom-actions-right {
   display: flex;
+
   align-items: center;
 }
 
 /* ==========================================================================
+
    HEADER
+
    ========================================================================== */
 
 .page-header {
   justify-content: space-between;
+
   gap: 24px;
-  margin-bottom: 18px;
+
+  margin-bottom: 20px;
 }
 
 .header-main {
   min-width: 0;
+
   display: flex;
+
   align-items: flex-start;
+
   gap: 12px;
 }
 
 .back-button {
   width: 36px;
+
   height: 36px;
 
   display: inline-flex;
+
   align-items: center;
+
   justify-content: center;
 
   flex: 0 0 36px;
@@ -1088,9 +1177,11 @@ onMounted(() => {
   margin-top: 20px;
 
   border: 1px solid var(--border);
+
   border-radius: 9px;
 
   background: var(--surface);
+
   color: var(--text-secondary);
 
   cursor: pointer;
@@ -1101,8 +1192,11 @@ onMounted(() => {
 
 .back-button:hover {
   border-color: var(--border-strong);
+
   background: var(--surface-muted);
+
   color: var(--text-primary);
+
   transform: translateX(-1px);
 }
 
@@ -1112,12 +1206,15 @@ onMounted(() => {
 
 .breadcrumb {
   gap: 8px;
+
   margin-bottom: 8px;
 
   color: var(--text-muted);
 
   font-size: 11px;
+
   line-height: 1.2;
+
   font-weight: 600;
 }
 
@@ -1125,11 +1222,13 @@ onMounted(() => {
   padding: 0;
 
   border: 0;
+
   background: transparent;
 
   color: var(--text-muted);
 
   font: inherit;
+
   cursor: pointer;
 }
 
@@ -1147,10 +1246,13 @@ onMounted(() => {
 
 .title-icon {
   width: 42px;
+
   height: 42px;
 
   display: inline-flex;
+
   align-items: center;
+
   justify-content: center;
 
   flex: 0 0 42px;
@@ -1172,8 +1274,11 @@ onMounted(() => {
 
 .title-line {
   display: flex;
+
   align-items: center;
+
   flex-wrap: wrap;
+
   gap: 9px;
 }
 
@@ -1183,8 +1288,11 @@ onMounted(() => {
   color: var(--text-primary);
 
   font-size: 24px;
+
   line-height: 1.15;
+
   letter-spacing: -0.025em;
+
   font-weight: 750;
 }
 
@@ -1198,19 +1306,24 @@ onMounted(() => {
   color: var(--text-secondary);
 
   font-size: 12px;
+
   line-height: 1.5;
 
   text-overflow: ellipsis;
+
   white-space: nowrap;
 }
 
 .header-actions {
   flex-shrink: 0;
+
   gap: 8px;
 }
 
 /* ==========================================================================
+
    BUTTONS
+
    ========================================================================== */
 
 .secondary-button,
@@ -1219,7 +1332,9 @@ onMounted(() => {
   min-height: 38px;
 
   display: inline-flex;
+
   align-items: center;
+
   justify-content: center;
 
   gap: 7px;
@@ -1229,6 +1344,7 @@ onMounted(() => {
   border-radius: 9px;
 
   font-size: 12px;
+
   font-weight: 650;
 
   cursor: pointer;
@@ -1239,13 +1355,17 @@ onMounted(() => {
 
 .secondary-button {
   border: 1px solid var(--border);
+
   background: var(--surface);
+
   color: var(--text-secondary);
 }
 
 .secondary-button:hover {
   border-color: var(--border-strong);
+
   background: var(--surface-muted);
+
   color: var(--text-primary);
 }
 
@@ -1271,12 +1391,15 @@ onMounted(() => {
 
 .danger-button {
   border: 1px solid rgb(239 68 68 / 18%);
+
   background: color-mix(in srgb, #ef4444 4%, var(--surface));
+
   color: #b91c1c;
 }
 
 .danger-button:hover:not(:disabled) {
   border-color: rgb(239 68 68 / 28%);
+
   background: rgb(239 68 68 / 7%);
 }
 
@@ -1284,25 +1407,31 @@ onMounted(() => {
 .primary-button:disabled,
 .danger-button:disabled {
   opacity: 0.5;
+
   cursor: not-allowed;
 }
 
 /* ==========================================================================
+
    ERROR
+
    ========================================================================== */
 
 .error-banner {
   min-height: 42px;
 
   display: flex;
+
   align-items: center;
 
   gap: 9px;
 
   margin-bottom: 14px;
+
   padding: 9px 11px;
 
   border: 1px solid rgb(220 38 38 / 18%);
+
   border-radius: 9px;
 
   background: rgb(220 38 38 / 5%);
@@ -1320,31 +1449,39 @@ onMounted(() => {
   padding: 4px 8px;
 
   border: 1px solid rgb(220 38 38 / 18%);
+
   border-radius: 7px;
 
   background: transparent;
+
   color: inherit;
 
   font-size: 10px;
+
   font-weight: 650;
 
   cursor: pointer;
 }
 
 /* ==========================================================================
+
    LOADING
+
    ========================================================================== */
 
 .loading-card {
   min-height: 150px;
 
   display: flex;
+
   align-items: center;
+
   justify-content: center;
 
   gap: 12px;
 
   border: 1px solid var(--border);
+
   border-radius: var(--product-radius);
 
   background: var(--surface);
@@ -1354,17 +1491,21 @@ onMounted(() => {
 
 .loading-card div {
   display: flex;
+
   flex-direction: column;
+
   gap: 3px;
 }
 
 .loading-card strong {
   color: var(--text-primary);
+
   font-size: 12px;
 }
 
 .loading-card span {
   color: var(--text-muted);
+
   font-size: 10px;
 }
 
@@ -1374,122 +1515,38 @@ onMounted(() => {
 
 .loading-line {
   border-radius: 6px;
+
   background: var(--surface-muted);
 }
 
 .loading-title {
   width: 280px;
+
   height: 26px;
 }
 
 .loading-subtitle {
   width: 410px;
+
   height: 12px;
+
   margin-top: 7px;
 }
 
 /* ==========================================================================
-   WORKFLOW
-   ========================================================================== */
 
-.workflow-card {
-  min-height: 68px;
-
-  display: flex;
-  align-items: center;
-
-  gap: 16px;
-
-  margin-bottom: 14px;
-  padding: 11px 14px;
-
-  border: 1px solid var(--border);
-  border-radius: var(--product-radius);
-
-  background: var(--surface);
-
-  box-shadow: 0 4px 16px rgba(26, 47, 72, 0.035);
-}
-
-.workflow-step {
-  min-width: 0;
-
-  display: flex;
-  align-items: center;
-
-  gap: 9px;
-
-  flex: 1;
-}
-
-.workflow-number {
-  width: 32px;
-  height: 32px;
-
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-
-  flex: 0 0 32px;
-
-  border: 1px solid var(--border);
-  border-radius: 9px;
-
-  background: var(--surface-muted);
-
-  color: var(--text-muted);
-
-  font-size: 9px;
-  font-weight: 700;
-}
-
-.workflow-step.active .workflow-number {
-  border-color: color-mix(in srgb, var(--primary) 16%, var(--border));
-
-  background: color-mix(in srgb, var(--primary) 9%, var(--surface));
-
-  color: var(--primary);
-}
-
-.workflow-step div:last-child {
-  min-width: 0;
-
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.workflow-step strong {
-  color: var(--text-primary);
-
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.workflow-step span {
-  color: var(--text-muted);
-
-  font-size: 9px;
-  line-height: 1.3;
-}
-
-.workflow-divider {
-  width: 1px;
-  height: 30px;
-  background: var(--border);
-}
-
-/* ==========================================================================
    CARDS
+
    ========================================================================== */
 
 .card {
   border: 1px solid var(--border);
+
   border-radius: var(--product-radius);
 
   background: var(--surface);
 
-  box-shadow: 0 8px 28px rgba(26, 47, 72, 0.045);
+  box-shadow: 0 5px 20px rgba(26, 47, 72, 0.035);
 }
 
 .section-heading {
@@ -1502,10 +1559,13 @@ onMounted(() => {
 
 .section-icon {
   width: 34px;
+
   height: 34px;
 
   display: inline-flex;
+
   align-items: center;
+
   justify-content: center;
 
   flex: 0 0 34px;
@@ -1521,6 +1581,7 @@ onMounted(() => {
 
 .section-heading > div:nth-child(2) {
   min-width: 0;
+
   flex: 1;
 }
 
@@ -1530,7 +1591,9 @@ onMounted(() => {
   color: var(--text-primary);
 
   font-size: 14px;
+
   line-height: 1.3;
+
   font-weight: 700;
 }
 
@@ -1540,6 +1603,7 @@ onMounted(() => {
   color: var(--text-secondary);
 
   font-size: 10px;
+
   line-height: 1.4;
 }
 
@@ -1549,6 +1613,7 @@ onMounted(() => {
   padding: 5px 7px;
 
   border: 1px solid var(--border);
+
   border-radius: 7px;
 
   background: var(--surface-muted);
@@ -1556,15 +1621,19 @@ onMounted(() => {
   color: var(--text-muted);
 
   font-size: 9px;
+
   font-weight: 650;
 }
 
 /* ==========================================================================
+
    HERO
+
    ========================================================================== */
 
 .hero-grid {
   display: grid;
+
   grid-template-columns: minmax(0, 1.55fr) minmax(280px, 0.8fr);
 
   gap: 14px;
@@ -1573,7 +1642,9 @@ onMounted(() => {
 }
 
 /* ==========================================================================
+
    MEDIA
+
    ========================================================================== */
 
 .media-card {
@@ -1583,10 +1654,12 @@ onMounted(() => {
 .media-viewer {
   position: relative;
 
-  min-height: 390px;
+  min-height: 360px;
 
   display: flex;
+
   align-items: center;
+
   justify-content: center;
 
   padding: 18px;
@@ -1601,7 +1674,8 @@ onMounted(() => {
 
 .main-product-image {
   width: 100%;
-  height: 360px;
+
+  height: 340px;
 
   display: block;
 
@@ -1612,16 +1686,21 @@ onMounted(() => {
 
 .media-nav {
   position: absolute;
+
   top: 50%;
 
   width: 34px;
+
   height: 34px;
 
   display: inline-flex;
+
   align-items: center;
+
   justify-content: center;
 
   border: 1px solid var(--border);
+
   border-radius: 50%;
 
   background: color-mix(in srgb, var(--surface) 92%, transparent);
@@ -1653,8 +1732,11 @@ onMounted(() => {
   min-height: 350px;
 
   display: flex;
+
   flex-direction: column;
+
   align-items: center;
+
   justify-content: center;
 
   gap: 6px;
@@ -1666,15 +1748,19 @@ onMounted(() => {
 
 .no-media-icon {
   width: 56px;
+
   height: 56px;
 
   display: inline-flex;
+
   align-items: center;
+
   justify-content: center;
 
   margin-bottom: 4px;
 
   border: 1px solid var(--border);
+
   border-radius: 14px;
 
   background: var(--surface);
@@ -1684,11 +1770,13 @@ onMounted(() => {
 
 .no-media strong {
   color: var(--text-primary);
+
   font-size: 12px;
 }
 
 .no-media span {
   color: var(--text-muted);
+
   font-size: 10px;
 }
 
@@ -1708,6 +1796,7 @@ onMounted(() => {
   position: relative;
 
   width: 58px;
+
   height: 58px;
 
   flex: 0 0 58px;
@@ -1715,6 +1804,7 @@ onMounted(() => {
   padding: 2px;
 
   border: 1px solid var(--border);
+
   border-radius: 8px;
 
   background: var(--surface);
@@ -1732,6 +1822,7 @@ onMounted(() => {
 
 .media-thumbnail img {
   width: 100%;
+
   height: 100%;
 
   display: block;
@@ -1743,7 +1834,9 @@ onMounted(() => {
 
 .primary-media-badge {
   position: absolute;
+
   right: 3px;
+
   bottom: 3px;
 
   padding: 2px 4px;
@@ -1751,14 +1844,17 @@ onMounted(() => {
   border-radius: 4px;
 
   background: var(--primary);
+
   color: #fff;
 
   font-size: 6px;
+
   font-weight: 700;
 }
 
 .media-meta {
   display: flex;
+
   align-items: center;
 
   gap: 8px;
@@ -1774,16 +1870,20 @@ onMounted(() => {
 
 .media-meta span:first-child {
   min-width: 0;
+
   flex: 1;
 
   overflow: hidden;
 
   text-overflow: ellipsis;
+
   white-space: nowrap;
 }
 
 /* ==========================================================================
+
    SUMMARY
+
    ========================================================================== */
 
 .summary-card {
@@ -1798,10 +1898,13 @@ onMounted(() => {
 
 .summary-product-icon {
   width: 48px;
+
   height: 48px;
 
   display: inline-flex;
+
   align-items: center;
+
   justify-content: center;
 
   flex: 0 0 48px;
@@ -1819,7 +1922,9 @@ onMounted(() => {
   min-width: 0;
 
   display: flex;
+
   flex-direction: column;
+
   gap: 3px;
 }
 
@@ -1827,7 +1932,9 @@ onMounted(() => {
   color: var(--text-primary);
 
   font-size: 13px;
+
   line-height: 1.3;
+
   font-weight: 700;
 }
 
@@ -1845,7 +1952,9 @@ onMounted(() => {
   min-height: 43px;
 
   display: flex;
+
   align-items: center;
+
   justify-content: space-between;
 
   gap: 10px;
@@ -1855,6 +1964,7 @@ onMounted(() => {
 
 .summary-row > span {
   color: var(--text-muted);
+
   font-size: 10px;
 }
 
@@ -1866,15 +1976,19 @@ onMounted(() => {
   color: var(--text-secondary);
 
   font-size: 10px;
+
   font-weight: 650;
 
   text-align: right;
+
   text-overflow: ellipsis;
+
   white-space: nowrap;
 }
 
 .summary-status {
   display: inline-flex;
+
   align-items: center;
 
   gap: 5px;
@@ -1902,10 +2016,13 @@ onMounted(() => {
 
 .summary-edit-button {
   width: 100%;
+
   min-height: 36px;
 
   display: inline-flex;
+
   align-items: center;
+
   justify-content: center;
 
   gap: 7px;
@@ -1919,6 +2036,7 @@ onMounted(() => {
   color: var(--primary);
 
   font-size: 10px;
+
   font-weight: 700;
 
   cursor: pointer;
@@ -1929,13 +2047,16 @@ onMounted(() => {
 }
 
 /* ==========================================================================
+
    STATUS
+
    ========================================================================== */
 
 .status-badge {
   min-height: 23px;
 
   display: inline-flex;
+
   align-items: center;
 
   gap: 5px;
@@ -1943,15 +2064,19 @@ onMounted(() => {
   padding: 0 8px;
 
   border: 1px solid transparent;
+
   border-radius: 999px;
 
   font-size: 9px;
+
   line-height: 1;
+
   font-weight: 650;
 }
 
 .status-dot {
   width: 5px;
+
   height: 5px;
 
   flex: 0 0 5px;
@@ -1985,7 +2110,9 @@ onMounted(() => {
 
 .status-badge.inactive {
   border-color: var(--border);
+
   background: var(--surface-muted);
+
   color: var(--text-muted);
 }
 
@@ -2006,16 +2133,23 @@ onMounted(() => {
 }
 
 /* ==========================================================================
+
    DETAILS
+
    ========================================================================== */
 
 .details-grid {
   display: grid;
+
   grid-template-columns: minmax(0, 1.15fr) minmax(300px, 0.85fr);
 
   gap: 14px;
 
   margin-bottom: 14px;
+}
+
+.details-grid-variable {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .detail-card {
@@ -2024,6 +2158,7 @@ onMounted(() => {
 
 .info-grid {
   display: grid;
+
   grid-template-columns: repeat(2, minmax(0, 1fr));
 
   gap: 0;
@@ -2035,7 +2170,9 @@ onMounted(() => {
   min-height: 75px;
 
   display: flex;
+
   flex-direction: column;
+
   justify-content: center;
 
   gap: 6px;
@@ -2057,11 +2194,13 @@ onMounted(() => {
   grid-column: 1 / -1;
 
   border-right: 0 !important;
+
   border-bottom: 0 !important;
 }
 
 .info-label {
   display: flex;
+
   align-items: center;
 
   gap: 5px;
@@ -2069,11 +2208,13 @@ onMounted(() => {
   color: var(--text-muted);
 
   font-size: 9px;
+
   font-weight: 650;
 }
 
 .info-value-row {
   min-width: 0;
+
   gap: 5px;
 }
 
@@ -2085,28 +2226,35 @@ onMounted(() => {
   color: var(--text-primary);
 
   font-size: 11px;
+
   font-weight: 650;
 
   text-overflow: ellipsis;
+
   white-space: nowrap;
 }
 
 .slug-value {
   color: var(--text-secondary) !important;
+
   font-size: 10px !important;
 }
 
 .copy-button {
   width: 23px;
+
   height: 23px;
 
   display: inline-flex;
+
   align-items: center;
+
   justify-content: center;
 
   flex: 0 0 23px;
 
   border: 1px solid var(--border);
+
   border-radius: 6px;
 
   background: var(--surface);
@@ -2126,6 +2274,7 @@ onMounted(() => {
   min-height: 23px;
 
   display: inline-flex;
+
   align-items: center;
 
   padding: 0 8px;
@@ -2133,12 +2282,15 @@ onMounted(() => {
   border-radius: 7px;
 
   font-size: 9px;
+
   font-weight: 650;
 }
 
 .type-badge.simple {
   border: 1px solid var(--border);
+
   background: var(--surface-muted);
+
   color: var(--text-secondary);
 }
 
@@ -2151,7 +2303,9 @@ onMounted(() => {
 }
 
 /* ==========================================================================
+
    CLASSIFICATION
+
    ========================================================================== */
 
 .classification-list {
@@ -2172,15 +2326,19 @@ onMounted(() => {
 
 .classification-icon {
   width: 32px;
+
   height: 32px;
 
   display: inline-flex;
+
   align-items: center;
+
   justify-content: center;
 
   flex: 0 0 32px;
 
   border: 1px solid var(--border);
+
   border-radius: 8px;
 
   background: var(--surface-muted);
@@ -2192,6 +2350,7 @@ onMounted(() => {
   min-width: 0;
 
   display: flex;
+
   flex-direction: column;
 
   gap: 2px;
@@ -2199,26 +2358,33 @@ onMounted(() => {
 
 .classification-item span {
   color: var(--text-muted);
+
   font-size: 9px;
 }
 
 .classification-item strong {
   color: var(--text-primary);
+
   font-size: 11px;
+
   font-weight: 650;
 }
 
 .classification-item small {
   color: var(--text-muted);
+
   font-size: 8.5px;
 }
 
 /* ==========================================================================
+
    DESCRIPTION
+
    ========================================================================== */
 
 .description-card {
   margin-bottom: 14px;
+
   overflow: hidden;
 }
 
@@ -2228,6 +2394,7 @@ onMounted(() => {
 
 .description-block + .description-block {
   margin-top: 17px;
+
   padding-top: 16px;
 
   border-top: 1px solid var(--border);
@@ -2241,8 +2408,11 @@ onMounted(() => {
   color: var(--text-muted);
 
   font-size: 9px;
+
   font-weight: 700;
+
   letter-spacing: 0.3px;
+
   text-transform: uppercase;
 }
 
@@ -2252,6 +2422,7 @@ onMounted(() => {
   color: var(--text-secondary);
 
   font-size: 11px;
+
   line-height: 1.65;
 }
 
@@ -2259,22 +2430,27 @@ onMounted(() => {
   color: var(--text-secondary);
 
   font-size: 11px;
+
   line-height: 1.7;
 
   white-space: pre-wrap;
 }
 
 /* ==========================================================================
+
    LIFECYCLE
+
    ========================================================================== */
 
 .lifecycle-card {
   margin-bottom: 14px;
+
   overflow: hidden;
 }
 
 .lifecycle-grid {
   display: grid;
+
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
@@ -2296,15 +2472,19 @@ onMounted(() => {
 
 .lifecycle-icon {
   width: 30px;
+
   height: 30px;
 
   display: inline-flex;
+
   align-items: center;
+
   justify-content: center;
 
   flex: 0 0 30px;
 
   border: 1px solid var(--border);
+
   border-radius: 8px;
 
   background: var(--surface-muted);
@@ -2316,12 +2496,15 @@ onMounted(() => {
   min-width: 0;
 
   display: flex;
+
   flex-direction: column;
+
   gap: 3px;
 }
 
 .lifecycle-item span {
   color: var(--text-muted);
+
   font-size: 9px;
 }
 
@@ -2331,112 +2514,18 @@ onMounted(() => {
   color: var(--text-primary);
 
   font-size: 10px;
+
   font-weight: 650;
 
   text-overflow: ellipsis;
+
   white-space: nowrap;
 }
 
 /* ==========================================================================
-   FUTURE
-   ========================================================================== */
 
-.future-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-
-  gap: 14px;
-
-  margin-bottom: 14px;
-}
-
-.future-card {
-  min-width: 0;
-
-  display: flex;
-  align-items: center;
-
-  gap: 11px;
-
-  padding: 14px 15px;
-
-  border: 1px dashed var(--border);
-  border-radius: var(--product-radius);
-
-  background: color-mix(in srgb, var(--surface-muted) 55%, var(--surface));
-}
-
-.future-icon {
-  width: 34px;
-  height: 34px;
-
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-
-  flex: 0 0 34px;
-
-  border: 1px solid var(--border);
-  border-radius: 9px;
-
-  background: var(--surface);
-
-  color: var(--text-muted);
-}
-
-.future-card > div:nth-child(2) {
-  min-width: 0;
-  flex: 1;
-
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.future-card > div:nth-child(2) span {
-  color: var(--text-muted);
-
-  font-size: 8px;
-  font-weight: 700;
-
-  letter-spacing: 0.35px;
-  text-transform: uppercase;
-}
-
-.future-card strong {
-  color: var(--text-primary);
-
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.future-card p {
-  margin: 1px 0 0;
-
-  color: var(--text-muted);
-
-  font-size: 9px;
-  line-height: 1.4;
-}
-
-.future-status {
-  flex-shrink: 0;
-
-  padding: 5px 7px;
-
-  border: 1px solid var(--border);
-  border-radius: 6px;
-
-  background: var(--surface);
-
-  color: var(--text-muted);
-
-  font-size: 8px;
-  font-weight: 650;
-}
-
-/* ==========================================================================
    BOTTOM ACTIONS
+
    ========================================================================== */
 
 .bottom-actions {
@@ -2451,46 +2540,23 @@ onMounted(() => {
   gap: 8px;
 }
 
-.simple-product-note {
-  display: flex;
-  align-items: flex-start;
-  gap: 11px;
-  margin-bottom: 14px;
-  padding: 15px;
-  border: 1px solid var(--border);
-  border-radius: var(--product-radius);
-  background: var(--surface);
-}
-
-.simple-product-note strong {
-  color: var(--text-primary);
-  font-size: 11px;
-}
-
-.simple-product-note p {
-  margin: 4px 0 0;
-  color: var(--text-muted);
-  font-size: 10px;
-  line-height: 1.5;
-}
-
 /* ==========================================================================
+
    DARK THEME
+
    ========================================================================== */
 
 :global(.dark) .card,
 :global(html.dark) .card,
 :global(body.dark) .card,
-:global([data-theme="dark"]) .card,
-:global(.dark) .workflow-card,
-:global(html.dark) .workflow-card,
-:global(body.dark) .workflow-card,
-:global([data-theme="dark"]) .workflow-card {
+:global([data-theme="dark"]) .card {
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.14);
 }
 
 /* ==========================================================================
+
    ANIMATION
+
    ========================================================================== */
 
 .spin {
@@ -2504,7 +2570,9 @@ onMounted(() => {
 }
 
 /* ==========================================================================
+
    RESPONSIVE
+
    ========================================================================== */
 
 @media (max-width: 1050px) {
@@ -2531,24 +2599,28 @@ onMounted(() => {
 }
 
 @media (max-width: 800px) {
-  .future-grid {
-    grid-template-columns: 1fr;
+  .hero-grid,
+  .details-grid {
+    gap: 12px;
   }
 
-  .workflow-card {
-    align-items: flex-start;
-    flex-direction: column;
+  .section-heading {
+    padding: 13px 14px 12px;
   }
 
-  .workflow-divider {
-    width: 100%;
-    height: 1px;
+  .media-viewer {
+    min-height: 320px;
+  }
+
+  .main-product-image {
+    height: 300px;
   }
 }
 
 @media (max-width: 700px) {
   .page-header {
     align-items: flex-start;
+
     flex-direction: column;
   }
 
@@ -2571,6 +2643,7 @@ onMounted(() => {
   .info-item,
   .info-item:nth-child(odd) {
     border-right: 0;
+
     border-bottom: 1px solid var(--border);
   }
 
@@ -2584,6 +2657,7 @@ onMounted(() => {
 
   .lifecycle-item {
     border-right: 0;
+
     border-bottom: 1px solid var(--border);
   }
 
@@ -2593,6 +2667,7 @@ onMounted(() => {
 
   .bottom-actions {
     align-items: stretch;
+
     flex-direction: column;
   }
 
@@ -2611,11 +2686,13 @@ onMounted(() => {
   }
 
   .media-viewer {
-    min-height: 300px;
+    min-height: 280px;
+
+    padding: 12px;
   }
 
   .main-product-image {
-    height: 270px;
+    height: 250px;
   }
 
   .no-media {
@@ -2624,14 +2701,6 @@ onMounted(() => {
 
   .summary-row {
     min-height: 40px;
-  }
-
-  .future-card {
-    align-items: flex-start;
-  }
-
-  .future-status {
-    display: none;
   }
 }
 </style>

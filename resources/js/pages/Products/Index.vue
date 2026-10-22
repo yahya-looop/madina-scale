@@ -465,18 +465,44 @@ function formatMoney(value: string | number | null | undefined): string {
 
 function defaultVariantLabel(product: Product): string {
   if (product.product_type === "simple") {
-    return product.name;
+    return product.sku?.trim() || "No SKU";
   }
 
   const variant = product.default_variant;
   if (!variant) return "Default variant not set";
 
-  return (
-    variant.name?.trim() ||
-    variant.sku?.trim() ||
-    variant.model_number?.trim() ||
-    `Variant #${variant.id}`
-  );
+  return variant.sku?.trim() || "No SKU";
+}
+
+function identitySecondaryLabel(product: Product): string {
+  if (product.product_type === "simple") {
+    if (product.model_number?.trim()) {
+      return `Model: ${product.model_number.trim()}`;
+    }
+
+    if (product.barcode?.trim()) {
+      return `Barcode: ${product.barcode.trim()}`;
+    }
+
+    return "Model not set";
+  }
+
+  const variant = product.default_variant;
+  if (!variant) return "Variant not set";
+
+  if (variant.name?.trim()) {
+    return variant.name.trim();
+  }
+
+  if (variant.model_number?.trim()) {
+    return `Model: ${variant.model_number.trim()}`;
+  }
+
+  if (variant.barcode?.trim()) {
+    return `Barcode: ${variant.barcode.trim()}`;
+  }
+
+  return `Variant #${variant.id}`;
 }
 
 function productSellingPrice(product: Product): string {
@@ -1048,12 +1074,7 @@ onMounted(() => {
                     </strong>
 
                     <small>
-                      <template v-if="product.product_type === 'variable'">
-                        SKU: {{ product.default_variant?.sku || "—" }}
-                      </template>
-                      <template v-else>
-                        {{ product.model_number || product.sku || "—" }}
-                      </template>
+                      {{ identitySecondaryLabel(product) }}
                     </small>
                   </div>
                 </td>

@@ -5,7 +5,6 @@ import ErpLayout from "@/layouts/ErpLayout.vue";
 import Icon from "@/components/dashboard/Icon.vue";
 import ProductVariantsPanel from "@/components/products/ProductVariantsPanel.vue";
 
-
 interface Option {
   id: number;
   name: string;
@@ -535,7 +534,8 @@ function removeSelectedImage(): void {
 function onGallerySelected(event: Event): void {
   const input = event.target as HTMLInputElement;
   const files = Array.from(input.files ?? []);
-  const existingCount = product.value?.media?.filter((media) => media.collection === "images").length ?? 0;
+  const existingCount =
+    product.value?.media?.filter((media) => media.collection === "images").length ?? 0;
   const available = Math.max(0, 10 - existingCount - galleryImages.value.length);
 
   for (const file of files.slice(0, available)) {
@@ -546,7 +546,8 @@ function onGallerySelected(event: Event): void {
     }
     galleryImages.value.push({ file, preview: URL.createObjectURL(file) });
   }
-  if (files.length > available) errorMessage.value = "A product can have up to 10 images in total.";
+  if (files.length > available)
+    errorMessage.value = "A product can have up to 10 images in total.";
   input.value = "";
 }
 
@@ -827,46 +828,6 @@ onBeforeUnmount(() => {
            ========================================================= -->
 
       <template v-else-if="product">
-        <!-- Workflow -->
-
-        <section class="workflow-card">
-          <div class="workflow-step active">
-            <span class="workflow-number">
-              <Icon name="circle-check" :size="14" />
-            </span>
-
-            <div>
-              <strong> Product foundation </strong>
-
-              <span> Core catalog information </span>
-            </div>
-          </div>
-
-          <span class="workflow-divider"></span>
-
-          <div class="workflow-step">
-            <span class="workflow-number"> 02 </span>
-
-            <div>
-              <strong> Pricing </strong>
-
-              <span> Manage on product details </span>
-            </div>
-          </div>
-
-          <span class="workflow-divider"></span>
-
-          <div class="workflow-step">
-            <span class="workflow-number"> 03 </span>
-
-            <div>
-              <strong> Variants &amp; Inventory </strong>
-
-              <span> Manage variants on product details </span>
-            </div>
-          </div>
-        </section>
-
         <div class="content-grid">
           <!-- =====================================================
                MAIN COLUMN
@@ -924,10 +885,21 @@ onBeforeUnmount(() => {
                 </div>
 
                 <div v-if="existingGalleryMedia.length" class="existing-gallery">
-                  <strong>Current gallery · {{ existingGalleryMedia.length }} additional {{ existingGalleryMedia.length === 1 ? "image" : "images" }}</strong>
+                  <strong
+                    >Current gallery · {{ existingGalleryMedia.length }} additional
+                    {{ existingGalleryMedia.length === 1 ? "image" : "images" }}</strong
+                  >
                   <div class="gallery-preview-grid">
-                    <div v-for="media in existingGalleryMedia" :key="media.id" class="gallery-preview-item existing-gallery-item">
-                      <img :src="productMediaUrl(media)" :alt="media.alt_text || media.original_name || product.name" loading="lazy" />
+                    <div
+                      v-for="media in existingGalleryMedia"
+                      :key="media.id"
+                      class="gallery-preview-item existing-gallery-item"
+                    >
+                      <img
+                        :src="productMediaUrl(media)"
+                        :alt="media.alt_text || media.original_name || product.name"
+                        loading="lazy"
+                      />
                       <small>{{ media.original_name || "Product image" }}</small>
                     </div>
                   </div>
@@ -963,14 +935,40 @@ onBeforeUnmount(() => {
 
                 <div class="gallery-upload-panel">
                   <div class="gallery-upload-heading">
-                    <div><strong>Add gallery images</strong><p>Existing images stay intact. Up to 10 images per product.</p></div>
-                    <button type="button" class="browse-link" @click="galleryInput?.click()">Add images</button>
+                    <div>
+                      <strong>Add gallery images</strong>
+                      <p>Existing images stay intact. Up to 10 images per product.</p>
+                    </div>
+                    <button
+                      type="button"
+                      class="browse-link"
+                      @click="galleryInput?.click()"
+                    >
+                      Add images
+                    </button>
                   </div>
-                  <input ref="galleryInput" class="gallery-hidden-input" type="file" accept="image/jpeg,image/png,image/webp" multiple @change="onGallerySelected" />
+                  <input
+                    ref="galleryInput"
+                    class="gallery-hidden-input"
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    multiple
+                    @change="onGallerySelected"
+                  />
                   <div v-if="galleryImages.length" class="gallery-preview-grid">
-                    <div v-for="(item, index) in galleryImages" :key="`${item.file.name}-${item.file.lastModified}`" class="gallery-preview-item">
+                    <div
+                      v-for="(item, index) in galleryImages"
+                      :key="`${item.file.name}-${item.file.lastModified}`"
+                      class="gallery-preview-item"
+                    >
                       <img :src="item.preview" :alt="item.file.name" />
-                      <button type="button" :aria-label="`Remove ${item.file.name}`" @click="removeGalleryImage(index)"><Icon name="x" :size="13" /></button>
+                      <button
+                        type="button"
+                        :aria-label="`Remove ${item.file.name}`"
+                        @click="removeGalleryImage(index)"
+                      >
+                        <Icon name="x" :size="13" />
+                      </button>
                       <small>{{ item.file.name }}</small>
                     </div>
                   </div>
@@ -1159,7 +1157,11 @@ onBeforeUnmount(() => {
                       </span>
 
                       <span class="type-check">
-                        <Icon name="circle-check" v-if="form.product_type === 'simple'" :size="16" />
+                        <Icon
+                          name="circle-check"
+                          v-if="form.product_type === 'simple'"
+                          :size="16"
+                        />
                       </span>
                     </button>
 
@@ -1178,11 +1180,14 @@ onBeforeUnmount(() => {
                       <span class="type-card-content">
                         <strong> Variable Product </strong>
 
-                        <small> Product designed for future variants. </small>
+                        <small>
+                          Variants can be configured in the variant manager.
+                        </small>
                       </span>
 
                       <span class="type-check">
-                        <Icon name="circle-check"
+                        <Icon
+                          name="circle-check"
                           v-if="form.product_type === 'variable'"
                           :size="16"
                         />
@@ -1190,12 +1195,19 @@ onBeforeUnmount(() => {
                     </button>
                   </div>
                 </div>
+                <p class="type-change-note">
+                  {{
+                    form.product_type === "simple"
+                      ? "Simple products use one base pricing record and product-level identifiers."
+                      : "Variable products use variant-specific pricing and identifiers."
+                  }}
+                </p>
               </div>
             </section>
 
             <!-- PRODUCT IDENTITY -->
 
-            <section class="card">
+            <section v-if="form.product_type === 'simple'" class="card">
               <div class="section-heading">
                 <div class="section-icon">
                   <Icon name="tag" :size="18" />
@@ -1348,6 +1360,13 @@ onBeforeUnmount(() => {
               </div>
             </section>
 
+            <ProductVariantsPanel
+              v-if="product"
+              :key="`${product.id}-${form.product_type}`"
+              :product-id="product.id"
+              :product-type="form.product_type"
+            />
+
             <!-- DESCRIPTION -->
 
             <section class="card">
@@ -1408,12 +1427,6 @@ onBeforeUnmount(() => {
                 </div>
               </div>
             </section>
-
-            <ProductVariantsPanel
-              v-if="product && product.product_type === 'variable'"
-              :product-id="product.id"
-              :product-type="product.product_type"
-            />
           </main>
 
           <!-- =====================================================
@@ -1564,7 +1577,11 @@ onBeforeUnmount(() => {
                         <small> Available in catalog </small>
                       </span>
 
-                      <Icon name="circle-check" v-if="form.visibility === 'visible'" :size="15" />
+                      <Icon
+                        name="circle-check"
+                        v-if="form.visibility === 'visible'"
+                        :size="15"
+                      />
                     </button>
 
                     <button
@@ -1583,7 +1600,11 @@ onBeforeUnmount(() => {
                         <small> Keep out of catalog </small>
                       </span>
 
-                      <Icon name="circle-check" v-if="form.visibility === 'hidden'" :size="15" />
+                      <Icon
+                        name="circle-check"
+                        v-if="form.visibility === 'hidden'"
+                        :size="15"
+                      />
                     </button>
                   </div>
                 </div>
@@ -1632,29 +1653,6 @@ onBeforeUnmount(() => {
                 Cancel and return to product
               </button>
             </section>
-
-            <!-- INFO -->
-
-            <section class="info-card">
-              <Icon name="info-circle" :size="15" />
-
-              <div>
-                <strong> Product foundation </strong>
-
-                <span>
-                  Product identity and classification are edited above. Variable-product variants can be created and edited here; inventory quantities remain managed through Inventory workflows.
-                </span>
-                <button
-                  type="button"
-                  class="secondary-button info-manage-button"
-                  :disabled="isSaving || isLoading"
-                  @click="managePricingAndVariants"
-                >
-                  <Icon name="sliders-horizontal" :size="14" />
-                  View Product Details
-                </button>
-              </div>
-            </section>
           </aside>
         </div>
 
@@ -1694,32 +1692,149 @@ onBeforeUnmount(() => {
 
   width: 100%;
   min-width: 0;
-
+  padding-bottom: 24px;
   color: var(--text-primary);
 }
 
-.page-header,
-.header-main,
+.page-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+}
+.header-main {
+  display: flex;
+  align-items: flex-start;
+}
 .title-row,
 .header-actions,
 .breadcrumb,
 .section-heading,
 .summary-identity,
 .summary-row,
-.save-status,
-.existing-gallery { margin: 14px 0 18px; }
-.existing-gallery > strong { display: block; margin-bottom: 10px; font-size: 12px; }
-.existing-gallery-item img { cursor: default; }
-.gallery-hidden-input { display: none; }
-.gallery-upload-panel { margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--border, #e5e7eb); }
-.gallery-upload-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
-.gallery-upload-heading strong { display: block; font-size: 13px; }
-.gallery-upload-heading p { margin: 4px 0 0; color: var(--muted-foreground, #6b7280); font-size: 12px; }
-.gallery-preview-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 10px; }
-.gallery-preview-item { position: relative; min-width: 0; }
-.gallery-preview-item img { width: 100%; aspect-ratio: 1; object-fit: cover; border: 1px solid var(--border, #e5e7eb); border-radius: 10px; }
-.gallery-preview-item button { position: absolute; top: 5px; right: 5px; display: grid; place-items: center; width: 25px; height: 25px; border: 0; border-radius: 50%; background: #111827d9; color: white; cursor: pointer; }
-.gallery-preview-item small { display: block; margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted-foreground, #6b7280); font-size: 10px; }
+.save-status {
+  display: flex;
+}
+.title-row {
+  align-items: center;
+}
+.header-actions {
+  align-items: center;
+}
+.breadcrumb {
+  align-items: center;
+}
+.section-heading {
+  align-items: center;
+}
+.summary-identity {
+  align-items: center;
+}
+.summary-row {
+  align-items: center;
+}
+.save-status {
+  align-items: center;
+}
+.existing-gallery {
+  margin: 14px 0 18px;
+}
+.existing-gallery > strong {
+  display: block;
+  margin-bottom: 10px;
+  font-size: 12px;
+}
+.existing-gallery-item img {
+  cursor: default;
+}
+.gallery-hidden-input {
+  display: none;
+}
+
+.product-edit-page button:focus-visible,
+.product-edit-page input:focus-visible,
+.product-edit-page select:focus-visible,
+.product-edit-page textarea:focus-visible,
+.product-edit-page label.media-upload:focus-within {
+  outline: 2px solid color-mix(in srgb, var(--primary) 70%, white);
+  outline-offset: 2px;
+}
+.gallery-preview-item small {
+  overflow-wrap: anywhere;
+}
+.browse-link {
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--primary);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.browse-link:hover {
+  background: var(--surface-muted);
+}
+
+.gallery-upload-panel {
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border, #e5e7eb);
+}
+.gallery-upload-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.gallery-upload-heading strong {
+  display: block;
+  font-size: 13px;
+}
+.gallery-upload-heading p {
+  margin: 4px 0 0;
+  color: var(--muted-foreground, #6b7280);
+  font-size: 12px;
+}
+.gallery-preview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+  gap: 10px;
+}
+.gallery-preview-item {
+  position: relative;
+  min-width: 0;
+}
+.gallery-preview-item img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 10px;
+}
+.gallery-preview-item button {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  display: grid;
+  place-items: center;
+  width: 25px;
+  height: 25px;
+  border: 0;
+  border-radius: 50%;
+  background: #111827d9;
+  color: white;
+  cursor: pointer;
+}
+.gallery-preview-item small {
+  display: block;
+  margin-top: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted-foreground, #6b7280);
+  font-size: 10px;
+}
 
 .media-note,
 .image-overlay,
@@ -2161,6 +2276,7 @@ onBeforeUnmount(() => {
 
 .card {
   overflow: hidden;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
 }
 
 .section-heading {
@@ -3310,6 +3426,327 @@ onBeforeUnmount(() => {
 
   .header-actions button {
     width: 100%;
+  }
+}
+
+/* Create-page visual alignment: clean header, consistent cards and a docked summary. */
+.product-edit-page {
+  --edit-radius: 14px;
+  width: 100%;
+  min-width: 0;
+  padding: 0 0 28px;
+  color: var(--text-primary, #111827);
+  background: var(--background, #f6f8fb);
+}
+.product-edit-page .page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  margin: 0 auto 20px;
+  padding: 0 0 2px;
+}
+.product-edit-page .header-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 13px;
+  min-width: 0;
+  margin: 0;
+}
+.product-edit-page .back-button {
+  margin-top: 26px;
+}
+.product-edit-page .header-copy {
+  min-width: 0;
+}
+.product-edit-page .breadcrumb {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 10px;
+  color: var(--text-muted, #98a2b3);
+  font-size: 12px;
+}
+.product-edit-page .title-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0;
+}
+.product-edit-page .title-icon {
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  border-radius: 13px;
+}
+.product-edit-page .title-row h1 {
+  margin: 0;
+  font-size: clamp(22px, 2vw, 28px);
+  line-height: 1.2;
+  font-weight: 750;
+  letter-spacing: -0.035em;
+}
+.product-edit-page .title-row p {
+  max-width: 650px;
+  margin: 6px 0 0;
+  color: var(--text-secondary, #667085);
+  font-size: 12px;
+  line-height: 1.55;
+}
+.product-edit-page .header-actions {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-shrink: 0;
+  margin: 26px 0 0;
+}
+.product-edit-page .content-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(285px, 320px);
+  align-items: start;
+  gap: 22px;
+  width: 100%;
+  margin: 0 auto;
+}
+.product-edit-page .main-column,
+.product-edit-page .side-column {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+  margin: 0;
+}
+.product-edit-page .side-column {
+  position: sticky;
+  top: 24px;
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  padding: 0 2px 5px 0;
+}
+.product-edit-page .card,
+.product-edit-page .info-card,
+.product-edit-page .save-card {
+  overflow: hidden;
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 14px;
+  background: var(--surface, #fff);
+  box-shadow: 0 5px 22px rgb(15 23 42 / 4%);
+}
+.product-edit-page .section-heading {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin: 0;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--border, #e5e7eb);
+}
+.product-edit-page .section-heading h2 {
+  font-size: 14px;
+  letter-spacing: -0.01em;
+}
+.product-edit-page .section-heading p {
+  font-size: 11px;
+}
+.product-edit-page .form-grid,
+.product-edit-page .description-fields {
+  padding: 18px;
+  gap: 16px;
+}
+.product-edit-page .media-content {
+  padding: 18px;
+}
+.product-edit-page .field {
+  gap: 7px;
+}
+.product-edit-page .field label {
+  font-size: 11px;
+}
+.product-edit-page .field input,
+.product-edit-page .field textarea,
+.product-edit-page .field select {
+  font-size: 12px;
+  border-radius: 9px;
+}
+.product-edit-page .field input,
+.product-edit-page .field select {
+  height: 41px;
+}
+.product-edit-page .field textarea {
+  line-height: 1.6;
+}
+.product-edit-page .product-type-card {
+  min-height: 76px;
+  padding: 12px;
+}
+.product-edit-page .product-type-card strong {
+  font-size: 11px;
+}
+.product-edit-page .product-type-card small {
+  font-size: 9px;
+}
+.product-edit-page .summary-body {
+  padding: 0 18px 16px;
+}
+.product-edit-page .summary-identity {
+  margin: 0;
+  padding: 17px 0;
+}
+.product-edit-page .summary-row {
+  margin: 0;
+  min-height: 42px;
+}
+.product-edit-page .publishing-body {
+  padding: 17px 18px 18px;
+}
+.product-edit-page .save-card {
+  position: static;
+  top: auto;
+  padding: 15px;
+}
+.product-edit-page .save-status {
+  margin: 0 0 11px;
+}
+.product-edit-page .info-card {
+  padding: 14px;
+}
+.product-edit-page .mobile-save-bar {
+  display: none;
+}
+.product-edit-page button:focus-visible,
+.product-edit-page input:focus-visible,
+.product-edit-page select:focus-visible,
+.product-edit-page textarea:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--primary, #2563eb) 24%, transparent);
+  outline-offset: 2px;
+}
+@media (max-width: 1180px) {
+  .product-edit-page .content-grid {
+    grid-template-columns: minmax(0, 1fr) 290px;
+    gap: 16px;
+  }
+}
+@media (max-width: 980px) {
+  .product-edit-page .content-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .product-edit-page .side-column {
+    position: static;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    max-height: none;
+    overflow: visible;
+  }
+  .product-edit-page .info-card {
+    grid-column: 1 / -1;
+  }
+}
+@media (max-width: 760px) {
+  .product-edit-page .page-header {
+    flex-direction: column;
+    gap: 12px;
+  }
+  .product-edit-page .header-actions {
+    width: 100%;
+    margin-top: 0;
+  }
+  .product-edit-page .header-actions button {
+    flex: 1;
+  }
+  .product-edit-page .side-column {
+    display: flex;
+  }
+}
+@media (max-width: 650px) {
+  .product-edit-page .form-grid,
+  .product-edit-page .product-type-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .product-edit-page .field-full {
+    grid-column: auto;
+  }
+  .product-edit-page .form-grid,
+  .product-edit-page .description-fields,
+  .product-edit-page .media-content {
+    padding: 14px;
+  }
+  .product-edit-page .section-heading {
+    padding: 14px;
+  }
+  .product-edit-page .existing-image-wrapper,
+  .product-edit-page .no-image {
+    min-height: 220px;
+  }
+  .product-edit-page .existing-image {
+    height: 220px;
+  }
+  .product-edit-page .mobile-save-bar {
+    position: sticky;
+    bottom: 8px;
+    z-index: 20;
+    display: flex;
+    gap: 8px;
+    margin-top: 14px;
+    padding: 10px;
+    border: 1px solid var(--border, #e5e7eb);
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--surface, #fff) 94%, transparent);
+    box-shadow: 0 -8px 24px rgb(26 47 72 / 8%);
+    backdrop-filter: blur(14px);
+  }
+  .product-edit-page .mobile-save-bar button {
+    flex: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .product-edit-page *,
+  .product-edit-page *::before,
+  .product-edit-page *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Product type guidance and stable sidebar behavior */
+.product-edit-page .type-change-note {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  border: 1px solid
+    color-mix(in srgb, var(--primary, #2563eb) 16%, var(--border, #e5e7eb));
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--primary, #2563eb) 4%, var(--surface, #fff));
+  color: var(--text-secondary, #667085);
+  font-size: 11px;
+  line-height: 1.5;
+}
+/* Keep the complete sidebar below the fixed application toolbar while the
+   document scrolls. Sticky belongs to the whole sidebar, not individual cards. */
+.product-edit-page .side-column {
+  position: sticky;
+  top: 88px;
+  align-self: start;
+  height: max-content;
+  max-height: none;
+  overflow: visible;
+  overscroll-behavior: auto;
+  scrollbar-width: auto;
+  z-index: 5;
+}
+.product-edit-page .side-column > .card,
+.product-edit-page .side-column > .save-card {
+  flex: 0 0 auto;
+  position: static;
+}
+.product-edit-page .save-card {
+  position: static;
+}
+@media (max-width: 980px) {
+  .product-edit-page .side-column {
+    position: static;
+    max-height: none;
+    overflow: visible;
   }
 }
 </style>
