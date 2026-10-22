@@ -64,6 +64,10 @@ interface Product {
 
   default_variant?: {
     id: number;
+    name?: string | null;
+    sku?: string | null;
+    model_number?: string | null;
+    barcode?: string | null;
     selling_price: string | number;
     promotional_price: string | number | null;
     wholesale_price: string | number | null;
@@ -459,14 +463,39 @@ function formatMoney(value: string | number | null | undefined): string {
   }).format(amount);
 }
 
-function productPrice(product: Product): string {
+function defaultVariantLabel(product: Product): string {
+  if (product.product_type === "simple") {
+    return product.name;
+  }
+
+  const variant = product.default_variant;
+  if (!variant) return "Default variant not set";
+
+  return (
+    variant.name?.trim() ||
+    variant.sku?.trim() ||
+    variant.model_number?.trim() ||
+    `Variant #${variant.id}`
+  );
+}
+
+function productSellingPrice(product: Product): string {
   const variant = product.default_variant;
   if (!variant) return "Not set";
-  const promo = variant.promotional_price === null ? null : Number(variant.promotional_price);
+
+  const promo =
+    variant.promotional_price === null ? null : Number(variant.promotional_price);
   const selling = Number(variant.selling_price);
+
   return promo !== null && Number.isFinite(promo) && promo > 0 && promo < selling
     ? formatMoney(promo)
     : formatMoney(variant.selling_price);
+}
+
+function productWholesalePrice(product: Product): string {
+  return product.default_variant
+    ? formatMoney(product.default_variant.wholesale_price)
+    : "Not set";
 }
 
 function statusLabel(status: Product["status"]): string {
@@ -920,13 +949,15 @@ onMounted(() => {
               <tr>
                 <th>PRODUCT</th>
 
-                <th>MODEL / SKU</th>
+                <th>DEFAULT VARIANT / SKU</th>
 
                 <th>CATEGORY</th>
 
                 <th>BRAND</th>
 
                 <th>SELLING PRICE</th>
+
+                <th>WHOLESALE PRICE</th>
 
                 <th>TYPE</th>
 
@@ -944,7 +975,7 @@ onMounted(() => {
               <!-- Loading -->
 
               <tr v-if="isLoading">
-                <td colspan="10" class="table-state">
+                <td colspan="11" class="table-state">
                   <div class="loading-state">
                     <span class="loading-spinner"></span>
 
@@ -956,7 +987,7 @@ onMounted(() => {
               <!-- Empty -->
 
               <tr v-else-if="filteredProducts.length === 0">
-                <td colspan="10" class="table-state">
+                <td colspan="11" class="table-state">
                   <div class="empty-state">
                     <div class="empty-icon">
                       <Icon name="products" :size="24" />
@@ -1012,9 +1043,18 @@ onMounted(() => {
 
                 <td>
                   <div class="identity-cell">
-                    <strong>{{ product.model_number || "—" }}</strong>
+                    <strong class="variant-name">
+                      {{ defaultVariantLabel(product) }}
+                    </strong>
 
-                    <small>{{ product.sku || "—" }}</small>
+                    <small>
+                      <template v-if="product.product_type === 'variable'">
+                        SKU: {{ product.default_variant?.sku || "—" }}
+                      </template>
+                      <template v-else>
+                        {{ product.model_number || product.sku || "—" }}
+                      </template>
+                    </small>
                   </div>
                 </td>
 
@@ -1031,7 +1071,20 @@ onMounted(() => {
                 </td>
 
                 <td>
-                  <span class="plain-value price-value">{{ productPrice(product) }}</span>
+                  <div class="price-cell">
+                    <strong class="plain-value price-value">
+                      {{ productSellingPrice(product) }}
+                    </strong>
+                    <small v-if="product.default_variant?.promotional_price">
+                      Regular: {{ formatMoney(product.default_variant.selling_price) }}
+                    </small>
+                  </div>
+                </td>
+
+                <td>
+                  <span class="plain-value price-value">
+                    {{ productWholesalePrice(product) }}
+                  </span>
                 </td>
 
                 <td>
@@ -1248,7 +1301,27 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.price-value { font-weight: 700; white-space: nowrap; }
+.price-value {
+  font-weight: 700;
+  white-space: nowrap;
+}
+.variant-name {
+  max-width: 190px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.price-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+}
+.price-cell small {
+  color: var(--text-muted);
+  font-size: 8px;
+  white-space: nowrap;
+}
 /* ==========================================================================
 
    PRODUCTS
@@ -2102,7 +2175,7 @@ onMounted(() => {
 .products-table {
   width: 100%;
 
-  min-width: 1080px;
+  min-width: 1190px;
 
   border-collapse: collapse;
 }
