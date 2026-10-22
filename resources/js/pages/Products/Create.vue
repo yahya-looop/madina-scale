@@ -21,6 +21,7 @@ interface VariantDraft {
   selling_price: string;
   wholesale_price: string;
   promotional_price: string;
+  is_default: boolean;
 }
 
 function emptyVariantDraft(index = 0): VariantDraft {
@@ -32,6 +33,7 @@ function emptyVariantDraft(index = 0): VariantDraft {
     selling_price: "",
     wholesale_price: "",
     promotional_price: "",
+    is_default: index === 0,
   };
 }
 
@@ -124,7 +126,16 @@ function addVariantDraft(): void {
     showToast("You can add up to 100 variants at a time.", "error");
     return;
   }
-  variantDrafts.value.push(emptyVariantDraft(variantDrafts.value.length));
+  variantDrafts.value.push({
+    ...emptyVariantDraft(variantDrafts.value.length),
+    is_default: false,
+  });
+}
+
+function setDefaultVariant(index: number): void {
+  variantDrafts.value.forEach((variant, variantIndex) => {
+    variant.is_default = variantIndex === index;
+  });
 }
 
 function removeVariantDraft(index: number): void {
@@ -132,7 +143,13 @@ function removeVariantDraft(index: number): void {
     showToast("A variable product must have at least one variant.", "error");
     return;
   }
+  const removedWasDefault = variantDrafts.value[index]?.is_default ?? false;
   variantDrafts.value.splice(index, 1);
+  if (removedWasDefault && variantDrafts.value.length > 0) {
+    variantDrafts.value.forEach((variant, i) => {
+      variant.is_default = i === 0;
+    });
+  }
   variantDrafts.value.forEach((variant, i) => {
     if (!variant.name.trim() || /^Variant \d+$/.test(variant.name)) {
       variant.name = i === 0 ? "Standard" : `Variant ${i + 1}`;
@@ -498,19 +515,21 @@ async function createProduct() {
       payload.append("slug", form.value.slug);
     }
 
-    if (form.value.sku.trim()) {
-      payload.append("sku", form.value.sku.trim());
-    }
-
-    if (form.value.model_number.trim()) {
-      payload.append("model_number", form.value.model_number.trim());
-    }
-
-    if (form.value.barcode.trim()) {
-      payload.append("barcode", form.value.barcode.trim());
-    }
-
     payload.append("product_type", form.value.product_type);
+
+    // Product-level identifiers belong only to simple products.
+    // Variable products send identifiers with each variant below.
+    if (form.value.product_type === "simple") {
+      payload.append("sku", form.value.sku.trim());
+
+      if (form.value.model_number.trim()) {
+        payload.append("model_number", form.value.model_number.trim());
+      }
+
+      if (form.value.barcode.trim()) {
+        payload.append("barcode", form.value.barcode.trim());
+      }
+    }
 
     if (form.value.short_description.trim()) {
       payload.append("short_description", form.value.short_description.trim());
@@ -549,7 +568,7 @@ async function createProduct() {
             `variants[${index}][promotional_price]`,
             variant.promotional_price
           );
-        payload.append(`variants[${index}][is_default]`, index === 0 ? "1" : "0");
+        payload.append(`variants[${index}][is_default]`, variant.is_default ? "1" : "0");
         payload.append(`variants[${index}][status]`, "active");
         payload.append(`variants[${index}][sort_order]`, String(index));
       });
@@ -1046,6 +1065,9 @@ onBeforeUnmount(() => {
                       form.product_type = 'variable';
 
                       clearError('product_type');
+                      clearError('sku');
+                      clearError('model_number');
+                      clearError('barcode');
                     "
                   >
                     <Icon name="stack-2" :size="16" />
@@ -1065,7 +1087,8 @@ onBeforeUnmount(() => {
                 </div>
 
                 <small class="field-hint">
-                  Variable products can receive attribute-based variants later.
+                  Simple products use one product identity. Variable products keep SKU,
+                  barcode and pricing at the variant level.
                 </small>
               </div>
             </div>
@@ -1184,10 +1207,18 @@ onBeforeUnmount(() => {
                     <div class="variant-draft-title">
                       <strong>{{ variant.name || `Variant ${index + 1}` }}</strong
                       ><span>{{
-                        index === 0 ? "Default variant" : "Additional variant"
+                        variant.is_default ? "Default variant" : "Additional variant"
                       }}</span>
                     </div>
-                    <span v-if="index === 0" class="default-variant-badge">Default</span>
+                    <button
+                      type="button"
+                      class="default-variant-badge"
+                      :class="{ 'is-default': variant.is_default }"
+                      :aria-pressed="variant.is_default"
+                      @click="setDefaultVariant(index)"
+                    >
+                      {{ variant.is_default ? "✓ Default" : "Set as default" }}
+                    </button>
                     <button
                       v-if="variantDrafts.length > 1"
                       type="button"
@@ -1303,9 +1334,9 @@ onBeforeUnmount(() => {
             </section>
           </Transition>
 
-          <!-- Product Identity -->
+          <!-- Product Identity: only applicable to simple products -->
 
-          <section class="card identity-card">
+          <section v-if="form.product_type === 'simple'" class="card identity-card">
             <div class="section-heading">
               <div class="section-icon">
                 <Icon name="tag" :size="18" />
@@ -3280,12 +3311,21 @@ h1 {
   font-size: 10px;
 }
 .default-variant-badge {
-  padding: 4px 7px;
+  padding: 5px 8px;
+  border: 1px solid var(--border, #dbe3ed);
+  cursor: pointer;
+  background: var(--surface, #fff);
+  color: var(--text-secondary, #64748b);
   border-radius: 999px;
   background: color-mix(in srgb, var(--primary, #059669) 9%, white);
   color: var(--primary, #059669);
   font-size: 9px;
   font-weight: 700;
+}
+.default-variant-badge.is-default {
+  border-color: color-mix(in srgb, var(--primary, #059669) 25%, white);
+  background: color-mix(in srgb, var(--primary, #059669) 9%, white);
+  color: var(--primary, #059669);
 }
 .variant-fields-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
