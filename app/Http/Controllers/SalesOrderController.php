@@ -24,6 +24,16 @@ class SalesOrderController extends Controller
 
     public function index(Request $request): JsonResponse
     {
+        $baseScope = $this->locationAccess->scopeViewable(
+            SalesOrder::query(),
+            $request->user(),
+        );
+        $stats = [
+            'total' => (clone $baseScope)->count(),
+            'active' => (clone $baseScope)->whereIn('status', ['pending', 'confirmed', 'processing', 'partially_fulfilled'])->count(),
+            'pending' => (clone $baseScope)->where('status', 'pending')->count(),
+            'fulfilled' => (clone $baseScope)->where('status', 'fulfilled')->count(),
+        ];
         $query = $this->locationAccess->scopeViewable(
             SalesOrder::query()->with(['location:id,name,code', 'creator:id,name', 'items']),
             $request->user(),
@@ -40,7 +50,7 @@ class SalesOrderController extends Controller
             });
         }
         $orders = $query->paginate(min(max((int) $request->input('per_page', 15), 1), 50));
-        return response()->json($orders);
+        return response()->json(array_merge($orders->toArray(), ['stats' => $stats]));
     }
 
     public function options(Request $request): JsonResponse
@@ -113,8 +123,11 @@ class SalesOrderController extends Controller
         if ($assessment && $assessment->decision === 'verify' && !\App\Models\SalesOrderPhoneVerification::query()->where('sales_order_id', $order->id)->whereNotNull('verified_at')->exists()) {
             throw ValidationException::withMessages(['risk' => 'Verify the customer phone before confirming this order.']);
         }
+        $wasPending = $order->status === 'pending';
         $updated = $this->orders->confirm($order, $request->user());
-        if ($updated->customer_phone) $this->sms->sendOrderEvent($updated, 'confirmed');
+        if ($wasPending && $updated->status === 'confirmed' && $updated->customer_phone) {
+            $this->sms->sendOrderEvent($updated, 'confirmed');
+        }
         return response()->json(['message' => 'Order confirmed.', 'data' => $updated]);
     }
 

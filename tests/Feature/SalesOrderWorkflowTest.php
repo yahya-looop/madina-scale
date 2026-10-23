@@ -172,6 +172,35 @@ class SalesOrderWorkflowTest extends TestCase
         $this->getJson("/api/orders/{$otherOrder->id}")->assertForbidden();
     }
 
+
+    public function test_order_idempotency_key_cannot_be_replayed_by_another_user(): void
+    {
+        [$location, $variant] = $this->orderFixture();
+        $owner = $this->orderUser($location);
+        $key = (string) Str::uuid();
+
+        $this->actingAs($owner)->postJson('/api/orders', [
+            'idempotency_key' => $key,
+            'location_id' => $location->id,
+            'customer_name' => 'Original Buyer',
+            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1]],
+        ])->assertCreated();
+
+        $otherUser = $this->orderUser($location);
+        $this->actingAs($otherUser)->postJson('/api/orders', [
+            'idempotency_key' => $key,
+            'location_id' => $location->id,
+            'customer_name' => 'Different Buyer',
+            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1]],
+        ])->assertUnprocessable();
+
+        $this->assertDatabaseCount('sales_orders', 1);
+        $this->assertDatabaseHas('inventory_stocks', [
+            'product_variant_id' => $variant->id, 'location_id' => $location->id,
+            'reserved_quantity' => '1.0000',
+        ]);
+    }
+
     public function test_user_without_order_permission_cannot_list_orders(): void
     {
         $this->actingAs(User::factory()->create())->getJson('/api/orders')->assertForbidden();

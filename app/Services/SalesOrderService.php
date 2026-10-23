@@ -25,7 +25,13 @@ class SalesOrderService
         return DB::transaction(function () use ($data, $actor): SalesOrder {
             if (!empty($data['idempotency_key'])) {
                 $existing = SalesOrder::query()->where('idempotency_key', $data['idempotency_key'])->first();
-                if ($existing) return $existing->load(['items', 'location', 'creator']);
+                if ($existing) {
+                    if ((int) $existing->created_by !== (int) $actor->id) {
+                        throw ValidationException::withMessages(['idempotency_key' => 'This request key has already been used. Start a new order request.']);
+                    }
+
+                    return $existing->load(['items', 'location', 'creator']);
+                }
             }
 
             $location = Location::query()->lockForUpdate()->find($data['location_id']);

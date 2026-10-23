@@ -3,14 +3,15 @@
     "private": true,
     "type": "module",
     "scripts": {
-        "build": "vp build",
+        "build": "vite build --config vite.config.standard.ts",
         "build:ssr": "vp build && vp build --ssr",
-        "dev": "vp dev",
+        "dev": "vite --config vite.config.standard.ts",
         "check": "vp check",
         "check:fix": "vp check --fix",
         "types:check": "vue-tsc --noEmit"
     },
     "dependencies": {
+        "@iconify/icons-tabler": "^1.2.95",
         "@iconify/vue": "^5.0.3",
         "@inertiajs/vite": "^3.0.0",
         "@inertiajs/vue3": "^3.0.0",
@@ -23,8 +24,7 @@
         "tailwindcss": "^4.1.1",
         "typescript": "^5.2.2",
         "vite": "^8.0.0",
-        "vue": "^3.5.13",
-        "@iconify/icons-tabler": "^1.2.95"
+        "vue": "^3.5.13"
     },
     "devDependencies": {
         "@laravel/vite-plugin-wayfinder": "^0.1.3",
