@@ -21,6 +21,16 @@ interface VariantOption {
   price: string | number;
   available: string | number;
 }
+interface CustomerOption {
+  id: number;
+  customer_code: string;
+  name: string;
+  phone?: string | null;
+  email?: string | null;
+  company_name?: string | null;
+  status: "active" | "inactive";
+}
+
 interface OrderItem {
   id: number;
   product_name: string;
@@ -170,6 +180,12 @@ const smsPreview = computed(() => {
 const riskLoading = ref(false);
 const locationId = ref("");
 const customerName = ref("");
+const customerId = ref<number | null>(null);
+const customerSearch = ref("");
+const customerOptions = ref<CustomerOption[]>([]);
+const customerLoading = ref(false);
+const customerPickerOpen = ref(false);
+const customerLookupError = ref("");
 const customerPhone = ref("");
 const customerEmail = ref("");
 const notes = ref("");
@@ -270,6 +286,52 @@ async function loadOptions() {
     error.value = e instanceof Error ? e.message : "Unable to load order options.";
   }
 }
+async function searchCustomers() {
+  customerLoading.value = true;
+  customerLookupError.value = "";
+  try {
+    const term = customerSearch.value.trim();
+    const query = new URLSearchParams({ status: "active", per_page: "10" });
+    if (term) query.set("search", term);
+    const payload = await api(`/api/customers?${query.toString()}`);
+    customerOptions.value = Array.isArray(payload.data) ? payload.data : [];
+    customerPickerOpen.value = true;
+    if (!customerOptions.value.length) {
+      customerLookupError.value = term
+        ? "No active customer found. You can enter a one-time customer instead."
+        : "No active customers found yet.";
+    }
+  } catch (e) {
+    customerLookupError.value =
+      e instanceof Error ? e.message : "Unable to search customers.";
+  } finally {
+    customerLoading.value = false;
+  }
+}
+function chooseCustomer(customer: CustomerOption) {
+  customerId.value = customer.id;
+  customerName.value = customer.name;
+  customerPhone.value = customer.phone || "";
+  customerEmail.value = customer.email || "";
+  customerSearch.value = `${customer.name}${customer.phone ? ` · ${customer.phone}` : ""}`;
+  customerPickerOpen.value = false;
+  customerLookupError.value = "";
+}
+function useOneTimeCustomer() {
+  customerId.value = null;
+  customerSearch.value = "";
+  customerPickerOpen.value = false;
+  customerOptions.value = [];
+  customerLookupError.value = "";
+  customerName.value = "";
+  customerId.value = null;
+  customerSearch.value = "";
+  customerOptions.value = [];
+  customerPickerOpen.value = false;
+  customerLookupError.value = "";
+  customerPhone.value = "";
+  customerEmail.value = "";
+}
 function openCreate() {
   error.value = "";
   notice.value = "";
@@ -327,7 +389,7 @@ async function createOrder() {
   if (saving.value) return;
   if (!locationId.value || !customerName.value.trim() || !cart.value.length) {
     error.value =
-      "Choose a location, enter the customer name, and add at least one item.";
+      "Choose a location, select or enter a customer, and add at least one item.";
     return;
   }
   saving.value = true;
@@ -339,6 +401,7 @@ async function createOrder() {
       body: JSON.stringify({
         idempotency_key: key,
         location_id: Number(locationId.value),
+        customer_id: customerId.value,
         customer_name: customerName.value.trim(),
         customer_phone: customerPhone.value.trim() || null,
         customer_email: customerEmail.value.trim() || null,
@@ -809,6 +872,61 @@ onMounted(() => {
                       </option>
                     </select>
                   </label>
+                  <div class="orders-form-wide customer-picker">
+                    <label>
+                      <span><Icon name="search" :size="13" /> Find existing customer</span>
+                      <div class="customer-search-row">
+                        <input
+                          v-model="customerSearch"
+                          type="search"
+                          placeholder="Search by name, phone, email or customer code"
+                          @keydown.enter.prevent="searchCustomers"
+                        />
+                        <button
+                          type="button"
+                          class="customer-search-button"
+                          :disabled="customerLoading"
+                          @click="searchCustomers"
+                        >
+                          <Icon :name="customerLoading ? 'loader-circle' : 'search'" :size="15" />
+                          {{ customerLoading ? "Searching…" : "Search" }}
+                        </button>
+                      </div>
+                    </label>
+                    <div v-if="customerPickerOpen && customerOptions.length" class="customer-results">
+                      <button
+                        v-for="customer in customerOptions"
+                        :key="customer.id"
+                        type="button"
+                        class="customer-result"
+                        @click="chooseCustomer(customer)"
+                      >
+                        <span class="customer-avatar"><Icon name="user-round" :size="17" /></span>
+                        <span class="customer-result-main">
+                          <strong>{{ customer.name }}</strong>
+                          <small>{{ customer.customer_code }}<template v-if="customer.phone"> · {{ customer.phone }}</template></small>
+                        </span>
+                        <span class="customer-result-meta">
+                          <small>{{ customer.email || "No email" }}</small>
+                          <Icon name="arrow-up-left" :size="15" />
+                        </span>
+                      </button>
+                    </div>
+                    <p v-if="customerLookupError" class="customer-lookup-message">{{ customerLookupError }}</p>
+                    <div v-if="customerId" class="customer-selected">
+                      <Icon name="check-circle-2" :size="15" />
+                      <span>Linked to customer record</span>
+                      <button type="button" @click="useOneTimeCustomer">Use one-time customer</button>
+                    </div>
+                    <button
+                      v-else
+                      type="button"
+                      class="customer-manual-toggle"
+                      @click="customerPickerOpen = false"
+                    >
+                      <Icon name="user-round-pen" :size="14" /> Enter a one-time customer instead
+                    </button>
+                  </div>
                   <label>
                     <span>Customer name <i>*</i></span>
                     <input
@@ -6024,4 +6142,51 @@ body:has(.orders-detail-overlay) {
     flex-basis: 88px;
   }
 }
+
+/* Customer directory lookup in Create Order; scoped to this form only. */
+.customer-picker { min-width: 0; position: relative; }
+.customer-search-row { display: flex; gap: 8px; align-items: stretch; }
+.customer-search-row input { flex: 1; min-width: 0; }
+.customer-search-button {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  min-width: 100px; padding: 0 14px; border: 1px solid #dbe3ee; border-radius: 11px;
+  background: #fff; color: #334155; font-size: 12px; font-weight: 700; cursor: pointer;
+}
+.customer-search-button:disabled { opacity: .6; cursor: wait; }
+.customer-results {
+  display: grid; gap: 5px; margin-top: 8px; padding: 6px;
+  border: 1px solid #e2e8f0; border-radius: 13px; background: #fff;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, .08); max-height: 220px; overflow: auto;
+}
+.customer-result {
+  display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px;
+  border: 0; border-radius: 9px; text-align: left; background: transparent; cursor: pointer;
+}
+.customer-result:hover, .customer-result:focus-visible { background: #f1f5f9; outline: none; }
+.customer-avatar {
+  display: grid; place-items: center; width: 34px; height: 34px; flex: 0 0 34px;
+  border-radius: 10px; background: #e0f2fe; color: #0369a1;
+}
+.customer-result-main, .customer-result-meta { display: grid; gap: 3px; min-width: 0; }
+.customer-result-main { flex: 1; }
+.customer-result strong { color: #0f172a; font-size: 12px; }
+.customer-result small { color: #64748b; font-size: 10px; overflow-wrap: anywhere; }
+.customer-result-meta { justify-items: end; }
+.customer-lookup-message { margin: 7px 2px 0; color: #64748b; font-size: 11px; }
+.customer-selected {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 7px; margin-top: 8px;
+  padding: 9px 11px; border: 1px solid #bbf7d0; border-radius: 10px;
+  background: #f0fdf4; color: #166534; font-size: 11px; font-weight: 700;
+}
+.customer-selected button, .customer-manual-toggle {
+  border: 0; background: transparent; color: #0369a1; font-size: 11px; font-weight: 700; cursor: pointer;
+}
+.customer-selected button { margin-left: auto; }
+.customer-manual-toggle { display: inline-flex; align-items: center; gap: 6px; margin-top: 8px; padding: 2px 0; }
+@media (max-width: 560px) {
+  .customer-search-row { flex-direction: column; }
+  .customer-search-button { min-height: 38px; }
+  .customer-result-meta { display: none; }
+}
+
 </style>

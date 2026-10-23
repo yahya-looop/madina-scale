@@ -19,10 +19,23 @@ use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\SalesOrderController;
+use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\OrderOperationsController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['web', 'auth'])->group(function () {
+
+    /*
+    |--------------------------------------------------------------------------
+    | Customers
+    |--------------------------------------------------------------------------
+    */
+    Route::get('/customers/options', [CustomerController::class, 'options'])->middleware('permission:system.orders.create');
+    Route::get('/customers', [CustomerController::class, 'index'])->middleware('permission:system.customers.view');
+    Route::get('/customers/{customer}', [CustomerController::class, 'show'])->middleware('permission:system.customers.view');
+    Route::post('/customers', [CustomerController::class, 'store'])->middleware('permission:system.customers.create');
+    Route::put('/customers/{customer}', [CustomerController::class, 'update'])->middleware('permission:system.customers.update');
+    Route::delete('/customers/{customer}', [CustomerController::class, 'destroy'])->middleware('permission:system.customers.delete');
 
     /*
     |--------------------------------------------------------------------------
@@ -31,14 +44,20 @@ Route::middleware(['web', 'auth'])->group(function () {
     */
     Route::get('/orders/options', [SalesOrderController::class, 'options'])
         ->middleware('permission:system.orders.create');
+    Route::get('/orders/{order}/edit-options', [SalesOrderController::class, 'editOptions'])
+        ->middleware('permission:system.orders.update');
     Route::get('/orders', [SalesOrderController::class, 'index'])
         ->middleware('permission:system.orders.view');
     Route::post('/orders', [SalesOrderController::class, 'store'])
         ->middleware('permission:system.orders.create');
+    Route::put('/orders/{order}', [SalesOrderController::class, 'update'])
+        ->middleware('permission:system.orders.update');
     Route::get('/orders/{order}', [SalesOrderController::class, 'show'])
         ->middleware('permission:system.orders.view');
     Route::post('/orders/{order}/confirm', [SalesOrderController::class, 'confirm'])
         ->middleware('permission:system.orders.confirm');
+    Route::post('/orders/{order}/process', [SalesOrderController::class, 'process'])
+        ->middleware('permission:system.orders.fulfill');
     Route::post('/orders/{order}/cancel', [SalesOrderController::class, 'cancel'])
         ->middleware('permission:system.orders.cancel');
     Route::post('/orders/{order}/fulfill', [SalesOrderController::class, 'fulfill'])

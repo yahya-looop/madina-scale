@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Customer;
 use App\Models\InventoryStock;
+use App\Models\InventoryReservation;
 use App\Models\Location;
 use App\Models\ProductVariant;
 use App\Models\SalesOrder;
@@ -60,45 +62,132 @@ class SalesOrderController extends Controller
             ->values();
 
         $locationId = $request->integer('location_id');
+        $editingOrderId = $request->integer('order_id');
+        $editingOrder = null;
+        if ($editingOrderId > 0) {
+            $editingOrder = SalesOrder::query()->findOrFail($editingOrderId);
+            $this->locationAccess->assertManage($request->user(), (int) $editingOrder->location_id);
+            if ($editingOrder->status !== 'pending') {
+                throw ValidationException::withMessages(['status' => 'Only pending orders can be edited.']);
+            }
+            if ($locationId !== (int) $editingOrder->location_id) {
+                throw ValidationException::withMessages(['location_id' => 'The order location cannot be changed while editing.']);
+            }
+        }
         $variants = collect();
         if ($locationId > 0) {
             $this->locationAccess->assertView($request->user(), $locationId);
-            $variants = ProductVariant::query()->with('product:id,name,sku,status')
+            $variantRecords = ProductVariant::query()->with('product:id,name,sku,status')
                 ->where('status', 'active')->whereHas('product', fn ($q) => $q->where('status', 'active'))
                 ->orderBy('product_id')->orderBy('sort_order')
-                ->get(['id', 'product_id', 'name', 'sku', 'selling_price', 'promotional_price', 'promotion_starts_at', 'promotion_ends_at'])
-                ->map(function (ProductVariant $variant) use ($locationId): array {
-                    $stock = InventoryStock::query()->where('product_variant_id', $variant->id)->where('location_id', $locationId)->first();
+                ->get(['id', 'product_id', 'name', 'sku', 'selling_price', 'promotional_price', 'promotion_starts_at', 'promotion_ends_at']);
+            $stockByVariant = InventoryStock::query()
+                ->where('location_id', $locationId)
+                ->whereIn('product_variant_id', $variantRecords->pluck('id'))
+                ->get(['product_variant_id', 'quantity', 'reserved_quantity'])
+                ->keyBy('product_variant_id');
+            $ownReservedByVariant = $editingOrder
+                ? InventoryReservation::query()
+                    ->selectRaw('product_variant_id, SUM(quantity) AS reserved_for_order')
+                    ->where('reference_type', 'sales_order')
+                    ->where('reference_id', (string) $editingOrder->id)
+                    ->where('status', 'active')
+                    ->groupBy('product_variant_id')
+                    ->pluck('reserved_for_order', 'product_variant_id')
+                : collect();
+
+            $variants = $variantRecords->map(function (ProductVariant $variant) use ($stockByVariant, $ownReservedByVariant): array {
+                    $stock = $stockByVariant->get($variant->id);
+                    $available = $stock
+                        ? bcsub((string) $stock->quantity, (string) $stock->reserved_quantity, 4)
+                        : '0.0000';
+
+                    // During an edit, count the order's own active reservations back as
+                    // available so the user can keep or increase the same cart quantities.
+                    $ownReserved = (string) $ownReservedByVariant->get($variant->id, '0.0000');
+                    $available = bcadd($available, $ownReserved, 4);
+
                     return [
                         'id' => $variant->id,
                         'product_id' => $variant->product_id,
                         'name' => $variant->product?->name . ($variant->name ? ' · ' . $variant->name : ''),
                         'sku' => $variant->sku ?: $variant->product?->sku,
                         'price' => $variant->effectiveSellingPrice(),
-                        'available' => $stock ? bcsub((string) $stock->quantity, (string) $stock->reserved_quantity, 4) : '0.0000',
+                        'available' => $available,
                     ];
                 });
         }
         return response()->json(['locations' => $locations, 'variants' => $variants]);
     }
 
+    public function editOptions(Request $request, SalesOrder $order): JsonResponse
+    {
+        $this->locationAccess->assertManage($request->user(), (int) $order->location_id);
+        $request->merge([
+            'order_id' => $order->id,
+            'location_id' => $order->location_id,
+        ]);
+
+        return $this->options($request);
+    }
+
     public function store(Request $request): JsonResponse
     {
         $data = $request->validate([
             'location_id' => ['required', 'integer', 'exists:locations,id'],
-            'customer_name' => ['required', 'string', 'max:160'],
+            'customer_id' => ['nullable', 'integer', 'exists:customers,id'],
+            'customer_name' => ['required_without:customer_id', 'nullable', 'string', 'max:160'],
             'customer_email' => ['nullable', 'email', 'max:190'],
             'customer_phone' => ['nullable', 'string', 'max:40'],
             'notes' => ['nullable', 'string', 'max:5000'],
+            'discount_total' => ['nullable', 'numeric', 'min:0', 'max:1000000000'],
             'channel' => ['nullable', Rule::in(['backoffice', 'website', 'mobile_app'])],
             'idempotency_key' => ['nullable', 'string', 'max:100'],
             'items' => ['required', 'array', 'min:1', 'max:50'],
             'items.*.product_variant_id' => ['required', 'integer', 'distinct', 'exists:product_variants,id'],
             'items.*.quantity' => ['required', 'numeric', 'gt:0', 'max:1000000'],
         ]);
+        if (!empty($data['customer_id'])) {
+            $customer = Customer::query()->whereKey($data['customer_id'])->where('status', 'active')->firstOrFail();
+            $data['customer_name'] = $customer->name;
+            $data['customer_email'] = $customer->email;
+            $data['customer_phone'] = $customer->phone;
+        }
+        if (empty($data['customer_name'])) {
+            throw ValidationException::withMessages(['customer_id' => 'Choose an active customer or enter a customer name.']);
+        }
         $this->locationAccess->assertManage($request->user(), (int) $data['location_id']);
         $order = $this->orders->create($data, $request->user());
         return response()->json(['message' => 'Order created and stock reserved.', 'data' => $order], 201);
+    }
+
+    public function update(Request $request, SalesOrder $order): JsonResponse
+    {
+        $data = $request->validate([
+            'customer_id' => ['nullable', 'integer', 'exists:customers,id'],
+            'customer_name' => ['required_without:customer_id', 'nullable', 'string', 'max:160'],
+            'customer_email' => ['nullable', 'email', 'max:190'],
+            'customer_phone' => ['nullable', 'string', 'max:40'],
+            'notes' => ['nullable', 'string', 'max:5000'],
+            'discount_total' => ['nullable', 'numeric', 'min:0', 'max:1000000000'],
+            'items' => ['required', 'array', 'min:1', 'max:50'],
+            'items.*.product_variant_id' => ['required', 'integer', 'distinct', 'exists:product_variants,id'],
+            'items.*.quantity' => ['required', 'numeric', 'gt:0', 'max:1000000', 'regex:/^\\d{1,14}(?:\\.\\d{1,4})?$/'],
+        ]);
+
+        if (!empty($data['customer_id'])) {
+            $customer = Customer::query()->whereKey($data['customer_id'])->where('status', 'active')->firstOrFail();
+            $data['customer_name'] = $customer->name;
+            $data['customer_email'] = $customer->email;
+            $data['customer_phone'] = $customer->phone;
+        }
+        if (empty($data['customer_name'])) {
+            throw ValidationException::withMessages(['customer_id' => 'Choose an active customer or enter a customer name.']);
+        }
+        $this->locationAccess->assertManage($request->user(), (int) $order->location_id);
+        $updated = $this->orders->updatePending($order, $data, $request->user());
+
+        return response()->json(['message' => 'Pending order updated and stock reservations refreshed.', 'data' => $updated]);
     }
 
     public function show(Request $request, SalesOrder $order): JsonResponse
@@ -129,6 +218,14 @@ class SalesOrderController extends Controller
             $this->sms->sendOrderEvent($updated, 'confirmed');
         }
         return response()->json(['message' => 'Order confirmed.', 'data' => $updated]);
+    }
+
+    public function process(Request $request, SalesOrder $order): JsonResponse
+    {
+        $this->locationAccess->assertManage($request->user(), (int) $order->location_id);
+        $updated = $this->orders->startProcessing($order, $request->user());
+
+        return response()->json(['message' => 'Order moved to processing.', 'data' => $updated]);
     }
 
     public function fulfill(Request $request, SalesOrder $order): JsonResponse

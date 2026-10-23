@@ -199,6 +199,7 @@ function itemHref(item: NavigationItem): string {
 </template>
 
 <style scoped>
+.nav-group-trigger,.nav-item{font-family:inherit;font-size:inherit;font-weight:inherit;letter-spacing:inherit;line-height:inherit}
 .nav-group-trigger{width:100%;border:0;background:transparent;color:inherit;font:inherit;text-align:left;cursor:pointer;appearance:none}
 .nav-group-trigger.is-open:not(.has-active-child){background:rgba(255,255,255,.025)}
 .nav-group-trigger.has-active-child{color:#eaf3f9;background:transparent}

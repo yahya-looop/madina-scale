@@ -48,6 +48,7 @@ class SalesOrderService
                 'status' => 'pending',
                 'channel' => $data['channel'] ?? 'backoffice',
                 'location_id' => $location->id,
+                'customer_id' => $data['customer_id'] ?? null,
                 'customer_name' => trim($data['customer_name']),
                 'customer_email' => isset($data['customer_email']) ? trim($data['customer_email']) : null,
                 'customer_phone' => isset($data['customer_phone']) ? trim($data['customer_phone']) : null,
@@ -102,8 +103,14 @@ class SalesOrderService
                 $item->save();
             }
 
+            $discountTotal = number_format((float) ($data['discount_total'] ?? 0), 2, '.', '');
+            if (bccomp($discountTotal, '0.00', 2) < 0 || bccomp($discountTotal, $subtotal, 2) > 0) {
+                throw ValidationException::withMessages(['discount_total' => 'Discount must be between BDT 0.00 and the order subtotal.']);
+            }
+
             $order->subtotal = $subtotal;
-            $order->grand_total = $subtotal;
+            $order->discount_total = $discountTotal;
+            $order->grand_total = bcsub($subtotal, $discountTotal, 2);
             $order->save();
 
             SalesOrderStatusHistory::query()->create([
@@ -114,6 +121,141 @@ class SalesOrderService
 
             $this->risk->assess($order);
             return $order->load(['items', 'location', 'creator', 'statusHistory.actor', 'riskAssessments']);
+        }, 3);
+    }
+
+
+    /**
+     * Update a pending order while preserving atomic stock reservation semantics.
+     * Confirmed or partially fulfilled orders are immutable through this endpoint.
+     */
+    public function updatePending(SalesOrder $order, array $data, User $actor): SalesOrder
+    {
+        return DB::transaction(function () use ($order, $data, $actor): SalesOrder {
+            $locked = SalesOrder::query()->lockForUpdate()->findOrFail($order->id);
+
+            if ($locked->status !== 'pending') {
+                throw ValidationException::withMessages([
+                    'status' => 'Only pending orders can be edited. Cancel and recreate the order if changes are required after confirmation.',
+                ]);
+            }
+
+            $location = Location::query()->lockForUpdate()->find($locked->location_id);
+            if (! $location || ! $location->is_active) {
+                throw ValidationException::withMessages(['location_id' => 'The order location is no longer active.']);
+            }
+
+            $purpose = InventoryReservationPurpose::query()
+                ->where('key', 'customer_order')
+                ->where('is_active', true)
+                ->first();
+
+            if (! $purpose) {
+                throw ValidationException::withMessages(['items' => 'The active “Customer order” reservation purpose is required before editing orders.']);
+            }
+
+            // Release this order's current active reservations first. If the new cart
+            // cannot be reserved, the surrounding transaction rolls these changes back.
+            $reservations = InventoryReservation::query()
+                ->where('reference_type', 'sales_order')
+                ->where('reference_id', (string) $locked->id)
+                ->where('status', 'active')
+                ->lockForUpdate()
+                ->get();
+
+            foreach ($reservations as $reservation) {
+                $this->reservations->resolve($reservation, 'cancel', $actor);
+            }
+
+            $locked->items()->delete();
+
+            $subtotal = '0.00';
+            foreach ($data['items'] as $line) {
+                $variant = ProductVariant::query()
+                    ->with('product')
+                    ->lockForUpdate()
+                    ->find($line['product_variant_id']);
+
+                if (! $variant || $variant->status !== 'active' || ! $variant->product || $variant->product->status !== 'active') {
+                    throw ValidationException::withMessages(['items' => 'One of the selected products is no longer available for sale.']);
+                }
+
+                $qty = number_format((float) $line['quantity'], 4, '.', '');
+                $unitPrice = $variant->effectiveSellingPrice();
+
+                if (bccomp($unitPrice, '0', 2) < 0) {
+                    throw ValidationException::withMessages(['items' => 'Product price must not be negative.']);
+                }
+
+                $lineTotal = bcadd('0', bcmul($qty, $unitPrice, 2), 2);
+                $subtotal = bcadd($subtotal, $lineTotal, 2);
+
+                $item = SalesOrderItem::query()->create([
+                    'sales_order_id' => $locked->id,
+                    'product_id' => $variant->product_id,
+                    'product_variant_id' => $variant->id,
+                    'product_name' => $variant->product->name,
+                    'variant_name' => $variant->name,
+                    'sku' => $variant->sku ?: $variant->product->sku,
+                    'quantity' => $qty,
+                    'unit_price' => $unitPrice,
+                    'line_total' => $lineTotal,
+                ]);
+
+                $reservation = $this->reservations->reserve([
+                    'product_variant_id' => $variant->id,
+                    'location_id' => $location->id,
+                    'quantity' => $qty,
+                    'purpose' => $purpose->key,
+                    'reference_type' => 'sales_order',
+                    'reference_id' => (string) $locked->id,
+                    'reason' => 'Sales order ' . $locked->order_number . ' (edited)',
+                    'expires_at' => now()->addHours(72),
+                ], $actor);
+
+                $item->reservation_id = $reservation->id;
+                $item->save();
+            }
+
+            $locked->customer_id = $data['customer_id'] ?? null;
+            $locked->customer_name = trim($data['customer_name']);
+            $locked->customer_email = isset($data['customer_email']) && trim((string) $data['customer_email']) !== ''
+                ? trim((string) $data['customer_email'])
+                : null;
+            $locked->customer_phone = isset($data['customer_phone']) && trim((string) $data['customer_phone']) !== ''
+                ? trim((string) $data['customer_phone'])
+                : null;
+            $locked->notes = isset($data['notes']) && trim((string) $data['notes']) !== ''
+                ? trim((string) $data['notes'])
+                : null;
+            $discountTotal = number_format((float) ($data['discount_total'] ?? 0), 2, '.', '');
+            if (bccomp($discountTotal, '0.00', 2) < 0 || bccomp($discountTotal, $subtotal, 2) > 0) {
+                throw ValidationException::withMessages(['discount_total' => 'Discount must be between BDT 0.00 and the order subtotal.']);
+            }
+
+            $locked->subtotal = $subtotal;
+            $locked->discount_total = $discountTotal;
+            $locked->tax_total = '0.00';
+            $locked->grand_total = bcsub($subtotal, $discountTotal, 2);
+            $locked->save();
+
+            SalesOrderStatusHistory::query()->create([
+                'sales_order_id' => $locked->id,
+                'from_status' => 'pending',
+                'to_status' => 'pending',
+                'reason' => 'Pending order details and items updated.',
+                'metadata' => [
+                    'item_count' => count($data['items']),
+                    'released_reservations' => $reservations->count(),
+                    'updated_fields' => ['customer_name', 'customer_email', 'customer_phone', 'notes', 'items', 'totals'],
+                ],
+                'changed_by' => $actor->id,
+                'created_at' => now(),
+            ]);
+
+            $this->risk->assess($locked);
+
+            return $locked->load(['items', 'location', 'creator', 'statusHistory.actor', 'riskAssessments']);
         }, 3);
     }
 
@@ -145,6 +287,49 @@ class SalesOrderService
                 'sales_order_id' => $locked->id, 'from_status' => $from, 'to_status' => 'cancelled',
                 'reason' => $reason, 'metadata' => ['released_reservations' => $reservations->count()],
                 'changed_by' => $actor->id, 'created_at' => now(),
+            ]);
+
+            return $locked->load(['items', 'location', 'statusHistory.actor']);
+        }, 3);
+    }
+
+    public function startProcessing(SalesOrder $order, User $actor): SalesOrder
+    {
+        return DB::transaction(function () use ($order, $actor): SalesOrder {
+            $locked = SalesOrder::query()->lockForUpdate()->findOrFail($order->id);
+
+            if ($locked->status === 'processing') {
+                return $locked->load(['items', 'location', 'statusHistory.actor']);
+            }
+
+            if ($locked->status !== 'confirmed') {
+                throw ValidationException::withMessages([
+                    'status' => 'Only confirmed orders can move into processing.',
+                ]);
+            }
+
+            $activeCount = InventoryReservation::query()
+                ->where('reference_type', 'sales_order')
+                ->where('reference_id', (string) $locked->id)
+                ->where('status', 'active')
+                ->count();
+
+            if ($activeCount !== $locked->items()->count()) {
+                throw ValidationException::withMessages([
+                    'status' => 'One or more stock reservations have expired or been released. Review the order before processing.',
+                ]);
+            }
+
+            $locked->status = 'processing';
+            $locked->save();
+
+            SalesOrderStatusHistory::query()->create([
+                'sales_order_id' => $locked->id,
+                'from_status' => 'confirmed',
+                'to_status' => 'processing',
+                'reason' => 'Order moved to processing.',
+                'changed_by' => $actor->id,
+                'created_at' => now(),
             ]);
 
             return $locked->load(['items', 'location', 'statusHistory.actor']);

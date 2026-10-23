@@ -263,6 +263,22 @@ Route::middleware('auth')->group(function () {
 
     /*
     |--------------------------------------------------------------------------
+    | Customer Management
+    |--------------------------------------------------------------------------
+    */
+    Route::get('/customers', function () {
+        $user = request()->user();
+        abort_unless($user !== null, 401);
+        abort_unless($user->can('system.customers.view'), 403);
+        return Inertia::render('Customers/Index', [
+            'userName' => $user->name,
+            'userEmail' => $user->email,
+        ]);
+    })->name('customers.index');
+
+
+    /*
+    |--------------------------------------------------------------------------
     | Orders Management
     |--------------------------------------------------------------------------
     */

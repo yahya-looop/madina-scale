@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class SalesOrder extends Model
 {
     protected $fillable = [
-        'order_number', 'status', 'channel', 'location_id',
+        'order_number', 'status', 'channel', 'location_id', 'customer_id',
         'customer_name', 'customer_email', 'customer_phone',
         'currency', 'subtotal', 'discount_total', 'tax_total', 'grand_total',
         'notes', 'created_by', 'confirmed_at', 'cancelled_at', 'cancellation_reason',
@@ -28,6 +28,7 @@ class SalesOrder extends Model
         ];
     }
 
+    public function customer(): BelongsTo { return $this->belongsTo(Customer::class); }
     public function location(): BelongsTo { return $this->belongsTo(Location::class); }
     public function creator(): BelongsTo { return $this->belongsTo(User::class, 'created_by'); }
     public function items(): HasMany { return $this->hasMany(SalesOrderItem::class, 'sales_order_id'); }

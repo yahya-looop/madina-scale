@@ -22,14 +22,16 @@ export const primaryNavigation: NavigationItem[] = [
         icon: 'sales',
         expandable: true,
         permission: 'system.sales.view',
+        children: [
+            {
+                label: 'Sales Orders',
+                href: '/orders',
+                icon: 'orders',
+                permission: 'system.orders.view',
+            },
+        ],
     },
 
-    {
-        label: 'Order Management',
-        href: '/orders',
-        icon: 'orders',
-        permission: 'system.orders.view',
-    },
 
     {
         label: 'Product Management',
@@ -122,6 +124,14 @@ export const primaryNavigation: NavigationItem[] = [
         icon: 'customers',
         expandable: true,
         permission: 'system.customers.view',
+        children: [
+            {
+                label: 'Customer List',
+                href: '/customers',
+                icon: 'customers',
+                permission: 'system.customers.view',
+            },
+        ],
     },
 
     {

@@ -27,7 +27,7 @@ class SalesOrderWorkflowTest extends TestCase
             'name' => 'Orders', 'description' => 'Order management.',
             'sort_order' => 30, 'is_system' => true, 'is_active' => true,
         ]);
-        $slugs = ['system.orders.view', 'system.orders.create', 'system.orders.confirm', 'system.orders.cancel', 'system.orders.fulfill'];
+        $slugs = ['system.orders.view', 'system.orders.create', 'system.orders.update', 'system.orders.confirm', 'system.orders.cancel', 'system.orders.fulfill'];
         $permissions = [];
         foreach ($slugs as $slug) {
             $permissions[] = Permission::firstOrCreate(['slug' => $slug], [
@@ -92,6 +92,178 @@ class SalesOrderWorkflowTest extends TestCase
         $this->assertDatabaseHas('inventory_stocks', [
             'product_variant_id' => $variant->id, 'location_id' => $location->id,
             'reserved_quantity' => '0.0000',
+        ]);
+    }
+
+    public function test_pending_order_can_be_edited_and_reservations_are_reconciled_atomically(): void
+    {
+        [$location, $variant] = $this->orderFixture();
+        $user = $this->orderUser($location);
+
+        $this->actingAs($user)->postJson('/api/orders', [
+            'location_id' => $location->id,
+            'customer_name' => 'Original Buyer',
+            'customer_phone' => '01711111111',
+            'items' => [['product_variant_id' => $variant->id, 'quantity' => 2]],
+        ])->assertCreated();
+
+        $order = SalesOrder::query()->firstOrFail();
+        $item = $order->items()->firstOrFail();
+        $reservationId = $item->reservation_id;
+
+        $this->actingAs($user)->putJson("/api/orders/{$order->id}", [
+            'customer_name' => 'Updated Buyer',
+            'customer_phone' => '01822222222',
+            'customer_email' => 'buyer@example.com',
+            'notes' => 'Call before delivery',
+            'items' => [['product_variant_id' => $variant->id, 'quantity' => 4]],
+        ])->assertOk()
+            ->assertJsonPath('data.customer_name', 'Updated Buyer')
+            ->assertJsonPath('data.grand_total', '400.00')
+            ->assertJsonPath('data.items.0.quantity', '4.0000');
+
+        $this->assertDatabaseHas('inventory_reservations', [
+            'id' => $reservationId,
+            'status' => 'cancelled',
+        ]);
+        $this->assertDatabaseHas('inventory_stocks', [
+            'product_variant_id' => $variant->id,
+            'location_id' => $location->id,
+            'reserved_quantity' => '4.0000',
+        ]);
+        $this->assertDatabaseHas('sales_orders', [
+            'id' => $order->id,
+            'customer_phone' => '01822222222',
+            'notes' => 'Call before delivery',
+        ]);
+        $this->assertDatabaseHas('sales_order_status_histories', [
+            'sales_order_id' => $order->id,
+            'from_status' => 'pending',
+            'to_status' => 'pending',
+        ]);
+    }
+
+    public function test_failed_pending_order_edit_rolls_back_old_reservation_and_order_details(): void
+    {
+        [$location, $variant] = $this->orderFixture();
+        $user = $this->orderUser($location);
+
+        $this->actingAs($user)->postJson('/api/orders', [
+            'location_id' => $location->id,
+            'customer_name' => 'Original Buyer',
+            'items' => [['product_variant_id' => $variant->id, 'quantity' => 2]],
+        ])->assertCreated();
+
+        $order = SalesOrder::query()->firstOrFail();
+
+        $this->actingAs($user)->putJson("/api/orders/{$order->id}", [
+            'customer_name' => 'Should Not Persist',
+            'items' => [['product_variant_id' => $variant->id, 'quantity' => 50]],
+        ])->assertUnprocessable();
+
+        $this->assertDatabaseHas('sales_orders', [
+            'id' => $order->id,
+            'customer_name' => 'Original Buyer',
+            'grand_total' => '200.00',
+        ]);
+        $this->assertDatabaseHas('inventory_stocks', [
+            'product_variant_id' => $variant->id,
+            'location_id' => $location->id,
+            'reserved_quantity' => '2.0000',
+        ]);
+        $this->assertDatabaseCount('sales_order_items', 1);
+    }
+
+    public function test_confirmed_orders_cannot_be_edited(): void
+    {
+        [$location, $variant] = $this->orderFixture();
+        $user = $this->orderUser($location);
+
+        $this->actingAs($user)->postJson('/api/orders', [
+            'location_id' => $location->id,
+            'customer_name' => 'Confirmed Buyer',
+            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1]],
+        ])->assertCreated();
+
+        $order = SalesOrder::query()->firstOrFail();
+        $this->actingAs($user)->postJson("/api/orders/{$order->id}/confirm", [])->assertOk();
+
+        $this->putJson("/api/orders/{$order->id}", [
+            'customer_name' => 'Changed After Confirmation',
+            'items' => [['product_variant_id' => $variant->id, 'quantity' => 2]],
+        ])->assertUnprocessable();
+
+        $this->assertDatabaseHas('sales_orders', [
+            'id' => $order->id,
+            'customer_name' => 'Confirmed Buyer',
+            'status' => 'confirmed',
+        ]);
+    }
+
+    public function test_order_discount_is_validated_and_applied_to_grand_total(): void
+    {
+        [$location, $variant] = $this->orderFixture();
+        $user = $this->orderUser($location);
+
+        $this->actingAs($user)->postJson('/api/orders', [
+            'location_id' => $location->id,
+            'customer_name' => 'Discount Buyer',
+            'discount_total' => 25,
+            'items' => [['product_variant_id' => $variant->id, 'quantity' => 2]],
+        ])->assertCreated()
+            ->assertJsonPath('data.subtotal', '200.00')
+            ->assertJsonPath('data.discount_total', '25.00')
+            ->assertJsonPath('data.grand_total', '175.00');
+
+        $this->assertDatabaseHas('sales_orders', [
+            'customer_name' => 'Discount Buyer',
+            'subtotal' => '200.00',
+            'discount_total' => '25.00',
+            'grand_total' => '175.00',
+        ]);
+    }
+
+    public function test_discount_cannot_exceed_order_subtotal(): void
+    {
+        [$location, $variant] = $this->orderFixture();
+        $user = $this->orderUser($location);
+
+        $this->actingAs($user)->postJson('/api/orders', [
+            'location_id' => $location->id,
+            'customer_name' => 'Invalid Discount Buyer',
+            'discount_total' => 201,
+            'items' => [['product_variant_id' => $variant->id, 'quantity' => 2]],
+        ])->assertUnprocessable();
+
+        $this->assertDatabaseCount('sales_orders', 0);
+        $this->assertDatabaseHas('inventory_stocks', [
+            'product_variant_id' => $variant->id,
+            'location_id' => $location->id,
+            'reserved_quantity' => '0.0000',
+        ]);
+    }
+
+    public function test_confirmed_order_can_move_to_processing_before_fulfillment(): void
+    {
+        [$location, $variant] = $this->orderFixture();
+        $user = $this->orderUser($location);
+
+        $this->actingAs($user)->postJson('/api/orders', [
+            'location_id' => $location->id,
+            'customer_name' => 'Processing Buyer',
+            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1]],
+        ])->assertCreated();
+
+        $order = SalesOrder::query()->firstOrFail();
+        $this->actingAs($user)->postJson("/api/orders/{$order->id}/confirm", [])->assertOk();
+        $this->postJson("/api/orders/{$order->id}/process", [])
+            ->assertOk()
+            ->assertJsonPath('data.status', 'processing');
+
+        $this->assertDatabaseHas('sales_order_status_histories', [
+            'sales_order_id' => $order->id,
+            'from_status' => 'confirmed',
+            'to_status' => 'processing',
         ]);
     }
 
