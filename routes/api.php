@@ -20,6 +20,7 @@ use App\Http\Controllers\RoleController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\SalesOrderController;
 use App\Http\Controllers\CustomerController;
+use App\Http\Controllers\CustomerLocationSuggestionController;
 use App\Http\Controllers\OrderOperationsController;
 use Illuminate\Support\Facades\Route;
 
@@ -31,6 +32,8 @@ Route::middleware(['web', 'auth'])->group(function () {
     |--------------------------------------------------------------------------
     */
     Route::get('/customers/options', [CustomerController::class, 'options'])->middleware('permission:system.orders.create');
+    Route::get('/customer-location-suggestions', [CustomerLocationSuggestionController::class, 'index'])->middleware('permission:system.customers.view');
+    Route::post('/customer-location-suggestions', [CustomerLocationSuggestionController::class, 'store'])->middleware('permission:system.customers.create');
     Route::get('/customers', [CustomerController::class, 'index'])->middleware('permission:system.customers.view');
     Route::get('/customers/{customer}', [CustomerController::class, 'show'])->middleware('permission:system.customers.view');
     Route::post('/customers', [CustomerController::class, 'store'])->middleware('permission:system.customers.create');

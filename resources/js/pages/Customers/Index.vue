@@ -1,8 +1,10 @@
+
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from "vue";
 import { Head } from "@inertiajs/vue3";
 import ErpLayout from "@/layouts/ErpLayout.vue";
 import Icon from "@/components/dashboard/Icon.vue";
+import AddressSuggest from "@/components/customers/AddressSuggest.vue";
 import bd from "bangladesh-geojson";
 interface Props {
   userName?: string;
@@ -93,6 +95,36 @@ const bdDivisions = bd.getDivisions() as BdDivision[];
 const bdDistricts = bd.getDistricts() as BdDistrict[];
 const bdUpazilas = bd.getUpazilas() as BdUpazila[];
 const bdPostcodes = bd.getPostcodes() as BdPostcode[];
+
+// Built-in Bangladesh dataset plus shared, database-backed custom suggestions.
+type LocationSuggestionKey = "divisions" | "districts" | "upazilas" | "postcodes";
+const customLocationSuggestions = reactive<Record<LocationSuggestionKey, string[]>>({ divisions: [], districts: [], upazilas: [], postcodes: [] });
+const locationTypeMap: Record<LocationSuggestionKey, string> = { divisions: "division", districts: "district", upazilas: "upazila", postcodes: "postcode" };
+async function loadCustomLocationSuggestions() {
+  try {
+    const response = await fetch("/api/customer-location-suggestions", { headers: { Accept: "application/json", "X-Requested-With": "XMLHttpRequest" }, credentials: "same-origin" });
+    if (!response.ok) return;
+    const payload = await response.json();
+    for (const key of Object.keys(customLocationSuggestions) as LocationSuggestionKey[]) {
+      const values = payload.data?.[key];
+      if (Array.isArray(values)) customLocationSuggestions[key] = values.filter((v: unknown): v is string => typeof v === "string");
+    }
+  } catch { /* Keep built-in dataset available when API is temporarily unavailable. */ }
+}
+async function rememberLocationSuggestion(key: LocationSuggestionKey, value: string) {
+  const cleanValue = value.trim();
+  if (!cleanValue) return;
+  const current = customLocationSuggestions[key];
+  if (current.some((item) => item.toLowerCase() === cleanValue.toLowerCase())) return;
+  const response = await fetch("/api/customer-location-suggestions", { method: "POST", headers: { ...headers(), Accept: "application/json" }, credentials: "same-origin", body: JSON.stringify({ type: locationTypeMap[key], name: cleanValue }) });
+  if (!response.ok) throw new Error(await errorText(response, "Could not save this location suggestion."));
+  await loadCustomLocationSuggestions();
+}
+const divisionSuggestions = computed(() => [...new Set([...bdDivisions.map((item) => item.name), ...customLocationSuggestions.divisions])].sort((a,b) => a.localeCompare(b)));
+const districtSuggestions = computed(() => [...new Set([...availableDistricts.value.map((item) => item.name), ...customLocationSuggestions.districts])].sort((a,b) => a.localeCompare(b)));
+const upazilaSuggestions = computed(() => [...new Set([...availableUpazilas.value.map((item) => item.name), ...customLocationSuggestions.upazilas])].sort((a,b) => a.localeCompare(b)));
+const postcodeSuggestions = computed(() => [...new Set([...availablePostcodes.value.map((item) => String(item.postCode)), ...customLocationSuggestions.postcodes])].sort((a,b) => a.localeCompare(b)));
+
 const selectedDivision = computed(() =>
   bdDivisions.find(
     (item) => item.name.toLowerCase() === (form.division ?? "").toLowerCase()
@@ -126,19 +158,22 @@ const availablePostcodes = computed(() => {
       (!upazilaName || item.upazila.toLowerCase() === upazilaName)
   );
 });
-function changeDivision(value: string) {
+async function changeDivision(value: string) {
   form.division = value;
+  await rememberLocationSuggestion("divisions", value).catch((e) => notify(e instanceof Error ? e.message : "Could not save location.", "error"));
   form.district = "";
   form.area = "";
   form.postal_code = "";
 }
-function changeDistrict(value: string) {
+async function changeDistrict(value: string) {
   form.district = value;
+  await rememberLocationSuggestion("districts", value).catch((e) => notify(e instanceof Error ? e.message : "Could not save location.", "error"));
   form.area = "";
   form.postal_code = "";
 }
-function changeUpazila(value: string) {
+async function changeUpazila(value: string) {
   form.area = value;
+  await rememberLocationSuggestion("upazilas", value).catch((e) => notify(e instanceof Error ? e.message : "Could not save location.", "error"));
   form.postal_code = "";
 }
 
@@ -293,7 +328,10 @@ const initials = (c: Customer) =>
     .map((x) => x[0] ?? "")
     .join("")
     .toUpperCase();
-onMounted(load);
+onMounted(() => {
+  loadCustomLocationSuggestions();
+  load();
+});
 </script>
 <template>
   <Head title="Customers" /><ErpLayout
@@ -420,9 +458,17 @@ onMounted(load);
               </tr>
             </thead>
             <tbody>
-              <tr v-for="c in customers" :key="c.id">
+              <tr
+                v-for="c in customers"
+                :key="c.id"
+                class="customer-row"
+                tabindex="0"
+                @click="showCustomer(c)"
+                @keydown.enter.self.prevent="showCustomer(c)"
+                @keydown.space.self.prevent="showCustomer(c)"
+              >
                 <td>
-                  <button class="customer-cell" @click="showCustomer(c)">
+                  <button class="customer-cell" @click.stop="showCustomer(c)">
                     <span class="avatar">{{ initials(c) }}</span
                     ><span
                       ><b>{{ c.name }}</b
@@ -456,15 +502,19 @@ onMounted(load);
                     <button
                       class="icon-btn"
                       title="View profile"
-                      @click="showCustomer(c)"
+                      @click.stop="showCustomer(c)"
                     >
                       <Icon name="eye" :size="15" /></button
-                    ><button class="icon-btn" title="Edit customer" @click="openEdit(c)">
+                    ><button
+                      class="icon-btn"
+                      title="Edit customer"
+                      @click.stop="openEdit(c)"
+                    >
                       <Icon name="pencil" :size="15" /></button
                     ><button
                       class="icon-btn danger"
                       title="Delete customer"
-                      @click="deleteTarget = c"
+                      @click.stop="deleteTarget = c"
                     >
                       <Icon name="trash-2" :size="15" />
                     </button>
@@ -503,7 +553,8 @@ onMounted(load);
       <Teleport to="body">
         <div v-if="showForm" class="backdrop" @click.self="showForm = false">
           <section
-            class="modal"
+            class="modal customer-form-modal"
+            :class="{ 'is-editing': !!editing }"
             role="dialog"
             aria-modal="true"
             aria-labelledby="customer-form-title"
@@ -512,7 +563,7 @@ onMounted(load);
               <div class="modal-title-wrap">
                 <span class="modal-title-icon"
                   ><Icon
-                    :name="editing ? 'user-round-pen' : 'user-round-plus'"
+                    :name="editing ? 'user-cog' : 'user-plus'"
                     :size="21"
                 /></span>
                 <div>
@@ -534,7 +585,7 @@ onMounted(load);
                 <section class="form-section">
                   <div class="form-section-title">
                     <span class="section-icon"
-                      ><Icon name="user-round" :size="16"
+                      ><Icon name="clipboard-text" :size="16"
                     /></span>
                     <div>
                       <h3>Basic information</h3>
@@ -612,92 +663,24 @@ onMounted(load);
                         errors.address_line
                       }}</small></label
                     >
-                    <label class="field"
-                      ><span>Division / বিভাগ</span
-                      ><input
-                        v-model="form.division"
-                        list="customer-bd-divisions"
-                        autocomplete="address-level1"
-                        placeholder="Choose or type division"
-                        @change="changeDivision(form.division ?? '')"
-                      />
-                      <datalist id="customer-bd-divisions">
-                        <option
-                          v-for="item in bdDivisions"
-                          :key="item.id"
-                          :value="item.name"
-                        >
-                          {{ item.bn_name ? ` · ${item.bn_name}` : "" }}
-                        </option>
-                      </datalist>
+                    <label class="field">
+                      <span>Division</span>
+                      <AddressSuggest :model-value="form.division ?? ''" :options="divisionSuggestions" placeholder="Search or select division" @update:model-value="changeDivision($event)" @add="changeDivision($event)" />
                     </label>
-                    <label class="field"
-                      ><span>District / জেলা</span
-                      ><input
-                        v-model="form.district"
-                        list="customer-bd-districts"
-                        autocomplete="address-level2"
-                        placeholder="Choose or type district"
-                        @change="changeDistrict(form.district ?? '')"
-                      />
-                      <datalist id="customer-bd-districts">
-                        <option
-                          v-for="item in availableDistricts"
-                          :key="item.id"
-                          :value="item.name"
-                        >
-                          {{ item.bn_name ? ` · ${item.bn_name}` : "" }}
-                        </option>
-                      </datalist>
-                      <small v-if="errors.district" class="field-error">{{
-                        errors.district
-                      }}</small></label
-                    >
-                    <label class="field"
-                      ><span>Upazila / Thana / উপজেলা-থানা</span
-                      ><input
-                        v-model="form.area"
-                        list="customer-bd-upazilas"
-                        autocomplete="address-level3"
-                        placeholder="Choose or type upazila / thana"
-                        @change="changeUpazila(form.area ?? '')"
-                      />
-                      <datalist id="customer-bd-upazilas">
-                        <option
-                          v-for="item in availableUpazilas"
-                          :key="item.id"
-                          :value="item.name"
-                        >
-                          {{ item.bn_name ? ` · ${item.bn_name}` : "" }}
-                        </option>
-                      </datalist>
-                      <small
-                        >Choose a suggestion or type a locality not listed.</small
-                      ></label
-                    >
-                    <label class="field"
-                      ><span>Postcode / পোস্ট কোড</span
-                      ><input
-                        v-model="form.postal_code"
-                        list="customer-bd-postcodes"
-                        maxlength="20"
-                        inputmode="numeric"
-                        autocomplete="postal-code"
-                        placeholder="Choose or type postcode"
-                      />
-                      <datalist id="customer-bd-postcodes">
-                        <option
-                          v-for="(item, index) in availablePostcodes"
-                          :key="`${item.postCode}-${item.postOffice}-${index}`"
-                          :value="String(item.postCode)"
-                        >
-                          {{ item.postOffice }} ({{ item.upazila }})
-                        </option>
-                      </datalist>
-                      <small v-if="errors.postal_code" class="field-error">{{
-                        errors.postal_code
-                      }}</small></label
-                    >
+                    <label class="field">
+                      <span>District</span>
+                      <AddressSuggest :model-value="form.district ?? ''" :options="districtSuggestions" placeholder="Search or select district" @update:model-value="changeDistrict($event)" @add="changeDistrict($event)" />
+                      <small v-if="errors.district" class="field-error">{{ errors.district }}</small>
+                    </label>
+                    <label class="field">
+                      <span>Upazila / Thana</span>
+                      <AddressSuggest :model-value="form.area ?? ''" :options="upazilaSuggestions" placeholder="Search or select upazila / thana" @update:model-value="changeUpazila($event)" @add="changeUpazila($event)" />
+                    </label>
+                    <label class="field">
+                      <span>Postcode</span>
+                      <AddressSuggest :model-value="form.postal_code ?? ''" :options="postcodeSuggestions" placeholder="Search or type postcode" @update:model-value="form.postal_code = $event" @add="async (value) => { form.postal_code = value; await rememberLocationSuggestion('postcodes', value).catch((e) => notify(e instanceof Error ? e.message : 'Could not save postcode.', 'error')); }" />
+                      <small v-if="errors.postal_code" class="field-error">{{ errors.postal_code }}</small>
+                    </label>
                   </div>
                 </section>
                 <section class="form-section">
@@ -746,83 +729,172 @@ onMounted(load);
           </section>
         </div>
         <div v-if="detail" class="backdrop" @click.self="detail = null">
-          <section class="modal profile" role="dialog" aria-modal="true">
-            <header class="modal-head">
+          <section
+            class="modal profile profile-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="customer-profile-title"
+          >
+            <header class="modal-head profile-head">
               <div class="modal-title-wrap">
-                <span class="modal-title-icon"
-                  ><Icon name="contact-round" :size="21"
-                /></span>
-                <div>
+                <span class="modal-title-icon"><Icon name="user" :size="20" /></span>
+                <div class="profile-heading-copy">
                   <div class="eyebrow">CUSTOMER DETAILS</div>
-                  <h2>Customer profile</h2>
-                  <p>{{ detail.customer_code }}</p>
+                  <h2 id="customer-profile-title">Customer profile</h2>
+                  <p>{{ detail.customer_code || "Customer record" }}</p>
                 </div>
               </div>
-              <button class="icon-btn" @click="detail = null" aria-label="Close">
+              <button
+                class="icon-btn"
+                @click="detail = null"
+                aria-label="Close customer profile"
+              >
                 <Icon name="x" :size="17" />
               </button>
             </header>
-            <div class="modal-body">
-              <div class="profile-hero">
+
+            <div class="modal-body profile-body">
+              <section class="profile-hero">
                 <span
                   class="avatar large"
-                  >{{String(detail.name??'C').split(/\s+/).slice(0,2).map((x:string)=>x[0]).join('').toUpperCase()}}</span
+                  >{{ String(detail.name ?? "C").split(/\\s+/).slice(0, 2).map((x: string) => x[0]).join("").toUpperCase() }}</span
                 >
-                <div>
-                  <h3>{{ detail.name }}</h3>
-                  <span class="status" :class="detail.status">{{ detail.status }}</span>
+                <div class="profile-identity">
+                  <h3>{{ detail.name || "Unnamed customer" }}</h3>
+                  <div class="profile-identity-meta">
+                    <span class="status" :class="detail.status">{{
+                      detail.status || "unknown"
+                    }}</span>
+                    <span class="profile-code">{{ detail.customer_code || "—" }}</span>
+                  </div>
                 </div>
-                <strong>{{ money(detail.lifetime_value) }}</strong
-                ><small>Lifetime order value</small>
-              </div>
-              <div class="profile-grid">
-                <div>
-                  <small>Phone</small><b>{{ detail.phone || "—" }}</b>
+                <div class="profile-value">
+                  <small><Icon name="wallet" :size="13" /> Lifetime order value</small>
+                  <strong>{{ money(detail.lifetime_value ?? 0) }}</strong>
                 </div>
-                <div>
-                  <small>Email</small><b>{{ detail.email || "—" }}</b>
+              </section>
+
+              <section class="profile-section" aria-labelledby="profile-contact-title">
+                <h3 id="profile-contact-title" class="profile-section-title">
+                  <Icon name="user-cog" :size="15" /> Contact information
+                </h3>
+                <div class="profile-grid">
+                  <div class="profile-field">
+                    <span class="profile-field-icon"
+                      ><Icon name="phone" :size="15"
+                    /></span>
+                    <span class="profile-field-copy"
+                      ><small>Phone number</small
+                      ><b>{{ detail.phone || "Not provided" }}</b></span
+                    >
+                  </div>
+                  <div class="profile-field">
+                    <span class="profile-field-icon"
+                      ><Icon name="mail" :size="15"
+                    /></span>
+                    <span class="profile-field-copy"
+                      ><small>Email address</small
+                      ><b>{{ detail.email || "Not provided" }}</b></span
+                    >
+                  </div>
+                  <div class="profile-field">
+                    <span class="profile-field-icon"
+                      ><Icon name="building" :size="15"
+                    /></span>
+                    <span class="profile-field-copy"
+                      ><small>Company / business</small
+                      ><b>{{ detail.company_name || "Not provided" }}</b></span
+                    >
+                  </div>
+                  <div class="profile-field">
+                    <span class="profile-field-icon"
+                      ><Icon name="calendar-days" :size="15"
+                    /></span>
+                    <span class="profile-field-copy"
+                      ><small>Customer since</small
+                      ><b>{{
+                        detail.created_at ? date(detail.created_at) : "—"
+                      }}</b></span
+                    >
+                  </div>
                 </div>
-                <div>
-                  <small>Company</small><b>{{ detail.company_name || "—" }}</b>
+              </section>
+
+              <section class="profile-section" aria-labelledby="profile-address-title">
+                <h3 id="profile-address-title" class="profile-section-title">
+                  <Icon name="map-pin" :size="15" /> Address & delivery
+                </h3>
+                <div class="profile-address">
+                  <span class="profile-field-icon"
+                    ><Icon name="home" :size="16"
+                  /></span>
+                  <div>
+                    <small>Full address</small>
+                    <b>{{
+                      [detail.address_line, detail.area, detail.district, detail.division]
+                        .filter(Boolean)
+                        .join(", ") || "No address provided"
+                    }}</b>
+                    <span v-if="detail.postal_code" class="profile-postcode"
+                      >Postcode: {{ detail.postal_code }}</span
+                    >
+                  </div>
                 </div>
-                <div>
-                  <small>Address</small
-                  ><b>{{
-                    [
-                      detail.address_line,
-                      detail.area,
-                      detail.district,
-                      detail.division,
-                      detail.postal_code,
-                    ]
-                      .filter(Boolean)
-                      .join(", ") || "—"
-                  }}</b>
-                </div>
-              </div>
-              <h3 class="history-title">Recent orders</h3>
-              <div v-if="!detail.orders?.length" class="empty small-empty">
-                No orders linked yet. Existing historical orders remain unlinked until
-                reviewed.
-              </div>
-              <div v-else class="order-list">
-                <div v-for="o in detail.orders" :key="o.id">
-                  <span
-                    ><b>{{ o.order_number }}</b
-                    ><small>{{ date(o.created_at) }}</small></span
-                  ><span class="status" :class="o.status">{{ o.status }}</span
-                  ><strong>{{ money(o.grand_total) }}</strong>
-                </div>
-              </div>
-            </div>
-            <footer class="modal-foot">
-              <button class="btn" @click="detail = null">Close</button
-              ><button
-                class="btn primary"
-                @click="openEdit(detail as Customer);detail=null"
+              </section>
+
+              <section
+                v-if="detail.notes"
+                class="profile-section"
+                aria-labelledby="profile-notes-title"
               >
-                <Icon name="pencil" :size="14" /> Edit customer
-              </button>
+                <h3 id="profile-notes-title" class="profile-section-title">
+                  <Icon name="sticky-note" :size="15" /> Notes
+                </h3>
+                <p class="profile-notes">{{ detail.notes }}</p>
+              </section>
+
+              <section class="profile-section" aria-labelledby="profile-orders-title">
+                <div class="profile-orders-heading">
+                  <h3 id="profile-orders-title" class="profile-section-title">
+                    <Icon name="shopping-bag" :size="15" /> Recent orders
+                  </h3>
+                  <span class="profile-order-count"
+                    >{{ detail.orders?.length ?? 0 }} shown</span
+                  >
+                </div>
+                <div v-if="!detail.orders?.length" class="empty small-empty">
+                  <Icon name="package-open" :size="22" />
+                  <b>No linked orders yet</b>
+                  <span>Order history will appear here when available.</span>
+                </div>
+                <div v-else class="order-list profile-order-list">
+                  <div v-for="o in detail.orders" :key="o.id">
+                    <span class="order-main">
+                      <b>{{ o.order_number || `Order #${o.id}` }}</b>
+                      <small>{{ date(o.created_at) }}</small>
+                    </span>
+                    <span class="status" :class="o.status">{{
+                      o.status || "unknown"
+                    }}</span>
+                    <strong>{{ money(o.grand_total ?? 0) }}</strong>
+                  </div>
+                </div>
+              </section>
+            </div>
+
+            <footer class="modal-foot profile-foot">
+              <span class="profile-foot-note"
+                ><Icon name="shield-check" :size="14" /> Customer record</span
+              >
+              <div class="profile-foot-actions">
+                <button class="btn" @click="detail = null">Close</button>
+                <button
+                  class="btn primary"
+                  @click="openEdit(detail as Customer); detail = null"
+                >
+                  <Icon name="pencil" :size="14" /> Edit customer
+                </button>
+              </div>
             </footer>
           </section>
         </div>
@@ -2277,4 +2349,701 @@ td {
     font-size: 19px !important;
   }
 }
+
+/* Customer row opens the profile; action buttons remain independent. */
+.customer-row {
+  cursor: pointer;
+  transition: background-color 150ms ease, box-shadow 150ms ease;
+}
+.customer-row:hover {
+  background: color-mix(in srgb, var(--primary, #059669) 4%, var(--card, #fff));
+}
+.customer-row:focus-visible {
+  outline: 2px solid #05966970;
+  outline-offset: -2px;
+}
+.customer-row .row-actions {
+  position: relative;
+  z-index: 1;
+}
+
+/* Compact, responsive customer profile dialog. */
+.profile-modal {
+  width: min(900px, 100%);
+  max-height: min(820px, calc(100dvh - 32px));
+  border-radius: 16px;
+}
+.profile-head {
+  padding: 14px 18px;
+}
+.profile-head .modal-title-icon {
+  width: 42px;
+  height: 42px;
+  flex-basis: 42px;
+  border-radius: 12px;
+}
+.profile-head h2 {
+  font-size: 16px;
+}
+.profile-body {
+  display: grid;
+  align-content: start;
+  gap: 16px;
+  padding: 16px 18px;
+}
+.profile-hero {
+  grid-template-columns: auto minmax(0, 1fr) minmax(160px, auto);
+  padding: 13px 14px;
+  gap: 12px;
+  background: linear-gradient(120deg, #f5f8ff 0%, var(--muted, #f6f8fb) 65%);
+}
+.profile-identity {
+  min-width: 0;
+}
+.profile-identity h3 {
+  margin: 0 0 7px;
+  font-size: 16px;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+.profile-identity-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.profile-code {
+  color: var(--muted-foreground, #788397);
+  font-size: 10px;
+  font-weight: 600;
+}
+.profile-value {
+  display: grid;
+  justify-items: end;
+  gap: 5px;
+}
+.profile-value small {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--muted-foreground, #788397);
+  font-size: 10px;
+}
+.profile-value strong {
+  font-size: 17px;
+  font-variant-numeric: tabular-nums;
+}
+.profile-section {
+  min-width: 0;
+}
+.profile-section-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 0 10px;
+  font-size: 12px;
+  font-weight: 750;
+  color: var(--foreground, #172033);
+}
+.profile-section-title :deep(svg) {
+  color: var(--primary, #059669);
+}
+.profile-grid {
+  margin-top: 0;
+  gap: 8px;
+}
+.profile-field {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--border, #e8edf4);
+  border-radius: 10px;
+  background: var(--card, #fff);
+}
+.profile-field-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 30px;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  background: var(--muted, #f6f8fb);
+  color: var(--muted-foreground, #64748b);
+}
+.profile-field-copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.profile-field-copy small,
+.profile-address small {
+  color: var(--muted-foreground, #788397);
+  font-size: 10px;
+}
+.profile-field-copy b,
+.profile-address b {
+  font-size: 11px;
+  line-height: 1.45;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+.profile-address {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--border, #e8edf4);
+  border-radius: 10px;
+}
+.profile-address > div {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+.profile-postcode {
+  color: var(--muted-foreground, #788397);
+  font-size: 10px;
+}
+.profile-notes {
+  margin: 0;
+  padding: 11px 12px;
+  border-radius: 10px;
+  background: var(--muted, #f6f8fb);
+  font-size: 11px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.profile-orders-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.profile-order-count {
+  color: var(--muted-foreground, #788397);
+  font-size: 10px;
+}
+.profile-order-list > div {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 12px;
+  padding: 10px 4px;
+}
+.profile-order-list .order-main {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+.profile-order-list .order-main b {
+  overflow-wrap: anywhere;
+}
+.profile-order-list > div > strong {
+  font-size: 11px;
+  white-space: nowrap;
+}
+.profile-body .small-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 18px 12px;
+  border: 1px dashed var(--border, #dfe5ef);
+  border-radius: 10px;
+  color: var(--muted-foreground, #788397);
+  font-size: 11px;
+}
+.profile-body .small-empty b {
+  color: var(--foreground, #172033);
+  font-size: 12px;
+}
+.profile-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 18px;
+  flex: 0 0 auto;
+}
+.profile-foot-note,
+.profile-foot-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.profile-foot-note {
+  color: var(--muted-foreground, #788397);
+  font-size: 10px;
+}
+.profile-foot-actions {
+  justify-content: flex-end;
+}
+@media (max-width: 640px) {
+  .profile-modal {
+    max-height: calc(100dvh - 16px);
+    border-radius: 13px;
+  }
+  .profile-body {
+    gap: 13px;
+    padding: 12px;
+  }
+  .profile-head {
+    padding: 12px;
+  }
+  .profile-hero {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .profile-value {
+    grid-column: 1 / -1;
+    justify-items: start;
+    padding-top: 10px;
+    border-top: 1px solid var(--border, #e8edf4);
+  }
+  .profile-grid {
+    grid-template-columns: 1fr;
+  }
+  .profile-foot {
+    align-items: stretch;
+    flex-direction: column;
+    padding: 10px 12px;
+  }
+  .profile-foot-actions {
+    width: 100%;
+  }
+  .profile-foot-actions .btn {
+    flex: 1;
+  }
+  .profile-order-list > div {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .profile-order-list > div > strong {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .customer-row {
+    transition: none;
+  }
+}
+
+/* Final profile-dialog layout correction: use the entire dialog width. */
+.profile-modal {
+  display: flex !important;
+  flex-direction: column !important;
+  width: min(920px, calc(100vw - 48px)) !important;
+  max-width: none !important;
+  max-height: calc(100dvh - 48px) !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+  overflow: hidden !important;
+  align-self: center !important;
+}
+.profile-modal > .profile-head,
+.profile-modal > .profile-foot {
+  width: 100% !important;
+  max-width: none !important;
+  box-sizing: border-box !important;
+  flex: 0 0 auto !important;
+}
+.profile-modal > .profile-head {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  padding: 18px 22px !important;
+  text-align: left !important;
+  border-bottom: 1px solid var(--border, #e2e8f0) !important;
+  background: linear-gradient(120deg, #ffffff, #f8fbff) !important;
+}
+.profile-modal .modal-title-wrap {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 12px !important;
+  min-width: 0 !important;
+}
+.profile-modal .profile-heading-copy {
+  min-width: 0 !important;
+  text-align: left !important;
+}
+.profile-modal > .profile-body {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) !important;
+  align-content: start !important;
+  justify-items: stretch !important;
+  gap: 18px !important;
+  width: 100% !important;
+  max-width: none !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 20px 22px !important;
+  box-sizing: border-box !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  flex: 1 1 auto !important;
+  scrollbar-gutter: stable !important;
+}
+.profile-modal .profile-hero {
+  width: 100% !important;
+  min-width: 0 !important;
+  box-sizing: border-box !important;
+  grid-template-columns: auto minmax(0, 1fr) minmax(150px, auto) !important;
+  align-items: center !important;
+  padding: 16px 18px !important;
+  gap: 14px !important;
+  border: 1px solid #dfe7f4 !important;
+  border-radius: 14px !important;
+  background: linear-gradient(120deg, #f2f7ff 0%, #fbfdff 60%, #f0fdf7 100%) !important;
+}
+.profile-modal .profile-identity h3 {
+  font-size: 18px !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.025em !important;
+}
+.profile-modal .profile-value strong {
+  color: var(--foreground, #172033) !important;
+  font-size: 20px !important;
+  font-weight: 750 !important;
+}
+.profile-modal .profile-section {
+  width: 100% !important;
+  min-width: 0 !important;
+}
+.profile-modal .profile-grid {
+  display: grid !important;
+  width: 100% !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 10px !important;
+  margin: 0 !important;
+}
+.profile-modal .profile-field {
+  min-width: 0 !important;
+  padding: 12px 13px !important;
+  border-radius: 12px !important;
+  background: var(--card, #fff) !important;
+  box-shadow: 0 2px 8px rgb(15 23 42 / 3%) !important;
+}
+.profile-modal .profile-address {
+  width: 100% !important;
+  min-width: 0 !important;
+  box-sizing: border-box !important;
+  padding: 14px !important;
+  border-radius: 12px !important;
+  background: linear-gradient(120deg, #fff, #f8fafc) !important;
+}
+.profile-modal .profile-foot {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  gap: 12px !important;
+  padding: 14px 22px !important;
+  border-top: 1px solid var(--border, #e2e8f0) !important;
+  background: #fff !important;
+}
+.profile-modal .profile-foot-actions {
+  display: flex !important;
+  justify-content: flex-end !important;
+  gap: 8px !important;
+}
+.profile-modal .profile-section-title {
+  font-size: 13px !important;
+  margin-bottom: 10px !important;
+}
+.profile-modal .profile-order-list {
+  width: 100% !important;
+}
+.profile-modal .small-empty {
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+@media (max-width: 680px) {
+  .profile-modal {
+    width: calc(100vw - 20px) !important;
+    max-height: calc(100dvh - 20px) !important;
+  }
+  .profile-modal > .profile-head {
+    padding: 13px 14px !important;
+  }
+  .profile-modal > .profile-body {
+    padding: 14px !important;
+    gap: 15px !important;
+  }
+  .profile-modal .profile-hero {
+    grid-template-columns: auto minmax(0, 1fr) !important;
+    padding: 13px !important;
+  }
+  .profile-modal .profile-value {
+    grid-column: 1 / -1 !important;
+    justify-items: start !important;
+    width: 100% !important;
+    padding-top: 10px !important;
+    border-top: 1px solid var(--border, #e2e8f0) !important;
+  }
+  .profile-modal .profile-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+  .profile-modal .profile-foot {
+    padding: 11px 14px !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+  .profile-modal .profile-foot-actions {
+    width: 100% !important;
+  }
+  .profile-modal .profile-foot-actions .btn {
+    flex: 1 1 0 !important;
+  }
+}
+
+/* Edit customer modal refinement — isolated from the profile and list views. */
+.customer-form-modal.is-editing {
+  width: min(900px, 100%);
+  max-height: min(860px, calc(100dvh - 32px));
+  border: 1px solid rgb(203 213 225 / 78%);
+  border-radius: 18px;
+  background: var(--card, #fff);
+  box-shadow: 0 30px 90px rgb(2 6 23 / 28%), 0 4px 14px rgb(2 6 23 / 8%);
+  animation: customer-edit-modal-in 180ms cubic-bezier(0.2, 0.75, 0.25, 1) both;
+}
+.customer-form-modal.is-editing .modal-head {
+  padding: 18px 22px;
+  background: linear-gradient(115deg, #ffffff 0%, #f8fbff 100%);
+  border-bottom: 1px solid #e5ebf3;
+}
+.customer-form-modal.is-editing .modal-title-wrap {
+  gap: 13px;
+}
+.customer-form-modal.is-editing .modal-title-icon {
+  width: 44px;
+  height: 44px;
+  flex-basis: 44px;
+  border-radius: 13px;
+  color: #047857;
+  background: #ecfdf5;
+  border-color: #bbf7d0;
+}
+.customer-form-modal.is-editing .eyebrow {
+  color: #047857;
+  font-size: 9px;
+  letter-spacing: 0.12em;
+}
+.customer-form-modal.is-editing .modal-head h2 {
+  font-size: 20px;
+  font-weight: 750;
+  letter-spacing: -0.55px;
+  line-height: 1.25;
+}
+.customer-form-modal.is-editing .modal-head p {
+  margin-top: 5px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.customer-form-modal.is-editing .icon-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: #fff;
+  border-color: #e2e8f0;
+  transition: background 150ms ease, color 150ms ease, border-color 150ms ease,
+    transform 150ms ease;
+}
+.customer-form-modal.is-editing .icon-btn:hover {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  transform: rotate(3deg);
+}
+.customer-form-modal.is-editing > form {
+  min-height: 0;
+}
+.customer-form-modal.is-editing .modal-body {
+  padding: 20px 22px;
+  background: #fbfcfe;
+  scrollbar-color: #cbd5e1 transparent;
+  scrollbar-width: thin;
+}
+.customer-form-modal.is-editing .form-section {
+  padding: 17px 18px 18px;
+  border: 1px solid #e6ebf2;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgb(15 23 42 / 2.5%);
+}
+.customer-form-modal.is-editing .form-section + .form-section {
+  margin-top: 14px;
+  padding-top: 17px;
+  border-top: 1px solid #e6ebf2;
+}
+.customer-form-modal.is-editing .form-section-title {
+  margin-bottom: 16px;
+  gap: 11px;
+}
+.customer-form-modal.is-editing .section-icon {
+  width: 34px;
+  height: 34px;
+  flex-basis: 34px;
+  color: #047857;
+  background: #ecfdf5;
+  border: 1px solid #d1fae5;
+  border-radius: 10px;
+}
+.customer-form-modal.is-editing .form-section-title h3 {
+  font-size: 13px;
+  font-weight: 750;
+  letter-spacing: -0.15px;
+}
+.customer-form-modal.is-editing .form-section-title p {
+  font-size: 11px;
+  line-height: 1.45;
+}
+.customer-form-modal.is-editing .form-grid {
+  gap: 14px 16px;
+}
+.customer-form-modal.is-editing .field {
+  gap: 7px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #263449;
+}
+.customer-form-modal.is-editing .field input,
+.customer-form-modal.is-editing .field select,
+.customer-form-modal.is-editing .field textarea {
+  min-height: 39px;
+  padding: 9px 11px;
+  border: 1px solid #dbe4ef;
+  border-radius: 9px;
+  background: #fff;
+  color: #172033;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 2%);
+  transition: border-color 150ms ease, box-shadow 150ms ease, background 150ms ease;
+}
+.customer-form-modal.is-editing .field input::placeholder,
+.customer-form-modal.is-editing .field textarea::placeholder {
+  color: #9aa6b5;
+}
+.customer-form-modal.is-editing .field textarea {
+  min-height: 88px;
+  line-height: 1.5;
+}
+.customer-form-modal.is-editing .field input:hover,
+.customer-form-modal.is-editing .field select:hover,
+.customer-form-modal.is-editing .field textarea:hover {
+  border-color: #bdcbdc;
+}
+.customer-form-modal.is-editing .field input:focus,
+.customer-form-modal.is-editing .field select:focus,
+.customer-form-modal.is-editing .field textarea:focus {
+  outline: none;
+  border-color: #059669;
+  box-shadow: 0 0 0 3px rgb(5 150 105 / 12%);
+  background: #fff;
+}
+.customer-form-modal.is-editing .field small {
+  font-size: 10px;
+  line-height: 1.45;
+}
+.customer-form-modal.is-editing .field .field-error {
+  padding: 6px 8px;
+  border: 1px solid #fecaca;
+  border-radius: 7px;
+  background: #fef2f2;
+  color: #b42318;
+  font-size: 10px;
+}
+.customer-form-modal.is-editing .modal-foot {
+  padding: 13px 22px;
+  background: #fff;
+  border-top: 1px solid #e5ebf3;
+  box-shadow: 0 -5px 14px rgb(15 23 42 / 2%);
+}
+.customer-form-modal.is-editing .modal-foot .btn {
+  min-height: 38px;
+  padding: 0 15px;
+  border-radius: 9px;
+  font-size: 11px;
+  font-weight: 750;
+}
+.customer-form-modal.is-editing .modal-foot .btn.primary {
+  background: #059669;
+  border-color: #059669;
+  box-shadow: 0 3px 8px rgb(5 150 105 / 17%);
+}
+.customer-form-modal.is-editing .modal-foot .btn.primary:hover:not(:disabled) {
+  background: #047857;
+  border-color: #047857;
+  filter: none;
+  transform: translateY(-1px);
+}
+.customer-form-modal.is-editing .modal-foot .btn:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+@keyframes customer-edit-modal-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.992);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+@media (max-width: 760px) {
+  .customer-form-modal.is-editing {
+    width: 100%;
+    max-height: calc(100dvh - 20px);
+    border-radius: 15px;
+  }
+  .customer-form-modal.is-editing .modal-head {
+    padding: 14px 15px;
+  }
+  .customer-form-modal.is-editing .modal-head h2 {
+    font-size: 18px;
+  }
+  .customer-form-modal.is-editing .modal-body {
+    padding: 12px;
+  }
+  .customer-form-modal.is-editing .form-section {
+    padding: 14px;
+    border-radius: 12px;
+  }
+  .customer-form-modal.is-editing .form-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+  .customer-form-modal.is-editing .wide {
+    grid-column: auto;
+  }
+  .customer-form-modal.is-editing .modal-foot {
+    padding: 11px 14px;
+  }
+}
+@media (max-width: 420px) {
+  .customer-form-modal.is-editing .modal-title-icon {
+    width: 38px;
+    height: 38px;
+    flex-basis: 38px;
+  }
+  .customer-form-modal.is-editing .modal-head p {
+    max-width: 235px;
+  }
+  .customer-form-modal.is-editing .modal-foot .btn {
+    flex: 1 1 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .customer-form-modal.is-editing {
+    animation: none;
+  }
+  .customer-form-modal.is-editing *,
+  .customer-form-modal.is-editing *::before,
+  .customer-form-modal.is-editing *::after {
+    transition-duration: 0.01ms !important;
+  }
+}
 </style>
+
