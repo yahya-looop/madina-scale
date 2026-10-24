@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\SalesOrder;
+use App\Models\SalesOrderShipment;
 use App\Models\User;
 use App\Services\OrderRiskService;
 use App\Services\OrderSmsService;
@@ -57,4 +58,36 @@ class OrderRiskAndMessagingTest extends TestCase
         $this->assertSame('+8801711111111', $service->normalizePhone('01711111111'));
         $this->assertSame('+8801711111111', $service->normalizePhone('8801711111111'));
     }
+    public function test_courier_webhook_records_events_and_prevents_status_regression(): void
+    {
+        config(['order_integrations.webhook_secret' => 'test-webhook-secret']);
+        $order = $this->makeOrder('01711111111', 'confirmed');
+        $shipment = SalesOrderShipment::query()->create([
+            'sales_order_id' => $order->id,
+            'provider' => 'steadfast',
+            'idempotency_key' => 'shipment-' . $order->id,
+            'provider_shipment_id' => 'CONS-' . $order->id,
+            'tracking_code' => 'TRACK-' . $order->id,
+            'status' => 'booked',
+            'recipient_name' => $order->customer_name,
+            'recipient_phone' => $order->customer_phone,
+            'recipient_address' => 'Dhaka, Bangladesh',
+            'cod_amount' => 100,
+        ]);
+
+        $payload = ['tracking_code' => $shipment->tracking_code, 'status' => 'in_transit', 'event_id' => 'evt-100'];
+        $this->withToken('test-webhook-secret')->postJson('/api/webhooks/couriers/steadfast', $payload)
+            ->assertOk()->assertJsonPath('data.status', 'in_transit');
+        $this->withToken('test-webhook-secret')->postJson('/api/webhooks/couriers/steadfast', $payload)
+            ->assertOk()->assertJsonPath('data.duplicate', true);
+
+        $this->withToken('test-webhook-secret')->postJson('/api/webhooks/couriers/steadfast', [
+            'tracking_code' => $shipment->tracking_code, 'status' => 'booked', 'event_id' => 'evt-old',
+        ])->assertAccepted()->assertJsonPath('data.status', 'in_transit');
+
+        $this->assertDatabaseHas('sales_order_shipments', ['id' => $shipment->id, 'status' => 'in_transit']);
+        $this->assertDatabaseHas('sales_order_shipment_events', ['provider' => 'steadfast', 'event_id' => 'evt-100', 'outcome' => 'applied']);
+        $this->assertDatabaseHas('sales_order_shipment_events', ['provider' => 'steadfast', 'event_id' => 'evt-old', 'outcome' => 'ignored_transition']);
+    }
+
 }

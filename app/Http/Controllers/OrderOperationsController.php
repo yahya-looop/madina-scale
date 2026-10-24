@@ -13,6 +13,7 @@ use App\Services\OrderSmsService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class OrderOperationsController extends Controller
@@ -94,22 +95,96 @@ class OrderOperationsController extends Controller
         $provided = (string) $request->bearerToken();
         if ($secret === '' || !hash_equals($secret, $provided)) abort(401);
         abort_unless(in_array($provider, ['steadfast', 'redx', 'pathao', 'carrybee', 'custom'], true), 404);
+
         $request->merge(['status' => $request->input('status', $request->input('delivery_status'))]);
         $data = $request->validate([
-            'tracking_code' => ['required_without:consignment_id', 'nullable', 'string', 'max:160'], 'consignment_id' => ['required_without:tracking_code', 'nullable', 'string', 'max:120'],
-            'status' => ['required', 'string', 'max:40'], 'delivered_at' => ['nullable', 'date'],
+            'tracking_code' => ['required_without:consignment_id', 'nullable', 'string', 'max:160'],
+            'consignment_id' => ['required_without:tracking_code', 'nullable', 'string', 'max:120'],
+            'status' => ['required', 'string', 'max:40'],
+            'delivered_at' => ['nullable', 'date'],
+            'event_id' => ['nullable', 'string', 'max:160'],
         ]);
-        $shipment = SalesOrderShipment::query()->where('provider', $provider)->where(function ($query) use ($data): void {
+
+        $shipmentQuery = SalesOrderShipment::query()->where('provider', $provider)->where(function ($query) use ($data): void {
             if (!empty($data['tracking_code'])) $query->orWhere('tracking_code', $data['tracking_code']);
             if (!empty($data['consignment_id'])) $query->orWhere('provider_shipment_id', $data['consignment_id']);
-        })->first();
+        });
+        $shipment = $shipmentQuery->first();
         if (!$shipment) return response()->json(['message' => 'Shipment not found.'], 404);
-        $previousStatus = $shipment->status;
-        $normalized = strtolower(str_replace([' ', '-'], '_', $data['status']));
-        $map = ['delivered' => 'delivered', 'completed' => 'delivered', 'in_transit' => 'in_transit', 'picked' => 'in_transit', 'picked_up' => 'in_transit', 'cancelled' => 'cancelled', 'canceled' => 'cancelled', 'returned' => 'returned', 'return_to_origin' => 'returned', 'partial_delivered' => 'partially_delivered', 'partial_delivery' => 'partially_delivered', 'failed' => 'delivery_failed', 'pending' => 'booked', 'in_review' => 'booked'];
-        $status = $map[$normalized] ?? 'status_unknown';
-        $shipment->update(['status' => $status, 'delivered_at' => $status === 'delivered' ? ($data['delivered_at'] ?? now()) : $shipment->delivered_at, 'provider_response' => $request->all()]);
-        if ($status === 'delivered' && $previousStatus !== 'delivered' && $shipment->order?->customer_phone) $this->sms->sendOrderEvent($shipment->order, 'delivered');
-        return response()->json(['message' => 'Webhook accepted.', 'data' => ['shipment_id' => $shipment->id, 'status' => $shipment->status]]);
+
+        $normalized = strtolower(str_replace([' ', '-'], '_', trim($data['status'])));
+        $map = [
+            'booked' => 'booked', 'pending' => 'booked', 'in_review' => 'booked',
+            'in_transit' => 'in_transit', 'picked' => 'in_transit', 'picked_up' => 'in_transit',
+            'delivered' => 'delivered', 'completed' => 'delivered',
+            'cancelled' => 'cancelled', 'canceled' => 'cancelled',
+            'returned' => 'returned', 'return_to_origin' => 'returned',
+            'partial_delivered' => 'partially_delivered', 'partial_delivery' => 'partially_delivered',
+            'failed' => 'delivery_failed', 'delivery_failed' => 'delivery_failed',
+        ];
+        if (!isset($map[$normalized])) {
+            return response()->json(['message' => 'Unsupported courier status; no shipment changes were made.'], 422);
+        }
+        $status = $map[$normalized];
+        $eventHash = hash('sha256', $provider . '|' . ($data['event_id'] ?? '') . '|' . ($data['tracking_code'] ?? '') . '|' . ($data['consignment_id'] ?? '') . '|' . $normalized . '|' . ($data['delivered_at'] ?? ''));
+
+        $result = DB::transaction(function () use ($shipment, $provider, $data, $status, $eventHash, $request): array {
+            $locked = SalesOrderShipment::query()->lockForUpdate()->findOrFail($shipment->id);
+            $duplicate = DB::table('sales_order_shipment_events')->where('provider', $provider)->where('event_hash', $eventHash)->exists();
+            if ($duplicate) return ['duplicate' => true, 'shipment' => $locked, 'send_delivered_sms' => false];
+
+            $previousStatus = (string) $locked->status;
+            $terminal = ['delivered', 'returned', 'cancelled'];
+            $allowed = [
+                'booking' => ['booked', 'delivery_failed', 'cancelled'],
+                'queued' => ['booked', 'delivery_failed', 'cancelled'],
+                'booked' => ['booked', 'in_transit', 'delivery_failed', 'partially_delivered', 'delivered', 'returned', 'cancelled'],
+                'in_transit' => ['in_transit', 'delivery_failed', 'partially_delivered', 'delivered', 'returned', 'cancelled'],
+                'delivery_failed' => ['delivery_failed', 'in_transit', 'partially_delivered', 'delivered', 'returned', 'cancelled'],
+                'partially_delivered' => ['partially_delivered', 'delivered', 'returned'],
+                'delivered' => ['delivered', 'returned'],
+                'returned' => ['returned'],
+                'cancelled' => ['cancelled'],
+                'failed' => ['booked', 'delivery_failed', 'cancelled'],
+            ];
+            if (!in_array($status, $allowed[$previousStatus] ?? [$previousStatus], true)) {
+                DB::table('sales_order_shipment_events')->insert([
+                    'sales_order_shipment_id' => $locked->id, 'provider' => $provider, 'event_hash' => $eventHash,
+                    'event_id' => $data['event_id'] ?? null, 'previous_status' => $previousStatus,
+                    'received_status' => $status, 'outcome' => 'ignored_transition',
+                    'payload' => json_encode($request->except(['token', 'secret', 'api_key']), JSON_THROW_ON_ERROR),
+                    'received_at' => now(), 'created_at' => now(), 'updated_at' => now(),
+                ]);
+                return ['duplicate' => false, 'ignored' => true, 'shipment' => $locked, 'send_delivered_sms' => false];
+            }
+
+            $locked->update([
+                'status' => $status,
+                'delivered_at' => $status === 'delivered' ? ($data['delivered_at'] ?? $locked->delivered_at ?? now()) : $locked->delivered_at,
+                'provider_response' => $request->except(['token', 'secret', 'api_key']),
+            ]);
+            DB::table('sales_order_shipment_events')->insert([
+                'sales_order_shipment_id' => $locked->id, 'provider' => $provider, 'event_hash' => $eventHash,
+                'event_id' => $data['event_id'] ?? null, 'previous_status' => $previousStatus,
+                'received_status' => $status, 'outcome' => 'applied',
+                'payload' => json_encode($request->except(['token', 'secret', 'api_key']), JSON_THROW_ON_ERROR),
+                'received_at' => now(), 'created_at' => now(), 'updated_at' => now(),
+            ]);
+            return [
+                'duplicate' => false, 'ignored' => false, 'shipment' => $locked->fresh(),
+                'send_delivered_sms' => $status === 'delivered' && $previousStatus !== 'delivered',
+            ];
+        });
+
+        if (!empty($result['send_delivered_sms']) && $result['shipment']->order?->customer_phone) {
+            $this->sms->sendOrderEvent($result['shipment']->order, 'delivered');
+        }
+        if (!empty($result['ignored'])) {
+            return response()->json(['message' => 'Out-of-order courier event recorded and ignored.', 'data' => ['shipment_id' => $result['shipment']->id, 'status' => $result['shipment']->status]], 202);
+        }
+        return response()->json([
+            'message' => !empty($result['duplicate']) ? 'Duplicate courier event accepted.' : 'Webhook accepted.',
+            'data' => ['shipment_id' => $result['shipment']->id, 'status' => $result['shipment']->status, 'duplicate' => (bool) ($result['duplicate'] ?? false)],
+        ]);
     }
 }
