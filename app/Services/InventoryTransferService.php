@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\InventoryStock;
 use App\Models\InventoryTransfer;
+use App\Models\InventoryTransferReceipt;
 use App\Models\Location;
 use App\Models\StockMovement;
 use App\Models\User;
@@ -141,10 +142,34 @@ class InventoryTransferService
         if ((int) $transfer->dispatched_by === (int) $actor->id) {
             throw ValidationException::withMessages(['transfer' => 'The dispatcher cannot receive their own transfer.']);
         }
+
+        $idempotencyKey = (string) ($data['idempotency_key'] ?? '');
+        if (! Str::isUuid($idempotencyKey)) {
+            throw ValidationException::withMessages(['idempotency_key' => 'A valid idempotency key is required for receipt.']);
+        }
         $defaultRemaining = bcsub((string) $transfer->quantity_sent, (string) $transfer->quantity_received, 4);
         $receiveQty = $this->quantity($data['quantity_received'] ?? $defaultRemaining);
-        $updated = DB::transaction(function () use ($transfer, $receiveQty, $data, $actor, $ipAddress): InventoryTransfer {
+        $recipientNote = isset($data['recipient_note']) ? trim((string) $data['recipient_note']) : null;
+        $payloadHash = hash('sha256', json_encode([
+            'transfer_id' => (int) $transfer->id,
+            'quantity_received' => bcadd($receiveQty, '0', 4),
+            'recipient_note' => $recipientNote,
+        ], JSON_THROW_ON_ERROR));
+        $createdReceipt = false;
+
+        $updated = DB::transaction(function () use ($transfer, $receiveQty, $recipientNote, $payloadHash, $idempotencyKey, $actor, $ipAddress, &$createdReceipt): InventoryTransfer {
+            // Serialize a key globally, including requests that race across transfer rows.
+            DB::selectOne('SELECT pg_advisory_xact_lock(hashtext(?))', [$idempotencyKey]);
             $locked = InventoryTransfer::query()->whereKey($transfer->id)->lockForUpdate()->firstOrFail();
+
+            $existingReceipt = InventoryTransferReceipt::query()->where('idempotency_key', $idempotencyKey)->first();
+            if ($existingReceipt) {
+                if ((int) $existingReceipt->inventory_transfer_id !== (int) $locked->id || ! hash_equals($existingReceipt->payload_hash, $payloadHash)) {
+                    throw ValidationException::withMessages(['idempotency_key' => 'This idempotency key was already used for a different receipt request.']);
+                }
+                return $locked->load(['product', 'variant', 'sourceLocation', 'destinationLocation', 'dispatcher', 'receiver']);
+            }
+
             if (! in_array($locked->status, ['in_transit', 'partially_received'], true)) {
                 throw ValidationException::withMessages(['transfer' => 'Only transfers awaiting receipt can be accepted.']);
             }
@@ -158,9 +183,7 @@ class InventoryTransferService
             // Lock the stock owner before looking for a stock row. This serializes
             // first-time stock-row creation across different transfers for the same owner.
             if ($isVariant) {
-                $variantReference = DB::table('product_variants')
-                    ->where('id', $locked->product_variant_id)
-                    ->first(['product_id']);
+                $variantReference = DB::table('product_variants')->where('id', $locked->product_variant_id)->first(['product_id']);
                 if (! $variantReference) {
                     throw ValidationException::withMessages(['transfer' => 'The transferred variant no longer exists.']);
                 }
@@ -200,9 +223,10 @@ class InventoryTransferService
                 'quantity_delta' => $receiveQty,
                 'balance_before' => $before,
                 'balance_after' => $after,
-                'reason' => $data['recipient_note'] ?? 'Internal stock transfer received',
+                'reason' => $recipientNote ?: 'Internal stock transfer received',
                 'reference_type' => 'inventory_transfer',
                 'reference_id' => (string) $locked->id,
+                'idempotency_key' => $idempotencyKey,
                 'created_by' => $actor->id,
                 'metadata' => ['transfer_uuid' => $locked->transfer_uuid, 'ip_address' => $ipAddress],
             ]);
@@ -210,15 +234,29 @@ class InventoryTransferService
             $newReceived = bcadd((string) $locked->quantity_received, $receiveQty, 4);
             $locked->quantity_received = $newReceived;
             $locked->status = bccomp($newReceived, (string) $locked->quantity_sent, 4) === 0 ? 'received' : 'partially_received';
-            $locked->recipient_note = $data['recipient_note'] ?? $locked->recipient_note;
+            $locked->recipient_note = $recipientNote ?? $locked->recipient_note;
             $locked->received_by = $actor->id;
             $locked->received_at = $locked->status === 'received' ? now() : null;
             $locked->save();
 
+            InventoryTransferReceipt::query()->create([
+                'inventory_transfer_id' => $locked->id,
+                'idempotency_key' => $idempotencyKey,
+                'payload_hash' => $payloadHash,
+                'quantity_received' => $receiveQty,
+                'recipient_note' => $recipientNote,
+                'received_by' => $actor->id,
+                'resulting_quantity_received' => $newReceived,
+                'resulting_status' => $locked->status,
+            ]);
+            $createdReceipt = true;
+
             return $locked->load(['product', 'variant', 'sourceLocation', 'destinationLocation', 'dispatcher', 'receiver']);
         }, 3);
 
-        $this->notifyDispatcher($updated, 'received');
+        if ($createdReceipt) {
+            $this->notifyDispatcher($updated, 'received');
+        }
         return $updated;
     }
 

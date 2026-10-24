@@ -84,6 +84,22 @@ const loadingTransfers = ref(false);
 const transferActionId = ref<number | null>(null);
 const transferDialogRow = ref<TransferRow | null>(null);
 const transferDialogAction = ref<"accept" | "reject" | null>(null);
+let transferReceiptIdempotencyKey: string | null = null;
+const transferReceiptKeyStoragePrefix = "madina-scale:inventory-transfer-receipt:";
+
+function getOrCreateTransferReceiptKey(transferId: number): string {
+  const storageKey = `${transferReceiptKeyStoragePrefix}${transferId}`;
+  const existingKey = window.sessionStorage.getItem(storageKey);
+  if (existingKey) return existingKey;
+
+  const newKey = crypto.randomUUID();
+  window.sessionStorage.setItem(storageKey, newKey);
+  return newKey;
+}
+
+function clearTransferReceiptKey(transferId: number): void {
+  window.sessionStorage.removeItem(`${transferReceiptKeyStoragePrefix}${transferId}`);
+}
 const discrepancyReason = ref("");
 const incomingPendingCount = ref(0);
 const outgoingPendingCount = ref(0);
@@ -351,6 +367,7 @@ function openTransferDialog(row: TransferRow, action: "accept" | "reject"): void
   clearNotices();
   transferDialogRow.value = row;
   transferDialogAction.value = action;
+  transferReceiptIdempotencyKey = action === "accept" ? getOrCreateTransferReceiptKey(row.id) : null;
   discrepancyReason.value = "";
 }
 
@@ -358,6 +375,9 @@ function closeTransferDialog(): void {
   if (transferActionId.value !== null) return;
   transferDialogRow.value = null;
   transferDialogAction.value = null;
+  // Keep the receipt key so a retry after closing/reopening the dialog or refreshing
+  // this tab reuses the same idempotency key if the previous response was lost.
+  transferReceiptIdempotencyKey = null;
   discrepancyReason.value = "";
 }
 
@@ -369,6 +389,11 @@ async function confirmTransferAction(): Promise<void> {
   const reasonText = discrepancyReason.value.trim();
   if (action === "reject" && reasonText.length < 3) {
     error.value = "Please describe the issue in at least 3 characters.";
+    return;
+  }
+
+  if (action === "accept" && !transferReceiptIdempotencyKey) {
+    error.value = "Receipt request key is missing. Close and reopen the dialog, then try again.";
     return;
   }
 
@@ -390,6 +415,7 @@ async function confirmTransferAction(): Promise<void> {
               quantity_received: String(
                 numeric(row.quantity_sent) - numeric(row.quantity_received)
               ),
+              idempotency_key: transferReceiptIdempotencyKey,
             }
           : { reason: reasonText }
       ),
@@ -401,6 +427,8 @@ async function confirmTransferAction(): Promise<void> {
       (action === "accept" ? "Transfer received." : "Transfer flagged for review.");
     transferDialogRow.value = null;
     transferDialogAction.value = null;
+    if (action === "accept") clearTransferReceiptKey(row.id);
+    transferReceiptIdempotencyKey = null;
     discrepancyReason.value = "";
     await Promise.all([loadTransfers(), loadTransferCounts()]);
     window.dispatchEvent(

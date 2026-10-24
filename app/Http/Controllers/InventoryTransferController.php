@@ -123,8 +123,9 @@ class InventoryTransferController extends Controller
     public function accept(Request $request, InventoryTransfer $transfer): JsonResponse
     {
         $data = $request->validate([
-            'quantity_received' => ['nullable', 'numeric', 'gt:0', 'regex:/^\d{1,14}(?:\.\d{1,4})?$/'],
+            'quantity_received' => ['required', 'numeric', 'gt:0', 'regex:/^\d{1,14}(?:\.\d{1,4})?$/'],
             'recipient_note' => ['nullable', 'string', 'max:2000'],
+            'idempotency_key' => ['required', 'uuid'],
         ]);
         $updated = $this->transfers->receive($transfer, $data, $request->user(), $request->ip());
         return response()->json(['message' => $updated->status === 'received' ? 'Transfer received successfully.' : 'Partial receipt recorded.', 'data' => $updated]);

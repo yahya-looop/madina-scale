@@ -51,7 +51,7 @@ test('dispatch moves stock out of source but does not make it available at desti
     $transfer = InventoryTransfer::query()->firstOrFail();
 
     $this->actingAs($receiver)->postJson("/api/inventory/transfers/{$transfer->id}/accept", [
-        'quantity_received' => '300', 'recipient_note' => 'Count checked and matched',
+        'quantity_received' => '300', 'recipient_note' => 'Count checked and matched', 'idempotency_key' => (string) Str::uuid(),
     ])->assertOk()->assertJsonPath('data.status', 'received');
 
     $this->assertDatabaseHas('inventory_stocks', ['location_id' => $destination->id, 'product_id' => $product->id, 'quantity' => '300.0000']);
@@ -73,7 +73,7 @@ test('partial receipt records only received quantity and leaves transfer outstan
         'destination_location_id' => $destination->id, 'quantity' => '12',
     ])->assertCreated();
     $transfer = InventoryTransfer::query()->firstOrFail();
-    $this->actingAs($receiver)->postJson("/api/inventory/transfers/{$transfer->id}/accept", ['quantity_received' => '8'])
+    $this->actingAs($receiver)->postJson("/api/inventory/transfers/{$transfer->id}/accept", ['quantity_received' => '8', 'idempotency_key' => (string) Str::uuid()])
         ->assertOk()->assertJsonPath('data.status', 'partially_received')->assertJsonPath('data.quantity_received', '8.0000');
     $this->assertDatabaseHas('inventory_stocks', ['location_id' => $destination->id, 'quantity' => '8.0000']);
 });
@@ -120,7 +120,7 @@ test('users cannot dispatch from an unassigned location or receive into an unass
     ])->assertCreated();
     $transfer = InventoryTransfer::query()->firstOrFail();
 
-    $this->actingAs($unassignedReceiver)->postJson("/api/inventory/transfers/{$transfer->id}/accept", ['quantity_received' => '2'])
+    $this->actingAs($unassignedReceiver)->postJson("/api/inventory/transfers/{$transfer->id}/accept", ['quantity_received' => '2', 'idempotency_key' => (string) Str::uuid()])
         ->assertUnprocessable();
     $this->assertDatabaseHas('inventory_transfers', ['id' => $transfer->id, 'status' => 'in_transit']);
 });
@@ -138,7 +138,7 @@ test('dispatcher cannot accept their own transfer', function () {
         'destination_location_id' => $destination->id, 'quantity' => '2',
     ])->assertCreated();
     $transfer = InventoryTransfer::query()->firstOrFail();
-    $this->postJson("/api/inventory/transfers/{$transfer->id}/accept", ['quantity_received' => '2'])->assertUnprocessable();
+    $this->postJson("/api/inventory/transfers/{$transfer->id}/accept", ['quantity_received' => '2', 'idempotency_key' => (string) Str::uuid()])->assertUnprocessable();
 });
 
 test('dispatch with the same idempotency key replays the existing transfer without moving stock twice', function () {
@@ -195,12 +195,83 @@ test('a fully received transfer cannot credit destination stock a second time', 
     ])->assertCreated();
     $transfer = InventoryTransfer::query()->firstOrFail();
 
-    $this->actingAs($receiver)->postJson("/api/inventory/transfers/{$transfer->id}/accept", ['quantity_received' => '5'])->assertOk();
-    $this->actingAs($receiver)->postJson("/api/inventory/transfers/{$transfer->id}/accept", ['quantity_received' => '5'])->assertUnprocessable();
+    $this->actingAs($receiver)->postJson("/api/inventory/transfers/{$transfer->id}/accept", ['quantity_received' => '5', 'idempotency_key' => (string) Str::uuid()])->assertOk();
+    $this->actingAs($receiver)->postJson("/api/inventory/transfers/{$transfer->id}/accept", ['quantity_received' => '5', 'idempotency_key' => (string) Str::uuid()])->assertUnprocessable();
 
     $this->assertDatabaseHas('inventory_stocks', [
         'product_id' => $product->id, 'location_id' => $destination->id, 'quantity' => '5.0000',
     ]);
     $this->assertDatabaseCount('stock_movements', 2);
     $this->assertDatabaseHas('inventory_transfers', ['id' => $transfer->id, 'status' => 'received', 'quantity_received' => '5.0000']);
+});
+
+
+test('replaying the same partial receipt key does not credit stock twice', function () {
+    $sender = createTransferWorkflowUser(['system.inventory.transfer', 'system.inventory.view']);
+    $receiver = createTransferWorkflowUser(['system.inventory.transfer', 'system.inventory.view']);
+    $product = inventoryTestProduct();
+    $source = inventoryTestLocation();
+    $destination = inventoryTestLocation();
+    $sender->locations()->attach($source->id, ['access_level' => 'manage']);
+    $receiver->locations()->attach($destination->id, ['access_level' => 'receive']);
+    InventoryStock::query()->create(['product_id' => $product->id, 'location_id' => $source->id, 'quantity' => '30', 'reserved_quantity' => '0', 'low_stock_threshold' => '0']);
+    $this->actingAs($sender)->postJson('/api/inventory/transfers', [
+        'product_id' => $product->id, 'source_location_id' => $source->id,
+        'destination_location_id' => $destination->id, 'quantity' => '20',
+    ])->assertCreated();
+    $transfer = InventoryTransfer::query()->firstOrFail();
+    $key = (string) Str::uuid();
+    $payload = ['quantity_received' => '8', 'recipient_note' => 'Partial count', 'idempotency_key' => $key];
+
+    $this->actingAs($receiver)->postJson("/api/inventory/transfers/{$transfer->id}/accept", $payload)->assertOk()
+        ->assertJsonPath('data.quantity_received', '8.0000');
+    $this->actingAs($receiver)->postJson("/api/inventory/transfers/{$transfer->id}/accept", $payload)->assertOk()
+        ->assertJsonPath('data.quantity_received', '8.0000');
+
+    $this->assertDatabaseHas('inventory_stocks', ['product_id' => $product->id, 'location_id' => $destination->id, 'quantity' => '8.0000']);
+    $this->assertDatabaseCount('inventory_transfer_receipts', 1);
+    $this->assertDatabaseCount('stock_movements', 2);
+});
+
+test('receipt idempotency key cannot be reused with a different payload', function () {
+    $sender = createTransferWorkflowUser(['system.inventory.transfer', 'system.inventory.view']);
+    $receiver = createTransferWorkflowUser(['system.inventory.transfer', 'system.inventory.view']);
+    $product = inventoryTestProduct();
+    $source = inventoryTestLocation();
+    $destination = inventoryTestLocation();
+    $sender->locations()->attach($source->id, ['access_level' => 'manage']);
+    $receiver->locations()->attach($destination->id, ['access_level' => 'receive']);
+    InventoryStock::query()->create(['product_id' => $product->id, 'location_id' => $source->id, 'quantity' => '30', 'reserved_quantity' => '0', 'low_stock_threshold' => '0']);
+    $this->actingAs($sender)->postJson('/api/inventory/transfers', [
+        'product_id' => $product->id, 'source_location_id' => $source->id,
+        'destination_location_id' => $destination->id, 'quantity' => '20',
+    ])->assertCreated();
+    $transfer = InventoryTransfer::query()->firstOrFail();
+    $key = (string) Str::uuid();
+    $this->actingAs($receiver)->postJson("/api/inventory/transfers/{$transfer->id}/accept", ['quantity_received' => '8', 'idempotency_key' => $key])->assertOk();
+    $this->actingAs($receiver)->postJson("/api/inventory/transfers/{$transfer->id}/accept", ['quantity_received' => '9', 'idempotency_key' => $key])->assertUnprocessable();
+    $this->assertDatabaseHas('inventory_stocks', ['product_id' => $product->id, 'location_id' => $destination->id, 'quantity' => '8.0000']);
+    $this->assertDatabaseCount('inventory_transfer_receipts', 1);
+});
+
+test('different receipt keys allow valid successive partial receipts', function () {
+    $sender = createTransferWorkflowUser(['system.inventory.transfer', 'system.inventory.view']);
+    $receiver = createTransferWorkflowUser(['system.inventory.transfer', 'system.inventory.view']);
+    $product = inventoryTestProduct();
+    $source = inventoryTestLocation();
+    $destination = inventoryTestLocation();
+    $sender->locations()->attach($source->id, ['access_level' => 'manage']);
+    $receiver->locations()->attach($destination->id, ['access_level' => 'receive']);
+    InventoryStock::query()->create(['product_id' => $product->id, 'location_id' => $source->id, 'quantity' => '30', 'reserved_quantity' => '0', 'low_stock_threshold' => '0']);
+    $this->actingAs($sender)->postJson('/api/inventory/transfers', [
+        'product_id' => $product->id, 'source_location_id' => $source->id,
+        'destination_location_id' => $destination->id, 'quantity' => '12',
+    ])->assertCreated();
+    $transfer = InventoryTransfer::query()->firstOrFail();
+    $this->actingAs($receiver)->postJson("/api/inventory/transfers/{$transfer->id}/accept", ['quantity_received' => '8', 'idempotency_key' => (string) Str::uuid()])
+        ->assertOk()->assertJsonPath('data.status', 'partially_received');
+    $this->actingAs($receiver)->postJson("/api/inventory/transfers/{$transfer->id}/accept", ['quantity_received' => '4', 'idempotency_key' => (string) Str::uuid()])
+        ->assertOk()->assertJsonPath('data.status', 'received');
+    $this->assertDatabaseHas('inventory_stocks', ['product_id' => $product->id, 'location_id' => $destination->id, 'quantity' => '12.0000']);
+    $this->assertDatabaseCount('inventory_transfer_receipts', 2);
 });
