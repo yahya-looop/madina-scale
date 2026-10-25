@@ -402,7 +402,7 @@ test('authorized transfer API dispatches to destination confirmation workflow', 
     ]);
 
     $transfer = InventoryTransfer::query()->firstOrFail();
-    $this->actingAs($receiver)->postJson("/api/inventory/transfers/{$transfer->id}/accept", ['quantity_received' => '4.0000'])
+    $this->actingAs($receiver)->postJson("/api/inventory/transfers/{$transfer->id}/accept", ['quantity_received' => '4.0000', 'idempotency_key' => (string) \Illuminate\Support\Str::uuid()])
         ->assertOk()->assertJsonPath('data.status', 'received');
     $this->assertDatabaseHas('inventory_stocks', [
         'product_id' => $product->id, 'location_id' => $destination->id, 'quantity' => '4.0000',
