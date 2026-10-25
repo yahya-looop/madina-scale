@@ -50,7 +50,6 @@ function createDashboardFixture(): array
     );
 }
 
-
 function assignDashboardPermissions(User $user, array $permissionSlugs): void
 {
     $role = Role::create([
@@ -209,4 +208,3 @@ test('view-only permissions do not grant dashboard management capabilities', fun
             ->where('capabilities.canViewReports', true),
     );
 });
-

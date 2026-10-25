@@ -30,11 +30,14 @@ return new class extends Migration
             $table->index(['product_variant_id', 'location_id', 'status']);
         });
 
-        DB::statement("ALTER TABLE inventory_reservations ADD CONSTRAINT inventory_reservations_owner_check CHECK ((product_id IS NOT NULL AND product_variant_id IS NULL) OR (product_id IS NULL AND product_variant_id IS NOT NULL))");
-        DB::statement("ALTER TABLE inventory_reservations ADD CONSTRAINT inventory_reservations_quantity_check CHECK (quantity > 0)");
+        DB::statement('ALTER TABLE inventory_reservations ADD CONSTRAINT inventory_reservations_owner_check CHECK ((product_id IS NOT NULL AND product_variant_id IS NULL) OR (product_id IS NULL AND product_variant_id IS NOT NULL))');
+        DB::statement('ALTER TABLE inventory_reservations ADD CONSTRAINT inventory_reservations_quantity_check CHECK (quantity > 0)');
         DB::statement("ALTER TABLE inventory_reservations ADD CONSTRAINT inventory_reservations_purpose_check CHECK (purpose IN ('customer_order', 'internal_use'))");
         DB::statement("ALTER TABLE inventory_reservations ADD CONSTRAINT inventory_reservations_status_check CHECK (status IN ('active', 'released', 'cancelled', 'fulfilled', 'expired'))");
     }
 
-    public function down(): void { Schema::dropIfExists('inventory_reservations'); }
+    public function down(): void
+    {
+        Schema::dropIfExists('inventory_reservations');
+    }
 };

@@ -12,7 +12,6 @@ use App\Services\OrderRiskService;
 use App\Services\OrderSmsService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
@@ -24,6 +23,7 @@ class OrderOperationsController extends Controller
     {
         $this->locationAccess->assertView($request->user(), (int) $order->location_id);
         $assessment = $this->risk->assess($order);
+
         return response()->json(['message' => 'Risk assessment completed.', 'data' => $assessment]);
     }
 
@@ -32,6 +32,7 @@ class OrderOperationsController extends Controller
         $this->locationAccess->assertManage($request->user(), (int) $assessment->order->location_id);
         $data = $request->validate(['decision' => ['required', Rule::in(['allow', 'verify', 'manual_review', 'reject'])], 'review_note' => ['required', 'string', 'min:3', 'max:1000']]);
         $assessment->update(['decision' => $data['decision'], 'review_note' => trim($data['review_note']), 'reviewed_by' => $request->user()->id, 'reviewed_at' => now()]);
+
         return response()->json(['message' => 'Risk review saved.', 'data' => $assessment->refresh()]);
     }
 
@@ -42,6 +43,7 @@ class OrderOperationsController extends Controller
         $log = $data['message'] ?? null
             ? $this->sms->send($order, $data['event'], $data['message'])
             : $this->sms->sendOrderEvent($order, $data['event']);
+
         return response()->json(['message' => 'SMS request processed; check status for gateway delivery confirmation.', 'data' => $log], 202);
     }
 
@@ -49,6 +51,7 @@ class OrderOperationsController extends Controller
     {
         $this->locationAccess->assertManage($request->user(), (int) $order->location_id);
         $this->verification->send($order);
+
         return response()->json(['message' => 'Verification code requested. Delivery depends on SMS gateway configuration.'], 202);
     }
 
@@ -57,12 +60,14 @@ class OrderOperationsController extends Controller
         $this->locationAccess->assertManage($request->user(), (int) $order->location_id);
         $data = $request->validate(['code' => ['required', 'digits:6']]);
         $this->verification->verify($order, $data['code']);
+
         return response()->json(['message' => 'Customer phone verified.']);
     }
 
     public function shipments(Request $request, SalesOrder $order): JsonResponse
     {
         $this->locationAccess->assertView($request->user(), (int) $order->location_id);
+
         return response()->json(['data' => $order->shipments()->latest('id')->get()]);
     }
 
@@ -74,18 +79,23 @@ class OrderOperationsController extends Controller
             'idempotency_key' => ['required', 'string', 'max:100'],
             'recipient_name' => ['nullable', 'string', 'max:160'], 'recipient_phone' => ['nullable', 'string', 'max:40'],
             'recipient_address' => ['required', 'string', 'max:500'],
-            'cod_amount' => ['nullable', 'numeric', 'min:0', 'max:' . max(0, (float) $order->grand_total)],
+            'cod_amount' => ['nullable', 'numeric', 'min:0', 'max:'.max(0, (float) $order->grand_total)],
             'delivery_area' => ['nullable', 'integer', 'min:1'],
         ]);
-        if (!in_array($order->status, ['confirmed', 'processing', 'partially_fulfilled', 'fulfilled'], true)) {
+        if (! in_array($order->status, ['confirmed', 'processing', 'partially_fulfilled', 'fulfilled'], true)) {
             return response()->json(['message' => 'Confirm the order before booking a courier shipment.'], 422);
         }
         if ($data['provider'] === 'redx' && empty($data['delivery_area'])) {
             return response()->json(['message' => 'REDX requires a valid delivery area ID from your merchant account.'], 422);
         }
-        if (!empty($data['delivery_area'])) $data['metadata']['delivery_area'] = $data['delivery_area'];
+        if (! empty($data['delivery_area'])) {
+            $data['metadata']['delivery_area'] = $data['delivery_area'];
+        }
         $shipment = $this->couriers->book($order, $data['provider'], $data, (int) $request->user()->id);
-        if ($order->customer_phone) $this->sms->send($order, 'shipment_booked', 'আপনার অর্ডার ' . $order->order_number . ' কুরিয়ারে বুক করা হয়েছে। ট্র্যাকিং: ' . ($shipment->tracking_code ?: 'কুরিয়ার ট্র্যাকিং আপডেট অপেক্ষমাণ।'));
+        if ($order->customer_phone) {
+            $this->sms->send($order, 'shipment_booked', 'আপনার অর্ডার '.$order->order_number.' কুরিয়ারে বুক করা হয়েছে। ট্র্যাকিং: '.($shipment->tracking_code ?: 'কুরিয়ার ট্র্যাকিং আপডেট অপেক্ষমাণ।'));
+        }
+
         return response()->json(['message' => 'Shipment booking processed.', 'data' => $shipment], 201);
     }
 
@@ -93,7 +103,9 @@ class OrderOperationsController extends Controller
     {
         $secret = (string) config('order_integrations.webhook_secret', '');
         $provided = (string) $request->bearerToken();
-        if ($secret === '' || !hash_equals($secret, $provided)) abort(401);
+        if ($secret === '' || ! hash_equals($secret, $provided)) {
+            abort(401);
+        }
         abort_unless(in_array($provider, ['steadfast', 'redx', 'pathao', 'carrybee', 'custom'], true), 404);
 
         $request->merge(['status' => $request->input('status', $request->input('delivery_status'))]);
@@ -106,11 +118,17 @@ class OrderOperationsController extends Controller
         ]);
 
         $shipmentQuery = SalesOrderShipment::query()->where('provider', $provider)->where(function ($query) use ($data): void {
-            if (!empty($data['tracking_code'])) $query->orWhere('tracking_code', $data['tracking_code']);
-            if (!empty($data['consignment_id'])) $query->orWhere('provider_shipment_id', $data['consignment_id']);
+            if (! empty($data['tracking_code'])) {
+                $query->orWhere('tracking_code', $data['tracking_code']);
+            }
+            if (! empty($data['consignment_id'])) {
+                $query->orWhere('provider_shipment_id', $data['consignment_id']);
+            }
         });
         $shipment = $shipmentQuery->first();
-        if (!$shipment) return response()->json(['message' => 'Shipment not found.'], 404);
+        if (! $shipment) {
+            return response()->json(['message' => 'Shipment not found.'], 404);
+        }
 
         $normalized = strtolower(str_replace([' ', '-'], '_', trim($data['status'])));
         $map = [
@@ -122,16 +140,18 @@ class OrderOperationsController extends Controller
             'partial_delivered' => 'partially_delivered', 'partial_delivery' => 'partially_delivered',
             'failed' => 'delivery_failed', 'delivery_failed' => 'delivery_failed',
         ];
-        if (!isset($map[$normalized])) {
+        if (! isset($map[$normalized])) {
             return response()->json(['message' => 'Unsupported courier status; no shipment changes were made.'], 422);
         }
         $status = $map[$normalized];
-        $eventHash = hash('sha256', $provider . '|' . ($data['event_id'] ?? '') . '|' . ($data['tracking_code'] ?? '') . '|' . ($data['consignment_id'] ?? '') . '|' . $normalized . '|' . ($data['delivered_at'] ?? ''));
+        $eventHash = hash('sha256', $provider.'|'.($data['event_id'] ?? '').'|'.($data['tracking_code'] ?? '').'|'.($data['consignment_id'] ?? '').'|'.$normalized.'|'.($data['delivered_at'] ?? ''));
 
         $result = DB::transaction(function () use ($shipment, $provider, $data, $status, $eventHash, $request): array {
             $locked = SalesOrderShipment::query()->lockForUpdate()->findOrFail($shipment->id);
             $duplicate = DB::table('sales_order_shipment_events')->where('provider', $provider)->where('event_hash', $eventHash)->exists();
-            if ($duplicate) return ['duplicate' => true, 'shipment' => $locked, 'send_delivered_sms' => false];
+            if ($duplicate) {
+                return ['duplicate' => true, 'shipment' => $locked, 'send_delivered_sms' => false];
+            }
 
             $previousStatus = (string) $locked->status;
             $terminal = ['delivered', 'returned', 'cancelled'];
@@ -147,7 +167,7 @@ class OrderOperationsController extends Controller
                 'cancelled' => ['cancelled'],
                 'failed' => ['booked', 'delivery_failed', 'cancelled'],
             ];
-            if (!in_array($status, $allowed[$previousStatus] ?? [$previousStatus], true)) {
+            if (! in_array($status, $allowed[$previousStatus] ?? [$previousStatus], true)) {
                 DB::table('sales_order_shipment_events')->insert([
                     'sales_order_shipment_id' => $locked->id, 'provider' => $provider, 'event_hash' => $eventHash,
                     'event_id' => $data['event_id'] ?? null, 'previous_status' => $previousStatus,
@@ -155,6 +175,7 @@ class OrderOperationsController extends Controller
                     'payload' => json_encode($request->except(['token', 'secret', 'api_key']), JSON_THROW_ON_ERROR),
                     'received_at' => now(), 'created_at' => now(), 'updated_at' => now(),
                 ]);
+
                 return ['duplicate' => false, 'ignored' => true, 'shipment' => $locked, 'send_delivered_sms' => false];
             }
 
@@ -170,20 +191,22 @@ class OrderOperationsController extends Controller
                 'payload' => json_encode($request->except(['token', 'secret', 'api_key']), JSON_THROW_ON_ERROR),
                 'received_at' => now(), 'created_at' => now(), 'updated_at' => now(),
             ]);
+
             return [
                 'duplicate' => false, 'ignored' => false, 'shipment' => $locked->fresh(),
                 'send_delivered_sms' => $status === 'delivered' && $previousStatus !== 'delivered',
             ];
         });
 
-        if (!empty($result['send_delivered_sms']) && $result['shipment']->order?->customer_phone) {
+        if (! empty($result['send_delivered_sms']) && $result['shipment']->order?->customer_phone) {
             $this->sms->sendOrderEvent($result['shipment']->order, 'delivered');
         }
-        if (!empty($result['ignored'])) {
+        if (! empty($result['ignored'])) {
             return response()->json(['message' => 'Out-of-order courier event recorded and ignored.', 'data' => ['shipment_id' => $result['shipment']->id, 'status' => $result['shipment']->status]], 202);
         }
+
         return response()->json([
-            'message' => !empty($result['duplicate']) ? 'Duplicate courier event accepted.' : 'Webhook accepted.',
+            'message' => ! empty($result['duplicate']) ? 'Duplicate courier event accepted.' : 'Webhook accepted.',
             'data' => ['shipment_id' => $result['shipment']->id, 'status' => $result['shipment']->status, 'duplicate' => (bool) ($result['duplicate'] ?? false)],
         ]);
     }

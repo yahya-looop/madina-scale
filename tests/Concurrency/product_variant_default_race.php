@@ -6,9 +6,9 @@ use Illuminate\Support\Facades\DB;
 
 $root = dirname(__DIR__, 2);
 
-require $root . '/vendor/autoload.php';
+require $root.'/vendor/autoload.php';
 
-$app = require $root . '/bootstrap/app.php';
+$app = require $root.'/bootstrap/app.php';
 $app->make(Kernel::class)->bootstrap();
 
 config([
@@ -38,7 +38,7 @@ function waitForDefaultRaceGate(string $gate, string $result): void
 {
     $deadline = microtime(true) + 30;
 
-    while (!is_file($gate)) {
+    while (! is_file($gate)) {
         if (microtime(true) > $deadline) {
             file_put_contents($result, json_encode([
                 'status' => 'error',
@@ -111,24 +111,24 @@ assertDefaultRaceTestDatabase();
 
 $token = strtolower(str_replace('-', '', (string) str()->uuid()));
 
-$categorySlug = 'default-race-category-' . $token;
-$unitSlug = 'default-race-unit-' . $token;
-$productSlug = 'default-race-product-' . $token;
+$categorySlug = 'default-race-category-'.$token;
+$unitSlug = 'default-race-unit-'.$token;
+$productSlug = 'default-race-product-'.$token;
 
-$directory = $root . '/storage/framework/testing';
+$directory = $root.'/storage/framework/testing';
 
-if (!is_dir($directory)
-    && !mkdir($directory, 0777, true)
-    && !is_dir($directory)
+if (! is_dir($directory)
+    && ! mkdir($directory, 0777, true)
+    && ! is_dir($directory)
 ) {
     throw new RuntimeException('Could not create test directory.');
 }
 
-$gate = $directory . '/default-race-' . $token . '.go';
+$gate = $directory.'/default-race-'.$token.'.go';
 
 $results = [
-    $directory . '/default-race-' . $token . '-a.json',
-    $directory . '/default-race-' . $token . '-b.json',
+    $directory.'/default-race-'.$token.'-a.json',
+    $directory.'/default-race-'.$token.'-b.json',
 ];
 
 $processes = [];
@@ -143,7 +143,7 @@ try {
     $now = now()->toDateTimeString();
 
     $categoryId = DB::table('product_categories')->insertGetId([
-        'name' => 'Default Race Category ' . $token,
+        'name' => 'Default Race Category '.$token,
         'slug' => $categorySlug,
         'status' => 'active',
         'visibility' => 'visible',
@@ -153,7 +153,7 @@ try {
     ]);
 
     $unitId = DB::table('units')->insertGetId([
-        'name' => 'Default Race Unit ' . $token,
+        'name' => 'Default Race Unit '.$token,
         'short_name' => 'DR',
         'slug' => $unitSlug,
         'status' => 'active',
@@ -180,7 +180,7 @@ try {
     $variantIdA = DB::table('product_variants')->insertGetId([
         'product_id' => $productId,
         'name' => 'Default Race Variant A',
-        'sku' => 'DEFAULT-A-' . strtoupper($token),
+        'sku' => 'DEFAULT-A-'.strtoupper($token),
         'barcode' => null,
         'cost_price' => 10,
         'selling_price' => 20,
@@ -194,7 +194,7 @@ try {
     $variantIdB = DB::table('product_variants')->insertGetId([
         'product_id' => $productId,
         'name' => 'Default Race Variant B',
-        'sku' => 'DEFAULT-B-' . strtoupper($token),
+        'sku' => 'DEFAULT-B-'.strtoupper($token),
         'barcode' => null,
         'cost_price' => 10,
         'selling_price' => 20,
@@ -230,7 +230,7 @@ try {
             $root
         );
 
-        if (!is_resource($process)) {
+        if (! is_resource($process)) {
             throw new RuntimeException('Could not start a worker.');
         }
 
@@ -254,7 +254,7 @@ try {
     $outcomes = [];
 
     foreach ($results as $file) {
-        if (!is_file($file)) {
+        if (! is_file($file)) {
             throw new RuntimeException(
                 'A worker did not produce a result.'
             );
@@ -294,12 +294,12 @@ try {
     echo "\n=== PRODUCT VARIANT DEFAULT RACE TEST ===\n";
     echo "Database: madina_scale_test\n";
     echo "Product ID: {$productId}\n";
-    echo "Worker A: "
-        . json_encode($outcomes[0], JSON_PRETTY_PRINT) . "\n";
-    echo "Worker B: "
-        . json_encode($outcomes[1], JSON_PRETTY_PRINT) . "\n";
-    echo "Active default variants: " . $activeDefaults->count() . "\n";
-    echo "Worker exit codes: " . json_encode($exitCodes) . "\n";
+    echo 'Worker A: '
+        .json_encode($outcomes[0], JSON_PRETTY_PRINT)."\n";
+    echo 'Worker B: '
+        .json_encode($outcomes[1], JSON_PRETTY_PRINT)."\n";
+    echo 'Active default variants: '.$activeDefaults->count()."\n";
+    echo 'Worker exit codes: '.json_encode($exitCodes)."\n";
 
     echo $passed
         ? "\nPASS: exactly one active default variant remains.\n"

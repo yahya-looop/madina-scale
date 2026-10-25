@@ -49,7 +49,7 @@ function createStorefrontProduct(array $overrides = []): Product
 
     // Active simple products must have their own SKU.
     if ($productType === 'simple' && empty($attributes['sku'])) {
-        $attributes['sku'] = 'TEST-' . strtoupper(
+        $attributes['sku'] = 'TEST-'.strtoupper(
             str_replace('-', '', $slug)
         );
     }
@@ -61,7 +61,7 @@ function createStorefrontProduct(array $overrides = []): Product
         ProductVariant::create([
             'product_id' => $product->id,
             'name' => 'Standard',
-            'sku' => 'VAR-' . strtoupper(
+            'sku' => 'VAR-'.strtoupper(
                 str_replace('-', '', $slug)
             ),
             'cost_price' => '500.00',

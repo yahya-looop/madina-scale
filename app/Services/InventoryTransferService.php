@@ -44,6 +44,7 @@ class InventoryTransferService
                     $ownerId,
                     $isVariant,
                     $quantity,
+                    $data,
                 );
                 if ($existing !== null) {
                     return $existing->load(['product', 'variant', 'sourceLocation', 'destinationLocation', 'dispatcher']);
@@ -274,8 +275,11 @@ class InventoryTransferService
             $locked->status = 'discrepancy';
             $locked->resolution_note = $reason;
             $locked->metadata = array_merge($locked->metadata ?? [], [
-                'discrepancy_reported_by' => $actor->id,
-                'discrepancy_reported_at' => now()->toISOString(),
+                'discrepancy' => [
+                    'reason' => $reason,
+                    'reported_by' => $actor->id,
+                    'reported_at' => now()->toISOString(),
+                ],
             ]);
             $locked->save();
             return $locked->load(['product', 'variant', 'sourceLocation', 'destinationLocation', 'dispatcher']);
@@ -292,6 +296,7 @@ class InventoryTransferService
         int $ownerId,
         bool $isVariant,
         string $quantity,
+        array $data,
     ): ?InventoryTransfer {
         $existing = InventoryTransfer::query()->where('idempotency_key', $key)->first();
         if (! $existing) {
@@ -302,7 +307,11 @@ class InventoryTransferService
             && (int) $existing->destination_location_id === $destinationId
             && (int) ($isVariant ? $existing->product_variant_id : $existing->product_id) === $ownerId
             && ($isVariant ? $existing->product_id === null : $existing->product_variant_id === null)
-            && bccomp((string) $existing->quantity_sent, $quantity, 4) === 0;
+            && bccomp((string) $existing->quantity_sent, $quantity, 4) === 0
+            && $existing->reason === ($data['reason'] ?? null)
+            && $existing->reference_type === ($data['reference_type'] ?? null)
+            && $existing->reference_id === (isset($data['reference_id']) ? (string) $data['reference_id'] : null)
+            && ($existing->metadata ?? null) == ($data['metadata'] ?? null);
 
         if (! $same) {
             throw ValidationException::withMessages(['idempotency_key' => 'This key was already used for a different transfer.']);

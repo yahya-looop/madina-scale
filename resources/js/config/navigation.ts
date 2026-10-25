@@ -32,7 +32,6 @@ export const primaryNavigation: NavigationItem[] = [
         ],
     },
 
-
     {
         label: 'Product Management',
         icon: 'products',
@@ -77,7 +76,6 @@ export const primaryNavigation: NavigationItem[] = [
         ],
     },
 
-
     {
         label: 'Inventory',
         icon: 'inventory',
@@ -117,7 +115,6 @@ export const primaryNavigation: NavigationItem[] = [
             },
         ],
     },
-
 
     {
         label: 'Customers',

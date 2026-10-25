@@ -21,8 +21,8 @@ class StorefrontController extends Controller
             ->when($search !== '', function (Builder $query) use ($search): void {
                 $query->where(function (Builder $productQuery) use ($search): void {
                     $productQuery
-                        ->where('name', 'ilike', '%' . $search . '%')
-                        ->orWhere('short_description', 'ilike', '%' . $search . '%');
+                        ->where('name', 'ilike', '%'.$search.'%')
+                        ->orWhere('short_description', 'ilike', '%'.$search.'%');
                 });
             })
             ->when($categorySlug !== '', function (Builder $query) use ($categorySlug): void {

@@ -93,8 +93,8 @@ return new class extends Migration
 
             throw new RuntimeException(
                 'Cannot enforce unique product variant attribute combinations because duplicate combinations already exist. '
-                . 'Resolve these variants, then rerun the migration. Examples: '
-                . $details
+                .'Resolve these variants, then rerun the migration. Examples: '
+                .$details
             );
         }
 

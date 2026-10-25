@@ -1,5 +1,7 @@
 <?php
 
+use App\Models\InventoryReservation;
+use App\Models\InventoryReservationPurpose;
 use App\Models\Module;
 use App\Models\Permission;
 use App\Models\Role;
@@ -22,11 +24,12 @@ function reservationTestUser(): User
         'module_id' => $module->id, 'name' => 'View Inventory', 'description' => 'View inventory.',
     ]);
     $role = Role::create([
-        'name' => 'Reservation Test Role', 'slug' => 'reservation-test-' . Str::lower(Str::random(12)),
+        'name' => 'Reservation Test Role', 'slug' => 'reservation-test-'.Str::lower(Str::random(12)),
         'description' => 'Temporary role for reservation API tests.', 'is_system' => false, 'is_active' => true,
     ]);
     $role->permissions()->attach([$permission->id, $view->id]);
     $user->roles()->attach($role->id);
+
     return $user;
 }
 
@@ -115,8 +118,6 @@ test('fulfilling a customer-order reservation creates an order fulfillment movem
         'reference_id' => (string) $id,
     ]);
 });
-
-
 
 test('cancelling an active reservation releases reserved quantity without changing on-hand stock', function () {
     $user = reservationTestUser();
@@ -233,24 +234,23 @@ test('reservation endpoints are scoped to locations assigned to the actor', func
         'quantity' => '2', 'purpose' => 'customer_order',
     ])->assertForbidden();
 
-    $unassignedReservation = \App\Models\InventoryReservation::query()->create([
+    $unassignedReservation = InventoryReservation::query()->create([
         'product_id' => $product->id, 'location_id' => $unassigned->id,
         'quantity' => '1.0000', 'purpose' => 'customer_order', 'status' => 'active',
         'created_by' => $user->id,
     ]);
-    $this->postJson('/api/inventory/reservations/' . $unassignedReservation->id . '/release')->assertForbidden();
+    $this->postJson('/api/inventory/reservations/'.$unassignedReservation->id.'/release')->assertForbidden();
     $this->assertDatabaseHas('inventory_reservations', ['id' => $reservationId, 'status' => 'active']);
 });
-
 
 test('reservation purposes cannot be deleted below the minimum of two', function () {
     $user = reservationTestUser();
     $this->actingAs($user);
 
-    $purposes = \App\Models\InventoryReservationPurpose::query()->where('is_active', true)->orderBy('id')->get();
+    $purposes = InventoryReservationPurpose::query()->where('is_active', true)->orderBy('id')->get();
     expect($purposes)->toHaveCount(2);
 
-    $this->deleteJson('/api/inventory/reservation-purposes/' . $purposes[0]->id)
+    $this->deleteJson('/api/inventory/reservation-purposes/'.$purposes[0]->id)
         ->assertUnprocessable()
         ->assertJsonPath('minimum_required', 2);
 
@@ -281,7 +281,7 @@ test('deleting a used reservation purpose removes it without archiving and prese
         ->assertJsonPath('data.purpose_label', 'Quality Check')
         ->json('data.id');
 
-    $this->deleteJson('/api/inventory/reservation-purposes/' . $purpose['id'])
+    $this->deleteJson('/api/inventory/reservation-purposes/'.$purpose['id'])
         ->assertOk()
         ->assertJsonPath('active_count', 2);
 

@@ -17,8 +17,9 @@ class OrderRiskAndMessagingTest extends TestCase
     private function makeOrder(string $phone, string $status = 'pending'): SalesOrder
     {
         $location = \inventoryTestLocation();
+
         return SalesOrder::query()->create([
-            'order_number' => 'RISK-' . strtoupper(bin2hex(random_bytes(5))),
+            'order_number' => 'RISK-'.strtoupper(bin2hex(random_bytes(5))),
             'status' => $status, 'channel' => 'backoffice', 'location_id' => $location->id,
             'customer_name' => 'Risk Test Customer', 'customer_phone' => $phone, 'currency' => 'BDT',
             'subtotal' => 100, 'discount_total' => 0, 'tax_total' => 0, 'grand_total' => 100,
@@ -58,6 +59,7 @@ class OrderRiskAndMessagingTest extends TestCase
         $this->assertSame('+8801711111111', $service->normalizePhone('01711111111'));
         $this->assertSame('+8801711111111', $service->normalizePhone('8801711111111'));
     }
+
     public function test_courier_webhook_records_events_and_prevents_status_regression(): void
     {
         config(['order_integrations.webhook_secret' => 'test-webhook-secret']);
@@ -65,9 +67,9 @@ class OrderRiskAndMessagingTest extends TestCase
         $shipment = SalesOrderShipment::query()->create([
             'sales_order_id' => $order->id,
             'provider' => 'steadfast',
-            'idempotency_key' => 'shipment-' . $order->id,
-            'provider_shipment_id' => 'CONS-' . $order->id,
-            'tracking_code' => 'TRACK-' . $order->id,
+            'idempotency_key' => 'shipment-'.$order->id,
+            'provider_shipment_id' => 'CONS-'.$order->id,
+            'tracking_code' => 'TRACK-'.$order->id,
             'status' => 'booked',
             'recipient_name' => $order->customer_name,
             'recipient_phone' => $order->customer_phone,
@@ -89,5 +91,4 @@ class OrderRiskAndMessagingTest extends TestCase
         $this->assertDatabaseHas('sales_order_shipment_events', ['provider' => 'steadfast', 'event_id' => 'evt-100', 'outcome' => 'applied']);
         $this->assertDatabaseHas('sales_order_shipment_events', ['provider' => 'steadfast', 'event_id' => 'evt-old', 'outcome' => 'ignored_transition']);
     }
-
 }

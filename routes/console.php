@@ -1,14 +1,13 @@
 <?php
 
+use App\Services\InventoryReservationService;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
-use App\Services\InventoryReservationService;
 
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
-
 
 Artisan::command('inventory:expire-reservations', function (InventoryReservationService $reservations): void {
     $reservations->expireDue();

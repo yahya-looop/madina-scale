@@ -15,8 +15,7 @@ class SettingsController extends Controller
         private readonly AuthorizationService $authorizationService,
         private readonly ActivityLogService $activityLogService,
         private readonly SettingsService $settingsService,
-    ) {
-    }
+    ) {}
 
     /**
      * Return all active system settings.

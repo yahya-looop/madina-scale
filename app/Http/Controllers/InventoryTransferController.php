@@ -3,11 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Models\InventoryTransfer;
+use App\Services\AuthorizationService;
 use App\Services\InventoryTransferService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
-use App\Services\AuthorizationService;
 
 class InventoryTransferController extends Controller
 {
@@ -53,13 +53,19 @@ class InventoryTransferController extends Controller
         }
 
         if ($direction === 'incoming') {
-            if (isset($filters['location_id'])) $query->where('destination_location_id', $filters['location_id']);
+            if (isset($filters['location_id'])) {
+                $query->where('destination_location_id', $filters['location_id']);
+            }
         } elseif ($direction === 'outgoing') {
-            if (isset($filters['location_id'])) $query->where('source_location_id', $filters['location_id']);
+            if (isset($filters['location_id'])) {
+                $query->where('source_location_id', $filters['location_id']);
+            }
         } elseif (isset($filters['location_id'])) {
             $query->where(fn ($q) => $q->where('source_location_id', $filters['location_id'])->orWhere('destination_location_id', $filters['location_id']));
         }
-        if (isset($filters['status'])) $query->where('status', $filters['status']);
+        if (isset($filters['status'])) {
+            $query->where('status', $filters['status']);
+        }
 
         return response()->json($query->paginate($filters['per_page'] ?? 20));
     }
@@ -95,6 +101,7 @@ class InventoryTransferController extends Controller
                 $discrepancies->where(fn ($sub) => $sub->where('source_location_id', $locationId)->orWhere('destination_location_id', $locationId));
             }
         }
+
         return response()->json([
             'incoming_pending' => $incoming->count(),
             'outgoing_pending' => $outgoing->count(),
@@ -117,6 +124,7 @@ class InventoryTransferController extends Controller
             'metadata' => ['nullable', 'array'],
         ]);
         $transfer = $this->transfers->dispatch($data, $request->user(), $request->ip());
+
         return response()->json(['message' => 'Transfer dispatched and is awaiting destination confirmation.', 'data' => $transfer], 201);
     }
 
@@ -128,6 +136,7 @@ class InventoryTransferController extends Controller
             'idempotency_key' => ['required', 'uuid'],
         ]);
         $updated = $this->transfers->receive($transfer, $data, $request->user(), $request->ip());
+
         return response()->json(['message' => $updated->status === 'received' ? 'Transfer received successfully.' : 'Partial receipt recorded.', 'data' => $updated]);
     }
 
@@ -135,6 +144,7 @@ class InventoryTransferController extends Controller
     {
         $data = $request->validate(['reason' => ['required', 'string', 'min:3', 'max:2000']]);
         $updated = $this->transfers->reject($transfer, $data['reason'], $request->user());
+
         return response()->json(['message' => 'Transfer flagged for discrepancy resolution. Stock was not silently returned to the source.', 'data' => $updated]);
     }
 }

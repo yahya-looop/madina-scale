@@ -8,7 +8,6 @@ use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Models\StockMovement;
 use App\Models\User;
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -181,8 +180,7 @@ class InventoryService
 
                     if (! $sameRequest) {
                         throw ValidationException::withMessages([
-                            'idempotency_key' =>
-                                'This key has already been used for a different stock movement.',
+                            'idempotency_key' => 'This key has already been used for a different stock movement.',
                         ]);
                     }
 
@@ -278,7 +276,6 @@ class InventoryService
         }, 3);
     }
 
-
     /**
      * Perform one stock movement.
      *
@@ -339,7 +336,6 @@ class InventoryService
         return DB::transaction(function () use (
             $data,
             $type,
-            $quantity,
             $signedDelta,
             $idempotencyKey,
             $actor,
@@ -368,7 +364,7 @@ class InventoryService
                         && $existing->reason === ($data['reason'] ?? null)
 
                         && $existing->reference_type === ($data['reference_type'] ?? null)
-                        
+
                         && $existing->reference_id === (
                             isset($data['reference_id'])
                                 ? (string) $data['reference_id']
@@ -381,7 +377,6 @@ class InventoryService
                             $signedDelta,
                             4,
                         ) === 0;
-
 
                     if (! $sameRequest) {
                         throw ValidationException::withMessages([

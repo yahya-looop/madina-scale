@@ -31,11 +31,38 @@ class InventoryTransfer extends Model
         ];
     }
 
-    public function product(): BelongsTo { return $this->belongsTo(Product::class); }
-    public function variant(): BelongsTo { return $this->belongsTo(ProductVariant::class, 'product_variant_id'); }
-    public function sourceLocation(): BelongsTo { return $this->belongsTo(Location::class, 'source_location_id'); }
-    public function destinationLocation(): BelongsTo { return $this->belongsTo(Location::class, 'destination_location_id'); }
-    public function dispatcher(): BelongsTo { return $this->belongsTo(User::class, 'dispatched_by'); }
-    public function receiver(): BelongsTo { return $this->belongsTo(User::class, 'received_by'); }
-    public function resolver(): BelongsTo { return $this->belongsTo(User::class, 'resolved_by'); }
+    public function product(): BelongsTo
+    {
+        return $this->belongsTo(Product::class);
+    }
+
+    public function variant(): BelongsTo
+    {
+        return $this->belongsTo(ProductVariant::class, 'product_variant_id');
+    }
+
+    public function sourceLocation(): BelongsTo
+    {
+        return $this->belongsTo(Location::class, 'source_location_id');
+    }
+
+    public function destinationLocation(): BelongsTo
+    {
+        return $this->belongsTo(Location::class, 'destination_location_id');
+    }
+
+    public function dispatcher(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'dispatched_by');
+    }
+
+    public function receiver(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'received_by');
+    }
+
+    public function resolver(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'resolved_by');
+    }
 }

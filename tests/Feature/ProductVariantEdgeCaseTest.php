@@ -23,7 +23,7 @@ function variantEdgeGrantPermission(User $user, string $slug): void
 
     $module = Module::create([
         'name' => 'Variant Edge Module',
-        'slug' => 'variant-edge-module-' . $suffix,
+        'slug' => 'variant-edge-module-'.$suffix,
         'description' => 'Variant edge-case tests.',
         'sort_order' => 999,
         'is_system' => false,
@@ -39,7 +39,7 @@ function variantEdgeGrantPermission(User $user, string $slug): void
 
     $role = Role::create([
         'name' => 'Variant Edge Role',
-        'slug' => 'variant-edge-role-' . $suffix,
+        'slug' => 'variant-edge-role-'.$suffix,
         'description' => 'Role for variant edge-case tests.',
         'is_system' => false,
         'is_active' => true,
@@ -54,24 +54,24 @@ function variantEdgeCreateProduct(): Product
     $suffix = uniqid();
 
     $category = ProductCategory::create([
-        'name' => 'Edge Category ' . $suffix,
-        'slug' => 'edge-category-' . $suffix,
+        'name' => 'Edge Category '.$suffix,
+        'slug' => 'edge-category-'.$suffix,
         'status' => 'active',
         'visibility' => 'visible',
         'sort_order' => 0,
     ]);
 
     $brand = Brand::create([
-        'name' => 'Edge Brand ' . $suffix,
-        'slug' => 'edge-brand-' . $suffix,
+        'name' => 'Edge Brand '.$suffix,
+        'slug' => 'edge-brand-'.$suffix,
         'status' => 'active',
         'sort_order' => 0,
     ]);
 
     $unit = Unit::create([
-        'name' => 'Edge Unit ' . $suffix,
+        'name' => 'Edge Unit '.$suffix,
         'short_name' => 'EU',
-        'slug' => 'edge-unit-' . $suffix,
+        'slug' => 'edge-unit-'.$suffix,
         'status' => 'active',
         'sort_order' => 0,
     ]);
@@ -80,8 +80,8 @@ function variantEdgeCreateProduct(): Product
         'category_id' => $category->id,
         'brand_id' => $brand->id,
         'unit_id' => $unit->id,
-        'name' => 'Edge Product ' . $suffix,
-        'slug' => 'edge-product-' . $suffix,
+        'name' => 'Edge Product '.$suffix,
+        'slug' => 'edge-product-'.$suffix,
         'sku' => null,
         'barcode' => null,
         'product_type' => 'variable',
@@ -96,9 +96,9 @@ function variantEdgeCreateProduct(): Product
 function variantEdgePayload(array $overrides = []): array
 {
     return array_merge([
-        'name' => 'Edge Variant ' . uniqid(),
-        'sku' => 'EDGE-SKU-' . strtoupper(uniqid()),
-        'barcode' => 'EDGE-BAR-' . strtoupper(uniqid()),
+        'name' => 'Edge Variant '.uniqid(),
+        'sku' => 'EDGE-SKU-'.strtoupper(uniqid()),
+        'barcode' => 'EDGE-BAR-'.strtoupper(uniqid()),
         'cost_price' => 10,
         'selling_price' => 20,
         'wholesale_price' => 15,
@@ -116,8 +116,8 @@ function variantEdgeCreateAttribute(string $name, string $status = 'active'): At
     $suffix = uniqid();
 
     return Attribute::create([
-        'name' => $name . ' ' . $suffix,
-        'slug' => strtolower(str_replace(' ', '-', $name)) . '-' . $suffix,
+        'name' => $name.' '.$suffix,
+        'slug' => strtolower(str_replace(' ', '-', $name)).'-'.$suffix,
         'type' => 'select',
         'status' => $status,
         'sort_order' => 0,
@@ -132,9 +132,9 @@ function variantEdgeCreateValue(
 
     return AttributeValue::create([
         'attribute_id' => $attribute->id,
-        'name' => 'Edge Value ' . $suffix,
-        'slug' => 'edge-value-' . $suffix,
-        'value' => 'edge-' . $suffix,
+        'name' => 'Edge Value '.$suffix,
+        'slug' => 'edge-value-'.$suffix,
+        'value' => 'edge-'.$suffix,
         'status' => $status,
         'sort_order' => 0,
     ]);

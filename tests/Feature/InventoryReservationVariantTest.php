@@ -23,11 +23,12 @@ if (! function_exists('reservationTestUser')) {
             'module_id' => $module->id, 'name' => 'View Inventory', 'description' => 'View inventory.',
         ]);
         $role = Role::create([
-            'name' => 'Reservation Test Role', 'slug' => 'reservation-test-' . Str::lower(Str::random(12)),
+            'name' => 'Reservation Test Role', 'slug' => 'reservation-test-'.Str::lower(Str::random(12)),
             'description' => 'Temporary role for reservation API tests.', 'is_system' => false, 'is_active' => true,
         ]);
         $role->permissions()->attach([$permission->id, $view->id]);
         $user->roles()->attach($role->id);
+
         return $user;
     }
 }

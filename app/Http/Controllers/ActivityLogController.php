@@ -12,8 +12,7 @@ class ActivityLogController extends Controller
 {
     public function __construct(
         protected AuthorizationService $authorization,
-    ) {
-    }
+    ) {}
 
     /**
      * Display activity logs.

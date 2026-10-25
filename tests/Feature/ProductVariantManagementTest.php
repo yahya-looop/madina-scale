@@ -23,7 +23,7 @@ function variantTestGrantPermission(User $user, string $permissionSlug): void
 
     $module = Module::create([
         'name' => 'Variant Test Module',
-        'slug' => 'variant-test-module-' . $suffix,
+        'slug' => 'variant-test-module-'.$suffix,
         'description' => 'Module for variant tests.',
         'sort_order' => 999,
         'is_system' => false,
@@ -39,7 +39,7 @@ function variantTestGrantPermission(User $user, string $permissionSlug): void
 
     $role = Role::create([
         'name' => 'Variant Test Role',
-        'slug' => 'variant-test-role-' . $suffix,
+        'slug' => 'variant-test-role-'.$suffix,
         'description' => 'Role for variant tests.',
         'is_system' => false,
         'is_active' => true,
@@ -54,24 +54,24 @@ function variantTestProductPayload(array $overrides = []): array
     $suffix = uniqid();
 
     $category = ProductCategory::create([
-        'name' => 'Variant Category ' . $suffix,
-        'slug' => 'variant-category-' . $suffix,
+        'name' => 'Variant Category '.$suffix,
+        'slug' => 'variant-category-'.$suffix,
         'status' => 'active',
         'visibility' => 'visible',
         'sort_order' => 0,
     ]);
 
     $brand = Brand::create([
-        'name' => 'Variant Brand ' . $suffix,
-        'slug' => 'variant-brand-' . $suffix,
+        'name' => 'Variant Brand '.$suffix,
+        'slug' => 'variant-brand-'.$suffix,
         'status' => 'active',
         'sort_order' => 0,
     ]);
 
     $unit = Unit::create([
-        'name' => 'Variant Unit ' . $suffix,
+        'name' => 'Variant Unit '.$suffix,
         'short_name' => 'VU',
-        'slug' => 'variant-unit-' . $suffix,
+        'slug' => 'variant-unit-'.$suffix,
         'status' => 'active',
         'sort_order' => 0,
     ]);
@@ -80,8 +80,8 @@ function variantTestProductPayload(array $overrides = []): array
         'category_id' => $category->id,
         'brand_id' => $brand->id,
         'unit_id' => $unit->id,
-        'name' => 'Variable Product ' . $suffix,
-        'slug' => 'variable-product-' . $suffix,
+        'name' => 'Variable Product '.$suffix,
+        'slug' => 'variable-product-'.$suffix,
         'sku' => null,
         'barcode' => null,
         'product_type' => 'variable',
@@ -101,9 +101,9 @@ function variantTestCreateProduct(array $overrides = []): Product
 function variantTestPayload(array $overrides = []): array
 {
     return array_merge([
-        'name' => 'Test Variant ' . uniqid(),
-        'sku' => 'VAR-SKU-' . strtoupper(uniqid()),
-        'barcode' => 'VAR-BAR-' . strtoupper(uniqid()),
+        'name' => 'Test Variant '.uniqid(),
+        'sku' => 'VAR-SKU-'.strtoupper(uniqid()),
+        'barcode' => 'VAR-BAR-'.strtoupper(uniqid()),
         'cost_price' => 10,
         'selling_price' => 20,
         'wholesale_price' => 15,
@@ -166,8 +166,8 @@ test('variant creation rejects a simple product', function () {
 
     $product = variantTestCreateProduct([
         'product_type' => 'simple',
-        'sku' => 'SIMPLE-' . strtoupper(uniqid()),
-        'barcode' => 'SIMPLE-BAR-' . strtoupper(uniqid()),
+        'sku' => 'SIMPLE-'.strtoupper(uniqid()),
+        'barcode' => 'SIMPLE-BAR-'.strtoupper(uniqid()),
     ]);
 
     $this->actingAs($user)
@@ -219,7 +219,7 @@ test('variant creation rejects duplicate sku regardless of case', function () {
     $productA = variantTestCreateProduct();
     $productB = variantTestCreateProduct();
 
-    $sku = 'DUP-VAR-' . strtoupper(uniqid());
+    $sku = 'DUP-VAR-'.strtoupper(uniqid());
 
     $this->actingAs($user)
         ->postJson(
@@ -244,7 +244,7 @@ test('variant creation rejects duplicate barcode regardless of case', function (
     $productA = variantTestCreateProduct();
     $productB = variantTestCreateProduct();
 
-    $barcode = 'DUP-VBAR-' . strtoupper(uniqid());
+    $barcode = 'DUP-VBAR-'.strtoupper(uniqid());
 
     $this->actingAs($user)
         ->postJson(
@@ -315,8 +315,8 @@ test('variant creation rejects an inactive attribute', function () {
     $suffix = uniqid();
 
     $attribute = Attribute::create([
-        'name' => 'Inactive Attribute ' . $suffix,
-        'slug' => 'inactive-attribute-' . $suffix,
+        'name' => 'Inactive Attribute '.$suffix,
+        'slug' => 'inactive-attribute-'.$suffix,
         'type' => 'select',
         'status' => 'inactive',
         'sort_order' => 0,
@@ -325,7 +325,7 @@ test('variant creation rejects an inactive attribute', function () {
     $value = AttributeValue::create([
         'attribute_id' => $attribute->id,
         'name' => 'Test Value',
-        'slug' => 'test-value-' . $suffix,
+        'slug' => 'test-value-'.$suffix,
         'value' => 'test-value',
         'status' => 'active',
         'sort_order' => 0,

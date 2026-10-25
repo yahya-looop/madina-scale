@@ -1,16 +1,14 @@
 <?php
 
-use App\Models\Brand;
 use App\Models\InventoryStock;
 use App\Models\Location;
 use App\Models\Module;
 use App\Models\Permission;
 use App\Models\Product;
-use App\Models\ProductCategory;
 use App\Models\ProductVariant;
 use App\Models\Role;
-use App\Models\Unit;
 use App\Models\User;
+use App\Services\InventoryService;
 use Illuminate\Support\Str;
 
 // Keep this file runnable on its own as well as in the complete Pest suite.
@@ -24,7 +22,7 @@ if (! function_exists('createInventoryApiUser')) {
         ]);
         $role = Role::create([
             'name' => 'Inventory API Test Role',
-            'slug' => 'inventory-api-test-' . uniqid(),
+            'slug' => 'inventory-api-test-'.uniqid(),
             'description' => 'Temporary role for Inventory API tests.',
             'is_system' => false, 'is_active' => true,
         ]);
@@ -37,6 +35,7 @@ if (! function_exists('createInventoryApiUser')) {
             $role->permissions()->attach($permission->id);
         }
         $user->roles()->attach($role->id);
+
         return $user;
     }
 }
@@ -60,7 +59,7 @@ if (! function_exists('inventoryApiCreateVariant')) {
     }
 }
 
- test('zero-stock item can be restocked through the receipt API and leaves low-stock list when replenished above threshold', function () {
+test('zero-stock item can be restocked through the receipt API and leaves low-stock list when replenished above threshold', function () {
     $user = createInventoryApiUser([
         'system.inventory.receive',
         'system.inventory.view',
@@ -150,13 +149,12 @@ test('restock receipt supports a variant without creating parent-product stock',
     ]);
 });
 
-
 test('low-stock restock transfers stock between locations and refuses non-low destination items', function () {
     $user = createInventoryApiUser(['system.inventory.transfer', 'system.inventory.view']);
     $product = inventoryApiCreateProduct();
     $source = inventoryApiCreateLocation();
     $destination = inventoryApiCreateLocation();
-    app(\App\Services\InventoryService::class)->receive([
+    app(InventoryService::class)->receive([
         'product_id' => $product->id, 'location_id' => $source->id, 'quantity' => '12',
     ]);
     $destinationStock = InventoryStock::create([

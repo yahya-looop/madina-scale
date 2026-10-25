@@ -1,10 +1,9 @@
 <?php
 
 use App\Http\Controllers\Access\RolesPermissionsController;
-use App\Http\Controllers\ProductController;
-use App\Http\Controllers\StorefrontController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\StorefrontController;
 use App\Http\Controllers\UserPageController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -25,7 +24,6 @@ Route::get('/shop/{slug}', [StorefrontController::class, 'show'])
     ->where('slug', '[A-Za-z0-9\-]+')
     ->name('storefront.show');
 
-
 /*
 |--------------------------------------------------------------------------
 | Guest Routes
@@ -42,7 +40,6 @@ Route::middleware('guest')->group(function () {
         ->middleware('throttle:5,1')
         ->name('login.store');
 });
-
 
 /*
 |--------------------------------------------------------------------------
@@ -64,7 +61,6 @@ Route::middleware('auth')->group(function () {
     Route::post('/logout', [LoginController::class, 'destroy'])
         ->name('logout');
 
-
     /*
     |--------------------------------------------------------------------------
     | Dashboard
@@ -76,7 +72,6 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/dashboard', DashboardController::class)
         ->name('dashboard');
-
 
     /*
     |--------------------------------------------------------------------------
@@ -104,7 +99,6 @@ Route::middleware('auth')->group(function () {
         ]);
     })->name('product-categories.index');
 
-
     Route::get('/brands', function () {
         $user = request()->user();
 
@@ -120,7 +114,6 @@ Route::middleware('auth')->group(function () {
             'userEmail' => $user->email,
         ]);
     })->name('brands.index');
-
 
     Route::get('/units', function () {
         $user = request()->user();
@@ -138,8 +131,7 @@ Route::middleware('auth')->group(function () {
         ]);
     })->name('units.index');
 
-
-        /*
+    /*
     |--------------------------------------------------------------------------
     | Product Attributes Pages
     |--------------------------------------------------------------------------
@@ -161,7 +153,6 @@ Route::middleware('auth')->group(function () {
         ]);
     })->name('attributes.index');
 
-
     Route::get('/attributes/{attribute}/values', function (int $attribute) {
         $user = request()->user();
 
@@ -178,7 +169,6 @@ Route::middleware('auth')->group(function () {
             'attributeId' => $attribute,
         ]);
     })->whereNumber('attribute')->name('attributes.values.index');
-
 
     /*
     |--------------------------------------------------------------------------
@@ -206,7 +196,6 @@ Route::middleware('auth')->group(function () {
         ]);
     })->name('products.index');
 
-
     Route::get('/products/create', function () {
         $user = request()->user();
 
@@ -222,7 +211,6 @@ Route::middleware('auth')->group(function () {
             'userEmail' => $user->email,
         ]);
     })->name('products.create');
-
 
     Route::get('/products/{product}/edit', function (int $product) {
         $user = request()->user();
@@ -241,7 +229,6 @@ Route::middleware('auth')->group(function () {
         ]);
     })->whereNumber('product')->name('products.edit');
 
-
     Route::get('/products/{product}', function (int $product) {
         $user = request()->user();
 
@@ -259,8 +246,6 @@ Route::middleware('auth')->group(function () {
         ]);
     })->whereNumber('product')->name('products.show');
 
-
-
     /*
     |--------------------------------------------------------------------------
     | Customer Management
@@ -270,12 +255,12 @@ Route::middleware('auth')->group(function () {
         $user = request()->user();
         abort_unless($user !== null, 401);
         abort_unless($user->can('system.customers.view'), 403);
+
         return Inertia::render('Customers/Index', [
             'userName' => $user->name,
             'userEmail' => $user->email,
         ]);
     })->name('customers.index');
-
 
     /*
     |--------------------------------------------------------------------------
@@ -286,12 +271,12 @@ Route::middleware('auth')->group(function () {
         $user = request()->user();
         abort_unless($user !== null, 401);
         abort_unless($user->can('system.orders.view'), 403);
+
         return Inertia::render('Orders/Index', [
             'userName' => $user->name,
             'userEmail' => $user->email,
         ]);
     })->name('orders.index');
-
 
     /*
     |--------------------------------------------------------------------------
@@ -319,6 +304,7 @@ Route::middleware('auth')->group(function () {
         $user = request()->user();
         abort_unless($user !== null, 401);
         abort_unless($user->can('system.inventory.view'), 403);
+
         return Inertia::render('Inventory/Reservations', [
             'userName' => $user->name,
             'userEmail' => $user->email,
@@ -357,7 +343,6 @@ Route::middleware('auth')->group(function () {
         ]);
     })->name('inventory.movements');
 
-
     Route::get('/inventory/operations', function () {
         $user = request()->user();
 
@@ -372,8 +357,6 @@ Route::middleware('auth')->group(function () {
             'userEmail' => $user->email,
         ]);
     })->name('inventory.operations');
-
-
 
     /*
     |--------------------------------------------------------------------------
@@ -404,7 +387,6 @@ Route::middleware('auth')->group(function () {
         ]);
     })->name('locations.index');
 
-
     Route::get('/locations/{location}/edit', function () {
         $user = request()->user();
 
@@ -421,7 +403,6 @@ Route::middleware('auth')->group(function () {
         ]);
     })->name('locations.edit');
 
-
     Route::get('/locations/{location}', function () {
         $user = request()->user();
 
@@ -437,7 +418,6 @@ Route::middleware('auth')->group(function () {
             'userEmail' => $user->email,
         ]);
     })->name('locations.show');
-
 
     /*
     |--------------------------------------------------------------------------
@@ -468,7 +448,6 @@ Route::middleware('auth')->group(function () {
         ]);
     })->name('developer.modules');
 
-
     /*
     |--------------------------------------------------------------------------
     | Settings
@@ -478,7 +457,6 @@ Route::middleware('auth')->group(function () {
     | Settings data is handled independently through API endpoints.
     |
     */
-
 
     /*
     |--------------------------------------------------------------------------
@@ -491,7 +469,6 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/settings/roles-permissions', RolesPermissionsController::class)
         ->name('roles-permissions');
-
 
     /*
     |--------------------------------------------------------------------------
@@ -519,7 +496,6 @@ Route::middleware('auth')->group(function () {
             'userEmail' => $user->email,
         ]);
     })->name('activity-logs');
-
 
     /*
     |--------------------------------------------------------------------------
@@ -550,7 +526,6 @@ Route::middleware('auth')->group(function () {
             'userEmail' => $user->email,
         ]);
     })->name('settings.system');
-
 
     /*
     |--------------------------------------------------------------------------

@@ -69,4 +69,3 @@ class InventoryStock extends Model
             ) <= 0;
     }
 }
-

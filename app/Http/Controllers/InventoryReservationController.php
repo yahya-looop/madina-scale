@@ -8,8 +8,8 @@ use App\Services\InventoryReservationService;
 use App\Services\LocationInventoryAccessService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 
 class InventoryReservationController extends Controller
 {
@@ -42,6 +42,7 @@ class InventoryReservationController extends Controller
             'key' => $data['key'], 'label' => trim($data['label']), 'is_active' => true,
             'sort_order' => (int) InventoryReservationPurpose::query()->max('sort_order') + 10,
         ]);
+
         return response()->json(['message' => 'Reservation purpose added successfully.', 'data' => $purpose], 201);
     }
 
@@ -59,6 +60,7 @@ class InventoryReservationController extends Controller
         }
 
         $purpose->update(['key' => $data['key'], 'label' => trim($data['label'])]);
+
         return response()->json(['message' => 'Reservation purpose updated successfully.', 'data' => $purpose->fresh()]);
     }
 
@@ -124,8 +126,11 @@ class InventoryReservationController extends Controller
             $this->locationAccess->scopeViewable($query, $request->user());
         }
         foreach (['status', 'purpose', 'location_id', 'product_id', 'product_variant_id'] as $key) {
-            if (isset($filters[$key])) $query->where($key, $filters[$key]);
+            if (isset($filters[$key])) {
+                $query->where($key, $filters[$key]);
+            }
         }
+
         return response()->json($query->paginate($filters['per_page'] ?? 25));
     }
 
@@ -148,6 +153,7 @@ class InventoryReservationController extends Controller
             $data['expires_at'] = now()->addHours(72);
         }
         $reservation = $this->reservations->reserve($data, $request->user());
+
         return response()->json(['message' => 'Stock reserved successfully.', 'data' => $reservation->load(['product:id,name,sku', 'variant:id,product_id,name,sku', 'location:id,name,code', 'creator:id,name,email'])], 201);
     }
 
@@ -170,6 +176,7 @@ class InventoryReservationController extends Controller
     {
         $this->locationAccess->assertManage($request->user(), (int) $reservation->location_id);
         $updated = $this->reservations->resolve($reservation, $action, $request->user());
-        return response()->json(['message' => 'Reservation ' . $updated->status . ' successfully.', 'data' => $updated->load(['product:id,name,sku', 'variant:id,product_id,name,sku', 'location:id,name,code', 'creator:id,name,email', 'resolver:id,name,email'])]);
+
+        return response()->json(['message' => 'Reservation '.$updated->status.' successfully.', 'data' => $updated->load(['product:id,name,sku', 'variant:id,product_id,name,sku', 'location:id,name,code', 'creator:id,name,email', 'resolver:id,name,email'])]);
     }
 }

@@ -38,22 +38,22 @@ class LocationService
     /**
      * Create a location.
      *
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      */
     public function create(array $data): Location
     {
         return DB::transaction(function () use ($data): Location {
             $data = $this->normalizeData($data);
 
-        if ($data['is_primary'] && ! $data['is_active']) {
-            throw ValidationException::withMessages([
-                'is_active' => 'A primary location must remain active.',
-            ]);
-        }
+            if ($data['is_primary'] && ! $data['is_active']) {
+                throw ValidationException::withMessages([
+                    'is_active' => 'A primary location must remain active.',
+                ]);
+            }
 
-        if ($data['is_primary']) {
-            $this->clearPrimaryLocation();
-        }
+            if ($data['is_primary']) {
+                $this->clearPrimaryLocation();
+            }
 
             return Location::query()->create($data);
         });
@@ -62,7 +62,7 @@ class LocationService
     /**
      * Update a location.
      *
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      */
     public function update(Location $location, array $data): Location
     {
@@ -122,7 +122,7 @@ class LocationService
     /**
      * Normalize location input before persistence.
      *
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      * @return array<string, mixed>
      */
     private function normalizeData(array $data): array

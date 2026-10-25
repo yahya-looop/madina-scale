@@ -35,7 +35,7 @@ return new class extends Migration
             $table->index(['location_id', 'product_variant_id']);
         });
 
-        DB::statement("
+        DB::statement('
             ALTER TABLE inventory_stocks
             ADD CONSTRAINT inventory_stocks_owner_check
             CHECK (
@@ -43,9 +43,9 @@ return new class extends Migration
                 OR
                 (product_id IS NULL AND product_variant_id IS NOT NULL)
             )
-        ");
+        ');
 
-        DB::statement("
+        DB::statement('
             ALTER TABLE inventory_stocks
             ADD CONSTRAINT inventory_stocks_quantity_check
             CHECK (
@@ -53,19 +53,19 @@ return new class extends Migration
                 AND reserved_quantity >= 0
                 AND reserved_quantity <= quantity
             )
-        ");
+        ');
 
-        DB::statement("
+        DB::statement('
             CREATE UNIQUE INDEX inventory_stocks_product_location_unique
             ON inventory_stocks (product_id, location_id)
             WHERE product_id IS NOT NULL
-        ");
+        ');
 
-        DB::statement("
+        DB::statement('
             CREATE UNIQUE INDEX inventory_stocks_variant_location_unique
             ON inventory_stocks (product_variant_id, location_id)
             WHERE product_variant_id IS NOT NULL
-        ");
+        ');
     }
 
     public function down(): void

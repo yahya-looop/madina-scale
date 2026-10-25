@@ -2,12 +2,8 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Brand;
 use App\Models\Product;
-use App\Models\ProductCategory;
 use App\Models\ProductMedia;
-use App\Models\ProductVariant;
-use App\Models\Unit;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -36,11 +32,11 @@ class ProductController extends Controller
         if ($search !== '') {
             $query->where(function ($builder) use ($search) {
                 $builder
-                    ->where('name', 'ilike', '%' . $search . '%')
-                    ->orWhere('slug', 'ilike', '%' . $search . '%')
-                    ->orWhere('sku', 'ilike', '%' . $search . '%')
-                    ->orWhere('model_number', 'ilike', '%' . $search . '%')
-                    ->orWhere('barcode', 'ilike', '%' . $search . '%');
+                    ->where('name', 'ilike', '%'.$search.'%')
+                    ->orWhere('slug', 'ilike', '%'.$search.'%')
+                    ->orWhere('sku', 'ilike', '%'.$search.'%')
+                    ->orWhere('model_number', 'ilike', '%'.$search.'%')
+                    ->orWhere('barcode', 'ilike', '%'.$search.'%');
             });
         }
 
@@ -192,7 +188,7 @@ class ProductController extends Controller
 
                 foreach ($uploadedFiles as $index => $uploadedFile) {
                     $storedPath = $uploadedFile->store(
-                        'products/' . $product->id . '/images',
+                        'products/'.$product->id.'/images',
                         'public'
                     );
 
@@ -347,7 +343,7 @@ class ProductController extends Controller
                     // Store the replacement before changing the current
                     // primary media record.
                     $storedPath = $uploadedFile->store(
-                        'products/' . $product->id . '/images',
+                        'products/'.$product->id.'/images',
                         'public'
                     );
 
@@ -419,7 +415,7 @@ class ProductController extends Controller
 
                 foreach ($galleryFiles as $index => $galleryFile) {
                     $galleryPath = $galleryFile->store(
-                        'products/' . $product->id . '/images',
+                        'products/'.$product->id.'/images',
                         'public'
                     );
 
@@ -444,7 +440,7 @@ class ProductController extends Controller
                         'height' => $imageSize !== false ? ($imageSize[1] ?? null) : null,
                         'alt_text' => $product->name,
                         'sort_order' => $nextOrder + $index,
-                        'is_primary' => !$hasPrimary && $index === 0,
+                        'is_primary' => ! $hasPrimary && $index === 0,
                     ]);
                 }
 
@@ -663,7 +659,7 @@ class ProductController extends Controller
                 )
                 ->exists()
         ) {
-            $candidate = $baseSlug . '-' . $counter;
+            $candidate = $baseSlug.'-'.$counter;
             $counter++;
         }
 

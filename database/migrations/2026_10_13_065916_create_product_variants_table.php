@@ -49,25 +49,25 @@ return new class extends Migration
         });
 
         // SKU must be unique among active variants, ignoring letter case.
-        DB::statement("
+        DB::statement('
             CREATE UNIQUE INDEX product_variants_sku_unique_active
             ON product_variants (LOWER(sku))
             WHERE deleted_at IS NULL AND sku IS NOT NULL
-        ");
+        ');
 
         // Barcode must be unique among active variants, ignoring letter case.
-        DB::statement("
+        DB::statement('
             CREATE UNIQUE INDEX product_variants_barcode_unique_active
             ON product_variants (LOWER(barcode))
             WHERE deleted_at IS NULL AND barcode IS NOT NULL
-        ");
+        ');
 
         // A product can have at most one default variant.
-        DB::statement("
+        DB::statement('
             CREATE UNIQUE INDEX product_variants_one_default_active
             ON product_variants (product_id)
             WHERE deleted_at IS NULL AND is_default = TRUE
-        ");
+        ');
     }
 
     public function down(): void

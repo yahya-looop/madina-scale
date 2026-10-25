@@ -168,10 +168,13 @@ test('simultaneous full receipt credits destination stock only once', function (
         'destination_location_id' => $destination->id, 'quantity' => '5',
     ], $sender);
     $transfer = InventoryTransfer::query()->firstOrFail();
-    $payload = ['operation' => 'receive', 'transfer_id' => $transfer->id, 'data' => ['quantity_received' => '5']];
+    // A receipt must carry a UUID idempotency key. Use distinct keys here
+    // so the workers race to receive the same transfer, rather than testing
+    // the separate idempotent-replay path.
+    $payload = ['operation' => 'receive', 'transfer_id' => $transfer->id];
     [$one, $two] = startConcurrentWorkers(
-        $payload + ['actor_id' => $receiverOne->id],
-        $payload + ['actor_id' => $receiverTwo->id],
+        $payload + ['actor_id' => $receiverOne->id, 'data' => ['quantity_received' => '5', 'idempotency_key' => (string) Str::uuid()]],
+        $payload + ['actor_id' => $receiverTwo->id, 'data' => ['quantity_received' => '5', 'idempotency_key' => (string) Str::uuid()]],
     );
     $results = [assertConcurrencyWorkerCompleted($one), assertConcurrencyWorkerCompleted($two)];
 
@@ -200,4 +203,55 @@ test('simultaneous issue and reservation cannot oversell the same available stoc
     $stock = InventoryStock::query()->where('product_id', $product->id)->where('location_id', $location->id)->firstOrFail();
     expect(bccomp((string) $stock->quantity, (string) $stock->reserved_quantity, 4))->toBeGreaterThanOrEqual(0);
     expect(bccomp(bcsub((string) $stock->quantity, (string) $stock->reserved_quantity, 4), '0', 4))->toBeGreaterThanOrEqual(0);
+});
+
+test('simultaneous transfers with different idempotency keys cannot overspend one source stock row', function () {
+    $sender = concurrencyUser(['system.inventory.transfer', 'system.inventory.view']);
+    $receiver = concurrencyUser(['system.inventory.transfer', 'system.inventory.view']);
+    $product = inventoryTestProduct();
+    $source = inventoryTestLocation();
+    $destination = inventoryTestLocation();
+    $sender->locations()->attach($source->id, ['access_level' => 'manage']);
+    $receiver->locations()->attach($destination->id, ['access_level' => 'receive']);
+    InventoryStock::query()->create([
+        'product_id' => $product->id,
+        'location_id' => $source->id,
+        'quantity' => '10.0000',
+        'reserved_quantity' => '0.0000',
+        'low_stock_threshold' => '0.0000',
+    ]);
+
+    $first = [
+        'operation' => 'dispatch',
+        'actor_id' => $sender->id,
+        'data' => [
+            'product_id' => $product->id,
+            'source_location_id' => $source->id,
+            'destination_location_id' => $destination->id,
+            'quantity' => '7',
+            'idempotency_key' => (string) Str::uuid(),
+            'reason' => 'Competing transfer A',
+        ],
+    ];
+    $second = [
+        'operation' => 'dispatch',
+        'actor_id' => $sender->id,
+        'data' => [
+            'product_id' => $product->id,
+            'source_location_id' => $source->id,
+            'destination_location_id' => $destination->id,
+            'quantity' => '7',
+            'idempotency_key' => (string) Str::uuid(),
+            'reason' => 'Competing transfer B',
+        ],
+    ];
+
+    [$one, $two] = startConcurrentWorkers($first, $second);
+    $results = [assertConcurrencyWorkerCompleted($one), assertConcurrencyWorkerCompleted($two)];
+
+    expect(collect($results)->where('ok', true)->count())->toBe(1);
+    expect(collect($results)->where('ok', false)->count())->toBe(1);
+    expect(InventoryTransfer::query()->count())->toBe(1);
+    expect((string) InventoryStock::query()->where('product_id', $product->id)->where('location_id', $source->id)->value('quantity'))->toBe('3.0000');
+    expect(DB::table('stock_movements')->where('location_id', $source->id)->where('movement_type', 'transfer_out')->count())->toBe(1);
 });

@@ -46,7 +46,7 @@ return new class extends Migration
         });
 
         // Exactly one owner must be present.
-        DB::statement("
+        DB::statement('
             ALTER TABLE product_identifiers
             ADD CONSTRAINT product_identifiers_exactly_one_owner_check
             CHECK (
@@ -54,7 +54,7 @@ return new class extends Migration
                 OR
                 (owner_product_id IS NULL AND owner_variant_id IS NOT NULL)
             )
-        ");
+        ');
 
         DB::statement("
             ALTER TABLE product_identifiers
@@ -73,24 +73,24 @@ return new class extends Migration
         ");
 
         // One active owner can have at most one identifier of each type.
-        DB::statement("
+        DB::statement('
             CREATE UNIQUE INDEX product_identifiers_product_type_unique
             ON product_identifiers (owner_product_id, identifier_type)
             WHERE owner_product_id IS NOT NULL AND deleted_at IS NULL
-        ");
+        ');
 
-        DB::statement("
+        DB::statement('
             CREATE UNIQUE INDEX product_identifiers_variant_type_unique
             ON product_identifiers (owner_variant_id, identifier_type)
             WHERE owner_variant_id IS NOT NULL AND deleted_at IS NULL
-        ");
+        ');
 
         // Global uniqueness across products and variants, case-insensitively.
-        DB::statement("
+        DB::statement('
             CREATE UNIQUE INDEX product_identifiers_value_unique_active
             ON product_identifiers (identifier_type, normalized_value)
             WHERE deleted_at IS NULL
-        ");
+        ');
     }
 
     public function down(): void
@@ -98,4 +98,3 @@ return new class extends Migration
         Schema::dropIfExists('product_identifiers');
     }
 };
-

@@ -275,3 +275,88 @@ test('different receipt keys allow valid successive partial receipts', function 
     $this->assertDatabaseHas('inventory_stocks', ['product_id' => $product->id, 'location_id' => $destination->id, 'quantity' => '12.0000']);
     $this->assertDatabaseCount('inventory_transfer_receipts', 2);
 });
+
+test('dispatch idempotency key rejects a changed audit payload', function () {
+    $sender = createTransferWorkflowUser(['system.inventory.transfer', 'system.inventory.view']);
+    $receiver = createTransferWorkflowUser(['system.inventory.transfer', 'system.inventory.view']);
+    $product = inventoryTestProduct();
+    $source = inventoryTestLocation();
+    $destination = inventoryTestLocation();
+    $sender->locations()->attach($source->id, ['access_level' => 'manage']);
+    $receiver->locations()->attach($destination->id, ['access_level' => 'receive']);
+    InventoryStock::query()->create([
+        'product_id' => $product->id, 'location_id' => $source->id,
+        'quantity' => '20.0000', 'reserved_quantity' => '0.0000', 'low_stock_threshold' => '0',
+    ]);
+
+    $key = (string) Str::uuid();
+    $base = [
+        'product_id' => $product->id,
+        'source_location_id' => $source->id,
+        'destination_location_id' => $destination->id,
+        'quantity' => '5',
+        'reason' => 'Branch replenishment',
+        'reference_type' => 'purchase_order',
+        'reference_id' => 'PO-1001',
+        'idempotency_key' => $key,
+    ];
+
+    $this->actingAs($sender)->postJson('/api/inventory/transfers', $base)->assertCreated();
+    $this->actingAs($sender)->postJson('/api/inventory/transfers', [
+        ...$base,
+        'reason' => 'Different reason for the same key',
+    ])->assertUnprocessable()->assertJsonValidationErrors('idempotency_key');
+
+    $this->assertDatabaseCount('inventory_transfers', 1);
+    $this->assertDatabaseCount('stock_movements', 1);
+    $this->assertDatabaseHas('inventory_stocks', [
+        'product_id' => $product->id, 'location_id' => $source->id, 'quantity' => '15.0000',
+    ]);
+});
+
+test('discrepancy report preserves an audit record and never silently restores source stock', function () {
+    $sender = createTransferWorkflowUser(['system.inventory.transfer', 'system.inventory.view']);
+    $receiver = createTransferWorkflowUser(['system.inventory.transfer', 'system.inventory.view']);
+    $product = inventoryTestProduct();
+    $source = inventoryTestLocation();
+    $destination = inventoryTestLocation();
+    $sender->locations()->attach($source->id, ['access_level' => 'manage']);
+    $receiver->locations()->attach($destination->id, ['access_level' => 'receive']);
+    InventoryStock::query()->create([
+        'product_id' => $product->id, 'location_id' => $source->id,
+        'quantity' => '20.0000', 'reserved_quantity' => '0.0000', 'low_stock_threshold' => '0',
+    ]);
+
+    $this->actingAs($sender)->postJson('/api/inventory/transfers', [
+        'product_id' => $product->id,
+        'source_location_id' => $source->id,
+        'destination_location_id' => $destination->id,
+        'quantity' => '10',
+        'idempotency_key' => (string) Str::uuid(),
+    ])->assertCreated();
+    $transfer = InventoryTransfer::query()->firstOrFail();
+    $this->actingAs($receiver)->postJson("/api/inventory/transfers/{$transfer->id}/accept", [
+        'quantity_received' => '3',
+        'idempotency_key' => (string) Str::uuid(),
+        'recipient_note' => 'Only three units arrived.',
+    ])->assertOk()->assertJsonPath('data.status', 'partially_received');
+
+    $this->actingAs($receiver)->postJson("/api/inventory/transfers/{$transfer->id}/reject", [
+        'reason' => 'Two units are missing and the package seal was broken.',
+    ])->assertOk()->assertJsonPath('data.status', 'discrepancy');
+
+    $transfer->refresh();
+    expect($transfer->metadata['discrepancy']['reason'])->toBe('Two units are missing and the package seal was broken.');
+    expect((int) $transfer->metadata['discrepancy']['reported_by'])->toBe((int) $receiver->id);
+    expect($transfer->metadata['discrepancy']['reported_at'])->not->toBeEmpty();
+    $this->assertDatabaseHas('inventory_stocks', [
+        'product_id' => $product->id, 'location_id' => $source->id,
+        'quantity' => '10.0000', 'reserved_quantity' => '0.0000',
+    ]);
+    $this->assertDatabaseHas('inventory_stocks', [
+        'product_id' => $product->id, 'location_id' => $destination->id,
+        'quantity' => '3.0000', 'reserved_quantity' => '0.0000',
+    ]);
+    $this->assertDatabaseCount('inventory_transfer_receipts', 1);
+    $this->assertDatabaseCount('stock_movements', 2);
+});

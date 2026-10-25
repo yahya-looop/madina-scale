@@ -7,7 +7,6 @@ use App\Models\InventoryStock;
 use App\Models\Location;
 use App\Models\Module;
 use App\Models\Permission;
-use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Models\Role;
 use App\Models\SalesOrder;
@@ -36,26 +35,27 @@ class SalesOrderWorkflowTest extends TestCase
             ])->id;
         }
         $role = Role::create([
-            'name' => 'Orders Test Role', 'slug' => 'orders-test-' . Str::lower(Str::random(12)),
+            'name' => 'Orders Test Role', 'slug' => 'orders-test-'.Str::lower(Str::random(12)),
             'description' => null, 'is_system' => false, 'is_active' => true,
         ]);
         $role->permissions()->attach($permissions);
         $user->roles()->attach($role->id);
         $user->locations()->attach($location->id, ['access_level' => 'manage']);
+
         return $user;
     }
 
     private function orderFixture(): array
     {
         $location = Location::query()->create([
-            'name' => 'Orders Test Store', 'code' => 'ORD-' . Str::upper(Str::random(5)),
+            'name' => 'Orders Test Store', 'code' => 'ORD-'.Str::upper(Str::random(5)),
             'type' => 'store', 'is_active' => true,
         ]);
         // These fixture helpers are already used by the inventory feature test suite.
         $product = \inventoryTestProduct('variable');
         $variant = ProductVariant::query()->create([
             'product_id' => $product->id, 'name' => 'Order Test Variant',
-            'sku' => 'ORD-' . Str::upper(Str::random(8)), 'selling_price' => 100,
+            'sku' => 'ORD-'.Str::upper(Str::random(8)), 'selling_price' => 100,
             'cost_price' => 60, 'status' => 'active', 'is_default' => true,
         ]);
         InventoryStock::query()->create([
@@ -66,6 +66,7 @@ class SalesOrderWorkflowTest extends TestCase
             ['key' => 'customer_order'],
             ['label' => 'Customer order', 'is_active' => true, 'sort_order' => 10]
         );
+
         return [$location, $variant];
     }
 
@@ -284,7 +285,6 @@ class SalesOrderWorkflowTest extends TestCase
         ]);
     }
 
-
     public function test_confirmed_order_supports_partial_then_complete_fulfillment_without_double_deduction(): void
     {
         [$location, $variant] = $this->orderFixture();
@@ -317,7 +317,6 @@ class SalesOrderWorkflowTest extends TestCase
         $this->assertDatabaseCount('sales_order_fulfillments', 2);
     }
 
-
     public function test_order_list_and_detail_are_scoped_to_assigned_locations(): void
     {
         [$location, $variant] = $this->orderFixture();
@@ -329,11 +328,11 @@ class SalesOrderWorkflowTest extends TestCase
         $order = SalesOrder::query()->firstOrFail();
 
         $otherLocation = Location::query()->create([
-            'name' => 'Unassigned Store', 'code' => 'UN-' . Str::upper(Str::random(5)),
+            'name' => 'Unassigned Store', 'code' => 'UN-'.Str::upper(Str::random(5)),
             'type' => 'store', 'is_active' => true,
         ]);
         $otherOrder = SalesOrder::query()->create([
-            'order_number' => 'MS-UN-' . Str::upper(Str::random(8)), 'status' => 'pending',
+            'order_number' => 'MS-UN-'.Str::upper(Str::random(8)), 'status' => 'pending',
             'channel' => 'backoffice', 'location_id' => $otherLocation->id,
             'customer_name' => 'Private Buyer', 'currency' => 'BDT', 'subtotal' => 0,
             'discount_total' => 0, 'tax_total' => 0, 'grand_total' => 0, 'created_by' => $user->id,
@@ -343,7 +342,6 @@ class SalesOrderWorkflowTest extends TestCase
         $this->getJson("/api/orders/{$order->id}")->assertOk();
         $this->getJson("/api/orders/{$otherOrder->id}")->assertForbidden();
     }
-
 
     public function test_order_idempotency_key_cannot_be_replayed_by_another_user(): void
     {

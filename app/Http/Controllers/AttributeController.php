@@ -5,8 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\Attribute;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class AttributeController extends Controller
@@ -22,9 +22,9 @@ class AttributeController extends Controller
         if ($search !== '') {
             $query->where(function ($builder) use ($search) {
                 $builder
-                    ->where('name', 'ilike', '%' . $search . '%')
-                    ->orWhere('slug', 'ilike', '%' . $search . '%')
-                    ->orWhere('description', 'ilike', '%' . $search . '%');
+                    ->where('name', 'ilike', '%'.$search.'%')
+                    ->orWhere('slug', 'ilike', '%'.$search.'%')
+                    ->orWhere('description', 'ilike', '%'.$search.'%');
             });
         }
 
@@ -194,7 +194,7 @@ class AttributeController extends Controller
                 )
                 ->exists()
         ) {
-            $candidate = $baseSlug . '-' . $counter;
+            $candidate = $baseSlug.'-'.$counter;
             $counter++;
         }
 

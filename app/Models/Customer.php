@@ -22,14 +22,17 @@ class Customer extends Model
     public function scopeSearch(Builder $query, ?string $term): Builder
     {
         $term = trim((string) $term);
-        if ($term === '') return $query;
+        if ($term === '') {
+            return $query;
+        }
         $escaped = str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $term);
+
         return $query->where(function (Builder $q) use ($escaped): void {
             $q->where('customer_code', 'like', "%{$escaped}%")
-              ->orWhere('name', 'like', "%{$escaped}%")
-              ->orWhere('phone', 'like', "%{$escaped}%")
-              ->orWhere('email', 'like', "%{$escaped}%")
-              ->orWhere('company_name', 'like', "%{$escaped}%");
+                ->orWhere('name', 'like', "%{$escaped}%")
+                ->orWhere('phone', 'like', "%{$escaped}%")
+                ->orWhere('email', 'like', "%{$escaped}%")
+                ->orWhere('company_name', 'like', "%{$escaped}%");
         });
     }
 }

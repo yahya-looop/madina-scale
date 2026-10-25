@@ -1,27 +1,27 @@
 <?php
 
+use App\Http\Controllers\ActivityLogController;
+use App\Http\Controllers\AttributeController;
+use App\Http\Controllers\AttributeValueController;
+use App\Http\Controllers\BrandController;
+use App\Http\Controllers\CustomerController;
+use App\Http\Controllers\CustomerLocationSuggestionController;
 use App\Http\Controllers\InventoryController;
 use App\Http\Controllers\InventoryReservationController;
 use App\Http\Controllers\InventoryTransferController;
 use App\Http\Controllers\LocationAssignmentController;
+use App\Http\Controllers\LocationController;
+use App\Http\Controllers\ModuleController;
+use App\Http\Controllers\OrderOperationsController;
+use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\ProductCategoryController;
-use App\Http\Controllers\BrandController;
-use App\Http\Controllers\UnitController;
-use App\Http\Controllers\AttributeController;
-use App\Http\Controllers\AttributeValueController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProductVariantController;
-use App\Http\Controllers\SettingsController;
-use App\Http\Controllers\ActivityLogController;
-use App\Http\Controllers\ModuleController;
-use App\Http\Controllers\LocationController;
-use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\RoleController;
-use App\Http\Controllers\UserController;
 use App\Http\Controllers\SalesOrderController;
-use App\Http\Controllers\CustomerController;
-use App\Http\Controllers\CustomerLocationSuggestionController;
-use App\Http\Controllers\OrderOperationsController;
+use App\Http\Controllers\SettingsController;
+use App\Http\Controllers\UnitController;
+use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['web', 'auth'])->group(function () {
@@ -81,7 +81,6 @@ Route::middleware(['web', 'auth'])->group(function () {
     Route::post('/orders/{order}/shipments', [OrderOperationsController::class, 'bookShipment'])
         ->middleware('permission:system.orders.shipment.manage');
 
-
     /*
     |--------------------------------------------------------------------------
     | Users
@@ -99,7 +98,6 @@ Route::middleware(['web', 'auth'])->group(function () {
 
     Route::put('/users/{user}', [UserController::class, 'update'])
         ->middleware('permission:system.users.update');
-
 
     /*
     |--------------------------------------------------------------------------
@@ -122,7 +120,6 @@ Route::middleware(['web', 'auth'])->group(function () {
     Route::put('/roles/{role}/permissions', [RoleController::class, 'syncPermissions'])
         ->middleware('permission:system.roles.manage_permissions');
 
-
     /*
     |--------------------------------------------------------------------------
     | Permissions
@@ -141,7 +138,6 @@ Route::middleware(['web', 'auth'])->group(function () {
     Route::put('/permissions/{permission}', [PermissionController::class, 'update'])
         ->middleware('permission:system.permissions.update');
 
-
     /*
     |--------------------------------------------------------------------------
     | Activity Logs
@@ -153,7 +149,6 @@ Route::middleware(['web', 'auth'])->group(function () {
 
     Route::get('/activity-logs/{activityLog}', [ActivityLogController::class, 'show'])
         ->middleware('permission:system.activity_logs.view');
-
 
     /*
     |--------------------------------------------------------------------------
@@ -172,8 +167,6 @@ Route::middleware(['web', 'auth'])->group(function () {
 
     Route::put('/settings', [SettingsController::class, 'update'])
         ->middleware('permission:system.settings.update');
-
-
 
     /*
     |--------------------------------------------------------------------------
@@ -220,7 +213,6 @@ Route::middleware(['web', 'auth'])->group(function () {
     Route::put('/locations/{location}/users', [LocationAssignmentController::class, 'sync'])
         ->middleware('permission:system.locations.manage');
 
-
     /*
     |--------------------------------------------------------------------------
     | Product Categories
@@ -241,9 +233,7 @@ Route::middleware(['web', 'auth'])->group(function () {
     Route::delete('/product-categories/{productCategory}', [ProductCategoryController::class, 'destroy'])
         ->middleware('permission:system.products.categories.delete');
 
-
-
-     /*
+    /*
     |--------------------------------------------------------------------------
     | Brand Routes
     |--------------------------------------------------------------------------
@@ -263,14 +253,13 @@ Route::middleware(['web', 'auth'])->group(function () {
     Route::delete('/brands/{brand}', [BrandController::class, 'destroy'])
         ->middleware('permission:system.products.brands.delete');
 
-
     /*
     |--------------------------------------------------------------------------
     | Unit Routes
     |--------------------------------------------------------------------------
     */
     Route::get('/units', [UnitController::class, 'index'])
-    ->middleware('permission:system.products.units.view');
+        ->middleware('permission:system.products.units.view');
 
     Route::get('/units/{unit}', [UnitController::class, 'show'])
         ->middleware('permission:system.products.units.view');
@@ -325,7 +314,6 @@ Route::middleware(['web', 'auth'])->group(function () {
     Route::delete('/attribute-values/{attributeValue}', [AttributeValueController::class, 'destroy'])
         ->middleware('permission:system.products.attributes.values.delete');
 
-
     /*
     |--------------------------------------------------------------------------
     | Product Routes
@@ -370,7 +358,6 @@ Route::middleware(['web', 'auth'])->group(function () {
     Route::delete('/products/{product}/variants/{variant}', [ProductVariantController::class, 'destroy'])
         ->middleware('permission:system.products.delete');
 
-
     /*
     |--------------------------------------------------------------------------
     | Inventory
@@ -382,7 +369,6 @@ Route::middleware(['web', 'auth'])->group(function () {
         '/inventory/stocks/{stock}/threshold',
         [InventoryController::class, 'updateThreshold']
     )->middleware('permission:system.inventory.update');
-
 
     Route::get('/inventory/stocks', [InventoryController::class, 'stocks'])
         ->middleware('permission:system.inventory.view');
@@ -420,7 +406,6 @@ Route::middleware(['web', 'auth'])->group(function () {
     Route::get('/inventory/low-stock', [InventoryController::class, 'lowStock'])
         ->middleware('permission:system.inventory.view');
 
-
     /*
     |--------------------------------------------------------------------------
     | Inventory Reservations
@@ -451,7 +436,6 @@ Route::middleware(['web', 'auth'])->group(function () {
 
     Route::post('/inventory/reservations/{reservation}/fulfill', [InventoryReservationController::class, 'fulfill'])
         ->middleware('permission:system.inventory.reservations.manage');
-
 
 });
 

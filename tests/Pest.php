@@ -1,5 +1,6 @@
 <?php
 
+use Illuminate\Foundation\Testing\DatabaseMigrations;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -49,10 +50,10 @@ function something()
     // ..
 }
 
-require_once __DIR__ . '/Support/InventoryTestHelpers.php';
+require_once __DIR__.'/Support/InventoryTestHelpers.php';
 
 // Process-based concurrency tests deliberately avoid RefreshDatabase transactions:
 // child PHP processes need committed fixture rows and independent PostgreSQL sessions.
 pest()->extend(TestCase::class)
-    ->use(\Illuminate\Foundation\Testing\DatabaseMigrations::class)
+    ->use(DatabaseMigrations::class)
     ->in('Concurrency');

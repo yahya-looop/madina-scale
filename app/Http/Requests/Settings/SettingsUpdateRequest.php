@@ -545,7 +545,7 @@ class SettingsUpdateRequest extends FormRequest
 
                     if (mb_strlen(trim($value)) > $maxLength) {
                         $validator->errors()->add(
-                            "settings." . $this->settingIndex($settings, $key) . ".value",
+                            'settings.'.$this->settingIndex($settings, $key).'.value',
                             "The {$key} value may not exceed {$maxLength} characters.",
                         );
                     }
@@ -565,7 +565,7 @@ class SettingsUpdateRequest extends FormRequest
                         && filter_var($email, FILTER_VALIDATE_EMAIL) === false
                     ) {
                         $validator->errors()->add(
-                            "settings." . $this->settingIndex($settings, 'business.email') . ".value",
+                            'settings.'.$this->settingIndex($settings, 'business.email').'.value',
                             'The business email address must be valid.',
                         );
                     }
@@ -585,7 +585,7 @@ class SettingsUpdateRequest extends FormRequest
                         && filter_var($website, FILTER_VALIDATE_URL) === false
                     ) {
                         $validator->errors()->add(
-                            "settings." . $this->settingIndex($settings, 'business.website') . ".value",
+                            'settings.'.$this->settingIndex($settings, 'business.website').'.value',
                             'The business website must be a valid URL.',
                         );
                     }
@@ -606,7 +606,7 @@ class SettingsUpdateRequest extends FormRequest
                     && ! preg_match('/^[A-Z]{2}$/', $countryCode)
                 ) {
                     $validator->errors()->add(
-                        "settings." . $this->settingIndex($settings, 'business.country_code') . ".value",
+                        'settings.'.$this->settingIndex($settings, 'business.country_code').'.value',
                         'The business country code must use a valid two-letter format.',
                     );
                 }
@@ -630,7 +630,7 @@ class SettingsUpdateRequest extends FormRequest
                     && ! preg_match('/^\d{4}$/', $postalCode)
                 ) {
                     $validator->errors()->add(
-                        "settings." . $this->settingIndex($settings, 'business.postal_code') . ".value",
+                        'settings.'.$this->settingIndex($settings, 'business.postal_code').'.value',
                         'Bangladesh postal codes must contain exactly 4 digits.',
                     );
                 }
@@ -661,7 +661,7 @@ class SettingsUpdateRequest extends FormRequest
                     && ! in_array($businessType, $allowedBusinessTypes, true)
                 ) {
                     $validator->errors()->add(
-                        "settings." . $this->settingIndex($settings, 'business.type') . ".value",
+                        'settings.'.$this->settingIndex($settings, 'business.type').'.value',
                         'The selected business type is invalid.',
                     );
                 }
@@ -680,7 +680,7 @@ class SettingsUpdateRequest extends FormRequest
 
                     if (! is_array($hours)) {
                         $validator->errors()->add(
-                            "settings." . $this->settingIndex($settings, 'business.business_hours') . ".value",
+                            'settings.'.$this->settingIndex($settings, 'business.business_hours').'.value',
                             'Business hours must be a valid weekly schedule.',
                         );
                     } else {
@@ -697,7 +697,7 @@ class SettingsUpdateRequest extends FormRequest
                         foreach ($hours as $day => $schedule) {
                             if (! in_array($day, $validDays, true)) {
                                 $validator->errors()->add(
-                                    "settings." . $this->settingIndex($settings, 'business.business_hours') . ".value",
+                                    'settings.'.$this->settingIndex($settings, 'business.business_hours').'.value',
                                     "Invalid business hours day: {$day}.",
                                 );
 
@@ -706,7 +706,7 @@ class SettingsUpdateRequest extends FormRequest
 
                             if (! is_array($schedule)) {
                                 $validator->errors()->add(
-                                    "settings." . $this->settingIndex($settings, 'business.business_hours') . ".value",
+                                    'settings.'.$this->settingIndex($settings, 'business.business_hours').'.value',
                                     "The {$day} business hours configuration is invalid.",
                                 );
 
@@ -719,7 +719,7 @@ class SettingsUpdateRequest extends FormRequest
 
                             if (! is_bool($enabled)) {
                                 $validator->errors()->add(
-                                    "settings." . $this->settingIndex($settings, 'business.business_hours') . ".value",
+                                    'settings.'.$this->settingIndex($settings, 'business.business_hours').'.value',
                                     "The {$day} enabled value must be boolean.",
                                 );
 
@@ -735,7 +735,7 @@ class SettingsUpdateRequest extends FormRequest
                                 || ! preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/', $open)
                             ) {
                                 $validator->errors()->add(
-                                    "settings." . $this->settingIndex($settings, 'business.business_hours') . ".value",
+                                    'settings.'.$this->settingIndex($settings, 'business.business_hours').'.value',
                                     "The {$day} opening time is invalid.",
                                 );
                             }
@@ -745,7 +745,7 @@ class SettingsUpdateRequest extends FormRequest
                                 || ! preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/', $close)
                             ) {
                                 $validator->errors()->add(
-                                    "settings." . $this->settingIndex($settings, 'business.business_hours') . ".value",
+                                    'settings.'.$this->settingIndex($settings, 'business.business_hours').'.value',
                                     "The {$day} closing time is invalid.",
                                 );
                             }
@@ -758,7 +758,7 @@ class SettingsUpdateRequest extends FormRequest
                                 && $open >= $close
                             ) {
                                 $validator->errors()->add(
-                                    "settings." . $this->settingIndex($settings, 'business.business_hours') . ".value",
+                                    'settings.'.$this->settingIndex($settings, 'business.business_hours').'.value',
                                     "The {$day} closing time must be later than the opening time.",
                                 );
                             }

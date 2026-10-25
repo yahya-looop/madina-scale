@@ -1,6 +1,5 @@
 <?php
 
-use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 use App\Models\Brand;
 use App\Models\Module;
 use App\Models\Permission;
@@ -9,6 +8,7 @@ use App\Models\ProductCategory;
 use App\Models\Role;
 use App\Models\Unit;
 use App\Models\User;
+use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 
@@ -20,7 +20,7 @@ function productTestGrantPermission(User $user, string $permissionSlug): void
 {
     $module = Module::create([
         'name' => 'Product Test Module',
-        'slug' => 'product-test-module-' . uniqid(),
+        'slug' => 'product-test-module-'.uniqid(),
         'description' => 'Module for product feature tests.',
         'sort_order' => 999,
         'is_system' => false,
@@ -36,7 +36,7 @@ function productTestGrantPermission(User $user, string $permissionSlug): void
 
     $role = Role::create([
         'name' => 'Product Test Role',
-        'slug' => 'product-test-role-' . uniqid(),
+        'slug' => 'product-test-role-'.uniqid(),
         'description' => 'Role for product feature tests.',
         'is_system' => false,
         'is_active' => true,
@@ -51,24 +51,24 @@ function productTestMasterData(): array
     $suffix = uniqid();
 
     $category = ProductCategory::create([
-        'name' => 'Test Category ' . $suffix,
-        'slug' => 'test-category-' . $suffix,
+        'name' => 'Test Category '.$suffix,
+        'slug' => 'test-category-'.$suffix,
         'status' => 'active',
         'visibility' => 'visible',
         'sort_order' => 0,
     ]);
 
     $brand = Brand::create([
-        'name' => 'Test Brand ' . $suffix,
-        'slug' => 'test-brand-' . $suffix,
+        'name' => 'Test Brand '.$suffix,
+        'slug' => 'test-brand-'.$suffix,
         'status' => 'active',
         'sort_order' => 0,
     ]);
 
     $unit = Unit::create([
-        'name' => 'Test Unit ' . $suffix,
+        'name' => 'Test Unit '.$suffix,
         'short_name' => 'TU',
-        'slug' => 'test-unit-' . $suffix,
+        'slug' => 'test-unit-'.$suffix,
         'status' => 'active',
         'sort_order' => 0,
     ]);
@@ -83,10 +83,10 @@ function productTestPayload(array $masterData, array $overrides = []): array
         'brand_id' => $masterData['brand']->id,
         'unit_id' => $masterData['unit']->id,
         'name' => 'Test Product',
-        'slug' => 'test-product-' . uniqid(),
-        'sku' => 'SKU-' . strtoupper(uniqid()),
+        'slug' => 'test-product-'.uniqid(),
+        'sku' => 'SKU-'.strtoupper(uniqid()),
         'model_number' => 'MODEL-001',
-        'barcode' => 'BAR-' . uniqid(),
+        'barcode' => 'BAR-'.uniqid(),
         'product_type' => 'simple',
         'short_description' => 'Product test short description.',
         'description' => 'Product test description.',
@@ -132,7 +132,7 @@ test('authorized user can view a product', function () {
     $product = Product::create(productTestPayload($masterData));
 
     $this->actingAs($user)
-        ->getJson('/api/products/' . $product->id)
+        ->getJson('/api/products/'.$product->id)
         ->assertOk()
         ->assertJsonPath('data.id', $product->id)
         ->assertJsonPath('data.name', $product->name);
@@ -191,7 +191,7 @@ test('product creation can save initial pricing on a default variant', function 
     // The price-only variant must not block ordinary simple-product edits.
     productTestGrantPermission($user, 'system.products.update');
     $this->actingAs($user)
-        ->putJson('/api/products/' . $productId, array_merge($payload, [
+        ->putJson('/api/products/'.$productId, array_merge($payload, [
             'name' => 'Updated Test Product',
         ]))
         ->assertOk()
@@ -365,11 +365,11 @@ test('authorized user can update a product', function () {
     $payload = productTestPayload($masterData, [
         'name' => 'Updated Test Product',
         'slug' => 'updated-test-product',
-        'sku' => 'UPDATED-' . strtoupper(uniqid()),
+        'sku' => 'UPDATED-'.strtoupper(uniqid()),
     ]);
 
     $this->actingAs($user)
-        ->putJson('/api/products/' . $product->id, $payload)
+        ->putJson('/api/products/'.$product->id, $payload)
         ->assertOk()
         ->assertJsonPath('data.name', 'Updated Test Product');
 
@@ -388,7 +388,7 @@ test('authorized user can soft delete a product', function () {
     $product = Product::create(productTestPayload($masterData));
 
     $this->actingAs($user)
-        ->deleteJson('/api/products/' . $product->id)
+        ->deleteJson('/api/products/'.$product->id)
         ->assertOk();
 
     $this->assertSoftDeleted('products', [
@@ -440,4 +440,3 @@ test('product creation allows an optional image and records primary media', func
 
     $this->assertTrue(Storage::disk('public')->exists($media->path));
 });
-

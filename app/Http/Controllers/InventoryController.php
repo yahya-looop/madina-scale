@@ -17,8 +17,7 @@ class InventoryController extends Controller
         private readonly InventoryService $inventoryService,
         private readonly InventoryTransferService $inventoryTransferService,
         private readonly LocationInventoryAccessService $locationAccess,
-    ) {
-    }
+    ) {}
 
     public function stocks(Request $request): JsonResponse
     {
@@ -44,7 +43,6 @@ class InventoryController extends Controller
         } else {
             $this->locationAccess->scopeViewable($query, $request->user());
         }
-
 
         foreach (['location_id', 'product_id', 'product_variant_id'] as $field) {
             if (isset($filters[$field])) {
@@ -126,7 +124,7 @@ class InventoryController extends Controller
 
         $stock->refresh()->load([
             'product:id,name,sku,product_type',
-                'product.primaryMedia:id,product_id,path,alt_text,is_primary',
+            'product.primaryMedia:id,product_id,path,alt_text,is_primary',
             'variant:id,product_id,name,sku,status',
             'location:id,name,code,type',
         ]);

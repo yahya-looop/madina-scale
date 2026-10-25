@@ -6,9 +6,9 @@ use Illuminate\Support\Facades\DB;
 
 $root = dirname(__DIR__, 2);
 
-require $root . '/vendor/autoload.php';
+require $root.'/vendor/autoload.php';
 
-$app = require $root . '/bootstrap/app.php';
+$app = require $root.'/bootstrap/app.php';
 $app->make(Kernel::class)->bootstrap();
 
 config([
@@ -38,7 +38,7 @@ function waitForRaceGate(string $gate, string $result): void
 {
     $deadline = microtime(true) + 30;
 
-    while (!is_file($gate)) {
+    while (! is_file($gate)) {
         if (microtime(true) > $deadline) {
             file_put_contents($result, json_encode([
                 'status' => 'error',
@@ -159,20 +159,20 @@ if (($argv[1] ?? '') === 'worker') {
 assertRestoreTestDatabase();
 
 $token = strtolower(str_replace('-', '', (string) str()->uuid()));
-$sku = 'RESTORE-RACE-' . strtoupper($token);
-$originalSlug = 'restore-race-original-' . $token;
-$reuseSlug = 'restore-race-reuse-' . $token;
+$sku = 'RESTORE-RACE-'.strtoupper($token);
+$originalSlug = 'restore-race-original-'.$token;
+$reuseSlug = 'restore-race-reuse-'.$token;
 
-$directory = $root . '/storage/framework/testing';
+$directory = $root.'/storage/framework/testing';
 
-if (!is_dir($directory)) {
+if (! is_dir($directory)) {
     mkdir($directory, 0777, true);
 }
 
-$gate = $directory . '/restore-race-' . $token . '.go';
+$gate = $directory.'/restore-race-'.$token.'.go';
 $results = [
-    $directory . '/restore-race-' . $token . '-reuse.json',
-    $directory . '/restore-race-' . $token . '-restore.json',
+    $directory.'/restore-race-'.$token.'-reuse.json',
+    $directory.'/restore-race-'.$token.'-restore.json',
 ];
 
 $processes = [];
@@ -185,8 +185,8 @@ try {
     $now = now()->toDateTimeString();
 
     $categoryId = DB::table('product_categories')->insertGetId([
-        'name' => 'Restore Race Category ' . $token,
-        'slug' => 'restore-race-category-' . $token,
+        'name' => 'Restore Race Category '.$token,
+        'slug' => 'restore-race-category-'.$token,
         'status' => 'active',
         'visibility' => 'visible',
         'sort_order' => 0,
@@ -195,9 +195,9 @@ try {
     ]);
 
     $unitId = DB::table('units')->insertGetId([
-        'name' => 'Restore Race Unit ' . $token,
+        'name' => 'Restore Race Unit '.$token,
         'short_name' => 'RR',
-        'slug' => 'restore-race-unit-' . $token,
+        'slug' => 'restore-race-unit-'.$token,
         'status' => 'active',
         'sort_order' => 0,
         'created_at' => $now,
@@ -256,7 +256,7 @@ try {
             $root,
         );
 
-        if (!is_resource($process)) {
+        if (! is_resource($process)) {
             throw new RuntimeException('Could not start a worker.');
         }
 
@@ -280,7 +280,7 @@ try {
     $outcomes = [];
 
     foreach ($results as $file) {
-        if (!is_file($file)) {
+        if (! is_file($file)) {
             throw new RuntimeException(
                 'A worker did not produce a result.'
             );
@@ -336,16 +336,16 @@ try {
     echo "\n=== SKU RESTORE RACE TEST ===\n";
     echo "Database: madina_scale_test\n";
     echo "SKU: {$sku}\n";
-    echo "Reuse result: "
-        . json_encode($outcomes[0], JSON_PRETTY_PRINT) . "\n";
-    echo "Restore result: "
-        . json_encode($outcomes[1], JSON_PRETTY_PRINT) . "\n";
-    echo "Active matching identifiers: " . $active->count() . "\n";
-    echo "Original product deleted: "
-        . json_encode($original?->deleted_at !== null) . "\n";
-    echo "Replacement exists: "
-        . json_encode($replacement !== null) . "\n";
-    echo "Exit codes: " . json_encode($exitCodes) . "\n";
+    echo 'Reuse result: '
+        .json_encode($outcomes[0], JSON_PRETTY_PRINT)."\n";
+    echo 'Restore result: '
+        .json_encode($outcomes[1], JSON_PRETTY_PRINT)."\n";
+    echo 'Active matching identifiers: '.$active->count()."\n";
+    echo 'Original product deleted: '
+        .json_encode($original?->deleted_at !== null)."\n";
+    echo 'Replacement exists: '
+        .json_encode($replacement !== null)."\n";
+    echo 'Exit codes: '.json_encode($exitCodes)."\n";
     echo $passed
         ? "\nPASS: exactly one operation won; SKU remains unique.\n"
         : "\nFAIL: restore race expectations were not satisfied.\n";

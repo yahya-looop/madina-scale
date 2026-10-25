@@ -1,33 +1,27 @@
-import type { IconifyIcon } from "@iconify/types";
+import type { IconifyIcon } from '@iconify/types';
 
-import { iconData01 } from "./part1";
-import { iconData02 } from "./part2";
-import { iconData03 } from "./part3";
-import { iconData04 } from "./part4";
-import { iconData05 } from "./part5";
-import { iconData06 } from "./part6";
-import { ICON_ALIASES } from "../aliases";
-
-type IconModule = IconifyIcon | { default: IconifyIcon };
+import { iconData01 } from './part1';
+import { iconData02 } from './part2';
+import { iconData03 } from './part3';
+import { iconData04 } from './part4';
+import { iconData05 } from './part5';
+import { iconData06 } from './part6';
+import { ICON_ALIASES } from '../aliases';
 
 function normalizeIconData(value: unknown, name: string): IconifyIcon {
     const candidate =
-        typeof value === "object" &&
-        value !== null &&
-        "default" in value
+        typeof value === 'object' && value !== null && 'default' in value
             ? (value as { default: unknown }).default
             : value;
 
     if (
-        typeof candidate !== "object" ||
+        typeof candidate !== 'object' ||
         candidate === null ||
-        !("width" in candidate) ||
-        !("height" in candidate) ||
-        !("body" in candidate)
+        !('width' in candidate) ||
+        !('height' in candidate) ||
+        !('body' in candidate)
     ) {
-        throw new Error(
-            `[Icon Registry] Invalid icon data for "${name}".`,
-        );
+        throw new Error(`[Icon Registry] Invalid icon data for "${name}".`);
     }
 
     const icon = candidate as {
@@ -37,10 +31,10 @@ function normalizeIconData(value: unknown, name: string): IconifyIcon {
     };
 
     if (
-        typeof icon.width !== "number" ||
-        typeof icon.height !== "number" ||
-        typeof icon.body !== "string" ||
-        icon.body.trim() === ""
+        typeof icon.width !== 'number' ||
+        typeof icon.height !== 'number' ||
+        typeof icon.body !== 'string' ||
+        icon.body.trim() === ''
     ) {
         throw new Error(
             `[Icon Registry] Icon "${name}" has invalid dimensions or an empty body.`,
@@ -69,39 +63,31 @@ for (const [name, data] of Object.entries(rawRegistry)) {
 export const ICON_REGISTRY: Record<string, IconifyIcon> =
     Object.freeze(normalizedRegistry);
 
-
 export const ICON_NAMES: readonly string[] = Object.freeze(
-    Object.keys(ICON_REGISTRY).sort(
-        (a, b) => a.localeCompare(b),
-    ),
+    Object.keys(ICON_REGISTRY).sort((a, b) => a.localeCompare(b)),
 );
 
-
 export function normalizeIconName(value: string | null | undefined): string {
-    if (typeof value !== "string") {
-        return "";
+    if (typeof value !== 'string') {
+        return '';
     }
 
     return value
         .trim()
-        .replace(/([a-z0-9])([A-Z])/g, "$1-$2")
-        .replace(/([A-Z])([A-Z][a-z])/g, "$1-$2")
-        .replace(/[_\s]+/g, "-")
-        .replace(/-+/g, "-")
-        .replace(/^-|-$/g, "")
+        .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
+        .replace(/([A-Z])([A-Z][a-z])/g, '$1-$2')
+        .replace(/[_\s]+/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-|-$/g, '')
         .toLowerCase()
-        .replace(/^tabler:/, "");
+        .replace(/^tabler:/, '');
 }
 
 export function resolveIconName(value: string | null | undefined): string {
     const normalized = normalizeIconName(value);
     const aliasedName = ICON_ALIASES[normalized] ?? normalized;
 
-    return Object.prototype.hasOwnProperty.call(
-        ICON_REGISTRY,
-        aliasedName,
-    )
+    return Object.prototype.hasOwnProperty.call(ICON_REGISTRY, aliasedName)
         ? aliasedName
-        : "help-circle";
+        : 'help-circle';
 }
-

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Customer;
 use App\Models\Module;
 use App\Models\Permission;
 use App\Models\Role;
@@ -29,11 +30,12 @@ class CustomerManagementTest extends TestCase
             ])->id;
         }
         $role = Role::create([
-            'name' => 'Customer Test Role', 'slug' => 'customer-test-' . Str::lower(Str::random(12)),
+            'name' => 'Customer Test Role', 'slug' => 'customer-test-'.Str::lower(Str::random(12)),
             'description' => null, 'is_system' => false, 'is_active' => true,
         ]);
         $role->permissions()->attach($permissions);
         $user->roles()->attach($role->id);
+
         return $user;
     }
 
@@ -45,13 +47,13 @@ class CustomerManagementTest extends TestCase
             'district' => 'Dhaka', 'division' => 'Dhaka', 'status' => 'active',
         ])->assertCreated()->assertJsonPath('data.name', 'Nusrat Jahan');
 
-        $id = \App\Models\Customer::query()->firstOrFail()->id;
+        $id = Customer::query()->firstOrFail()->id;
         $this->actingAs($user)->getJson('/api/customers?search=Nusrat')->assertOk()->assertJsonPath('total', 1);
-        $this->actingAs($user)->getJson('/api/customers/' . $id)->assertOk()->assertJsonPath('data.phone', '01712345678');
-        $this->actingAs($user)->putJson('/api/customers/' . $id, [
+        $this->actingAs($user)->getJson('/api/customers/'.$id)->assertOk()->assertJsonPath('data.phone', '01712345678');
+        $this->actingAs($user)->putJson('/api/customers/'.$id, [
             'name' => 'Nusrat Jahan Akter', 'phone' => '01712345678', 'email' => 'nusrat@example.com', 'status' => 'active',
         ])->assertOk()->assertJsonPath('data.name', 'Nusrat Jahan Akter');
-        $this->actingAs($user)->deleteJson('/api/customers/' . $id)->assertOk();
+        $this->actingAs($user)->deleteJson('/api/customers/'.$id)->assertOk();
     }
 
     public function test_duplicate_customer_phone_is_rejected(): void

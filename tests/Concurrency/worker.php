@@ -8,8 +8,8 @@ use App\Services\InventoryTransferService;
 use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Validation\ValidationException;
 
-require dirname(__DIR__, 2) . '/vendor/autoload.php';
-$app = require dirname(__DIR__, 2) . '/bootstrap/app.php';
+require dirname(__DIR__, 2).'/vendor/autoload.php';
+$app = require dirname(__DIR__, 2).'/bootstrap/app.php';
 $app->make(Kernel::class)->bootstrap();
 
 $encoded = $argv[1] ?? '';
@@ -27,7 +27,7 @@ $barrier = $payload['barrier'] ?? null;
 $workerToken = $payload['worker_token'] ?? null;
 $readyFile = null;
 if (is_string($barrier) && $barrier !== '' && is_string($workerToken) && $workerToken !== '') {
-    $readyFile = $barrier . '.' . $workerToken . '.ready';
+    $readyFile = $barrier.'.'.$workerToken.'.ready';
     if (file_put_contents($readyFile, (string) getmypid(), LOCK_EX) === false) {
         fwrite(STDERR, "Unable to report concurrency worker readiness.\n");
         exit(66);
@@ -61,12 +61,12 @@ try {
         default => throw new InvalidArgumentException('Unsupported concurrency operation.'),
     };
 
-    echo json_encode(['ok' => true, 'id' => $result->id ?? null], JSON_THROW_ON_ERROR) . PHP_EOL;
+    echo json_encode(['ok' => true, 'id' => $result->id ?? null], JSON_THROW_ON_ERROR).PHP_EOL;
     exit(0);
 } catch (ValidationException $exception) {
-    echo json_encode(['ok' => false, 'kind' => 'validation', 'errors' => $exception->errors()], JSON_THROW_ON_ERROR) . PHP_EOL;
+    echo json_encode(['ok' => false, 'kind' => 'validation', 'errors' => $exception->errors()], JSON_THROW_ON_ERROR).PHP_EOL;
     exit(2);
 } catch (Throwable $exception) {
-    fwrite(STDERR, get_class($exception) . ': ' . $exception->getMessage() . PHP_EOL);
+    fwrite(STDERR, get_class($exception).': '.$exception->getMessage().PHP_EOL);
     exit(1);
 }

@@ -6,9 +6,9 @@ use Illuminate\Support\Facades\DB;
 
 $root = dirname(__DIR__, 2);
 
-require $root . '/vendor/autoload.php';
+require $root.'/vendor/autoload.php';
 
-$app = require $root . '/bootstrap/app.php';
+$app = require $root.'/bootstrap/app.php';
 $app->make(Kernel::class)->bootstrap();
 
 config([
@@ -40,7 +40,7 @@ function waitForVariantRaceGate(
 ): void {
     $deadline = microtime(true) + 30;
 
-    while (!is_file($gate)) {
+    while (! is_file($gate)) {
         if (microtime(true) > $deadline) {
             file_put_contents($result, json_encode([
                 'status' => 'error',
@@ -130,24 +130,24 @@ if (($argv[1] ?? '') === 'worker') {
 assertVariantRaceTestDatabase();
 
 $token = strtolower(str_replace('-', '', (string) str()->uuid()));
-$sku = 'VARIANT-RACE-' . strtoupper($token);
+$sku = 'VARIANT-RACE-'.strtoupper($token);
 
-$categorySlug = 'variant-race-category-' . $token;
-$unitSlug = 'variant-race-unit-' . $token;
-$productSlugA = 'variant-race-product-a-' . $token;
-$productSlugB = 'variant-race-product-b-' . $token;
+$categorySlug = 'variant-race-category-'.$token;
+$unitSlug = 'variant-race-unit-'.$token;
+$productSlugA = 'variant-race-product-a-'.$token;
+$productSlugB = 'variant-race-product-b-'.$token;
 
-$directory = $root . '/storage/framework/testing';
+$directory = $root.'/storage/framework/testing';
 
-if (!is_dir($directory) && !mkdir($directory, 0777, true) && !is_dir($directory)) {
+if (! is_dir($directory) && ! mkdir($directory, 0777, true) && ! is_dir($directory)) {
     throw new RuntimeException('Could not create test directory.');
 }
 
-$gate = $directory . '/variant-race-' . $token . '.go';
+$gate = $directory.'/variant-race-'.$token.'.go';
 
 $results = [
-    $directory . '/variant-race-' . $token . '-a.json',
-    $directory . '/variant-race-' . $token . '-b.json',
+    $directory.'/variant-race-'.$token.'-a.json',
+    $directory.'/variant-race-'.$token.'-b.json',
 ];
 
 $processes = [];
@@ -161,7 +161,7 @@ try {
     $now = now()->toDateTimeString();
 
     $categoryId = DB::table('product_categories')->insertGetId([
-        'name' => 'Variant Race Category ' . $token,
+        'name' => 'Variant Race Category '.$token,
         'slug' => $categorySlug,
         'status' => 'active',
         'visibility' => 'visible',
@@ -171,7 +171,7 @@ try {
     ]);
 
     $unitId = DB::table('units')->insertGetId([
-        'name' => 'Variant Race Unit ' . $token,
+        'name' => 'Variant Race Unit '.$token,
         'short_name' => 'VR',
         'slug' => $unitSlug,
         'status' => 'active',
@@ -247,7 +247,7 @@ try {
             $root
         );
 
-        if (!is_resource($process)) {
+        if (! is_resource($process)) {
             throw new RuntimeException('Could not start a worker.');
         }
 
@@ -272,7 +272,7 @@ try {
     $outcomes = [];
 
     foreach ($results as $file) {
-        if (!is_file($file)) {
+        if (! is_file($file)) {
             throw new RuntimeException(
                 'A worker did not produce a result.'
             );
@@ -319,15 +319,15 @@ try {
     echo "\n=== PRODUCT VARIANT SKU RACE TEST ===\n";
     echo "Database: madina_scale_test\n";
     echo "SKU: {$sku}\n";
-    echo "Worker A: "
-        . json_encode($outcomes[0], JSON_PRETTY_PRINT) . "\n";
-    echo "Worker B: "
-        . json_encode($outcomes[1], JSON_PRETTY_PRINT) . "\n";
-    echo "Active matching identifiers: "
-        . $activeIdentifiers->count() . "\n";
-    echo "Active matching variants: "
-        . $activeVariants->count() . "\n";
-    echo "Worker exit codes: " . json_encode($exitCodes) . "\n";
+    echo 'Worker A: '
+        .json_encode($outcomes[0], JSON_PRETTY_PRINT)."\n";
+    echo 'Worker B: '
+        .json_encode($outcomes[1], JSON_PRETTY_PRINT)."\n";
+    echo 'Active matching identifiers: '
+        .$activeIdentifiers->count()."\n";
+    echo 'Active matching variants: '
+        .$activeVariants->count()."\n";
+    echo 'Worker exit codes: '.json_encode($exitCodes)."\n";
 
     echo $passed
         ? "\nPASS: exactly one variant claimed the SKU; global uniqueness holds.\n"

@@ -20,6 +20,7 @@ class OrderSmsService
         $sms = config('order_integrations.sms');
         if (empty($sms['enabled']) || empty($sms['endpoint']) || empty($sms['api_key'])) {
             $log->update(['status' => 'skipped', 'error_message' => 'SMS gateway is not configured or is disabled.']);
+
             return $log->refresh();
         }
         try {
@@ -30,16 +31,21 @@ class OrderSmsService
             } else {
                 $header = (string) ($sms['api_key_header'] ?? 'Authorization');
                 $prefix = (string) ($sms['api_key_prefix'] ?? 'Bearer ');
-                $request = $request->withHeaders([$header => $prefix . $sms['api_key']]);
+                $request = $request->withHeaders([$header => $prefix.$sms['api_key']]);
             }
-            if (!empty($sms['sender_id'])) $payload[$sms['sender_field'] ?? 'sender_id'] = $sms['sender_id'];
+            if (! empty($sms['sender_id'])) {
+                $payload[$sms['sender_field'] ?? 'sender_id'] = $sms['sender_id'];
+            }
             $response = $request->post((string) $sms['endpoint'], $payload);
             $body = $response->json();
-            if (!$response->successful()) throw new \RuntimeException('SMS gateway returned HTTP ' . $response->status());
+            if (! $response->successful()) {
+                throw new \RuntimeException('SMS gateway returned HTTP '.$response->status());
+            }
             $log->update(['status' => 'sent', 'sent_at' => now(), 'provider_message_id' => data_get($body, 'message_id') ?? data_get($body, 'id'), 'provider_response' => is_array($body) ? $body : ['body' => $response->body()]]);
         } catch (Throwable $exception) {
             $log->update(['status' => 'failed', 'error_message' => mb_substr($exception->getMessage(), 0, 2000)]);
         }
+
         return $log->refresh();
     }
 
@@ -53,15 +59,23 @@ class OrderSmsService
         ];
         $template = $templates[$event] ?? 'আপনার অর্ডার {order} সম্পর্কে আপডেট রয়েছে।';
         $message = strtr($template, ['{order}' => $order->order_number, '{total}' => number_format((float) $order->grand_total, 2), '{tracking}' => 'কুরিয়ার ট্র্যাকিং পেজে দেখুন']);
+
         return $this->send($order, $event, $message);
     }
 
     public function normalizePhone(string $phone): string
     {
         $digits = preg_replace('/\D+/', '', $phone) ?: '';
-        if (str_starts_with($digits, '8801') && strlen($digits) === 13) return '+' . $digits;
-        if (str_starts_with($digits, '01') && strlen($digits) === 11) return '+88' . $digits;
-        if (str_starts_with($digits, '1') && strlen($digits) === 10) return '+880' . $digits;
-        return $digits === '' ? $phone : '+' . $digits;
+        if (str_starts_with($digits, '8801') && strlen($digits) === 13) {
+            return '+'.$digits;
+        }
+        if (str_starts_with($digits, '01') && strlen($digits) === 11) {
+            return '+88'.$digits;
+        }
+        if (str_starts_with($digits, '1') && strlen($digits) === 10) {
+            return '+880'.$digits;
+        }
+
+        return $digits === '' ? $phone : '+'.$digits;
     }
 }

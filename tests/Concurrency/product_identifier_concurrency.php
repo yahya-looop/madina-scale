@@ -6,9 +6,9 @@ use Illuminate\Support\Facades\DB;
 
 $root = dirname(__DIR__, 2);
 
-require $root . '/vendor/autoload.php';
+require $root.'/vendor/autoload.php';
 
-$app = require $root . '/bootstrap/app.php';
+$app = require $root.'/bootstrap/app.php';
 $app->make(Kernel::class)->bootstrap();
 
 /*
@@ -51,7 +51,7 @@ function runWorker(
 
     $deadline = microtime(true) + 30;
 
-    while (!is_file($gate)) {
+    while (! is_file($gate)) {
         if (microtime(true) > $deadline) {
             file_put_contents($result, json_encode([
                 'status' => 'error',
@@ -171,21 +171,21 @@ if (($argv[1] ?? '') === 'worker') {
 assertTestDatabase();
 
 $token = strtolower(str_replace('-', '', (string) str()->uuid()));
-$sku = 'RACE-' . strtoupper($token);
+$sku = 'RACE-'.strtoupper($token);
 
-$simpleSlug = 'race-simple-' . $token;
-$variableSlug = 'race-variable-' . $token;
+$simpleSlug = 'race-simple-'.$token;
+$variableSlug = 'race-variable-'.$token;
 
-$directory = $root . '/storage/framework/testing';
+$directory = $root.'/storage/framework/testing';
 
-if (!is_dir($directory)) {
+if (! is_dir($directory)) {
     mkdir($directory, 0777, true);
 }
 
-$gate = $directory . '/identifier-race-' . $token . '.go';
+$gate = $directory.'/identifier-race-'.$token.'.go';
 $results = [
-    $directory . '/identifier-race-' . $token . '-simple.json',
-    $directory . '/identifier-race-' . $token . '-variant.json',
+    $directory.'/identifier-race-'.$token.'-simple.json',
+    $directory.'/identifier-race-'.$token.'-variant.json',
 ];
 
 $processes = [];
@@ -197,8 +197,8 @@ try {
     $now = now()->toDateTimeString();
 
     $categoryId = DB::table('product_categories')->insertGetId([
-        'name' => 'Race Category ' . $token,
-        'slug' => 'race-category-' . $token,
+        'name' => 'Race Category '.$token,
+        'slug' => 'race-category-'.$token,
         'status' => 'active',
         'visibility' => 'visible',
         'sort_order' => 0,
@@ -207,9 +207,9 @@ try {
     ]);
 
     $unitId = DB::table('units')->insertGetId([
-        'name' => 'Race Unit ' . $token,
+        'name' => 'Race Unit '.$token,
         'short_name' => 'RT',
-        'slug' => 'race-unit-' . $token,
+        'slug' => 'race-unit-'.$token,
         'status' => 'active',
         'sort_order' => 0,
         'created_at' => $now,
@@ -247,7 +247,7 @@ try {
             $root,
         );
 
-        if (!is_resource($process)) {
+        if (! is_resource($process)) {
             throw new RuntimeException('Could not start a worker process.');
         }
 
@@ -272,7 +272,7 @@ try {
     $outcomes = [];
 
     foreach ($results as $file) {
-        if (!is_file($file)) {
+        if (! is_file($file)) {
             throw new RuntimeException(
                 'A worker did not produce a result file.'
             );
@@ -315,12 +315,12 @@ try {
     echo "\n=== SKU CONCURRENCY TEST ===\n";
     echo "Database: madina_scale_test\n";
     echo "SKU: {$sku}\n";
-    echo "Simple product result: "
-        . json_encode($outcomes[0], JSON_PRETTY_PRINT) . "\n";
-    echo "Variant result: "
-        . json_encode($outcomes[1], JSON_PRETTY_PRINT) . "\n";
+    echo 'Simple product result: '
+        .json_encode($outcomes[0], JSON_PRETTY_PRINT)."\n";
+    echo 'Variant result: '
+        .json_encode($outcomes[1], JSON_PRETTY_PRINT)."\n";
     echo "Active matching identifiers: {$activeCount}\n";
-    echo "Exit codes: " . json_encode($exitCodes) . "\n";
+    echo 'Exit codes: '.json_encode($exitCodes)."\n";
     echo $passed
         ? "\nPASS: exactly one write succeeded; one was rejected.\n"
         : "\nFAIL: concurrency expectations were not satisfied.\n";

@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed } from "vue";
-import { Icon as IconifyIcon } from "@iconify/vue";
-import { ICON_REGISTRY, resolveIconName } from "@/icons";
+import { computed } from 'vue';
+import { Icon as IconifyIcon } from '@iconify/vue';
+import { ICON_REGISTRY, resolveIconName } from '@/icons';
 
 /**
  * Shared, offline-first icon renderer.
@@ -12,47 +12,52 @@ import { ICON_REGISTRY, resolveIconName } from "@/icons";
  * modules instead of growing this component.
  */
 const props = withDefaults(
-  defineProps<{
-    name?: string | null;
-    size?: number;
-    strokeWidth?: number;
-    absoluteStrokeWidth?: boolean;
-  }>(),
-  {
-    name: "",
-    size: 20,
-    strokeWidth: 1.8,
-    absoluteStrokeWidth: false,
-  },
+    defineProps<{
+        name?: string | null;
+        size?: number;
+        strokeWidth?: number;
+        absoluteStrokeWidth?: boolean;
+    }>(),
+    {
+        name: '',
+        size: 20,
+        strokeWidth: 1.8,
+        absoluteStrokeWidth: false,
+    },
 );
 
 const safeSize = computed(() =>
-  Number.isFinite(props.size) && props.size > 0 ? props.size : 20,
+    Number.isFinite(props.size) && props.size > 0 ? props.size : 20,
 );
 const safeStrokeWidth = computed(() => {
-  const width = Number.isFinite(props.strokeWidth) && props.strokeWidth > 0
-    ? props.strokeWidth
-    : 1.8;
-  return props.absoluteStrokeWidth ? width * (24 / safeSize.value) : width;
+    const width =
+        Number.isFinite(props.strokeWidth) && props.strokeWidth > 0
+            ? props.strokeWidth
+            : 1.8;
+    return props.absoluteStrokeWidth ? width * (24 / safeSize.value) : width;
 });
 
 const icon = computed(() => {
-  const name = resolveIconName(props.name);
-  const source = ICON_REGISTRY[name] ?? ICON_REGISTRY["help-circle"];
-  const body = typeof source.body === "string"
-    ? source.body.replace(/stroke-width="[^"]+"/g, `stroke-width="${safeStrokeWidth.value}"`)
-    : source.body;
+    const name = resolveIconName(props.name);
+    const source = ICON_REGISTRY[name] ?? ICON_REGISTRY['help-circle'];
+    const body =
+        typeof source.body === 'string'
+            ? source.body.replace(
+                  /stroke-width="[^"]+"/g,
+                  `stroke-width="${safeStrokeWidth.value}"`,
+              )
+            : source.body;
 
-  return { ...source, body };
+    return { ...source, body };
 });
 </script>
 
 <template>
-  <IconifyIcon
-    :icon="icon"
-    :width="safeSize"
-    :height="safeSize"
-    aria-hidden="true"
-    focusable="false"
-  />
+    <IconifyIcon
+        :icon="icon"
+        :width="safeSize"
+        :height="safeSize"
+        aria-hidden="true"
+        focusable="false"
+    />
 </template>

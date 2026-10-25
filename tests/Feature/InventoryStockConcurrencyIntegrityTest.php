@@ -21,7 +21,7 @@ if (! function_exists('createMilestone3cStockManager')) {
         ]);
         $role = Role::create([
             'name' => 'Milestone 3C Stock Manager',
-            'slug' => 'milestone-3c-stock-manager-' . Str::lower(Str::random(12)),
+            'slug' => 'milestone-3c-stock-manager-'.Str::lower(Str::random(12)),
             'description' => 'Temporary role for stock integrity tests.',
             'is_system' => false,
             'is_active' => true,

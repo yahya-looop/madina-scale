@@ -130,7 +130,7 @@ class UserService
      *
      * System roles cannot be assigned through normal user management.
      *
-     * @param array<int, int> $roleIds
+     * @param  array<int, int>  $roleIds
      */
     public function syncRoles(
         User $user,

@@ -25,9 +25,28 @@ class InventoryReservation extends Model
         ];
     }
 
-    public function product(): BelongsTo { return $this->belongsTo(Product::class); }
-    public function variant(): BelongsTo { return $this->belongsTo(ProductVariant::class, 'product_variant_id'); }
-    public function location(): BelongsTo { return $this->belongsTo(Location::class); }
-    public function creator(): BelongsTo { return $this->belongsTo(User::class, 'created_by'); }
-    public function resolver(): BelongsTo { return $this->belongsTo(User::class, 'resolved_by'); }
+    public function product(): BelongsTo
+    {
+        return $this->belongsTo(Product::class);
+    }
+
+    public function variant(): BelongsTo
+    {
+        return $this->belongsTo(ProductVariant::class, 'product_variant_id');
+    }
+
+    public function location(): BelongsTo
+    {
+        return $this->belongsTo(Location::class);
+    }
+
+    public function creator(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function resolver(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'resolved_by');
+    }
 }

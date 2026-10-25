@@ -14,8 +14,7 @@ class RolesPermissionsController extends Controller
 {
     public function __construct(
         protected AuthorizationService $authorization,
-    ) {
-    }
+    ) {}
 
     /**
      * Display the role and permission management workspace.

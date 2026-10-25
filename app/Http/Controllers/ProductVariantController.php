@@ -474,8 +474,7 @@ class ProductVariantController extends Controller
 
         if (Carbon::parse($end)->lt(Carbon::parse($start))) {
             throw ValidationException::withMessages([
-                'promotion_ends_at' =>
-                    'The promotion end date must be on or after the start date.',
+                'promotion_ends_at' => 'The promotion end date must be on or after the start date.',
             ]);
         }
     }
@@ -580,8 +579,7 @@ class ProductVariantController extends Controller
         });
 
         return implode('|', array_map(
-            static fn (array $selection): string =>
-                (int) $selection['attribute_id'] . ':' . (int) $selection['attribute_value_id'],
+            static fn (array $selection): string => (int) $selection['attribute_id'].':'.(int) $selection['attribute_value_id'],
             $selections
         ));
     }
@@ -795,7 +793,7 @@ class ProductVariantController extends Controller
      * attribute combinations or variable-variant lifecycle settings for them.
      * Database constraints remain the final integrity boundary.
      *
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      * @return array<string, mixed>
      */
     private function normalizeSimplePriceData(

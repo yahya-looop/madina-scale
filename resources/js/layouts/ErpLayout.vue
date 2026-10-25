@@ -63,14 +63,31 @@ function closeMobileSidebar(): void {
 <style scoped>
 .erp-page-enter-active,
 .erp-page-leave-active {
-    transition: opacity 180ms ease, transform 180ms ease;
+    transition:
+        opacity 180ms ease,
+        transform 180ms ease;
     will-change: opacity, transform;
 }
-.erp-page-enter-from { opacity: 0; transform: translateY(8px); }
-.erp-page-leave-to { opacity: 0; transform: translateY(-4px); }
-.erp-page-transition { min-width: 0; }
+.erp-page-enter-from {
+    opacity: 0;
+    transform: translateY(8px);
+}
+.erp-page-leave-to {
+    opacity: 0;
+    transform: translateY(-4px);
+}
+.erp-page-transition {
+    min-width: 0;
+}
 @media (prefers-reduced-motion: reduce) {
-    .erp-page-enter-active, .erp-page-leave-active { transition: none; }
-    .erp-page-enter-from, .erp-page-leave-to { opacity: 1; transform: none; }
+    .erp-page-enter-active,
+    .erp-page-leave-active {
+        transition: none;
+    }
+    .erp-page-enter-from,
+    .erp-page-leave-to {
+        opacity: 1;
+        transform: none;
+    }
 }
 </style>

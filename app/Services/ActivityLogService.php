@@ -49,9 +49,9 @@ class ActivityLogService
      *
      * System/background activities can be recorded with no actor.
      *
-     * @param array<string, mixed>|null $oldValues
-     * @param array<string, mixed>|null $newValues
-     * @param array<string, mixed>|null $metadata
+     * @param  array<string, mixed>|null  $oldValues
+     * @param  array<string, mixed>|null  $newValues
+     * @param  array<string, mixed>|null  $metadata
      */
     public function record(
         string $action,
@@ -159,9 +159,9 @@ class ActivityLogService
      * This is useful when a service already knows which user performed
      * the operation and should not rely on the current Auth context.
      *
-     * @param array<string, mixed>|null $oldValues
-     * @param array<string, mixed>|null $newValues
-     * @param array<string, mixed>|null $metadata
+     * @param  array<string, mixed>|null  $oldValues
+     * @param  array<string, mixed>|null  $newValues
+     * @param  array<string, mixed>|null  $metadata
      */
     public function recordForUser(
         User $user,
@@ -191,9 +191,9 @@ class ActivityLogService
      * This is different from a Developer action:
      * no user actor is attached.
      *
-     * @param array<string, mixed>|null $oldValues
-     * @param array<string, mixed>|null $newValues
-     * @param array<string, mixed>|null $metadata
+     * @param  array<string, mixed>|null  $oldValues
+     * @param  array<string, mixed>|null  $newValues
+     * @param  array<string, mixed>|null  $metadata
      */
     public function recordSystem(
         string $action,
@@ -255,7 +255,7 @@ class ActivityLogService
      * Nested arrays are recursively sanitized so credentials cannot
      * accidentally enter old_values, new_values, or metadata.
      *
-     * @param array<string, mixed>|null $values
+     * @param  array<string, mixed>|null  $values
      * @return array<string, mixed>|null
      */
     protected function sanitizeSnapshot(

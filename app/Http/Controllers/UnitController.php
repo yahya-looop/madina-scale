@@ -22,9 +22,9 @@ class UnitController extends Controller
         if ($search !== '') {
             $query->where(function ($builder) use ($search) {
                 $builder
-                    ->where('name', 'ilike', '%' . $search . '%')
-                    ->orWhere('short_name', 'ilike', '%' . $search . '%')
-                    ->orWhere('slug', 'ilike', '%' . $search . '%');
+                    ->where('name', 'ilike', '%'.$search.'%')
+                    ->orWhere('short_name', 'ilike', '%'.$search.'%')
+                    ->orWhere('slug', 'ilike', '%'.$search.'%');
             });
         }
 
@@ -183,7 +183,7 @@ class UnitController extends Controller
                 )
                 ->exists()
         ) {
-            $candidate = $baseSlug . '-' . $counter;
+            $candidate = $baseSlug.'-'.$counter;
             $counter++;
         }
 

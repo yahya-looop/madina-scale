@@ -21,7 +21,7 @@ if (! function_exists('createMilestone3cInventoryUser')) {
         ]);
         $role = Role::create([
             'name' => 'Milestone 3C Inventory Role',
-            'slug' => 'milestone-3c-inventory-' . Str::lower(Str::random(12)),
+            'slug' => 'milestone-3c-inventory-'.Str::lower(Str::random(12)),
             'description' => 'Temporary role for location authorization matrix tests.',
             'is_system' => false,
             'is_active' => true,
@@ -79,9 +79,9 @@ test('view access is isolated to assigned locations across stock low-stock and m
         ->assertJsonCount(1, 'data')
         ->assertJsonPath('data.0.location_id', $visibleLocation->id);
 
-    $this->getJson('/api/inventory/stocks?location_id=' . $hiddenLocation->id)->assertForbidden();
-    $this->getJson('/api/inventory/low-stock?location_id=' . $hiddenLocation->id)->assertForbidden();
-    $this->getJson('/api/inventory/movements?location_id=' . $hiddenLocation->id)->assertForbidden();
+    $this->getJson('/api/inventory/stocks?location_id='.$hiddenLocation->id)->assertForbidden();
+    $this->getJson('/api/inventory/low-stock?location_id='.$hiddenLocation->id)->assertForbidden();
+    $this->getJson('/api/inventory/movements?location_id='.$hiddenLocation->id)->assertForbidden();
 });
 
 test('receive access permits receipts but denies issue adjustment and threshold changes', function () {
@@ -119,7 +119,7 @@ test('receive access permits receipts but denies issue adjustment and threshold 
         'quantity' => '-1.0000',
     ])->assertForbidden();
 
-    $this->patchJson('/api/inventory/stocks/' . $stock->id . '/threshold', [
+    $this->patchJson('/api/inventory/stocks/'.$stock->id.'/threshold', [
         'low_stock_threshold' => 20,
     ])->assertForbidden();
 

@@ -1,13 +1,16 @@
 <?php
 
 use App\Models\InventoryStock;
+use App\Models\InventoryTransfer;
 use App\Models\Location;
 use App\Models\Module;
 use App\Models\Permission;
 use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Models\Role;
+use App\Models\StockMovement;
 use App\Models\User;
+use App\Services\InventoryService;
 use Illuminate\Support\Str;
 
 function createInventoryApiUser(array $permissionSlugs = []): User
@@ -27,7 +30,7 @@ function createInventoryApiUser(array $permissionSlugs = []): User
 
     $role = Role::create([
         'name' => 'Inventory API Test Role',
-        'slug' => 'inventory-api-test-' . uniqid(),
+        'slug' => 'inventory-api-test-'.uniqid(),
         'description' => 'Temporary role for Inventory API tests.',
         'is_system' => false,
         'is_active' => true,
@@ -96,7 +99,7 @@ test('authenticated user without inventory permission receives forbidden respons
     ]);
 
     $this->patchJson(
-        '/api/inventory/stocks/' . $stock->id . '/threshold',
+        '/api/inventory/stocks/'.$stock->id.'/threshold',
         ['low_stock_threshold' => '20']
     )->assertForbidden();
 
@@ -148,7 +151,7 @@ test('inventory view permission alone cannot perform stock mutations', function 
         'low_stock_threshold' => '2.0000',
     ]);
 
-    $this->patchJson('/api/inventory/stocks/' . $stock->id . '/threshold', [
+    $this->patchJson('/api/inventory/stocks/'.$stock->id.'/threshold', [
         'low_stock_threshold' => '5.0000',
     ])->assertForbidden();
 });
@@ -214,7 +217,6 @@ test('transfer endpoint validates required transfer fields', function () {
         ]);
 });
 
-
 function inventoryApiCreateProduct(string $type = 'simple'): Product
 {
     return inventoryTestProduct($type);
@@ -270,7 +272,7 @@ test('authorized issue API reduces stock and records the balance', function () {
     $location = inventoryApiCreateLocation();
     $user->locations()->syncWithoutDetaching([$location->id => ['access_level' => 'manage']]);
 
-    app(\App\Services\InventoryService::class)->receive([
+    app(InventoryService::class)->receive([
         'product_id' => $product->id,
         'location_id' => $location->id,
         'quantity' => '10.0000',
@@ -303,13 +305,13 @@ test('insufficient stock API request leaves balance and ledger unchanged', funct
     $location = inventoryApiCreateLocation();
     $user->locations()->syncWithoutDetaching([$location->id => ['access_level' => 'manage']]);
 
-    app(\App\Services\InventoryService::class)->receive([
+    app(InventoryService::class)->receive([
         'product_id' => $product->id,
         'location_id' => $location->id,
         'quantity' => '2.0000',
     ]);
 
-    $movementCount = \App\Models\StockMovement::query()->count();
+    $movementCount = StockMovement::query()->count();
 
     $this->actingAs($user);
 
@@ -325,7 +327,7 @@ test('insufficient stock API request leaves balance and ledger unchanged', funct
         'quantity' => '2.0000',
     ]);
 
-    expect(\App\Models\StockMovement::query()->count())
+    expect(StockMovement::query()->count())
         ->toBe($movementCount);
 });
 
@@ -373,7 +375,7 @@ test('authorized transfer API dispatches to destination confirmation workflow', 
     $user->locations()->attach($source->id, ['access_level' => 'manage']);
     $receiver->locations()->attach($destination->id, ['access_level' => 'receive']);
 
-    app(\App\Services\InventoryService::class)->receive([
+    app(InventoryService::class)->receive([
         'product_id' => $product->id,
         'location_id' => $source->id,
         'quantity' => '10.0000',
@@ -399,13 +401,13 @@ test('authorized transfer API dispatches to destination confirmation workflow', 
         'product_id' => $product->id, 'location_id' => $destination->id,
     ]);
 
-    $transfer = \App\Models\InventoryTransfer::query()->firstOrFail();
+    $transfer = InventoryTransfer::query()->firstOrFail();
     $this->actingAs($receiver)->postJson("/api/inventory/transfers/{$transfer->id}/accept", ['quantity_received' => '4.0000'])
         ->assertOk()->assertJsonPath('data.status', 'received');
     $this->assertDatabaseHas('inventory_stocks', [
         'product_id' => $product->id, 'location_id' => $destination->id, 'quantity' => '4.0000',
     ]);
-    expect(\App\Models\StockMovement::query()->whereIn('movement_type', ['transfer_out', 'transfer_in'])->count())->toBe(2);
+    expect(StockMovement::query()->whereIn('movement_type', ['transfer_out', 'transfer_in'])->count())->toBe(2);
 });
 
 test('failed transfer API request leaves both location balances unchanged', function () {
@@ -416,13 +418,13 @@ test('failed transfer API request leaves both location balances unchanged', func
     $user->locations()->attach($source->id, ['access_level' => 'manage']);
     $user->locations()->attach($destination->id, ['access_level' => 'receive']);
 
-    app(\App\Services\InventoryService::class)->receive([
+    app(InventoryService::class)->receive([
         'product_id' => $product->id,
         'location_id' => $source->id,
         'quantity' => '2.0000',
     ]);
 
-    $movementCount = \App\Models\StockMovement::query()->count();
+    $movementCount = StockMovement::query()->count();
 
     $this->actingAs($user);
 
@@ -445,10 +447,9 @@ test('failed transfer API request leaves both location balances unchanged', func
         'quantity' => '5.0000',
     ]);
 
-    expect(\App\Models\StockMovement::query()->count())
+    expect(StockMovement::query()->count())
         ->toBe($movementCount);
 });
-
 
 test('low stock API returns only enabled thresholds using available quantity', function () {
     $user = createInventoryApiUser([
@@ -527,9 +528,9 @@ test('low stock API supports location and product filters with pagination', func
     $this->actingAs($user);
 
     $this->getJson(
-        '/api/inventory/low-stock?location_id=' . $firstLocation->id
-        . '&product_id=' . $firstProduct->id
-        . '&per_page=1'
+        '/api/inventory/low-stock?location_id='.$firstLocation->id
+        .'&product_id='.$firstProduct->id
+        .'&per_page=1'
     )
         ->assertOk()
         ->assertJsonPath('total', 1)
@@ -553,7 +554,6 @@ test('low stock API validates filters and pagination limits', function () {
         ->assertJsonValidationErrors(['per_page']);
 });
 
-
 test('user with inventory update permission can update low stock threshold without changing stock or ledger', function () {
     $user = createInventoryApiUser([
         'system.inventory.update',
@@ -571,11 +571,11 @@ test('user with inventory update permission can update low stock threshold witho
         'low_stock_threshold' => '3.0000',
     ]);
 
-    $movementCount = \App\Models\StockMovement::query()->count();
+    $movementCount = StockMovement::query()->count();
 
     $this->actingAs($user);
 
-    $this->patchJson('/api/inventory/stocks/' . $stock->id . '/threshold', [
+    $this->patchJson('/api/inventory/stocks/'.$stock->id.'/threshold', [
         'low_stock_threshold' => '20',
     ])
         ->assertOk()
@@ -591,7 +591,7 @@ test('user with inventory update permission can update low stock threshold witho
         'low_stock_threshold' => '20.0000',
     ]);
 
-    expect(\App\Models\StockMovement::query()->count())
+    expect(StockMovement::query()->count())
         ->toBe($movementCount);
 });
 
@@ -614,7 +614,7 @@ test('low stock threshold requires an integer of at least 20', function () {
 
     // The minimum allowed threshold is 20, and valid values are whole numbers.
     foreach (['20', '50', '100'] as $validThreshold) {
-        $this->patchJson('/api/inventory/stocks/' . $stock->id . '/threshold', [
+        $this->patchJson('/api/inventory/stocks/'.$stock->id.'/threshold', [
             'low_stock_threshold' => $validThreshold,
         ])
             ->assertOk()
@@ -622,7 +622,7 @@ test('low stock threshold requires an integer of at least 20', function () {
     }
 
     foreach (['0', '19', '-5', '50.5', '1.12345'] as $invalidThreshold) {
-        $this->patchJson('/api/inventory/stocks/' . $stock->id . '/threshold', [
+        $this->patchJson('/api/inventory/stocks/'.$stock->id.'/threshold', [
             'low_stock_threshold' => $invalidThreshold,
         ])
             ->assertUnprocessable()
@@ -641,7 +641,6 @@ test('low stock threshold update returns not found for a missing stock row', fun
         'low_stock_threshold' => '5.0000',
     ])->assertNotFound();
 });
-
 
 test('inventory stock and low-stock queries are limited to assigned locations', function () {
     $user = createInventoryApiUser(['system.inventory.view']);
@@ -663,7 +662,7 @@ test('inventory stock and low-stock queries are limited to assigned locations', 
         ->assertJsonCount(1, 'data')->assertJsonPath('data.0.location_id', $assigned->id);
     $this->getJson('/api/inventory/low-stock')->assertOk()
         ->assertJsonCount(1, 'data')->assertJsonPath('data.0.location_id', $assigned->id);
-    $this->getJson('/api/inventory/stocks?location_id=' . $unassigned->id)->assertForbidden();
+    $this->getJson('/api/inventory/stocks?location_id='.$unassigned->id)->assertForbidden();
 });
 
 test('receive requires receive or manage access to the target location', function () {

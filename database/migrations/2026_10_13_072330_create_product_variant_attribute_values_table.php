@@ -10,11 +10,11 @@ return new class extends Migration
     public function up(): void
     {
         // Required by the composite foreign key below.
-        DB::statement("
+        DB::statement('
             ALTER TABLE attribute_values
             ADD CONSTRAINT attribute_values_id_attribute_id_unique
             UNIQUE (id, attribute_id)
-        ");
+        ');
 
         Schema::create(
             'product_variant_attribute_values',
@@ -59,10 +59,10 @@ return new class extends Migration
             'product_variant_attribute_values'
         );
 
-        DB::statement("
+        DB::statement('
             ALTER TABLE attribute_values
             DROP CONSTRAINT IF EXISTS
             attribute_values_id_attribute_id_unique
-        ");
+        ');
     }
 };

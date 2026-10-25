@@ -26,7 +26,6 @@ use Illuminate\Support\Carbon;
  * @property string|null $request_id
  * @property array<string, mixed>|null $metadata
  * @property Carbon $created_at
- *
  * @property-read User|null $actor
  * @property-read Model|null $subject
  * @property-read string $actor_display_name

@@ -32,9 +32,9 @@ class AttributeValueController extends Controller
         if ($search !== '') {
             $query->where(function ($builder) use ($search) {
                 $builder
-                    ->where('name', 'ilike', '%' . $search . '%')
-                    ->orWhere('slug', 'ilike', '%' . $search . '%')
-                    ->orWhere('value', 'ilike', '%' . $search . '%');
+                    ->where('name', 'ilike', '%'.$search.'%')
+                    ->orWhere('slug', 'ilike', '%'.$search.'%')
+                    ->orWhere('value', 'ilike', '%'.$search.'%');
             });
         }
 
@@ -238,7 +238,7 @@ class AttributeValueController extends Controller
                 )
                 ->exists()
         ) {
-            $candidate = $baseSlug . '-' . $counter;
+            $candidate = $baseSlug.'-'.$counter;
             $counter++;
         }
 

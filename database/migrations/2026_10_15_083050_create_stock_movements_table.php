@@ -52,7 +52,7 @@ return new class extends Migration
             $table->index('transfer_group_id');
         });
 
-        DB::statement("
+        DB::statement('
             ALTER TABLE stock_movements
             ADD CONSTRAINT stock_movements_owner_check
             CHECK (
@@ -60,7 +60,7 @@ return new class extends Migration
                 OR
                 (product_id IS NULL AND product_variant_id IS NOT NULL)
             )
-        ");
+        ');
 
         DB::statement("
             ALTER TABLE stock_movements
@@ -78,7 +78,7 @@ return new class extends Migration
             )
         ");
 
-        DB::statement("
+        DB::statement('
             ALTER TABLE stock_movements
             ADD CONSTRAINT stock_movements_quantity_check
             CHECK (
@@ -87,13 +87,13 @@ return new class extends Migration
                 AND balance_after >= 0
                 AND balance_after = balance_before + quantity_delta
             )
-        ");
+        ');
 
-        DB::statement("
+        DB::statement('
             CREATE UNIQUE INDEX stock_movements_idempotency_unique
             ON stock_movements (idempotency_key)
             WHERE idempotency_key IS NOT NULL
-        ");
+        ');
     }
 
     public function down(): void

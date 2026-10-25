@@ -2,6 +2,7 @@
 
 use App\Models\InventoryStock;
 use App\Services\InventoryService;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 test('receipt increases stock and records a ledger movement', function () {
@@ -75,7 +76,7 @@ test('issue decreases stock without allowing a negative available balance', func
 test('a repeated receipt with the same idempotency key does not duplicate stock', function () {
     $product = inventoryTestProduct();
     $location = inventoryTestLocation();
-    $key = (string) Illuminate\Support\Str::uuid();
+    $key = (string) Str::uuid();
 
     $service = app(InventoryService::class);
 
@@ -105,7 +106,7 @@ test('a repeated receipt with the same idempotency key does not duplicate stock'
 test('reusing an idempotency key with a different quantity is rejected', function () {
     $product = inventoryTestProduct();
     $location = inventoryTestLocation();
-    $key = (string) Illuminate\Support\Str::uuid();
+    $key = (string) Str::uuid();
 
     $service = app(InventoryService::class);
 
@@ -141,8 +142,8 @@ test('reusing an idempotency key with a different quantity is rejected', functio
 
 test('transfer decreases source and increases destination atomically', function () {
     $product = inventoryTestProduct();
-    $source = inventoryTestLocation('source-' . strtolower(uniqid()));
-    $destination = inventoryTestLocation('dest-' . strtolower(uniqid()));
+    $source = inventoryTestLocation('source-'.strtolower(uniqid()));
+    $destination = inventoryTestLocation('dest-'.strtolower(uniqid()));
 
     $service = app(InventoryService::class);
 
@@ -163,7 +164,7 @@ test('transfer decreases source and increases destination atomically', function 
     expect($result['outgoing']->movement_type)->toBe('transfer_out')
         ->and($result['incoming']->movement_type)->toBe('transfer_in')
         ->and($result['outgoing']->transfer_group_id)
-            ->toBe($result['incoming']->transfer_group_id);
+        ->toBe($result['incoming']->transfer_group_id);
 
     expect(
         (string) InventoryStock::query()
@@ -226,8 +227,8 @@ test('a variable product cannot receive stock directly', function () {
 
 test('repeating a transfer with the same idempotency key does not transfer stock twice', function () {
     $product = inventoryTestProduct();
-    $source = inventoryTestLocation('retry-source-' . strtolower(uniqid()));
-    $destination = inventoryTestLocation('retry-dest-' . strtolower(uniqid()));
+    $source = inventoryTestLocation('retry-source-'.strtolower(uniqid()));
+    $destination = inventoryTestLocation('retry-dest-'.strtolower(uniqid()));
 
     $service = app(InventoryService::class);
 
@@ -242,7 +243,7 @@ test('repeating a transfer with the same idempotency key does not transfer stock
         'source_location_id' => $source->id,
         'destination_location_id' => $destination->id,
         'quantity' => '7.5000',
-        'idempotency_key' => (string) Illuminate\Support\Str::uuid(),
+        'idempotency_key' => (string) Str::uuid(),
         'reason' => 'Retry safety test',
     ];
 
@@ -272,9 +273,9 @@ test('repeating a transfer with the same idempotency key does not transfer stock
 
 test('a transfer idempotency key cannot be reused for a different transfer', function () {
     $product = inventoryTestProduct();
-    $source = inventoryTestLocation('key-source-' . strtolower(uniqid()));
-    $destination = inventoryTestLocation('key-dest-' . strtolower(uniqid()));
-    $otherDestination = inventoryTestLocation('key-other-' . strtolower(uniqid()));
+    $source = inventoryTestLocation('key-source-'.strtolower(uniqid()));
+    $destination = inventoryTestLocation('key-dest-'.strtolower(uniqid()));
+    $otherDestination = inventoryTestLocation('key-other-'.strtolower(uniqid()));
 
     $service = app(InventoryService::class);
 
@@ -284,7 +285,7 @@ test('a transfer idempotency key cannot be reused for a different transfer', fun
         'quantity' => '20.0000',
     ]);
 
-    $key = (string) Illuminate\Support\Str::uuid();
+    $key = (string) Str::uuid();
 
     $payload = [
         'product_id' => $product->id,

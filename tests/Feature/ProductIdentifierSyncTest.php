@@ -13,24 +13,24 @@ function identifierTestMasterData(): array
     $suffix = strtolower((string) str()->uuid());
 
     $category = ProductCategory::create([
-        'name' => 'Identifier Category ' . $suffix,
-        'slug' => 'identifier-category-' . $suffix,
+        'name' => 'Identifier Category '.$suffix,
+        'slug' => 'identifier-category-'.$suffix,
         'status' => 'active',
         'visibility' => 'visible',
         'sort_order' => 0,
     ]);
 
     $brand = Brand::create([
-        'name' => 'Identifier Brand ' . $suffix,
-        'slug' => 'identifier-brand-' . $suffix,
+        'name' => 'Identifier Brand '.$suffix,
+        'slug' => 'identifier-brand-'.$suffix,
         'status' => 'active',
         'sort_order' => 0,
     ]);
 
     $unit = Unit::create([
-        'name' => 'Identifier Unit ' . $suffix,
+        'name' => 'Identifier Unit '.$suffix,
         'short_name' => 'IU',
-        'slug' => 'identifier-unit-' . $suffix,
+        'slug' => 'identifier-unit-'.$suffix,
         'status' => 'active',
         'sort_order' => 0,
     ]);
@@ -49,9 +49,9 @@ function identifierTestProductPayload(
         'brand_id' => $masterData['brand']->id,
         'unit_id' => $masterData['unit']->id,
         'name' => 'Identifier Product',
-        'slug' => 'identifier-product-' . strtolower($suffix),
-        'sku' => 'IDENT-SKU-' . $suffix,
-        'barcode' => 'IDENT-BAR-' . $suffix,
+        'slug' => 'identifier-product-'.strtolower($suffix),
+        'sku' => 'IDENT-SKU-'.$suffix,
+        'barcode' => 'IDENT-BAR-'.$suffix,
         'product_type' => 'simple',
         'status' => 'active',
         'visibility' => 'visible',
@@ -81,8 +81,8 @@ function identifierTestCreateVariant(
     return ProductVariant::create(array_merge([
         'product_id' => $product->id,
         'name' => 'Default Variant',
-        'sku' => 'VAR-SKU-' . $suffix,
-        'barcode' => 'VAR-BAR-' . $suffix,
+        'sku' => 'VAR-SKU-'.$suffix,
+        'barcode' => 'VAR-BAR-'.$suffix,
         'cost_price' => 10,
         'selling_price' => 15,
         'is_default' => true,
@@ -163,7 +163,7 @@ test('changing SKU preserves the old identifier as history', function () {
     $product = Product::create($payload);
 
     $oldSku = strtolower($payload['sku']);
-    $newSku = 'REPLACEMENT-' . strtoupper((string) str()->uuid());
+    $newSku = 'REPLACEMENT-'.strtoupper((string) str()->uuid());
 
     $product->update(['sku' => $newSku]);
 
@@ -278,7 +278,7 @@ test('restoring a product fails if its old SKU has been reused', function () {
 
     $replacement = identifierTestProductPayload($masterData, [
         'sku' => $originalPayload['sku'],
-        'barcode' => 'NEW-BAR-' . strtoupper((string) str()->uuid()),
+        'barcode' => 'NEW-BAR-'.strtoupper((string) str()->uuid()),
     ]);
 
     Product::create($replacement);
@@ -335,7 +335,7 @@ test('variable products cannot have a parent SKU or barcode', function () {
     $product = identifierTestCreateVariableProduct($masterData);
 
     expect(fn () => $product->update([
-        'sku' => 'INVALID-PARENT-' . strtoupper((string) str()->uuid()),
+        'sku' => 'INVALID-PARENT-'.strtoupper((string) str()->uuid()),
     ]))->toThrow(QueryException::class);
 });
 
@@ -349,4 +349,3 @@ test('active simple products cannot have an empty SKU', function () {
     expect(fn () => Product::create($payload))
         ->toThrow(QueryException::class);
 });
-

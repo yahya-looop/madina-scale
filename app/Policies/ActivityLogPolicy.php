@@ -10,8 +10,7 @@ class ActivityLogPolicy
 {
     public function __construct(
         protected AuthorizationService $authorization,
-    ) {
-    }
+    ) {}
 
     /**
      * Determine whether the user may view activity logs.

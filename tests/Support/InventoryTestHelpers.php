@@ -13,24 +13,24 @@ if (! function_exists('inventoryTestProduct')) {
         $suffix = strtolower(uniqid());
 
         $category = ProductCategory::query()->create([
-            'name' => 'Inventory Category ' . $suffix,
-            'slug' => 'inventory-category-' . $suffix,
+            'name' => 'Inventory Category '.$suffix,
+            'slug' => 'inventory-category-'.$suffix,
             'status' => 'active',
             'visibility' => 'visible',
             'sort_order' => 0,
         ]);
 
         $brand = Brand::query()->create([
-            'name' => 'Inventory Brand ' . $suffix,
-            'slug' => 'inventory-brand-' . $suffix,
+            'name' => 'Inventory Brand '.$suffix,
+            'slug' => 'inventory-brand-'.$suffix,
             'status' => 'active',
             'sort_order' => 0,
         ]);
 
         $unit = Unit::query()->create([
-            'name' => 'Inventory Unit ' . $suffix,
+            'name' => 'Inventory Unit '.$suffix,
             'short_name' => 'IU',
-            'slug' => 'inventory-unit-' . $suffix,
+            'slug' => 'inventory-unit-'.$suffix,
             'status' => 'active',
             'sort_order' => 0,
         ]);
@@ -39,10 +39,10 @@ if (! function_exists('inventoryTestProduct')) {
             'category_id' => $category->id,
             'brand_id' => $brand->id,
             'unit_id' => $unit->id,
-            'name' => 'Inventory Product ' . $suffix,
-            'slug' => 'inventory-product-' . $suffix,
+            'name' => 'Inventory Product '.$suffix,
+            'slug' => 'inventory-product-'.$suffix,
             'sku' => $type === 'simple'
-                ? 'INV-P-' . strtoupper($suffix)
+                ? 'INV-P-'.strtoupper($suffix)
                 : null,
             'product_type' => $type,
             'status' => 'active',
@@ -58,8 +58,8 @@ if (! function_exists('inventoryTestLocation')) {
         $suffix = $suffix ?: strtolower(uniqid());
 
         return Location::query()->create([
-            'name' => 'Inventory Location ' . $suffix,
-            'code' => 'INV-' . strtoupper($suffix),
+            'name' => 'Inventory Location '.$suffix,
+            'code' => 'INV-'.strtoupper($suffix),
             'type' => 'warehouse',
             'is_active' => true,
             'is_primary' => false,
@@ -74,7 +74,7 @@ if (! function_exists('inventoryTestVariant')) {
         return ProductVariant::query()->create([
             'product_id' => $product->id,
             'name' => 'Inventory Test Variant',
-            'sku' => 'INV-' . strtoupper(uniqid()),
+            'sku' => 'INV-'.strtoupper(uniqid()),
             'barcode' => null,
             'cost_price' => 10,
             'selling_price' => 20,

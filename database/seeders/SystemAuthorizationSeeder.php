@@ -3,19 +3,13 @@
 namespace Database\Seeders;
 
 use App\Models\Module;
-
 use App\Models\Permission;
-
 use App\Models\Role;
-
 use Illuminate\Database\Seeder;
 
 class SystemAuthorizationSeeder extends Seeder
-
 {
-
     /**
-
      * Seed the application's complete authorization catalog.
 
      *
@@ -41,11 +35,8 @@ class SystemAuthorizationSeeder extends Seeder
      *
 
      * The seeder is idempotent and can safely be executed repeatedly.
-
      */
-
     public function run(): void
-
     {
 
         $moduleDefinitions = $this->moduleDefinitions();
@@ -115,7 +106,6 @@ class SystemAuthorizationSeeder extends Seeder
     }
 
     /**
-
      * Define the application's authorization modules and permissions.
 
      *
@@ -169,11 +159,8 @@ class SystemAuthorizationSeeder extends Seeder
      *     }>
 
      * }>
-
      */
-
     private function moduleDefinitions(): array
-
     {
 
         return [
@@ -2060,7 +2047,6 @@ class SystemAuthorizationSeeder extends Seeder
 
             ],
 
-
             [
                 'name' => 'Inventory',
                 'slug' => 'inventory',
@@ -2100,7 +2086,6 @@ class SystemAuthorizationSeeder extends Seeder
                     ],
                 ],
             ],
-
 
             [
                 'name' => 'Module Management',
@@ -2189,7 +2174,6 @@ class SystemAuthorizationSeeder extends Seeder
     }
 
     /**
-
      * Synchronize all authorization permissions to the protected
 
      * Developer role.
@@ -2202,12 +2186,9 @@ class SystemAuthorizationSeeder extends Seeder
 
      *
 
-     * @param array<int, Permission> $permissions
-
+     * @param  array<int, Permission>  $permissions
      */
-
     private function syncDeveloperRole(array $permissions): void
-
     {
 
         $developerRole = Role::updateOrCreate(
@@ -2236,5 +2217,4 @@ class SystemAuthorizationSeeder extends Seeder
         );
 
     }
-
 }

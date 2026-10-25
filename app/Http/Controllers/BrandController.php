@@ -22,8 +22,8 @@ class BrandController extends Controller
         if ($search !== '') {
             $query->where(function ($builder) use ($search) {
                 $builder
-                    ->where('name', 'ilike', '%' . $search . '%')
-                    ->orWhere('slug', 'ilike', '%' . $search . '%');
+                    ->where('name', 'ilike', '%'.$search.'%')
+                    ->orWhere('slug', 'ilike', '%'.$search.'%');
             });
         }
 
@@ -196,7 +196,7 @@ class BrandController extends Controller
                 )
                 ->exists()
         ) {
-            $candidate = $baseSlug . '-' . $counter;
+            $candidate = $baseSlug.'-'.$counter;
             $counter++;
         }
 

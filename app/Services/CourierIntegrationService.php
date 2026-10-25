@@ -14,12 +14,19 @@ class CourierIntegrationService
     {
         $existing = SalesOrderShipment::query()->where('provider', $provider)->where('idempotency_key', $data['idempotency_key'] ?? null)->whereNotNull('idempotency_key')->first();
         if ($existing) {
-            if ((int) $existing->sales_order_id !== (int) $order->id) throw ValidationException::withMessages(['idempotency_key' => 'This idempotency key has already been used for another order.']);
+            if ((int) $existing->sales_order_id !== (int) $order->id) {
+                throw ValidationException::withMessages(['idempotency_key' => 'This idempotency key has already been used for another order.']);
+            }
+
             return $existing;
         }
         $config = config("order_integrations.couriers.{$provider}");
-        if (!is_array($config) || empty($config['enabled'])) throw ValidationException::withMessages(['provider' => 'This courier is not enabled in configuration.']);
-        if (empty($order->customer_phone)) throw ValidationException::withMessages(['customer_phone' => 'A customer phone is required before booking a courier.']);
+        if (! is_array($config) || empty($config['enabled'])) {
+            throw ValidationException::withMessages(['provider' => 'This courier is not enabled in configuration.']);
+        }
+        if (empty($order->customer_phone)) {
+            throw ValidationException::withMessages(['customer_phone' => 'A customer phone is required before booking a courier.']);
+        }
         $shipment = SalesOrderShipment::query()->create([
             'sales_order_id' => $order->id, 'provider' => $provider, 'idempotency_key' => $data['idempotency_key'] ?? null, 'status' => 'booking',
             'recipient_name' => $data['recipient_name'] ?? $order->customer_name,
@@ -43,70 +50,98 @@ class CourierIntegrationService
             $shipment->update(['status' => 'failed', 'last_error' => mb_substr($exception->getMessage(), 0, 2000)]);
             throw ValidationException::withMessages(['courier' => 'Courier booking failed. Review the shipment record and provider configuration before retrying.']);
         }
+
         return $shipment->refresh();
     }
 
     private function bookSteadfast(array $config, SalesOrder $order, SalesOrderShipment $shipment): array
     {
-        $response = Http::timeout((int) ($config['timeout'] ?? 15))->acceptJson()->withHeaders(['Api-Key' => $config['api_key'], 'Secret-Key' => $config['secret_key']])->post(rtrim($config['base_url'], '/') . '/create_order', [
+        $response = Http::timeout((int) ($config['timeout'] ?? 15))->acceptJson()->withHeaders(['Api-Key' => $config['api_key'], 'Secret-Key' => $config['secret_key']])->post(rtrim($config['base_url'], '/').'/create_order', [
             'invoice' => $order->order_number, 'recipient_name' => $shipment->recipient_name,
             'recipient_phone' => $this->bdPhone($shipment->recipient_phone), 'recipient_address' => mb_substr($shipment->recipient_address, 0, 250),
-            'cod_amount' => (float) $shipment->cod_amount, 'note' => 'Madina Scale order ' . $order->order_number,
+            'cod_amount' => (float) $shipment->cod_amount, 'note' => 'Madina Scale order '.$order->order_number,
         ]);
-        if (!$response->successful()) throw new \RuntimeException('Steadfast returned HTTP ' . $response->status());
+        if (! $response->successful()) {
+            throw new \RuntimeException('Steadfast returned HTTP '.$response->status());
+        }
         $body = $response->json() ?? [];
-        if (data_get($body, 'status') === 'error') throw new \RuntimeException('Steadfast rejected the shipment.');
+        if (data_get($body, 'status') === 'error') {
+            throw new \RuntimeException('Steadfast rejected the shipment.');
+        }
+
         return $body;
     }
 
     private function bookRedx(array $config, SalesOrder $order, SalesOrderShipment $shipment): array
     {
-        if (empty($config['pickup_store_id'])) throw new \RuntimeException('REDX pickup store ID is not configured.');
-        $response = Http::timeout((int) ($config['timeout'] ?? 15))->acceptJson()->withHeaders(['API-ACCESS-TOKEN' => 'Bearer ' . $config['access_token']])->post(rtrim($config['base_url'], '/') . '/parcel', [
+        if (empty($config['pickup_store_id'])) {
+            throw new \RuntimeException('REDX pickup store ID is not configured.');
+        }
+        $response = Http::timeout((int) ($config['timeout'] ?? 15))->acceptJson()->withHeaders(['API-ACCESS-TOKEN' => 'Bearer '.$config['access_token']])->post(rtrim($config['base_url'], '/').'/parcel', [
             'customer_name' => $shipment->recipient_name, 'customer_phone' => $this->bdPhone($shipment->recipient_phone),
             'delivery_area' => isset($shipment->metadata['delivery_area']) ? (int) $shipment->metadata['delivery_area'] : null,
             'customer_address' => $shipment->recipient_address, 'merchant_invoice_id' => $order->order_number,
             'cash_collection_amount' => (int) round((float) $shipment->cod_amount), 'parcel_weight' => 500,
-            'instruction' => 'Madina Scale order ' . $order->order_number, 'pickup_store_id' => (int) $config['pickup_store_id'],
+            'instruction' => 'Madina Scale order '.$order->order_number, 'pickup_store_id' => (int) $config['pickup_store_id'],
         ]);
-        if (!$response->successful()) throw new \RuntimeException('REDX returned HTTP ' . $response->status());
+        if (! $response->successful()) {
+            throw new \RuntimeException('REDX returned HTTP '.$response->status());
+        }
+
         return $response->json() ?? [];
     }
 
     private function bookPathao(array $config, SalesOrder $order, SalesOrderShipment $shipment): array
     {
-        if (empty($config['base_url']) || empty($config['store_id']) || empty($config['access_token'])) throw new \RuntimeException('Pathao base URL, access token and store ID must be configured.');
-        $response = Http::timeout((int) ($config['timeout'] ?? 15))->acceptJson()->withToken($config['access_token'])->post(rtrim($config['base_url'], '/') . '/aladdin/api/v1/orders', [
+        if (empty($config['base_url']) || empty($config['store_id']) || empty($config['access_token'])) {
+            throw new \RuntimeException('Pathao base URL, access token and store ID must be configured.');
+        }
+        $response = Http::timeout((int) ($config['timeout'] ?? 15))->acceptJson()->withToken($config['access_token'])->post(rtrim($config['base_url'], '/').'/aladdin/api/v1/orders', [
             'store_id' => (int) $config['store_id'], 'merchant_order_id' => $order->order_number,
             'recipient_name' => $shipment->recipient_name, 'recipient_phone' => $this->bdPhone($shipment->recipient_phone),
             'recipient_address' => $shipment->recipient_address, 'delivery_type' => 48, 'item_type' => 2,
-            'special_instruction' => 'Madina Scale order ' . $order->order_number, 'item_quantity' => max(1, (int) $order->items()->sum('quantity')),
-            'item_weight' => '0.5', 'item_description' => 'Order ' . $order->order_number,
+            'special_instruction' => 'Madina Scale order '.$order->order_number, 'item_quantity' => max(1, (int) $order->items()->sum('quantity')),
+            'item_weight' => '0.5', 'item_description' => 'Order '.$order->order_number,
             'amount_to_collect' => (int) round((float) $shipment->cod_amount),
         ]);
-        if (!$response->successful()) throw new \RuntimeException('Pathao returned HTTP ' . $response->status());
+        if (! $response->successful()) {
+            throw new \RuntimeException('Pathao returned HTTP '.$response->status());
+        }
+
         return $response->json() ?? [];
     }
 
     private function bookCustom(array $config, SalesOrder $order, SalesOrderShipment $shipment): array
     {
-        if (empty($config['base_url'])) throw new \RuntimeException('Custom courier base URL is not configured.');
+        if (empty($config['base_url'])) {
+            throw new \RuntimeException('Custom courier base URL is not configured.');
+        }
         $request = Http::timeout((int) ($config['timeout'] ?? 15))->acceptJson();
-        if (!empty($config['api_token'])) $request = $request->withToken($config['api_token']);
-        $response = $request->post(rtrim($config['base_url'], '/') . '/' . ltrim($config['create_path'] ?? '/shipments', '/'), [
+        if (! empty($config['api_token'])) {
+            $request = $request->withToken($config['api_token']);
+        }
+        $response = $request->post(rtrim($config['base_url'], '/').'/'.ltrim($config['create_path'] ?? '/shipments', '/'), [
             'merchant_order_id' => $order->order_number, 'recipient_name' => $shipment->recipient_name,
             'recipient_phone' => $this->bdPhone($shipment->recipient_phone), 'recipient_address' => $shipment->recipient_address,
             'cod_amount' => (float) $shipment->cod_amount,
         ]);
-        if (!$response->successful()) throw new \RuntimeException('Configured courier returned HTTP ' . $response->status());
+        if (! $response->successful()) {
+            throw new \RuntimeException('Configured courier returned HTTP '.$response->status());
+        }
+
         return $response->json() ?? [];
     }
 
     private function bdPhone(string $phone): string
     {
         $digits = preg_replace('/\D+/', '', $phone) ?: '';
-        if (str_starts_with($digits, '880') && strlen($digits) === 13) return '0' . substr($digits, 3);
-        if (str_starts_with($digits, '88') && strlen($digits) === 13) return '0' . substr($digits, 2);
+        if (str_starts_with($digits, '880') && strlen($digits) === 13) {
+            return '0'.substr($digits, 3);
+        }
+        if (str_starts_with($digits, '88') && strlen($digits) === 13) {
+            return '0'.substr($digits, 2);
+        }
+
         return $digits;
     }
 }

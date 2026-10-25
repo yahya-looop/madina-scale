@@ -37,9 +37,9 @@ return new class extends Migration
             $table->index(['source_location_id', 'status', 'dispatched_at']);
         });
 
-        DB::statement("ALTER TABLE inventory_transfers ADD CONSTRAINT inventory_transfers_owner_check CHECK ((product_id IS NOT NULL AND product_variant_id IS NULL) OR (product_id IS NULL AND product_variant_id IS NOT NULL))");
-        DB::statement("ALTER TABLE inventory_transfers ADD CONSTRAINT inventory_transfers_locations_check CHECK (source_location_id <> destination_location_id)");
-        DB::statement("ALTER TABLE inventory_transfers ADD CONSTRAINT inventory_transfers_quantity_check CHECK (quantity_sent > 0 AND quantity_received >= 0 AND quantity_received <= quantity_sent)");
+        DB::statement('ALTER TABLE inventory_transfers ADD CONSTRAINT inventory_transfers_owner_check CHECK ((product_id IS NOT NULL AND product_variant_id IS NULL) OR (product_id IS NULL AND product_variant_id IS NOT NULL))');
+        DB::statement('ALTER TABLE inventory_transfers ADD CONSTRAINT inventory_transfers_locations_check CHECK (source_location_id <> destination_location_id)');
+        DB::statement('ALTER TABLE inventory_transfers ADD CONSTRAINT inventory_transfers_quantity_check CHECK (quantity_sent > 0 AND quantity_received >= 0 AND quantity_received <= quantity_sent)');
         DB::statement("ALTER TABLE inventory_transfers ADD CONSTRAINT inventory_transfers_status_check CHECK (status IN ('in_transit', 'partially_received', 'received', 'rejected', 'cancelled', 'discrepancy'))");
     }
 

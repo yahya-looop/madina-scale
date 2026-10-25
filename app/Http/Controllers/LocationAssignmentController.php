@@ -8,6 +8,7 @@ use App\Services\AuthorizationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class LocationAssignmentController extends Controller
 {
@@ -66,7 +67,7 @@ class LocationAssignmentController extends Controller
                     ->whereHas('roles.permissions', fn ($query) => $query->where('slug', 'system.inventory.transfer'))
                     ->whereIn('id', $assignmentRows->keys())->pluck('id')->map(fn ($id) => (int) $id)->all();
                 if (count($eligibleIds) !== $assignmentRows->count()) {
-                    throw \Illuminate\Validation\ValidationException::withMessages([
+                    throw ValidationException::withMessages([
                         'assignments' => 'Only active users with inventory-transfer permission can be assigned.',
                     ]);
                 }
@@ -86,7 +87,7 @@ class LocationAssignmentController extends Controller
                     ->whereHas('roles.permissions', fn ($query) => $query->where('slug', 'system.inventory.transfer'))
                     ->whereIn('id', $data['user_ids'])->pluck('id')->map(fn ($id) => (int) $id)->all();
                 if (count($eligibleIds) !== count($data['user_ids'])) {
-                    throw \Illuminate\Validation\ValidationException::withMessages([
+                    throw ValidationException::withMessages([
                         'user_ids' => 'Only active users with inventory-transfer permission can be assigned.',
                     ]);
                 }

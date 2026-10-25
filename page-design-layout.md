@@ -42,31 +42,32 @@ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 
 The Modules page uses a compact scale with observed sizes from about `8px` to `23px`. The table below keeps that visual language while defining a consistent recommended scale for all new pages.
 
-| UI element | Canonical size | Weight | Notes |
-|---|---:|---:|---|
-| Main page title (`h1`) | `23px` (mobile `20px`) | `750` | One per page; compact enterprise heading |
-| Main panel heading (`h2`) | `15–16px` | `700–750` | Content or workspace title |
-| Subsection/card heading | `12–14px` | `700` | Avoid using heading tags just for bold styling |
-| KPI/stat value | `17–21px` | `750` | Use tabular numerals where appropriate |
-| KPI/stat label | `9–11px` | `600–650` | Secondary to the value |
-| Breadcrumb | `11px` | `600`; current item `700` | Current page should be distinguishable |
-| Page description | `12px` | `400` | Line-height around `1.5–1.55` |
-| Section kicker/eyebrow | `8–9px` | `800` | Uppercase, letter-spacing `0.10–0.13em`; use sparingly |
-| Button label | `11px` | `650–700` | Keep all primary/secondary buttons consistent |
-| Input/select text | `12–13px` | `400–600` | Prefer `13px` for general form controls |
-| Field label | `10–11px` | `650–700` | Must remain readable and clearly associated with its field |
-| Field hint/description | `10–11px` | `400` | Usually line-height `1.4–1.5` |
-| Table header | `8–9px` | `750–800` | Uppercase, letter-spacing `0.08em`; do not overuse |
-| Table primary cell | `11–12px` | `650–750` | Main record name/value |
-| Table secondary cell | `9–10px` | `400–600` | Slug, metadata, supporting details |
-| Badge/chip | `8–9px` | `700–800` | Compact, short labels |
-| Validation/error text | `10–11px` | `500–600` | Must remain legible; pair color with text/icon |
-| Modal title | `16–18px` | `700–750` | Use same heading hierarchy as the page |
-| Modal description | `11–12px` | `400` | Supporting context |
-| Technical key/slug | `9–10px` | `500–700` | Monospace stack |
-| Tiny decorative metadata | `8px` minimum | `600–800` | Avoid for essential information |
+| UI element                |         Canonical size |                    Weight | Notes                                                      |
+| ------------------------- | ---------------------: | ------------------------: | ---------------------------------------------------------- |
+| Main page title (`h1`)    | `23px` (mobile `20px`) |                     `750` | One per page; compact enterprise heading                   |
+| Main panel heading (`h2`) |              `15–16px` |                 `700–750` | Content or workspace title                                 |
+| Subsection/card heading   |              `12–14px` |                     `700` | Avoid using heading tags just for bold styling             |
+| KPI/stat value            |              `17–21px` |                     `750` | Use tabular numerals where appropriate                     |
+| KPI/stat label            |               `9–11px` |                 `600–650` | Secondary to the value                                     |
+| Breadcrumb                |                 `11px` | `600`; current item `700` | Current page should be distinguishable                     |
+| Page description          |                 `12px` |                     `400` | Line-height around `1.5–1.55`                              |
+| Section kicker/eyebrow    |                `8–9px` |                     `800` | Uppercase, letter-spacing `0.10–0.13em`; use sparingly     |
+| Button label              |                 `11px` |                 `650–700` | Keep all primary/secondary buttons consistent              |
+| Input/select text         |              `12–13px` |                 `400–600` | Prefer `13px` for general form controls                    |
+| Field label               |              `10–11px` |                 `650–700` | Must remain readable and clearly associated with its field |
+| Field hint/description    |              `10–11px` |                     `400` | Usually line-height `1.4–1.5`                              |
+| Table header              |                `8–9px` |                 `750–800` | Uppercase, letter-spacing `0.08em`; do not overuse         |
+| Table primary cell        |              `11–12px` |                 `650–750` | Main record name/value                                     |
+| Table secondary cell      |               `9–10px` |                 `400–600` | Slug, metadata, supporting details                         |
+| Badge/chip                |                `8–9px` |                 `700–800` | Compact, short labels                                      |
+| Validation/error text     |              `10–11px` |                 `500–600` | Must remain legible; pair color with text/icon             |
+| Modal title               |              `16–18px` |                 `700–750` | Use same heading hierarchy as the page                     |
+| Modal description         |              `11–12px` |                     `400` | Supporting context                                         |
+| Technical key/slug        |               `9–10px` |                 `500–700` | Monospace stack                                            |
+| Tiny decorative metadata  |          `8px` minimum |                 `600–800` | Avoid for essential information                            |
 
 **Rules**
+
 - Use `rem` for the final shared token system where practical; the pixel sizes above document the current visual scale.
 - Avoid arbitrary one-off font sizes. Choose the closest defined role.
 - Do not use low-contrast faint text for important content.
@@ -77,39 +78,39 @@ The Modules page uses a compact scale with observed sizes from about `8px` to `2
 
 Use a predictable 4px-based spacing scale. The reference pages use values such as `4px`, `5px`, `7px`, `9px`, `10px`, `12px`, `14px`, `16px`, `18px`, and `22px`; the canonical scale below regularizes these values.
 
-| Token | Value | Typical use |
-|---|---:|---|
-| `--space-1` | `4px` | Tiny icon/text separation, kicker margin |
-| `--space-2` | `8px` | Button groups, compact field gaps |
-| `--space-3` | `12px` | KPI gap, compact card padding |
-| `--space-4` | `16px` | Form/control groups, compact panel padding |
-| `--space-5` | `20px` | Main content padding, larger component gaps |
-| `--space-6` | `24px` | Page-header gap, major section separation |
+| Token       |  Value | Typical use                                       |
+| ----------- | -----: | ------------------------------------------------- |
+| `--space-1` |  `4px` | Tiny icon/text separation, kicker margin          |
+| `--space-2` |  `8px` | Button groups, compact field gaps                 |
+| `--space-3` | `12px` | KPI gap, compact card padding                     |
+| `--space-4` | `16px` | Form/control groups, compact panel padding        |
+| `--space-5` | `20px` | Main content padding, larger component gaps       |
+| `--space-6` | `24px` | Page-header gap, major section separation         |
 | `--space-8` | `32px` | Separation between major page regions when needed |
 
 ### Recommended spacing by component
 
-| Component | Standard |
-|---|---|
-| Page header bottom margin | `20–22px` |
-| Breadcrumb-to-heading gap | `8–9px` |
-| Heading icon-to-copy gap | `10–12px` |
-| Heading title-to-description gap | `5–6px` |
-| Header action gap | `8px` |
-| KPI/stat grid gap | `12px` |
-| KPI card padding | `12–14px` |
-| Main panel toolbar padding | `16–18px` |
-| Panel heading-to-description gap | `5–6px` |
-| Search/filter control gap | `8px` |
-| Table cell horizontal padding | `14–17px` |
-| Table cell vertical padding | `10–12px` |
-| Form grid gap | `14–16px` |
-| Field label-to-control gap | `6–8px` |
-| Field-to-field vertical gap | `14–16px` |
-| Modal header padding | `18px 18px 14px` |
-| Modal body padding | `16–18px` |
-| Modal footer padding | `12–18px` |
-| Inline icon-to-label gap | `6–8px` |
+| Component                        | Standard         |
+| -------------------------------- | ---------------- |
+| Page header bottom margin        | `20–22px`        |
+| Breadcrumb-to-heading gap        | `8–9px`          |
+| Heading icon-to-copy gap         | `10–12px`        |
+| Heading title-to-description gap | `5–6px`          |
+| Header action gap                | `8px`            |
+| KPI/stat grid gap                | `12px`           |
+| KPI card padding                 | `12–14px`        |
+| Main panel toolbar padding       | `16–18px`        |
+| Panel heading-to-description gap | `5–6px`          |
+| Search/filter control gap        | `8px`            |
+| Table cell horizontal padding    | `14–17px`        |
+| Table cell vertical padding      | `10–12px`        |
+| Form grid gap                    | `14–16px`        |
+| Field label-to-control gap       | `6–8px`          |
+| Field-to-field vertical gap      | `14–16px`        |
+| Modal header padding             | `18px 18px 14px` |
+| Modal body padding               | `16–18px`        |
+| Modal footer padding             | `12–18px`        |
+| Inline icon-to-label gap         | `6–8px`          |
 
 Prefer `gap` in Flexbox/Grid over adding margins to every child. Use margins mainly for clear section-level separation.
 
@@ -178,6 +179,7 @@ The Settings page uses a sidebar/content architecture and the Modules page uses 
 ### 4.6 Cards, panels, and surfaces
 
 Recommended shared values:
+
 - Standard card radius: `10–12px`.
 - Main workspace radius: `12–14px`.
 - Modal radius: `14–16px`.
@@ -225,43 +227,43 @@ Suggested semantic token roles (the exact values should be defined in the global
 
 ```css
 :root {
-  /* Brand */
-  --ms-primary: /* brand primary */;
+    /* Brand */
+    --ms-primary: /* brand primary */;
 
-  /* Text */
-  --ms-text-heading: /* strongest text */;
-  --ms-text-body: /* normal text */;
-  --ms-text-muted: /* secondary text */;
-  --ms-text-faint: /* low-emphasis text; never for essential content */;
+    /* Text */
+    --ms-text-heading: /* strongest text */;
+    --ms-text-body: /* normal text */;
+    --ms-text-muted: /* secondary text */;
+    --ms-text-faint: /* low-emphasis text; never for essential content */;
 
-  /* Surfaces and borders */
-  --ms-surface: /* card/page surface */;
-  --ms-surface-muted: /* muted panel surface */;
-  --ms-surface-soft: /* subtle chip/hover surface */;
-  --ms-control-bg: /* input/select background */;
-  --ms-border: /* standard border */;
-  --ms-border-subtle: /* low-emphasis divider */;
-  --ms-border-strong: /* emphasized border */;
+    /* Surfaces and borders */
+    --ms-surface: /* card/page surface */;
+    --ms-surface-muted: /* muted panel surface */;
+    --ms-surface-soft: /* subtle chip/hover surface */;
+    --ms-control-bg: /* input/select background */;
+    --ms-border: /* standard border */;
+    --ms-border-subtle: /* low-emphasis divider */;
+    --ms-border-strong: /* emphasized border */;
 
-  /* Status */
-  --ms-success: /* success */;
-  --ms-warning: /* warning */;
-  --ms-danger: /* error/danger */;
-  --ms-info: /* informational */;
-  --ms-focus-ring: /* accessible focus indicator */;
+    /* Status */
+    --ms-success: /* success */;
+    --ms-warning: /* warning */;
+    --ms-danger: /* error/danger */;
+    --ms-info: /* informational */;
+    --ms-focus-ring: /* accessible focus indicator */;
 
-  /* Shape, spacing, motion */
-  --ms-radius-control: 8px;
-  --ms-radius-card: 12px;
-  --ms-radius-panel: 14px;
-  --ms-space-1: 4px;
-  --ms-space-2: 8px;
-  --ms-space-3: 12px;
-  --ms-space-4: 16px;
-  --ms-space-5: 20px;
-  --ms-space-6: 24px;
-  --ms-transition-fast: 150ms ease;
-  --ms-transition-standard: 180ms ease;
+    /* Shape, spacing, motion */
+    --ms-radius-control: 8px;
+    --ms-radius-card: 12px;
+    --ms-radius-panel: 14px;
+    --ms-space-1: 4px;
+    --ms-space-2: 8px;
+    --ms-space-3: 12px;
+    --ms-space-4: 16px;
+    --ms-space-5: 20px;
+    --ms-space-6: 24px;
+    --ms-transition-fast: 150ms ease;
+    --ms-transition-standard: 180ms ease;
 }
 ```
 
@@ -279,6 +281,7 @@ The comments above are placeholders, not valid final CSS values. Define the actu
 ## 6. Buttons and controls
 
 ### Buttons
+
 - Compact standard height: `36px`; compact controls may be `34px` only where density requires it.
 - Horizontal padding: `12–14px`.
 - Radius: `8–9px`.
@@ -289,6 +292,7 @@ The comments above are placeholders, not valid final CSS values. Define the actu
 - Keep primary and secondary button variants consistent across all modules.
 
 ### Inputs and selects
+
 - Use inherited font family.
 - Standard text size: `12–13px`.
 - Border radius: `8–10px`.
@@ -297,6 +301,7 @@ The comments above are placeholders, not valid final CSS values. Define the actu
 - Search inputs should have an accessible name, visible label, or `aria-label`.
 
 ### Badges
+
 - Use concise labels.
 - Use `aria-label` only when a badge’s visible text is insufficient to communicate its meaning.
 - Avoid overusing uppercase microtext.
@@ -306,25 +311,26 @@ The comments above are placeholders, not valid final CSS values. Define the actu
 
 Use semantic elements according to the meaning of the content, not merely because their default appearance is convenient.
 
-| Purpose | Preferred markup |
-|---|---|
-| Page-level top region | `<header>` |
-| Primary page title | `<h1>` |
-| Major content section | `<section aria-labelledby="…">` |
-| Independent metric card | `<article>` |
-| Primary page landmark | One `<main>` in the overall page |
-| Related navigation | `<nav aria-label="…">` |
-| Sidebar/related complementary content | `<aside>` |
-| Data grid | `<table>` with proper header/body structure |
-| Form | `<form>` |
-| Form group | `<fieldset>` + `<legend>` when appropriate |
-| Field name | `<label>` associated with its control |
-| Operation feedback | `role="status"` for non-urgent status; `role="alert"` for urgent errors |
-| Dialog | `role="dialog"`, `aria-modal="true"`, accessible title |
-| Repeated independent item | `<article>` or list markup, depending on meaning |
-| Generic layout wrapper | `<div>` only when no semantic element better describes it |
+| Purpose                               | Preferred markup                                                        |
+| ------------------------------------- | ----------------------------------------------------------------------- |
+| Page-level top region                 | `<header>`                                                              |
+| Primary page title                    | `<h1>`                                                                  |
+| Major content section                 | `<section aria-labelledby="…">`                                         |
+| Independent metric card               | `<article>`                                                             |
+| Primary page landmark                 | One `<main>` in the overall page                                        |
+| Related navigation                    | `<nav aria-label="…">`                                                  |
+| Sidebar/related complementary content | `<aside>`                                                               |
+| Data grid                             | `<table>` with proper header/body structure                             |
+| Form                                  | `<form>`                                                                |
+| Form group                            | `<fieldset>` + `<legend>` when appropriate                              |
+| Field name                            | `<label>` associated with its control                                   |
+| Operation feedback                    | `role="status"` for non-urgent status; `role="alert"` for urgent errors |
+| Dialog                                | `role="dialog"`, `aria-modal="true"`, accessible title                  |
+| Repeated independent item             | `<article>` or list markup, depending on meaning                        |
+| Generic layout wrapper                | `<div>` only when no semantic element better describes it               |
 
 ### Semantic rules
+
 1. Maintain a logical heading hierarchy (`h1` → `h2` → `h3`); do not select headings based on font size.
 2. Do not use `<strong>` or `<span>` as a replacement for headings or labels.
 3. Use `<button>` for actions and `<a>`/Inertia `<Link>` for navigation.
@@ -340,37 +346,38 @@ Use semantic elements according to the meaning of the content, not merely becaus
 
 The source files use several breakpoints rather than one unified breakpoint system. Modules includes `1100px`, `820px`, `760px`, and `480px`; Settings includes `1100px`, `1050px`, `900px`, `760px`, and `560px`. For future pages, use a common set unless a component-specific breakpoint is needed.
 
-| Breakpoint | Recommended behavior |
-|---|---|
-| `1100px` | Reduce KPI columns from 4 to 2; tighten wide workspace/sidebar layout |
-| `900px` | Collapse two-column sidebar/content layouts to one column when needed |
-| `760px` | Stack page header and action groups; allow filters/toolbars to wrap |
-| `560px` | Single-column forms/navigation/cards where necessary; stack modal/footer actions |
-| `480px` | Reduce title to around `20px`; make action controls wrap or occupy available width |
+| Breakpoint | Recommended behavior                                                               |
+| ---------- | ---------------------------------------------------------------------------------- |
+| `1100px`   | Reduce KPI columns from 4 to 2; tighten wide workspace/sidebar layout              |
+| `900px`    | Collapse two-column sidebar/content layouts to one column when needed              |
+| `760px`    | Stack page header and action groups; allow filters/toolbars to wrap                |
+| `560px`    | Single-column forms/navigation/cards where necessary; stack modal/footer actions   |
+| `480px`    | Reduce title to around `20px`; make action controls wrap or occupy available width |
 
 Example:
 
 ```css
 .stat-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: var(--ms-space-3);
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: var(--ms-space-3);
 }
 
 @media (max-width: 1100px) {
-  .stat-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
+    .stat-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
 }
 
 @media (max-width: 560px) {
-  .stat-grid {
-    grid-template-columns: 1fr;
-  }
+    .stat-grid {
+        grid-template-columns: 1fr;
+    }
 }
 ```
 
 Responsive requirements:
+
 - Avoid fixed widths for the whole page.
 - Use `min-width: 0` on flex/grid children where content may be long.
 - Let toolbars wrap or stack on small screens.
@@ -409,102 +416,102 @@ Use this as a pattern, adapting class names to the page. It assumes the canonica
 
 ```css
 .page-root {
-  width: 100%;
-  min-width: 0;
-  box-sizing: border-box;
-  color: var(--ms-text-body);
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    color: var(--ms-text-body);
 }
 
 .page-header {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: var(--ms-space-6);
-  margin-bottom: 22px;
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: var(--ms-space-6);
+    margin-bottom: 22px;
 }
 
 .page-heading {
-  min-width: 0;
+    min-width: 0;
 }
 
 .breadcrumb {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 7px;
-  margin-bottom: 9px;
-  color: var(--ms-text-muted);
-  font-size: 11px;
-  font-weight: 600;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 7px;
+    margin-bottom: 9px;
+    color: var(--ms-text-muted);
+    font-size: 11px;
+    font-weight: 600;
 }
 
 .page-title {
-  margin: 0;
-  color: var(--ms-text-heading);
-  font-size: 23px;
-  font-weight: 750;
-  letter-spacing: -0.025em;
+    margin: 0;
+    color: var(--ms-text-heading);
+    font-size: 23px;
+    font-weight: 750;
+    letter-spacing: -0.025em;
 }
 
 .page-description {
-  max-width: 680px;
-  margin: 5px 0 0;
-  color: var(--ms-text-muted);
-  font-size: 12px;
-  line-height: 1.55;
+    max-width: 680px;
+    margin: 5px 0 0;
+    color: var(--ms-text-muted);
+    font-size: 12px;
+    line-height: 1.55;
 }
 
 .header-actions {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--ms-space-2);
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--ms-space-2);
 }
 
 .stat-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: var(--ms-space-3);
-  margin-bottom: 14px;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: var(--ms-space-3);
+    margin-bottom: 14px;
 }
 
 .stat-card,
 .content-panel {
-  min-width: 0;
-  border: 1px solid var(--ms-border);
-  border-radius: var(--ms-radius-card);
-  background: var(--ms-surface);
+    min-width: 0;
+    border: 1px solid var(--ms-border);
+    border-radius: var(--ms-radius-card);
+    background: var(--ms-surface);
 }
 
 .stat-card {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 14px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
 }
 
 .content-panel {
-  overflow: hidden;
+    overflow: hidden;
 }
 
 .btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  min-height: 36px;
-  padding: 0 13px;
-  border: 1px solid transparent;
-  border-radius: 9px;
-  font: inherit;
-  font-size: 11px;
-  font-weight: 700;
-  cursor: pointer;
-  transition:
-    border-color var(--ms-transition-fast),
-    background var(--ms-transition-fast),
-    color var(--ms-transition-fast),
-    box-shadow var(--ms-transition-fast);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    min-height: 36px;
+    padding: 0 13px;
+    border: 1px solid transparent;
+    border-radius: 9px;
+    font: inherit;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    transition:
+        border-color var(--ms-transition-fast),
+        background var(--ms-transition-fast),
+        color var(--ms-transition-fast),
+        box-shadow var(--ms-transition-fast);
 }
 
 .btn:focus-visible,
@@ -512,46 +519,46 @@ input:focus-visible,
 select:focus-visible,
 textarea:focus-visible,
 a:focus-visible {
-  outline: 2px solid var(--ms-focus-ring);
-  outline-offset: 2px;
+    outline: 2px solid var(--ms-focus-ring);
+    outline-offset: 2px;
 }
 
 @media (max-width: 1100px) {
-  .stat-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
+    .stat-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
 }
 
 @media (max-width: 760px) {
-  .page-header {
-    align-items: flex-start;
-    flex-direction: column;
-  }
+    .page-header {
+        align-items: flex-start;
+        flex-direction: column;
+    }
 
-  .header-actions {
-    width: 100%;
-  }
+    .header-actions {
+        width: 100%;
+    }
 }
 
 @media (max-width: 560px) {
-  .stat-grid {
-    grid-template-columns: 1fr;
-  }
+    .stat-grid {
+        grid-template-columns: 1fr;
+    }
 
-  .page-title {
-    font-size: 20px;
-  }
+    .page-title {
+        font-size: 20px;
+    }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    scroll-behavior: auto !important;
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-  }
+    *,
+    *::before,
+    *::after {
+        scroll-behavior: auto !important;
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
 }
 ```
 
@@ -560,6 +567,7 @@ a:focus-visible {
 Before marking a page complete, verify each item:
 
 ### Structure
+
 - [ ] Wrapped in the existing `ErpLayout`.
 - [ ] One clear page title (`h1`) and a logical heading hierarchy.
 - [ ] Correct semantic landmarks; no nested `<main>` if the layout already provides one.
@@ -567,6 +575,7 @@ Before marking a page complete, verify each item:
 - [ ] Main content uses a panel/grid pattern suited to the workflow.
 
 ### Typography and spacing
+
 - [ ] Inherits the global font family; no accidental page-specific font reset.
 - [ ] Uses the canonical type scale rather than arbitrary sizes.
 - [ ] Uses spacing tokens or values from the spacing table.
@@ -574,12 +583,14 @@ Before marking a page complete, verify each item:
 - [ ] Supporting text remains readable and has sufficient contrast.
 
 ### Theme and components
+
 - [ ] Uses canonical theme variables; no second token naming system introduced.
 - [ ] Buttons, inputs, badges, panels, and feedback match other modules.
 - [ ] Light/dark theme behavior is checked if both are supported.
 - [ ] Focus, hover, disabled, loading, and reduced-motion states are considered.
 
 ### Accessibility and responsive layout
+
 - [ ] Every form control has a label and errors are programmatically associated.
 - [ ] Icon-only actions have accessible names.
 - [ ] Table headings and navigation labels are semantic.
@@ -588,6 +599,7 @@ Before marking a page complete, verify each item:
 - [ ] Long names, empty states, errors, and loading states do not break the layout.
 
 ### Verification
+
 - [ ] Existing business logic and API behavior are preserved when restyling.
 - [ ] TypeScript check passes.
 - [ ] Production build passes.

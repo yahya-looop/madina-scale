@@ -18,8 +18,7 @@ class LocationController extends Controller
         private readonly AuthorizationService $authorizationService,
         private readonly ActivityLogService $activityLogService,
         private readonly LocationService $locationService,
-    ) {
-    }
+    ) {}
 
     /**
      * Return all locations.
@@ -153,7 +152,7 @@ class LocationController extends Controller
 
         $location = $this->locationService->activate($location);
 
-        if (!$wasActive) {
+        if (! $wasActive) {
             $this->activityLogService->recordForUser(
                 user: $user,
                 action: 'locations.activated',
