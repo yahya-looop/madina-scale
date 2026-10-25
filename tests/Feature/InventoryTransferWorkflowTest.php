@@ -2,27 +2,32 @@
 
 use App\Models\InventoryStock;
 use App\Models\InventoryTransfer;
+use App\Models\Module;
+use App\Models\Permission;
+use App\Models\Role;
+use App\Models\User;
 use Illuminate\Support\Str;
 
 if (! function_exists('createTransferWorkflowUser')) {
-    function createTransferWorkflowUser(array $permissionSlugs): \App\Models\User
+    function createTransferWorkflowUser(array $permissionSlugs): User
     {
-        $user = \App\Models\User::factory()->create();
-        $module = \App\Models\Module::firstOrCreate(['slug' => 'inventory'], [
+        $user = User::factory()->create();
+        $module = Module::firstOrCreate(['slug' => 'inventory'], [
             'name' => 'Inventory', 'description' => 'Inventory management.',
             'sort_order' => 236, 'is_system' => true, 'is_active' => true,
         ]);
-        $role = \App\Models\Role::create([
-            'name' => 'Transfer Workflow Test Role', 'slug' => 'transfer-workflow-' . uniqid(),
+        $role = Role::create([
+            'name' => 'Transfer Workflow Test Role', 'slug' => 'transfer-workflow-'.uniqid(),
             'description' => 'Temporary transfer workflow test role.', 'is_system' => false, 'is_active' => true,
         ]);
         foreach ($permissionSlugs as $slug) {
-            $permission = \App\Models\Permission::firstOrCreate(['slug' => $slug], [
+            $permission = Permission::firstOrCreate(['slug' => $slug], [
                 'module_id' => $module->id, 'name' => $slug, 'description' => 'Transfer workflow test permission.',
             ]);
             $role->permissions()->attach($permission->id);
         }
         $user->roles()->attach($role->id);
+
         return $user;
     }
 }
@@ -93,7 +98,6 @@ test('transfer refuses quantity that would consume reserved source stock', funct
     ])->assertUnprocessable();
     $this->assertDatabaseCount('inventory_transfers', 0);
 });
-
 
 test('users cannot dispatch from an unassigned location or receive into an unassigned location', function () {
     $sender = createTransferWorkflowUser(['system.inventory.transfer', 'system.inventory.view']);
@@ -204,7 +208,6 @@ test('a fully received transfer cannot credit destination stock a second time', 
     $this->assertDatabaseCount('stock_movements', 2);
     $this->assertDatabaseHas('inventory_transfers', ['id' => $transfer->id, 'status' => 'received', 'quantity_received' => '5.0000']);
 });
-
 
 test('replaying the same partial receipt key does not credit stock twice', function () {
     $sender = createTransferWorkflowUser(['system.inventory.transfer', 'system.inventory.view']);

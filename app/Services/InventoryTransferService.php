@@ -11,7 +11,6 @@ use App\Models\User;
 use App\Notifications\InventoryTransferNotification;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
-use App\Services\AuthorizationService;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
@@ -128,12 +127,14 @@ class InventoryTransferService
             ]);
 
             $created = true;
+
             return $transfer->load(['product', 'variant', 'sourceLocation', 'destinationLocation', 'dispatcher']);
         }, 3);
 
         if ($created) {
             $this->notifyTransferRecipients($transfer, 'dispatched');
         }
+
         return $transfer;
     }
 
@@ -168,6 +169,7 @@ class InventoryTransferService
                 if ((int) $existingReceipt->inventory_transfer_id !== (int) $locked->id || ! hash_equals($existingReceipt->payload_hash, $payloadHash)) {
                     throw ValidationException::withMessages(['idempotency_key' => 'This idempotency key was already used for a different receipt request.']);
                 }
+
                 return $locked->load(['product', 'variant', 'sourceLocation', 'destinationLocation', 'dispatcher', 'receiver']);
             }
 
@@ -258,6 +260,7 @@ class InventoryTransferService
         if ($createdReceipt) {
             $this->notifyDispatcher($updated, 'received');
         }
+
         return $updated;
     }
 
@@ -282,10 +285,12 @@ class InventoryTransferService
                 ],
             ]);
             $locked->save();
+
             return $locked->load(['product', 'variant', 'sourceLocation', 'destinationLocation', 'dispatcher']);
         }, 3);
 
         $this->notifyDispatcher($updated, 'discrepancy');
+
         return $updated;
     }
 
@@ -366,6 +371,7 @@ class InventoryTransferService
         if (! is_numeric($value) || ! preg_match('/^\d{1,14}(?:\.\d{1,4})?$/', (string) $value) || bccomp((string) $value, '0', 4) <= 0) {
             throw ValidationException::withMessages(['quantity' => 'Quantity must be positive with up to four decimal places.']);
         }
+
         return bcadd((string) $value, '0', 4);
     }
 }

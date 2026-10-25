@@ -6,8 +6,9 @@ use App\Models\Module;
 use App\Models\Permission;
 use App\Models\Role;
 use App\Models\User;
-use Symfony\Component\Process\Process;
+use App\Services\InventoryTransferService;
 use Illuminate\Support\Str;
+use Symfony\Component\Process\Process;
 
 function concurrencyUser(array $permissionSlugs): User
 {
@@ -17,7 +18,7 @@ function concurrencyUser(array $permissionSlugs): User
         'sort_order' => 236, 'is_system' => true, 'is_active' => true,
     ]);
     $role = Role::create([
-        'name' => 'Concurrency Test Role', 'slug' => 'concurrency-' . Str::uuid(),
+        'name' => 'Concurrency Test Role', 'slug' => 'concurrency-'.Str::uuid(),
         'description' => 'Temporary role for process concurrency tests.',
         'is_system' => false, 'is_active' => true,
     ]);
@@ -29,13 +30,14 @@ function concurrencyUser(array $permissionSlugs): User
         $role->permissions()->attach($permission->id);
     }
     $user->roles()->attach($role->id);
+
     return $user;
 }
 
 /** @return array{0: Process, 1: Process, 2: string} */
 function startConcurrentWorkers(array $first, array $second): array
 {
-    $barrier = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'madina-concurrency-' . Str::uuid() . '.go';
+    $barrier = sys_get_temp_dir().DIRECTORY_SEPARATOR.'madina-concurrency-'.Str::uuid().'.go';
     $firstToken = (string) Str::uuid();
     $secondToken = (string) Str::uuid();
     $connection = config('database.connections.pgsql');
@@ -60,14 +62,14 @@ function startConcurrentWorkers(array $first, array $second): array
     $one->start();
     $two->start();
 
-    $readyFiles = [$barrier . '.' . $firstToken . '.ready', $barrier . '.' . $secondToken . '.ready'];
+    $readyFiles = [$barrier.'.'.$firstToken.'.ready', $barrier.'.'.$secondToken.'.ready'];
     $deadline = microtime(true) + 20;
     try {
         // Release only after both workers have bootstrapped Laravel and reached the barrier.
         while (! is_file($readyFiles[0]) || ! is_file($readyFiles[1])) {
             if (microtime(true) >= $deadline) {
                 $details = sprintf(
-                    "Timed out waiting for workers to become ready. Worker 1 running=%s, exit=%s, stderr=%s; Worker 2 running=%s, exit=%s, stderr=%s",
+                    'Timed out waiting for workers to become ready. Worker 1 running=%s, exit=%s, stderr=%s; Worker 2 running=%s, exit=%s, stderr=%s',
                     $one->isRunning() ? 'yes' : 'no', var_export($one->getExitCode(), true), $one->getErrorOutput(),
                     $two->isRunning() ? 'yes' : 'no', var_export($two->getExitCode(), true), $two->getErrorOutput(),
                 );
@@ -77,7 +79,7 @@ function startConcurrentWorkers(array $first, array $second): array
             // Fail early when a child process exits before reporting readiness.
             if ((! $one->isRunning() && ! is_file($readyFiles[0])) || (! $two->isRunning() && ! is_file($readyFiles[1]))) {
                 throw new RuntimeException(sprintf(
-                    "A concurrency worker exited before reaching the barrier. Worker 1 exit=%s, stdout=%s, stderr=%s; Worker 2 exit=%s, stdout=%s, stderr=%s",
+                    'A concurrency worker exited before reaching the barrier. Worker 1 exit=%s, stdout=%s, stderr=%s; Worker 2 exit=%s, stdout=%s, stderr=%s',
                     var_export($one->getExitCode(), true), $one->getOutput(), $one->getErrorOutput(),
                     var_export($two->getExitCode(), true), $two->getOutput(), $two->getErrorOutput(),
                 ));
@@ -109,11 +111,12 @@ function startConcurrentWorkers(array $first, array $second): array
 function assertConcurrencyWorkerCompleted(Process $process): array
 {
     expect($process->isSuccessful() || $process->getExitCode() === 2)->toBeTrue(
-        'Worker failed unexpectedly. STDOUT: ' . $process->getOutput() . ' STDERR: ' . $process->getErrorOutput()
+        'Worker failed unexpectedly. STDOUT: '.$process->getOutput().' STDERR: '.$process->getErrorOutput()
     );
     $line = trim($process->getOutput());
     $result = json_decode($line, true);
-    expect($result)->toBeArray('Worker did not return JSON: ' . $line . ' ' . $process->getErrorOutput());
+    expect($result)->toBeArray('Worker did not return JSON: '.$line.' '.$process->getErrorOutput());
+
     return $result;
 }
 
@@ -163,7 +166,7 @@ test('simultaneous full receipt credits destination stock only once', function (
         'product_id' => $product->id, 'location_id' => $source->id,
         'quantity' => '20.0000', 'reserved_quantity' => '0.0000', 'low_stock_threshold' => '0',
     ]);
-    app(\App\Services\InventoryTransferService::class)->dispatch([
+    app(InventoryTransferService::class)->dispatch([
         'product_id' => $product->id, 'source_location_id' => $source->id,
         'destination_location_id' => $destination->id, 'quantity' => '5',
     ], $sender);
