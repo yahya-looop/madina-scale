@@ -12,6 +12,11 @@
         <testsuite name="Feature">
             <directory>tests/Feature</directory>
         </testsuite>
+
+        <!-- Process-based PostgreSQL race-condition tests; intentionally separate from Feature. -->
+        <testsuite name="Concurrency">
+            <directory>tests/Concurrency</directory>
+        </testsuite>
     </testsuites>
 
     <source>
