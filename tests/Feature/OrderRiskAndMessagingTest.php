@@ -12,6 +12,7 @@ use App\Services\OrderRiskService;
 use App\Services\OrderSmsService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 class OrderRiskAndMessagingTest extends TestCase
@@ -146,6 +147,83 @@ class OrderRiskAndMessagingTest extends TestCase
             'sales_order_id' => $order->id,
             'event' => 'shipment_booked',
         ]);
+    }
+
+    public function test_failed_shipment_can_be_retried_after_explicit_reconciliation_and_is_audited_without_sms(): void
+    {
+        config(['order_integrations.couriers.steadfast' => [
+            'enabled' => true, 'base_url' => 'https://courier.test/api', 'api_key' => 'test-key',
+            'secret_key' => 'test-secret', 'timeout' => 5,
+        ]]);
+        Http::fake(['courier.test/*' => Http::response([
+            'status' => 'success',
+            'consignment' => ['tracking_code' => 'TRACK-RETRY-1', 'consignment_id' => 'CONS-RETRY-1'],
+        ], 200)]);
+
+        $order = $this->makeOrder('01711111111', 'confirmed');
+        $user = $this->shipmentManager($order);
+        $shipment = SalesOrderShipment::query()->create([
+            'sales_order_id' => $order->id, 'provider' => 'steadfast',
+            'idempotency_key' => 'retry-'.$order->id, 'status' => 'failed',
+            'recipient_name' => $order->customer_name, 'recipient_phone' => $order->customer_phone,
+            'recipient_address' => 'Dhaka, Bangladesh', 'cod_amount' => 100,
+            'last_error' => 'Previous timeout; portal checked by operator.',
+        ]);
+
+        $this->actingAs($user)->postJson('/api/orders/'.$order->id.'/shipments/'.$shipment->id.'/retry', [
+            'confirm_no_existing_shipment' => true,
+            'retry_reason' => 'Checked courier merchant portal; no parcel exists',
+        ])->assertOk()->assertJsonPath('data.status', 'booked')
+            ->assertJsonPath('data.tracking_code', 'TRACK-RETRY-1');
+
+        $shipment->refresh();
+        $this->assertSame('booked', $shipment->status);
+        $this->assertSame('booked', data_get($shipment->metadata, 'retry_attempts.0.outcome'));
+        $this->assertSame((int) $user->id, data_get($shipment->metadata, 'retry_attempts.0.requested_by'));
+        $this->assertDatabaseMissing('sales_order_sms_logs', ['sales_order_id' => $order->id, 'event' => 'shipment_booked']);
+        Http::assertSentCount(1);
+    }
+
+    public function test_retry_validation_failure_restores_failed_status_and_audits_attempt(): void
+    {
+        config(['order_integrations.couriers.steadfast' => ['enabled' => false]]);
+        $order = $this->makeOrder('01711111111', 'confirmed');
+        $user = $this->shipmentManager($order);
+        $shipment = SalesOrderShipment::query()->create([
+            'sales_order_id' => $order->id, 'provider' => 'steadfast',
+            'idempotency_key' => 'retry-disabled-'.$order->id, 'status' => 'failed',
+            'recipient_name' => $order->customer_name, 'recipient_phone' => $order->customer_phone,
+            'recipient_address' => 'Dhaka, Bangladesh', 'cod_amount' => 100,
+        ]);
+
+        $this->actingAs($user)->postJson('/api/orders/'.$order->id.'/shipments/'.$shipment->id.'/retry', [
+            'confirm_no_existing_shipment' => true,
+            'retry_reason' => 'Checked courier merchant portal; no parcel exists',
+        ])->assertStatus(422);
+
+        $shipment->refresh();
+        $this->assertSame('failed', $shipment->status);
+        $this->assertSame('failed', data_get($shipment->metadata, 'retry_attempts.0.outcome'));
+        $this->assertNotEmpty(data_get($shipment->metadata, 'retry_attempts.0.error'));
+    }
+
+    public function test_retry_rejects_non_failed_shipments_without_calling_courier(): void
+    {
+        $order = $this->makeOrder('01711111111', 'confirmed');
+        $user = $this->shipmentManager($order);
+        $shipment = SalesOrderShipment::query()->create([
+            'sales_order_id' => $order->id, 'provider' => 'steadfast',
+            'idempotency_key' => 'retry-booking-'.$order->id, 'status' => 'booking',
+            'recipient_name' => $order->customer_name, 'recipient_phone' => $order->customer_phone,
+            'recipient_address' => 'Dhaka, Bangladesh', 'cod_amount' => 100,
+        ]);
+
+        $this->actingAs($user)->postJson('/api/orders/'.$order->id.'/shipments/'.$shipment->id.'/retry', [
+            'confirm_no_existing_shipment' => true,
+            'retry_reason' => 'Checked courier merchant portal; no parcel exists',
+        ])->assertStatus(202)->assertJsonPath('data.status', 'booking');
+
+        $this->assertSame('booking', $shipment->fresh()->status);
     }
 
     public function test_courier_webhook_records_events_and_prevents_status_regression(): void

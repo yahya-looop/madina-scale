@@ -54,30 +54,35 @@ class CourierIntegrationService
         return $shipment->refresh();
     }
 
-    /** Retry an existing failed shipment only after an operator has reconciled the provider portal. */
+    /** Retry a shipment that the controller has atomically claimed by changing failed -> booking. */
     public function retryFailed(SalesOrderShipment $shipment, int $actorId, string $reason): SalesOrderShipment
     {
         $shipment = SalesOrderShipment::query()->with('order')->findOrFail($shipment->id);
-        if ($shipment->status !== 'failed') {
-            throw ValidationException::withMessages(['shipment' => 'Only failed shipments can be retried.']);
+        if ($shipment->status !== 'booking') {
+            throw ValidationException::withMessages(['shipment' => 'The shipment retry was not claimed for processing. Reconcile its current state before retrying.']);
         }
 
-        $config = config("order_integrations.couriers.{$shipment->provider}");
-        if (! is_array($config) || empty($config['enabled'])) {
-            throw ValidationException::withMessages(['provider' => 'This courier is not enabled in configuration.']);
-        }
-        if (empty($shipment->order?->customer_phone)) {
-            throw ValidationException::withMessages(['customer_phone' => 'A customer phone is required before booking a courier.']);
-        }
-
-        // The controller changes status to booking under a row lock before reaching this method.
         $metadata = $shipment->metadata ?? [];
         $attempts = $metadata['retry_attempts'] ?? [];
-        $attempts[] = ['requested_by' => $actorId, 'reason' => $reason, 'started_at' => now()->toISOString()];
+        $attempts[] = [
+            'requested_by' => $actorId,
+            'reason' => $reason,
+            'started_at' => now()->toISOString(),
+            'outcome' => 'in_progress',
+        ];
+        $attemptIndex = array_key_last($attempts);
         $metadata['retry_attempts'] = $attempts;
         $shipment->update(['metadata' => $metadata, 'last_error' => null]);
 
         try {
+            $config = config("order_integrations.couriers.{$shipment->provider}");
+            if (! is_array($config) || empty($config['enabled'])) {
+                throw new \RuntimeException('This courier is not enabled in configuration.');
+            }
+            if (empty($shipment->order?->customer_phone)) {
+                throw new \RuntimeException('A customer phone is required before booking a courier.');
+            }
+
             $order = $shipment->order;
             $response = match ($shipment->provider) {
                 'steadfast' => $this->bookSteadfast($config, $order, $shipment),
@@ -88,34 +93,34 @@ class CourierIntegrationService
             };
             $tracking = data_get($response, 'consignment.tracking_code') ?? data_get($response, 'tracking_code') ?? data_get($response, 'data.tracking_id') ?? data_get($response, 'tracking_id');
             $providerId = data_get($response, 'consignment.consignment_id') ?? data_get($response, 'data.consignment_id') ?? data_get($response, 'data.id') ?? data_get($response, 'id');
+            $attempts[$attemptIndex]['finished_at'] = now()->toISOString();
+            $attempts[$attemptIndex]['outcome'] = 'booked';
+            $metadata['retry_attempts'] = $attempts;
             $shipment->update([
-                'status' => 'booked', 'tracking_code' => $tracking ? (string) $tracking : null,
+                'status' => 'booked',
+                'tracking_code' => $tracking ? (string) $tracking : null,
                 'provider_shipment_id' => $providerId ? (string) $providerId : null,
-                'provider_response' => $response, 'booked_at' => now(), 'last_error' => null,
+                'provider_response' => $response,
+                'booked_at' => now(),
+                'last_error' => null,
+                'metadata' => $metadata,
             ]);
         } catch (Throwable $exception) {
-            $metadata = $shipment->fresh()->metadata ?? [];
-            $attempts = $metadata['retry_attempts'] ?? [];
-            $last = count($attempts) - 1;
-            if ($last >= 0) {
-                $attempts[$last]['finished_at'] = now()->toISOString();
-                $attempts[$last]['outcome'] = 'failed';
-                $attempts[$last]['error'] = mb_substr($exception->getMessage(), 0, 1000);
+            $freshMetadata = $shipment->fresh()->metadata ?? [];
+            $freshAttempts = $freshMetadata['retry_attempts'] ?? [];
+            if (isset($freshAttempts[$attemptIndex])) {
+                $freshAttempts[$attemptIndex]['finished_at'] = now()->toISOString();
+                $freshAttempts[$attemptIndex]['outcome'] = 'failed';
+                $freshAttempts[$attemptIndex]['error'] = mb_substr($exception->getMessage(), 0, 1000);
             }
-            $metadata['retry_attempts'] = $attempts;
-            $shipment->update(['status' => 'failed', 'metadata' => $metadata, 'last_error' => mb_substr($exception->getMessage(), 0, 2000)]);
+            $freshMetadata['retry_attempts'] = $freshAttempts;
+            $shipment->update([
+                'status' => 'failed',
+                'metadata' => $freshMetadata,
+                'last_error' => mb_substr($exception->getMessage(), 0, 2000),
+            ]);
             throw ValidationException::withMessages(['courier' => 'Courier retry failed. Reconcile the provider record before another retry.']);
         }
-
-        $metadata = $shipment->fresh()->metadata ?? [];
-        $attempts = $metadata['retry_attempts'] ?? [];
-        $last = count($attempts) - 1;
-        if ($last >= 0) {
-            $attempts[$last]['finished_at'] = now()->toISOString();
-            $attempts[$last]['outcome'] = 'booked';
-        }
-        $metadata['retry_attempts'] = $attempts;
-        $shipment->update(['metadata' => $metadata]);
 
         return $shipment->refresh();
     }
