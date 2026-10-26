@@ -396,3 +396,73 @@ test('dispatch notification failure rolls back transfer and stock changes atomic
     $this->assertDatabaseMissing('inventory_transfers', ['source_location_id' => $source->id, 'destination_location_id' => $destination->id]);
     $this->assertDatabaseMissing('stock_movements', ['location_id' => $source->id, 'movement_type' => 'transfer_out']);
 });
+
+
+test('receipt notification failure rolls back destination stock receipt ledger and transfer status atomically', function () {
+    $sender = createTransferWorkflowUser(['system.inventory.transfer']);
+    $receiver = createTransferWorkflowUser(['system.inventory.transfer']);
+    $product = inventoryTestProduct();
+    $source = inventoryTestLocation();
+    $destination = inventoryTestLocation();
+    $sender->locations()->attach($source->id, ['access_level' => 'manage']);
+    $receiver->locations()->attach($destination->id, ['access_level' => 'receive']);
+    InventoryStock::query()->create([
+        'product_id' => $product->id, 'location_id' => $source->id,
+        'quantity' => '25.0000', 'reserved_quantity' => '0.0000', 'low_stock_threshold' => '0',
+    ]);
+
+    Notification::fake();
+    $transfer = app(InventoryTransferService::class)->dispatch([
+        'product_id' => $product->id,
+        'source_location_id' => $source->id,
+        'destination_location_id' => $destination->id,
+        'quantity' => '10',
+        'idempotency_key' => (string) Str::uuid(),
+    ], $sender);
+
+    Notification::shouldReceive('send')->once()->andThrow(new RuntimeException('Simulated receipt notification storage failure.'));
+
+    expect(fn () => app(InventoryTransferService::class)->receive($transfer, [
+        'quantity_received' => '10',
+        'idempotency_key' => (string) Str::uuid(),
+    ], $receiver))->toThrow(RuntimeException::class, 'Simulated receipt notification storage failure.');
+
+    $this->assertDatabaseHas('inventory_transfers', ['id' => $transfer->id, 'status' => 'in_transit', 'quantity_received' => '0.0000']);
+    $this->assertDatabaseMissing('inventory_stocks', ['location_id' => $destination->id, 'product_id' => $product->id]);
+    $this->assertDatabaseMissing('inventory_transfer_receipts', ['inventory_transfer_id' => $transfer->id]);
+    $this->assertDatabaseMissing('stock_movements', ['transfer_group_id' => $transfer->transfer_uuid, 'movement_type' => 'transfer_in']);
+});
+
+test('discrepancy notification failure rolls back discrepancy status and audit metadata atomically', function () {
+    $sender = createTransferWorkflowUser(['system.inventory.transfer']);
+    $receiver = createTransferWorkflowUser(['system.inventory.transfer']);
+    $product = inventoryTestProduct();
+    $source = inventoryTestLocation();
+    $destination = inventoryTestLocation();
+    $sender->locations()->attach($source->id, ['access_level' => 'manage']);
+    $receiver->locations()->attach($destination->id, ['access_level' => 'receive']);
+    InventoryStock::query()->create([
+        'product_id' => $product->id, 'location_id' => $source->id,
+        'quantity' => '25.0000', 'reserved_quantity' => '0.0000', 'low_stock_threshold' => '0',
+    ]);
+
+    Notification::fake();
+    $transfer = app(InventoryTransferService::class)->dispatch([
+        'product_id' => $product->id,
+        'source_location_id' => $source->id,
+        'destination_location_id' => $destination->id,
+        'quantity' => '10',
+        'idempotency_key' => (string) Str::uuid(),
+    ], $sender);
+
+    Notification::shouldReceive('send')->once()->andThrow(new RuntimeException('Simulated discrepancy notification storage failure.'));
+
+    expect(fn () => app(InventoryTransferService::class)->reject(
+        $transfer,
+        'Test discrepancy reason',
+        $receiver,
+    ))->toThrow(RuntimeException::class, 'Simulated discrepancy notification storage failure.');
+
+    $this->assertDatabaseHas('inventory_transfers', ['id' => $transfer->id, 'status' => 'in_transit']);
+    expect(InventoryTransfer::query()->findOrFail($transfer->id)->metadata['discrepancy'] ?? null)->toBeNull();
+});
