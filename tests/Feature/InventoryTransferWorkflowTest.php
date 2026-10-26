@@ -6,6 +6,8 @@ use App\Models\Module;
 use App\Models\Permission;
 use App\Models\Role;
 use App\Models\User;
+use App\Services\InventoryTransferService;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Str;
 
 if (! function_exists('createTransferWorkflowUser')) {
@@ -362,4 +364,35 @@ test('discrepancy report preserves an audit record and never silently restores s
     ]);
     $this->assertDatabaseCount('inventory_transfer_receipts', 1);
     $this->assertDatabaseCount('stock_movements', 2);
+});
+
+
+test('dispatch notification failure rolls back transfer and stock changes atomically', function () {
+    $sender = createTransferWorkflowUser(['system.inventory.transfer']);
+    $receiver = createTransferWorkflowUser(['system.inventory.transfer']);
+    $product = inventoryTestProduct();
+    $source = inventoryTestLocation();
+    $destination = inventoryTestLocation();
+    $sender->locations()->attach($source->id, ['access_level' => 'manage']);
+    $receiver->locations()->attach($destination->id, ['access_level' => 'receive']);
+    InventoryStock::query()->create([
+        'product_id' => $product->id, 'location_id' => $source->id,
+        'quantity' => '25.0000', 'reserved_quantity' => '0.0000', 'low_stock_threshold' => '0',
+    ]);
+
+    Notification::shouldReceive('send')->once()->andThrow(new RuntimeException('Simulated notification storage failure.'));
+
+    expect(fn () => app(InventoryTransferService::class)->dispatch([
+        'product_id' => $product->id,
+        'source_location_id' => $source->id,
+        'destination_location_id' => $destination->id,
+        'quantity' => '10',
+        'idempotency_key' => (string) Str::uuid(),
+    ], $sender))->toThrow(RuntimeException::class, 'Simulated notification storage failure.');
+
+    $this->assertDatabaseHas('inventory_stocks', [
+        'location_id' => $source->id, 'product_id' => $product->id, 'quantity' => '25.0000',
+    ]);
+    $this->assertDatabaseMissing('inventory_transfers', ['source_location_id' => $source->id, 'destination_location_id' => $destination->id]);
+    $this->assertDatabaseMissing('stock_movements', ['location_id' => $source->id, 'movement_type' => 'transfer_out']);
 });

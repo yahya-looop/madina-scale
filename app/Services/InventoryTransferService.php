@@ -28,9 +28,7 @@ class InventoryTransferService
 
         $this->assertLocationAccess($actor, $sourceId, ['manage'], 'source_location_id');
 
-        $created = false;
-
-        $transfer = DB::transaction(function () use ($data, $actor, $ipAddress, $quantity, $sourceId, $destinationId, $isVariant, $ownerId, &$created): InventoryTransfer {
+        $transfer = DB::transaction(function () use ($data, $actor, $ipAddress, $quantity, $sourceId, $destinationId, $isVariant, $ownerId): InventoryTransfer {
             $idempotencyKey = $data['idempotency_key'] ?? null;
             if ($idempotencyKey !== null && $idempotencyKey !== '') {
                 // Serialize dispatches using the same key before checking for an existing transfer.
@@ -126,14 +124,10 @@ class InventoryTransferService
                 'metadata' => ['transfer_uuid' => $transferUuid, 'ip_address' => $ipAddress],
             ]);
 
-            $created = true;
-
-            return $transfer->load(['product', 'variant', 'sourceLocation', 'destinationLocation', 'dispatcher']);
-        }, 3);
-
-        if ($created) {
+            $transfer = $transfer->load(['product', 'variant', 'sourceLocation', 'destinationLocation', 'dispatcher']);
             $this->notifyTransferRecipients($transfer, 'dispatched');
-        }
+            return $transfer;
+        }, 3);
 
         return $transfer;
     }
@@ -157,9 +151,7 @@ class InventoryTransferService
             'quantity_received' => bcadd($receiveQty, '0', 4),
             'recipient_note' => $recipientNote,
         ], JSON_THROW_ON_ERROR));
-        $createdReceipt = false;
-
-        $updated = DB::transaction(function () use ($transfer, $receiveQty, $recipientNote, $payloadHash, $idempotencyKey, $actor, $ipAddress, &$createdReceipt): InventoryTransfer {
+        $updated = DB::transaction(function () use ($transfer, $receiveQty, $recipientNote, $payloadHash, $idempotencyKey, $actor, $ipAddress): InventoryTransfer {
             // Serialize a key globally, including requests that race across transfer rows.
             DB::selectOne('SELECT pg_advisory_xact_lock(hashtext(?))', [$idempotencyKey]);
             $locked = InventoryTransfer::query()->whereKey($transfer->id)->lockForUpdate()->firstOrFail();
@@ -252,14 +244,10 @@ class InventoryTransferService
                 'resulting_quantity_received' => $newReceived,
                 'resulting_status' => $locked->status,
             ]);
-            $createdReceipt = true;
-
-            return $locked->load(['product', 'variant', 'sourceLocation', 'destinationLocation', 'dispatcher', 'receiver']);
+            $locked = $locked->load(['product', 'variant', 'sourceLocation', 'destinationLocation', 'dispatcher', 'receiver']);
+            $this->notifyDispatcher($locked, 'received');
+            return $locked;
         }, 3);
-
-        if ($createdReceipt) {
-            $this->notifyDispatcher($updated, 'received');
-        }
 
         return $updated;
     }
@@ -286,10 +274,11 @@ class InventoryTransferService
             ]);
             $locked->save();
 
-            return $locked->load(['product', 'variant', 'sourceLocation', 'destinationLocation', 'dispatcher']);
-        }, 3);
+            $locked = $locked->load(['product', 'variant', 'sourceLocation', 'destinationLocation', 'dispatcher']);
+            $this->notifyDispatcher($locked, 'discrepancy');
 
-        $this->notifyDispatcher($updated, 'discrepancy');
+            return $locked;
+        }, 3);
 
         return $updated;
     }
