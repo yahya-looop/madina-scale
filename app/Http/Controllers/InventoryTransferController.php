@@ -40,7 +40,7 @@ class InventoryTransferController extends Controller
         }
 
         if (! $isLocationManager) {
-            $query->where(function ($scope) use ($assignedLocationIds, $direction): void {
+            $query->where(function ($scope) use ($assignedLocationIds, $manageableLocationIds, $receivableLocationIds, $direction): void {
                 if ($direction === 'incoming') {
                     $scope->whereIn('destination_location_id', $receivableLocationIds);
                 } elseif ($direction === 'outgoing') {
