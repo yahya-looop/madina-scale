@@ -80,6 +80,8 @@ Route::middleware(['web', 'auth'])->group(function () {
         ->middleware('permission:system.orders.view');
     Route::post('/orders/{order}/shipments', [OrderOperationsController::class, 'bookShipment'])
         ->middleware('permission:system.orders.shipment.manage');
+    Route::post('/orders/{order}/shipments/{shipment}/retry', [OrderOperationsController::class, 'retryShipment'])
+        ->middleware('permission:system.orders.shipment.manage');
 
     /*
     |--------------------------------------------------------------------------

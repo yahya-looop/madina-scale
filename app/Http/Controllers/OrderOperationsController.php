@@ -91,12 +91,91 @@ class OrderOperationsController extends Controller
         if (! empty($data['delivery_area'])) {
             $data['metadata']['delivery_area'] = $data['delivery_area'];
         }
+        // Handle idempotent replays before triggering any customer-facing side effects.
+        // A previously failed/unfinished booking must never be represented as successful.
+        $existingShipment = SalesOrderShipment::query()
+            ->where('provider', $data['provider'])
+            ->where('idempotency_key', $data['idempotency_key'])
+            ->first();
+
+        if ($existingShipment) {
+            if ((int) $existingShipment->sales_order_id !== (int) $order->id) {
+                // Keep the service's canonical cross-order idempotency validation.
+                $this->couriers->book($order, $data['provider'], $data, (int) $request->user()->id);
+            }
+
+            if ($existingShipment->status === 'failed') {
+                return response()->json([
+                    'message' => 'The previous courier booking failed. Review the shipment record before starting a controlled retry.',
+                    'data' => $existingShipment,
+                ], 422);
+            }
+
+            if ($existingShipment->status === 'booking') {
+                return response()->json([
+                    'message' => 'A courier booking attempt is already in progress or requires reconciliation. Do not retry it blindly.',
+                    'data' => $existingShipment,
+                ], 202);
+            }
+
+            if (! in_array($existingShipment->status, ['booked', 'in_transit', 'partially_delivered', 'delivered'], true)) {
+                return response()->json([
+                    'message' => 'The existing shipment is not in a state that can be treated as a successful booking.',
+                    'data' => $existingShipment,
+                ], 422);
+            }
+
+            return response()->json([
+                'message' => 'Existing shipment returned; no new courier booking or SMS was created.',
+                'data' => $existingShipment,
+            ], 200);
+        }
+
         $shipment = $this->couriers->book($order, $data['provider'], $data, (int) $request->user()->id);
+        if ($shipment->status !== 'booked') {
+            return response()->json([
+                'message' => 'Courier booking did not reach a confirmed booked state.',
+                'data' => $shipment,
+            ], 422);
+        }
+
         if ($order->customer_phone) {
             $this->sms->send($order, 'shipment_booked', 'আপনার অর্ডার '.$order->order_number.' কুরিয়ারে বুক করা হয়েছে। ট্র্যাকিং: '.($shipment->tracking_code ?: 'কুরিয়ার ট্র্যাকিং আপডেট অপেক্ষমাণ।'));
         }
 
         return response()->json(['message' => 'Shipment booking processed.', 'data' => $shipment], 201);
+    }
+
+    public function retryShipment(Request $request, SalesOrder $order, SalesOrderShipment $shipment): JsonResponse
+    {
+        $this->locationAccess->assertManage($request->user(), (int) $order->location_id);
+        abort_unless((int) $shipment->sales_order_id === (int) $order->id, 404);
+
+        $data = $request->validate([
+            'confirm_no_existing_shipment' => ['required', 'accepted'],
+            'retry_reason' => ['required', 'string', 'min:10', 'max:1000'],
+        ]);
+
+        // Serialize retry requests. Never start a second attempt while another request is booking.
+        $locked = DB::transaction(function () use ($shipment): SalesOrderShipment {
+            $locked = SalesOrderShipment::query()->lockForUpdate()->findOrFail($shipment->id);
+            if ($locked->status !== 'failed') {
+                abort(response()->json([
+                    'message' => 'Only failed shipments can be retried; booking or successful shipments require reconciliation instead.',
+                    'data' => $locked,
+                ], $locked->status === 'booking' ? 202 : 422));
+            }
+            $locked->update(['status' => 'booking']);
+            return $locked->fresh();
+        });
+
+        $retried = $this->couriers->retryFailed($locked, (int) $request->user()->id, trim($data['retry_reason']));
+        if ($retried->status !== 'booked') {
+            return response()->json(['message' => 'Courier retry did not reach a confirmed booked state.', 'data' => $retried], 422);
+        }
+
+        // Retry success is audited in shipment metadata; don't emit another booking SMS automatically.
+        return response()->json(['message' => 'Courier retry succeeded. No additional booking SMS was sent.', 'data' => $retried], 200);
     }
 
     public function courierWebhook(Request $request, string $provider): JsonResponse

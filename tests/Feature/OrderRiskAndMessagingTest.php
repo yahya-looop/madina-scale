@@ -3,11 +3,15 @@
 namespace Tests\Feature;
 
 use App\Models\SalesOrder;
+use App\Models\Module;
+use App\Models\Permission;
+use App\Models\Role;
 use App\Models\SalesOrderShipment;
 use App\Models\User;
 use App\Services\OrderRiskService;
 use App\Services\OrderSmsService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class OrderRiskAndMessagingTest extends TestCase
@@ -58,6 +62,90 @@ class OrderRiskAndMessagingTest extends TestCase
         $service = app(OrderSmsService::class);
         $this->assertSame('+8801711111111', $service->normalizePhone('01711111111'));
         $this->assertSame('+8801711111111', $service->normalizePhone('8801711111111'));
+    }
+
+    private function shipmentManager(SalesOrder $order): User
+    {
+        $user = User::factory()->create();
+        $module = Module::firstOrCreate(['slug' => 'orders'], [
+            'name' => 'Orders', 'description' => 'Order management.',
+            'sort_order' => 30, 'is_system' => true, 'is_active' => true,
+        ]);
+        $permission = Permission::firstOrCreate(['slug' => 'system.orders.shipment.manage'], [
+            'module_id' => $module->id, 'name' => 'Manage order shipments',
+            'description' => 'Allows courier shipment management.',
+        ]);
+        $role = Role::create([
+            'name' => 'Shipment Test Role', 'slug' => 'shipment-test-'.Str::lower(Str::random(12)),
+            'description' => null, 'is_system' => false, 'is_active' => true,
+        ]);
+        $role->permissions()->attach($permission->id);
+        $user->roles()->attach($role->id);
+        $user->locations()->attach($order->location_id, ['access_level' => 'manage']);
+
+        return $user;
+    }
+
+    public function test_failed_shipment_replay_is_not_reported_as_success_and_does_not_send_booking_sms(): void
+    {
+        $order = $this->makeOrder('01711111111', 'confirmed');
+        $user = $this->shipmentManager($order);
+        $shipment = SalesOrderShipment::query()->create([
+            'sales_order_id' => $order->id,
+            'provider' => 'steadfast',
+            'idempotency_key' => 'failed-replay-'.$order->id,
+            'status' => 'failed',
+            'recipient_name' => $order->customer_name,
+            'recipient_phone' => $order->customer_phone,
+            'recipient_address' => 'Dhaka, Bangladesh',
+            'cod_amount' => 100,
+            'last_error' => 'Provider timeout; booking outcome requires review.',
+        ]);
+
+        $this->actingAs($user)->postJson('/api/orders/'.$order->id.'/shipments', [
+            'provider' => 'steadfast',
+            'idempotency_key' => $shipment->idempotency_key,
+            'recipient_address' => 'Dhaka, Bangladesh',
+        ])->assertStatus(422)
+            ->assertJsonPath('data.status', 'failed');
+
+        $this->assertDatabaseHas('sales_order_shipments', ['id' => $shipment->id, 'status' => 'failed']);
+        $this->assertDatabaseMissing('sales_order_sms_logs', [
+            'sales_order_id' => $order->id,
+            'event' => 'shipment_booked',
+        ]);
+    }
+
+    public function test_successful_shipment_replay_does_not_send_duplicate_booking_sms(): void
+    {
+        $order = $this->makeOrder('01711111111', 'confirmed');
+        $user = $this->shipmentManager($order);
+        $shipment = SalesOrderShipment::query()->create([
+            'sales_order_id' => $order->id,
+            'provider' => 'steadfast',
+            'idempotency_key' => 'booked-replay-'.$order->id,
+            'provider_shipment_id' => 'CONS-REPLAY-'.$order->id,
+            'tracking_code' => 'TRACK-REPLAY-'.$order->id,
+            'status' => 'booked',
+            'recipient_name' => $order->customer_name,
+            'recipient_phone' => $order->customer_phone,
+            'recipient_address' => 'Dhaka, Bangladesh',
+            'cod_amount' => 100,
+            'booked_at' => now(),
+        ]);
+
+        $this->actingAs($user)->postJson('/api/orders/'.$order->id.'/shipments', [
+            'provider' => 'steadfast',
+            'idempotency_key' => $shipment->idempotency_key,
+            'recipient_address' => 'Dhaka, Bangladesh',
+        ])->assertOk()
+            ->assertJsonPath('data.id', $shipment->id)
+            ->assertJsonPath('data.status', 'booked');
+
+        $this->assertDatabaseMissing('sales_order_sms_logs', [
+            'sales_order_id' => $order->id,
+            'event' => 'shipment_booked',
+        ]);
     }
 
     public function test_courier_webhook_records_events_and_prevents_status_regression(): void
