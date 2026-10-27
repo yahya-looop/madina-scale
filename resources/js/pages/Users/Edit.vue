@@ -1029,20 +1029,6 @@ onMounted(() => {
                             </div>
                         </section>
 
-                        <section v-if="canManageLocations" class="panel" aria-labelledby="location-access-title">
-                            <header class="panel-heading"><div><span class="section-kicker">Operational scope</span><h2 id="location-access-title">Location access</h2><p>Choose which locations this user can access.</p></div></header>
-                            <div v-if="locations.length === 0" class="empty-state"><strong>No locations available</strong><span>Ensure you have Location Management permission and active locations exist.</span></div>
-                            <div v-else class="form-grid">
-                                <label v-for="location in locations" :key="location.id" class="field full">
-                                    <span>{{ location.name }} <small>({{ location.code }} · {{ location.type }})</small></span>
-                                    <select :value="locationAccess(location.id)" @change="setLocationAccess(location.id, ($event.target as HTMLSelectElement).value as LocationAssignment['access_level'] | '')">
-                                        <option value="">No access</option><option value="view">View only</option><option value="receive">Receive transfers</option><option value="manage">Manage &amp; receive</option>
-                                    </select>
-                                </label>
-                            </div>
-                            <small v-if="formErrors.location_assignments" class="form-error">{{ formErrors.location_assignments }}</small>
-                        </section>
-
                         <section class="panel">
                             <header class="panel-heading">
                                 <div>
@@ -1159,6 +1145,20 @@ onMounted(() => {
                                 </span>
                             </div>
                         </section>
+                        <section v-if="canManageLocations" class="panel location-panel" aria-labelledby="location-access-title">
+                            <header class="panel-heading"><div><span class="section-kicker">Operational scope</span><h2 id="location-access-title">Location access</h2><p>Choose which locations this user can access.</p></div></header>
+                            <div v-if="locations.length === 0" class="empty-state"><strong>No locations available</strong><span>Ensure you have Location Management permission and active locations exist.</span></div>
+                            <div v-else class="form-grid">
+                                <label v-for="location in locations" :key="location.id" class="field full">
+                                    <span>{{ location.name }} <small>({{ location.code }} · {{ location.type }})</small></span>
+                                    <select :value="locationAccess(location.id)" @change="setLocationAccess(location.id, ($event.target as HTMLSelectElement).value as LocationAssignment['access_level'] | '')">
+                                        <option value="">No access</option><option value="view">View only</option><option value="receive">Receive transfers</option><option value="manage">Manage &amp; receive</option>
+                                    </select>
+                                </label>
+                            </div>
+                            <small v-if="formErrors.location_assignments" class="form-error">{{ formErrors.location_assignments }}</small>
+                        </section>
+
                     </form>
 
                     <section class="metadata-grid" aria-label="User metadata">
@@ -1632,6 +1632,10 @@ h1 {
     grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.9fr);
 
     gap: 16px;
+}
+
+.location-panel {
+    grid-column: 1 / -1;
 }
 
 .panel {
