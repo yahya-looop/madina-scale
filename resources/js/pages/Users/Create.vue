@@ -19,6 +19,10 @@ interface Role {
     isActive: boolean;
 }
 
+interface LocationOption { id: number; name: string; code: string; type: string; }
+
+interface LocationAssignment { location_id: number; access_level: 'view' | 'receive' | 'manage'; }
+
 interface ApiErrorPayload {
     message?: string;
 
@@ -54,6 +58,9 @@ class ApiRequestError extends Error {
 const roles = ref<Role[]>([]);
 
 const isLoadingRoles = ref(false);
+const locations = ref<LocationOption[]>([]);
+const canManageLocations = ref(false);
+const isLoadingLocations = ref(false);
 
 const isSubmitting = ref(false);
 
@@ -69,6 +76,8 @@ const showPasswordConfirmation = ref(false);
 
 const form = reactive({
     name: '',
+    designation: '',
+    location_assignments: [] as LocationAssignment[],
 
     email: '',
 
@@ -209,6 +218,29 @@ async function loadRoles(): Promise<void> {
     }
 }
 
+async function loadLocations(): Promise<void> {
+    isLoadingLocations.value = true;
+    try {
+        const response = await apiRequest<LocationOption[] | { data: LocationOption[] }>('/api/users/options/locations', 'GET');
+        locations.value = Array.isArray(response) ? response : response.data;
+        canManageLocations.value = true;
+    } catch {
+        locations.value = [];
+        canManageLocations.value = false;
+    } finally {
+        isLoadingLocations.value = false;
+    }
+}
+
+function setLocationAccess(locationId: number, accessLevel: LocationAssignment['access_level'] | ''): void {
+    form.location_assignments = form.location_assignments.filter((item) => item.location_id !== locationId);
+    if (accessLevel) form.location_assignments.push({ location_id: locationId, access_level: accessLevel });
+}
+
+function locationAccess(locationId: number): LocationAssignment['access_level'] | '' {
+    return form.location_assignments.find((item) => item.location_id === locationId)?.access_level ?? '';
+}
+
 function toggleRole(roleId: number): void {
     form.role_ids = form.role_ids.includes(roleId)
         ? form.role_ids.filter((id) => id !== roleId)
@@ -274,6 +306,8 @@ async function submit(): Promise<void> {
     try {
         await apiRequest('/api/users', 'POST', {
             name: form.name.trim(),
+            designation: form.designation.trim() || null,
+            ...(canManageLocations.value ? { location_assignments: form.location_assignments } : {}),
 
             email: form.email.trim(),
 
@@ -314,6 +348,7 @@ function backToUsers(): void {
 
 onMounted(() => {
     void loadRoles();
+    void loadLocations();
 });
 </script>
 
@@ -442,6 +477,12 @@ onMounted(() => {
                         </label>
 
                         <label class="field full">
+                            <span>Job designation</span>
+                            <input v-model="form.designation" type="text" maxlength="100" placeholder="e.g. Head Office Manager, Branch In-charge" />
+                            <small>Designation describes the user's position; permissions are controlled separately by roles and location access.</small>
+                        </label>
+
+                        <label class="field full">
                             <span>
                                 Email address
 
@@ -565,6 +606,22 @@ onMounted(() => {
                             </select>
                         </label>
                     </div>
+                </section>
+
+                <section v-if="canManageLocations" class="panel" aria-labelledby="location-access-title">
+                    <header class="panel-heading"><div><span class="section-kicker">Operational scope</span><h2 id="location-access-title">Location access</h2></div></header>
+                    <p class="panel-description">Choose which locations this user can access. Location access works together with system role permissions.</p>
+                    <div v-if="isLoadingLocations" class="loading-state">Loading locations…</div>
+                    <div v-else-if="locations.length === 0" class="empty-state"><strong>No locations available</strong><span>Ensure you have Location Management permission and active locations exist.</span></div>
+                    <div v-else class="form-grid">
+                        <label v-for="location in locations" :key="location.id" class="field full">
+                            <span>{{ location.name }} <small>({{ location.code }} · {{ location.type }})</small></span>
+                            <select :value="locationAccess(location.id)" @change="setLocationAccess(location.id, ($event.target as HTMLSelectElement).value as LocationAssignment['access_level'] | '')">
+                                <option value="">No access</option><option value="view">View only</option><option value="receive">Receive transfers</option><option value="manage">Manage &amp; receive</option>
+                            </select>
+                        </label>
+                    </div>
+                    <small v-if="formErrors.location_assignments" class="form-error">{{ formErrors.location_assignments }}</small>
                 </section>
 
                 <section class="panel" aria-labelledby="assign-roles-title">

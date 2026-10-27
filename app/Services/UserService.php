@@ -19,6 +19,7 @@ class UserService
         $users = User::query()
             ->with([
                 'roles:id,name,slug,is_system,is_active',
+                'locations:id,name,code,type,is_active',
             ])
             ->orderBy('name')
             ->get();
@@ -36,6 +37,7 @@ class UserService
         $user = User::query()
             ->with([
                 'roles:id,name,slug,is_system,is_active',
+                'locations:id,name,code,type,is_active',
             ])
             ->findOrFail($id);
 
@@ -59,6 +61,7 @@ class UserService
         return DB::transaction(function () use ($attributes): User {
             $user = User::query()->create([
                 'name' => $attributes['name'],
+                'designation' => $attributes['designation'] ?? null,
                 'email' => $attributes['email'],
                 'password' => $attributes['password'],
                 'status' => $attributes['status'] ?? 'active',
@@ -97,6 +100,10 @@ class UserService
                 'name' => $attributes['name'],
                 'email' => $attributes['email'],
             ];
+
+            if (array_key_exists('designation', $attributes)) {
+                $data['designation'] = $attributes['designation'];
+            }
 
             if (array_key_exists('status', $attributes)) {
                 $data['status'] = $attributes['status'];
@@ -227,6 +234,47 @@ class UserService
                 ]);
 
             return $this->prepareForManagement($user);
+        });
+    }
+
+
+    /**
+     * Synchronize per-location access assignments for an inventory operator.
+     *
+     * @param array<int, array{location_id: int, access_level: string}> $assignments
+     */
+    public function syncLocationAssignments(User $user, array $assignments, int $actorId): User
+    {
+        return DB::transaction(function () use ($user, $assignments, $actorId): User {
+            $rows = collect($assignments)->keyBy(static fn (array $row): int => (int) $row['location_id']);
+            $locationIds = $rows->keys()->map(static fn ($id): int => (int) $id)->all();
+
+            $activeLocationIds = \App\Models\Location::query()
+                ->where('is_active', true)
+                ->whereIn('id', $locationIds)
+                ->pluck('id')->map(static fn ($id): int => (int) $id)->all();
+
+            if (count($activeLocationIds) !== count($locationIds)) {
+                abort(422, 'Assignments must reference active locations.');
+            }
+
+            if ($rows->isNotEmpty() && ! $user->roles()->whereHas('permissions', static fn ($query) => $query->where('slug', 'system.inventory.transfer'))->exists()) {
+                abort(422, 'Assign an active role with inventory-transfer permission before assigning inventory locations.');
+            }
+
+            $sync = [];
+            foreach ($rows as $locationId => $row) {
+                $sync[(int) $locationId] = [
+                    'access_level' => $row['access_level'],
+                    'assigned_by' => $actorId,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ];
+            }
+
+            $user->locations()->sync($sync);
+
+            return $user->refresh()->load(['roles:id,name,slug,is_system,is_active', 'locations:id,name,code,type,is_active']);
         });
     }
 

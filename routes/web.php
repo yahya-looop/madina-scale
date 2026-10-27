@@ -308,6 +308,7 @@ Route::middleware('auth')->group(function () {
         return Inertia::render('Inventory/Reservations', [
             'userName' => $user->name,
             'userEmail' => $user->email,
+            'canManageReservations' => $user->can('system.inventory.reservations.manage'),
         ]);
     })->name('inventory.reservations');
 

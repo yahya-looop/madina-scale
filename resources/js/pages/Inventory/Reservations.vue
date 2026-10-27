@@ -7,6 +7,7 @@ import Icon from '@/components/dashboard/Icon.vue';
 interface Props {
     userName?: string;
     userEmail?: string;
+    canManageReservations?: boolean;
 }
 interface Reservation {
     id: number;
@@ -46,6 +47,7 @@ interface PageResponse {
 const props = withDefaults(defineProps<Props>(), {
     userName: '',
     userEmail: '',
+    canManageReservations: false,
 });
 const rows = ref<Reservation[]>([]);
 const loading = ref(false);
@@ -509,7 +511,7 @@ onMounted(() => {
                     </div>
                 </article>
             </section>
-            <section class="purpose-section">
+            <section v-if="props.canManageReservations" class="purpose-section">
                 <div class="purpose-section-heading">
                     <div>
                         <h2>Reservation purposes</h2>
@@ -658,7 +660,7 @@ onMounted(() => {
                         ><Icon name="search" :size="16" /><input
                             v-model="search"
                             type="search"
-                            placeholder="Search product, reference or location…"
+                            placeholder="Search this page: product, reference or location…" 
                             aria-label="Search reservations"
                     /></label>
                     <div class="reservation-filter-group">
@@ -812,7 +814,7 @@ onMounted(() => {
                                 </td>
                                 <td>
                                     <div
-                                        v-if="r.status === 'active'"
+                                        v-if="r.status === 'active' && props.canManageReservations"
                                         class="reservation-row-actions"
                                     >
                                         <button
@@ -839,6 +841,9 @@ onMounted(() => {
                                             Cancel
                                         </button>
                                     </div>
+                                    <small v-else-if="r.status === 'active' && !props.canManageReservations" class="reservation-readonly-note">
+                                        Read-only · management permission required
+                                    </small>
                                     <small v-else>{{
                                         r.resolver?.name
                                             ? `Resolved by ${r.resolver.name}`
@@ -1770,6 +1775,11 @@ onMounted(() => {
 .reservation-footnote svg {
     flex: 0 0 auto;
     margin-top: 1px;
+}
+.reservation-readonly-note {
+    color: var(--text-tertiary-color, #6b7280);
+    font-size: 10px;
+    line-height: 1.45;
 }
 .spin {
     animation: spin 0.9s linear infinite;

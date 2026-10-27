@@ -6,13 +6,27 @@ use App\Http\Requests\User\StoreUserRequest;
 use App\Http\Requests\User\UpdateUserRequest;
 use App\Models\User;
 use App\Services\UserService;
+use App\Services\AuthorizationService;
+use App\Models\Location;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\DB;
 
 class UserController extends Controller
 {
     public function __construct(
         private readonly UserService $userService,
+        private readonly AuthorizationService $authorization,
     ) {}
+
+    /** Return active locations available for assignment. */
+    public function locationOptions(): JsonResponse
+    {
+        abort_unless(auth()->user() && $this->authorization->can(auth()->user(), 'system.locations.manage'), 403);
+
+        return response()->json([
+            'data' => Location::query()->where('is_active', true)->orderBy('name')->get(['id', 'name', 'code', 'type']),
+        ]);
+    }
 
     /**
      * Display a listing of users available for management.
@@ -36,23 +50,34 @@ class UserController extends Controller
     {
         $validated = $request->validated();
 
-        $user = $this->userService->create($validated);
-
-        /*
-         * Roles are synchronized only when role_ids
-         * are explicitly included in the request.
-         */
-        if (array_key_exists('role_ids', $validated)) {
-            $user = $this->userService->syncRoles(
-                $user,
-                $validated['role_ids'] ?? [],
-            );
+        if (array_key_exists('location_assignments', $validated)) {
+            abort_unless($this->authorization->can($request->user(), 'system.locations.manage'), 403, 'Location management permission is required.');
         }
 
-        return response()->json([
-            'message' => 'User created successfully.',
-            'data' => $this->userPayload($user),
-        ], 201);
+        return DB::transaction(function () use ($request, $validated): JsonResponse {
+            $user = $this->userService->create($validated);
+
+            // Profile, roles, and location assignments must commit or roll back together.
+            if (array_key_exists('role_ids', $validated)) {
+                $user = $this->userService->syncRoles(
+                    $user,
+                    $validated['role_ids'] ?? [],
+                );
+            }
+
+            if (array_key_exists('location_assignments', $validated)) {
+                $user = $this->userService->syncLocationAssignments(
+                    $user,
+                    $validated['location_assignments'] ?? [],
+                    (int) $request->user()->id,
+                );
+            }
+
+            return response()->json([
+                'message' => 'User created successfully.',
+                'data' => $this->userPayload($user),
+            ], 201);
+        });
     }
 
     /**
@@ -76,26 +101,37 @@ class UserController extends Controller
     ): JsonResponse {
         $validated = $request->validated();
 
-        $user = $this->userService->update(
-            $user,
-            $validated,
-        );
-
-        /*
-         * Synchronize roles only when role_ids
-         * are explicitly included in the request.
-         */
-        if (array_key_exists('role_ids', $validated)) {
-            $user = $this->userService->syncRoles(
-                $user,
-                $validated['role_ids'] ?? [],
-            );
+        if (array_key_exists('location_assignments', $validated)) {
+            abort_unless($this->authorization->can($request->user(), 'system.locations.manage'), 403, 'Location management permission is required.');
         }
 
-        return response()->json([
-            'message' => 'User updated successfully.',
-            'data' => $this->userPayload($user),
-        ]);
+        return DB::transaction(function () use ($request, $user, $validated): JsonResponse {
+            // Profile, roles, and location assignments must commit or roll back together.
+            $user = $this->userService->update(
+                $user,
+                $validated,
+            );
+
+            if (array_key_exists('role_ids', $validated)) {
+                $user = $this->userService->syncRoles(
+                    $user,
+                    $validated['role_ids'] ?? [],
+                );
+            }
+
+            if (array_key_exists('location_assignments', $validated)) {
+                $user = $this->userService->syncLocationAssignments(
+                    $user,
+                    $validated['location_assignments'] ?? [],
+                    (int) $request->user()->id,
+                );
+            }
+
+            return response()->json([
+                'message' => 'User updated successfully.',
+                'data' => $this->userPayload($user),
+            ]);
+        });
     }
 
     /**
@@ -110,6 +146,7 @@ class UserController extends Controller
     {
         $user->loadMissing([
             'roles:id,name,slug,is_system,is_active',
+            'locations:id,name,code,type,is_active',
         ]);
 
         return [
@@ -118,6 +155,7 @@ class UserController extends Controller
              */
             'id' => $user->id,
             'name' => $user->name,
+            'designation' => $user->designation,
             'email' => $user->email,
 
             /*
@@ -155,6 +193,13 @@ class UserController extends Controller
             /*
              * Roles
              */
+            'locations' => $user->locations->map(static fn ($location): array => [
+                'id' => $location->id,
+                'name' => $location->name,
+                'code' => $location->code,
+                'type' => $location->type,
+                'access_level' => $location->pivot->access_level,
+            ])->values()->all(),
             'roles' => $user->roles
                 ->map(
                     static fn ($role): array => [
@@ -170,3 +215,4 @@ class UserController extends Controller
         ];
     }
 }
+

@@ -92,6 +92,9 @@ Route::middleware(['web', 'auth'])->group(function () {
     Route::get('/users', [UserController::class, 'index'])
         ->middleware('permission:system.users.view');
 
+    Route::get('/users/options/locations', [UserController::class, 'locationOptions'])
+        ->middleware('permission:system.locations.manage');
+
     Route::get('/users/{user}', [UserController::class, 'show'])
         ->middleware('permission:system.users.view');
 

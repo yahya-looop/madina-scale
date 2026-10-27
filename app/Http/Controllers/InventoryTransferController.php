@@ -46,8 +46,15 @@ class InventoryTransferController extends Controller
                 } elseif ($direction === 'outgoing') {
                     $scope->whereIn('source_location_id', $manageableLocationIds);
                 } else {
-                    $scope->whereIn('source_location_id', $assignedLocationIds)
-                        ->orWhereIn('destination_location_id', $assignedLocationIds);
+                    // A location assignment alone is not sufficient to expose a transfer.
+                    // Outgoing transfers require source manage access; incoming transfers
+                    // require destination receive/manage access. The mutation endpoints
+                    // enforce the same policy again inside InventoryTransferService.
+                    $scope->where(function ($outgoing) use ($manageableLocationIds): void {
+                        $outgoing->whereIn('source_location_id', $manageableLocationIds);
+                    })->orWhere(function ($incoming) use ($receivableLocationIds): void {
+                        $incoming->whereIn('destination_location_id', $receivableLocationIds);
+                    });
                 }
             });
         }
@@ -94,7 +101,15 @@ class InventoryTransferController extends Controller
         } else {
             $incoming->whereIn('destination_location_id', $receivableLocationIds);
             $outgoing->whereIn('source_location_id', $manageableLocationIds);
-            $discrepancies->where(fn ($sub) => $sub->whereIn('source_location_id', $assignedLocationIds)->orWhereIn('destination_location_id', $assignedLocationIds));
+            // Match the transfer list's authorization rules: source-side
+            // discrepancies require manage access; destination-side
+            // discrepancies require receive/manage access. A view-only
+            // assignment must not reveal even the existence/count of a transfer.
+            $discrepancies->where(function ($scope) use ($manageableLocationIds, $receivableLocationIds): void {
+                $scope
+                    ->whereIn('source_location_id', $manageableLocationIds)
+                    ->orWhereIn('destination_location_id', $receivableLocationIds);
+            });
             if ($locationId) {
                 $incoming->where('destination_location_id', $locationId);
                 $outgoing->where('source_location_id', $locationId);
@@ -148,3 +163,4 @@ class InventoryTransferController extends Controller
         return response()->json(['message' => 'Transfer flagged for discrepancy resolution. Stock was not silently returned to the source.', 'data' => $updated]);
     }
 }
+

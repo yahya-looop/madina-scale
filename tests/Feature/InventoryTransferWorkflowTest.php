@@ -1,3 +1,4 @@
+
 <?php
 
 use App\Models\InventoryStock;
@@ -64,6 +65,35 @@ test('dispatch moves stock out of source but does not make it available at desti
     $this->assertDatabaseHas('inventory_stocks', ['location_id' => $destination->id, 'product_id' => $product->id, 'quantity' => '300.0000']);
     $this->assertDatabaseHas('stock_movements', ['transfer_group_id' => $transfer->transfer_uuid, 'location_id' => $source->id, 'movement_type' => 'transfer_out', 'quantity_delta' => '-300.0000']);
     $this->assertDatabaseHas('stock_movements', ['transfer_group_id' => $transfer->transfer_uuid, 'location_id' => $destination->id, 'movement_type' => 'transfer_in', 'quantity_delta' => '300.0000']);
+});
+
+test('multiple independent transfers can remain pending for the same product and locations', function () {
+    $sender = createTransferWorkflowUser(['system.inventory.transfer', 'system.inventory.view']);
+    $receiver = createTransferWorkflowUser(['system.inventory.transfer', 'system.inventory.view']);
+    $product = inventoryTestProduct();
+    $source = inventoryTestLocation();
+    $destination = inventoryTestLocation();
+    $sender->locations()->attach($source->id, ['access_level' => 'manage']);
+    $receiver->locations()->attach($destination->id, ['access_level' => 'receive']);
+    InventoryStock::query()->create([
+        'product_id' => $product->id, 'location_id' => $source->id,
+        'quantity' => '100.0000', 'reserved_quantity' => '0.0000', 'low_stock_threshold' => '0',
+    ]);
+
+    foreach (['10', '15'] as $quantity) {
+        $this->actingAs($sender)->postJson('/api/inventory/transfers', [
+            'product_id' => $product->id,
+            'source_location_id' => $source->id,
+            'destination_location_id' => $destination->id,
+            'quantity' => $quantity,
+            'idempotency_key' => (string) Str::uuid(),
+        ])->assertCreated()->assertJsonPath('data.status', 'in_transit');
+    }
+
+    expect(InventoryTransfer::query()->where('status', 'in_transit')->count())->toBe(2);
+    $this->assertDatabaseHas('inventory_stocks', [
+        'product_id' => $product->id, 'location_id' => $source->id, 'quantity' => '75.0000',
+    ]);
 });
 
 test('partial receipt records only received quantity and leaves transfer outstanding', function () {
@@ -465,4 +495,50 @@ test('discrepancy notification failure rolls back discrepancy status and audit m
 
     $this->assertDatabaseHas('inventory_transfers', ['id' => $transfer->id, 'status' => 'in_transit']);
     expect(InventoryTransfer::query()->findOrFail($transfer->id)->metadata['discrepancy'] ?? null)->toBeNull();
+});
+
+
+
+test('transfer counts do not reveal discrepancies to view-only location assignments', function () {
+    Notification::fake();
+
+    $sender = createTransferWorkflowUser(['system.inventory.transfer', 'system.inventory.view']);
+    $receiver = createTransferWorkflowUser(['system.inventory.transfer', 'system.inventory.view']);
+    $viewer = createTransferWorkflowUser(['system.inventory.view']);
+    $product = inventoryTestProduct();
+    $source = inventoryTestLocation();
+    $destination = inventoryTestLocation();
+
+    $sender->locations()->attach($source->id, ['access_level' => 'manage']);
+    $receiver->locations()->attach($destination->id, ['access_level' => 'receive']);
+    $viewer->locations()->attach($source->id, ['access_level' => 'view']);
+
+    InventoryStock::query()->create([
+        'product_id' => $product->id,
+        'location_id' => $source->id,
+        'quantity' => '20.0000',
+        'reserved_quantity' => '0.0000',
+        'low_stock_threshold' => '0',
+    ]);
+
+    $this->actingAs($sender)->postJson('/api/inventory/transfers', [
+        'product_id' => $product->id,
+        'source_location_id' => $source->id,
+        'destination_location_id' => $destination->id,
+        'quantity' => '5',
+        'reason' => 'Authorization matrix regression',
+        'idempotency_key' => (string) Str::uuid(),
+    ])->assertCreated();
+
+    $transfer = InventoryTransfer::query()->firstOrFail();
+
+    $this->actingAs($receiver)->postJson("/api/inventory/transfers/{$transfer->id}/reject", [
+        'reason' => 'Received quantity does not match',
+    ])->assertOk();
+
+    $this->actingAs($viewer)->getJson('/api/inventory/transfers/counts')
+        ->assertOk()
+        ->assertJsonPath('incoming_pending', 0)
+        ->assertJsonPath('outgoing_pending', 0)
+        ->assertJsonPath('discrepancies', 0);
 });

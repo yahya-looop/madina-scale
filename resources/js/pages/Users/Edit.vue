@@ -19,6 +19,9 @@ interface Role {
     isActive: boolean;
 }
 
+interface LocationOption { id: number; name: string; code: string; type: string; }
+interface LocationAssignment { location_id: number; access_level: 'view' | 'receive' | 'manage'; }
+
 interface RoleApiPayload {
     id: number;
     name: string;
@@ -55,6 +58,8 @@ interface UserApiPayload {
     updated_at?: string | null;
 
     roles?: Role[];
+    designation?: string | null;
+    locations?: Array<{ id: number; name: string; code: string; type: string; access_level: LocationAssignment['access_level'] }>;
 }
 
 interface User {
@@ -83,6 +88,10 @@ interface User {
     updatedAt: string | null;
 
     roles: Role[];
+
+    designation: string;
+
+    locations: Array<{ id: number; name: string; code: string; type: string; access_level: LocationAssignment['access_level'] }>;
 }
 
 interface AuthUser {
@@ -154,6 +163,9 @@ const userId = Number(
 const user = ref<User | null>(null);
 
 const roleCatalog = ref<Role[]>([]);
+const locations = ref<LocationOption[]>([]);
+const canManageLocations = ref(false);
+const locationAssignments = ref<LocationAssignment[]>([]);
 
 const isLoadingRoles = ref(false);
 
@@ -173,6 +185,7 @@ const operationMessageType = ref<'success' | 'error'>('success');
 
 const form = reactive({
     name: '',
+    designation: '',
 
     email: '',
 
@@ -190,6 +203,8 @@ function normalizeUser(payload: UserApiPayload): User {
         id: payload.id,
 
         name: payload.name,
+        designation: payload.designation ?? '',
+        locations: payload.locations ?? [],
 
         email: payload.email,
 
@@ -358,6 +373,8 @@ async function loadRoles(): Promise<void> {
 
 function syncFormFromUser(currentUser: User): void {
     form.name = currentUser.name;
+    form.designation = currentUser.designation ?? '';
+    locationAssignments.value = (currentUser.locations ?? []).map((item) => ({ location_id: item.id, access_level: item.access_level }));
 
     form.email = currentUser.email;
 
@@ -411,6 +428,26 @@ async function loadUser(): Promise<void> {
     }
 }
 
+async function loadLocations(): Promise<void> {
+    try {
+        const response = await apiRequest<LocationOption[] | { data: LocationOption[] }>('/api/users/options/locations', 'GET');
+        locations.value = Array.isArray(response) ? response : response.data;
+        canManageLocations.value = true;
+    } catch {
+        locations.value = [];
+        canManageLocations.value = false;
+    }
+}
+
+function setLocationAccess(locationId: number, accessLevel: LocationAssignment['access_level'] | ''): void {
+    locationAssignments.value = locationAssignments.value.filter((item) => item.location_id !== locationId);
+    if (accessLevel) locationAssignments.value.push({ location_id: locationId, access_level: accessLevel });
+}
+
+function locationAccess(locationId: number): LocationAssignment['access_level'] | '' {
+    return locationAssignments.value.find((item) => item.location_id === locationId)?.access_level ?? '';
+}
+
 function toggleRole(roleId: number): void {
     form.role_ids = form.role_ids.includes(roleId)
         ? form.role_ids.filter((id) => id !== roleId)
@@ -456,6 +493,8 @@ async function save(): Promise<void> {
 
     const payload: Record<string, unknown> = {
         name: form.name.trim(),
+        designation: form.designation.trim() || null,
+        ...(canManageLocations.value ? { location_assignments: locationAssignments.value } : {}),
 
         email: form.email.trim(),
 
@@ -568,6 +607,7 @@ function formatDateOnly(value?: string | null): string {
 onMounted(() => {
     void loadUser();
     void loadRoles();
+    void loadLocations();
 });
 </script>
 
@@ -987,6 +1027,20 @@ onMounted(() => {
                                     </strong>
                                 </article>
                             </div>
+                        </section>
+
+                        <section v-if="canManageLocations" class="panel" aria-labelledby="location-access-title">
+                            <header class="panel-heading"><div><span class="section-kicker">Operational scope</span><h2 id="location-access-title">Location access</h2><p>Choose which locations this user can access.</p></div></header>
+                            <div v-if="locations.length === 0" class="empty-state"><strong>No locations available</strong><span>Ensure you have Location Management permission and active locations exist.</span></div>
+                            <div v-else class="form-grid">
+                                <label v-for="location in locations" :key="location.id" class="field full">
+                                    <span>{{ location.name }} <small>({{ location.code }} · {{ location.type }})</small></span>
+                                    <select :value="locationAccess(location.id)" @change="setLocationAccess(location.id, ($event.target as HTMLSelectElement).value as LocationAssignment['access_level'] | '')">
+                                        <option value="">No access</option><option value="view">View only</option><option value="receive">Receive transfers</option><option value="manage">Manage &amp; receive</option>
+                                    </select>
+                                </label>
+                            </div>
+                            <small v-if="formErrors.location_assignments" class="form-error">{{ formErrors.location_assignments }}</small>
                         </section>
 
                         <section class="panel">
