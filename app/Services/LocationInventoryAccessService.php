@@ -2,8 +2,10 @@
 
 namespace App\Services;
 
+use App\Models\Location;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Collection;
 
 /** Enforces the per-location inventory permissions configured in location_user. */
 class LocationInventoryAccessService
@@ -23,6 +25,49 @@ class LocationInventoryAccessService
     public function canManage(User $user, int $locationId): bool
     {
         return $this->canAccess($user, $locationId, ['manage']);
+    }
+
+    /**
+     * Return only active locations visible to the user, including the effective
+     * location access level used by inventory operation forms.
+     *
+     * Global location managers can see all active locations. Other users can
+     * only see locations explicitly assigned to them.
+     *
+     * @return Collection<int, array{id: int, name: string, code: ?string, type: string, is_active: bool, access_level: string}>
+     */
+    public function viewableLocations(User $user): Collection
+    {
+        if ($this->isGlobalManager($user)) {
+            return Location::query()
+                ->active()
+                ->orderBy('name')
+                ->get(['id', 'name', 'code', 'type', 'is_active'])
+                ->map(fn (Location $location): array => [
+                    'id' => (int) $location->id,
+                    'name' => $location->name,
+                    'code' => $location->code,
+                    'type' => $location->type,
+                    'is_active' => (bool) $location->is_active,
+                    'access_level' => 'manage',
+                ])
+                ->values();
+        }
+
+        return $user->locations()
+            ->where('locations.is_active', true)
+            ->whereIn('location_user.access_level', ['view', 'receive', 'manage'])
+            ->orderBy('locations.name')
+            ->get(['locations.id', 'locations.name', 'locations.code', 'locations.type', 'locations.is_active'])
+            ->map(fn (Location $location): array => [
+                'id' => (int) $location->id,
+                'name' => $location->name,
+                'code' => $location->code,
+                'type' => $location->type,
+                'is_active' => (bool) $location->is_active,
+                'access_level' => (string) $location->pivot->access_level,
+            ])
+            ->values();
     }
 
     /** Apply the user's viewable-location scope to a location_id query. */

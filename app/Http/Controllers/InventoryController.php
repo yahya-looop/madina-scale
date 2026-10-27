@@ -19,6 +19,22 @@ class InventoryController extends Controller
         private readonly LocationInventoryAccessService $locationAccess,
     ) {}
 
+    /**
+     * List active locations available to the authenticated inventory operator.
+     *
+     * The response is scoped by location assignments and includes each user's
+     * access level so the UI can offer only operations they can perform.
+     */
+    public function locations(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        abort_unless($user !== null, 401);
+
+        return response()->json([
+            'data' => $this->locationAccess->viewableLocations($user),
+        ]);
+    }
+
     public function stocks(Request $request): JsonResponse
     {
         $filters = $request->validate([

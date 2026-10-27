@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\InventoryStock;
+use App\Models\Location;
 use App\Models\Module;
 use App\Models\Permission;
 use App\Models\Role;
@@ -129,4 +130,58 @@ test('receive access permits receipts but denies issue adjustment and threshold 
         'reserved_quantity' => '0.0000',
     ]);
     $this->assertDatabaseCount('stock_movements', 1);
+});
+
+
+test('inventory location options expose only active assigned locations and their access levels', function () {
+    $user = createMilestone3cInventoryUser(['system.inventory.view']);
+    $viewLocation = inventoryTestLocation('options-view');
+    $receiveLocation = inventoryTestLocation('options-receive');
+    $manageLocation = inventoryTestLocation('options-manage');
+    $unassignedLocation = inventoryTestLocation('options-hidden');
+    $inactiveLocation = inventoryTestLocation('options-inactive');
+    $inactiveLocation->update(['is_active' => false]);
+
+    $user->locations()->attach($viewLocation->id, ['access_level' => 'view']);
+    $user->locations()->attach($receiveLocation->id, ['access_level' => 'receive']);
+    $user->locations()->attach($manageLocation->id, ['access_level' => 'manage']);
+    $user->locations()->attach($inactiveLocation->id, ['access_level' => 'manage']);
+
+    $response = $this->actingAs($user)->getJson('/api/inventory/locations')
+        ->assertOk()
+        ->assertJsonCount(3, 'data');
+
+    $rows = collect($response->json('data'))->keyBy('id');
+
+    expect($rows->has($viewLocation->id))->toBeTrue()
+        ->and($rows->has($receiveLocation->id))->toBeTrue()
+        ->and($rows->has($manageLocation->id))->toBeTrue()
+        ->and($rows->has($unassignedLocation->id))->toBeFalse()
+        ->and($rows->has($inactiveLocation->id))->toBeFalse()
+        ->and($rows[$viewLocation->id]['access_level'])->toBe('view')
+        ->and($rows[$receiveLocation->id]['access_level'])->toBe('receive')
+        ->and($rows[$manageLocation->id]['access_level'])->toBe('manage');
+});
+
+test('global location manager can load all active inventory locations as manageable', function () {
+    $user = createMilestone3cInventoryUser([
+        'system.inventory.view',
+        'system.locations.manage',
+    ]);
+    $assignedLocation = inventoryTestLocation('global-assigned');
+    $unassignedLocation = inventoryTestLocation('global-unassigned');
+
+    $user->locations()->attach($assignedLocation->id, ['access_level' => 'view']);
+
+    $activeLocationCount = Location::query()->where('is_active', true)->count();
+    $response = $this->actingAs($user)->getJson('/api/inventory/locations')
+        ->assertOk()
+        ->assertJsonCount($activeLocationCount, 'data');
+
+    $rows = collect($response->json('data'))->keyBy('id');
+
+    expect($rows->has($assignedLocation->id))->toBeTrue()
+        ->and($rows->has($unassignedLocation->id))->toBeTrue()
+        ->and($rows[$assignedLocation->id]['access_level'])->toBe('manage')
+        ->and($rows[$unassignedLocation->id]['access_level'])->toBe('manage');
 });

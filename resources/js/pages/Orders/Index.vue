@@ -20,6 +20,8 @@ interface VariantOption {
     sku?: string | null;
     price: string | number;
     available: string | number;
+    image_url?: string | null;
+    image_alt?: string | null;
 }
 interface CustomerOption {
     id: number;
@@ -294,6 +296,10 @@ async function loadOptions() {
         locations.value = payload.locations || [];
         variants.value = payload.variants || [];
     } catch (e) {
+        // Never leave a previous location's catalogue visible after a failed refresh.
+        locations.value = [];
+        variants.value = [];
+        lineVariantId.value = '';
         error.value =
             e instanceof Error ? e.message : 'Unable to load order options.';
     }
@@ -1186,8 +1192,7 @@ onMounted(() => {
                                     <div>
                                         <h3>Order items</h3>
                                         <p>
-                                            Choose an available product variant
-                                            and quantity.
+                                            Browse products in this location inventory, including out-of-stock items.
                                         </p>
                                     </div>
                                     <span class="orders-create-count"
@@ -1213,10 +1218,13 @@ onMounted(() => {
                                             "
                                         >
                                             <span class="orders-product-thumb">
-                                                <Icon
-                                                    name="package"
-                                                    :size="22"
+                                                <img
+                                                    v-if="selectedVariant?.image_url"
+                                                    :src="selectedVariant.image_url"
+                                                    :alt="selectedVariant.image_alt || selectedVariant.name"
+                                                    loading="lazy"
                                                 />
+                                                <Icon v-else name="package" :size="22" />
                                             </span>
                                             <span
                                                 class="orders-product-trigger-copy"
@@ -1287,13 +1295,14 @@ onMounted(() => {
                                                     productDropdownOpen = false;
                                                 "
                                             >
-                                                <span
-                                                    class="orders-product-thumb"
-                                                >
-                                                    <Icon
-                                                        name="package"
-                                                        :size="22"
+                                                <span class="orders-product-thumb">
+                                                    <img
+                                                        v-if="variant.image_url"
+                                                        :src="variant.image_url"
+                                                        :alt="variant.image_alt || variant.name"
+                                                        loading="lazy"
                                                     />
+                                                    <Icon v-else name="package" :size="22" />
                                                 </span>
                                                 <span
                                                     class="orders-product-option-copy"
@@ -1356,8 +1365,7 @@ onMounted(() => {
                                                     name="package-x"
                                                     :size="20"
                                                 />
-                                                No product variants available at
-                                                this location.
+                                                No products are recorded in this location’s inventory.
                                             </div>
                                         </div>
                                     </label>
@@ -7065,6 +7073,7 @@ body:has(.orders-detail-overlay) {
     color: #98a2b3;
 }
 .orders-product-thumb {
+    overflow: hidden;
     display: grid;
     place-items: center;
     flex: 0 0 46px;
@@ -7074,6 +7083,12 @@ body:has(.orders-detail-overlay) {
     border-radius: 12px;
     background: linear-gradient(145deg, #ecfdf5, #f8fffb);
     color: #059669;
+}
+.orders-product-thumb img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
 }
 .orders-product-trigger-copy,
 .orders-product-option-copy {

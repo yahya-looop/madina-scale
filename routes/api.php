@@ -375,6 +375,9 @@ Route::middleware(['web', 'auth'])->group(function () {
         [InventoryController::class, 'updateThreshold']
     )->middleware('permission:system.inventory.update');
 
+    Route::get('/inventory/locations', [InventoryController::class, 'locations'])
+        ->middleware('permission:system.inventory.view');
+
     Route::get('/inventory/stocks', [InventoryController::class, 'stocks'])
         ->middleware('permission:system.inventory.view');
 

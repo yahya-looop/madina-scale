@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\InventoryReservation;
 use App\Models\InventoryReservationPurpose;
+use App\Models\InventoryStock;
 use App\Models\Location;
 use App\Models\ProductVariant;
 use App\Models\SalesOrder;
@@ -19,6 +20,28 @@ use Illuminate\Validation\ValidationException;
 class SalesOrderService
 {
     public function __construct(private readonly InventoryReservationService $reservations, private readonly OrderRiskService $risk) {}
+
+    /** Resolve the actual inventory owner used by this location for an order line. */
+    private function reservationOwner(ProductVariant $variant, int $locationId): array
+    {
+        $variantStockExists = InventoryStock::query()
+            ->where('location_id', $locationId)
+            ->where('product_variant_id', $variant->id)
+            ->exists();
+        if ($variantStockExists || $variant->product?->product_type !== 'simple') {
+            return ['product_variant_id' => $variant->id];
+        }
+
+        $productStockExists = InventoryStock::query()
+            ->where('location_id', $locationId)
+            ->where('product_id', $variant->product_id)
+            ->whereNull('product_variant_id')
+            ->exists();
+
+        return $productStockExists
+            ? ['product_id' => $variant->product_id]
+            : ['product_variant_id' => $variant->id];
+    }
 
     public function create(array $data, User $actor): SalesOrder
     {
@@ -89,8 +112,8 @@ class SalesOrderService
                     'line_total' => $lineTotal,
                 ]);
 
-                $reservation = $this->reservations->reserve([
-                    'product_variant_id' => $variant->id,
+                $reservation = $this->reservations->reserve(array_merge(
+                    $this->reservationOwner($variant, (int) $location->id), [
                     'location_id' => $location->id,
                     'quantity' => $qty,
                     'purpose' => $purpose->key,
@@ -98,7 +121,7 @@ class SalesOrderService
                     'reference_id' => (string) $order->id,
                     'reason' => 'Sales order '.$order->order_number,
                     'expires_at' => now()->addHours(72),
-                ], $actor);
+                ]), $actor);
                 $item->reservation_id = $reservation->id;
                 $item->save();
             }
@@ -202,8 +225,8 @@ class SalesOrderService
                     'line_total' => $lineTotal,
                 ]);
 
-                $reservation = $this->reservations->reserve([
-                    'product_variant_id' => $variant->id,
+                $reservation = $this->reservations->reserve(array_merge(
+                    $this->reservationOwner($variant, (int) $location->id), [
                     'location_id' => $location->id,
                     'quantity' => $qty,
                     'purpose' => $purpose->key,
@@ -211,7 +234,7 @@ class SalesOrderService
                     'reference_id' => (string) $locked->id,
                     'reason' => 'Sales order '.$locked->order_number.' (edited)',
                     'expires_at' => now()->addHours(72),
-                ], $actor);
+                ]), $actor);
 
                 $item->reservation_id = $reservation->id;
                 $item->save();

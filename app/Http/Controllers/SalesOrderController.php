@@ -16,6 +16,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Facades\Storage;
 
 class SalesOrderController extends Controller
 {
@@ -79,45 +80,81 @@ class SalesOrderController extends Controller
         $variants = collect();
         if ($locationId > 0) {
             $this->locationAccess->assertView($request->user(), $locationId);
-            $variantRecords = ProductVariant::query()->with('product:id,name,sku,status')
-                ->where('status', 'active')->whereHas('product', fn ($q) => $q->where('status', 'active'))
-                ->orderBy('product_id')->orderBy('sort_order')
-                ->get(['id', 'product_id', 'name', 'sku', 'selling_price', 'promotional_price', 'promotion_starts_at', 'promotion_ends_at']);
-            $stockByVariant = InventoryStock::query()
+
+            // Load only catalog variants whose product has an inventory owner at
+            // this location. A simple product may own stock directly via product_id;
+            // variable products own stock per variant. Zero-stock rows remain visible.
+            $variantRecords = ProductVariant::query()
+                ->with(['product:id,name,sku,status,product_type', 'product.primaryMedia'])
+                ->where('status', 'active')
+                ->whereHas('product', fn ($q) => $q->where('status', 'active'))
+                ->orderBy('product_id')->orderBy('sort_order')->orderBy('id')
+                ->get(['id', 'product_id', 'name', 'sku', 'selling_price', 'promotional_price', 'promotion_starts_at', 'promotion_ends_at', 'is_default']);
+
+            $stockRows = InventoryStock::query()
                 ->where('location_id', $locationId)
-                ->whereIn('product_variant_id', $variantRecords->pluck('id'))
-                ->get(['product_variant_id', 'quantity', 'reserved_quantity'])
-                ->keyBy('product_variant_id');
-            $ownReservedByVariant = $editingOrder
+                ->where(function ($q) use ($variantRecords): void {
+                    $q->whereIn('product_variant_id', $variantRecords->pluck('id'))
+                      ->orWhereIn('product_id', $variantRecords->pluck('product_id')->unique());
+                })
+                ->get(['product_id', 'product_variant_id', 'quantity', 'reserved_quantity']);
+            $stockByVariant = $stockRows->filter(fn ($row) => $row->product_variant_id !== null)->keyBy('product_variant_id');
+            $stockByProduct = $stockRows->filter(fn ($row) => $row->product_id !== null)->keyBy('product_id');
+
+            $ownReservations = $editingOrder
                 ? InventoryReservation::query()
-                    ->selectRaw('product_variant_id, SUM(quantity) AS reserved_for_order')
+                    ->selectRaw('product_id, product_variant_id, SUM(quantity) AS reserved_for_order')
                     ->where('reference_type', 'sales_order')
                     ->where('reference_id', (string) $editingOrder->id)
                     ->where('status', 'active')
-                    ->groupBy('product_variant_id')
-                    ->pluck('reserved_for_order', 'product_variant_id')
+                    ->groupBy('product_id', 'product_variant_id')
+                    ->get()
                 : collect();
 
-            $variants = $variantRecords->map(function (ProductVariant $variant) use ($stockByVariant, $ownReservedByVariant): array {
-                $stock = $stockByVariant->get($variant->id);
-                $available = $stock
-                    ? bcsub((string) $stock->quantity, (string) $stock->reserved_quantity, 4)
-                    : '0.0000';
+            $variants = $variantRecords
+                ->map(function (ProductVariant $variant) use ($stockByVariant, $stockByProduct, $ownReservations): ?array {
+                    $variantStock = $stockByVariant->get($variant->id);
+                    $productStock = $variant->product?->product_type === 'simple'
+                        ? $stockByProduct->get($variant->product_id)
+                        : null;
 
-                // During an edit, count the order's own active reservations back as
-                // available so the user can keep or increase the same cart quantities.
-                $ownReserved = (string) $ownReservedByVariant->get($variant->id, '0.0000');
-                $available = bcadd($available, $ownReserved, 4);
+                    // Prefer variant-owned inventory; use product-owned inventory
+                    // only for a simple product, and show its default variant once.
+                    if ($variantStock) {
+                        $stock = $variantStock;
+                        $ownerType = 'variant';
+                        $ownerId = $variant->id;
+                    } elseif ($productStock && $variant->is_default) {
+                        $stock = $productStock;
+                        $ownerType = 'product';
+                        $ownerId = $variant->product_id;
+                    } else {
+                        return null;
+                    }
 
-                return [
-                    'id' => $variant->id,
-                    'product_id' => $variant->product_id,
-                    'name' => $variant->product?->name.($variant->name ? ' · '.$variant->name : ''),
-                    'sku' => $variant->sku ?: $variant->product?->sku,
-                    'price' => $variant->effectiveSellingPrice(),
-                    'available' => $available,
-                ];
-            });
+                    $available = bcsub((string) $stock->quantity, (string) $stock->reserved_quantity, 4);
+                    $ownReserved = (string) $ownReservations
+                        ->first(fn ($reservation) => $ownerType === 'variant'
+                            ? (int) $reservation->product_variant_id === (int) $ownerId
+                            : (int) $reservation->product_id === (int) $ownerId && $reservation->product_variant_id === null)?->reserved_for_order ?? '0.0000';
+                    $available = bcadd($available, $ownReserved, 4);
+                    $media = $variant->product?->primaryMedia;
+                    $imageUrl = $media ? Storage::disk($media->disk)->url($media->path) : null;
+
+                    return [
+                        'id' => $variant->id,
+                        'product_id' => $variant->product_id,
+                        'name' => $variant->product?->name.($variant->name ? ' · '.$variant->name : ''),
+                        'sku' => $variant->sku ?: $variant->product?->sku,
+                        'price' => $variant->effectiveSellingPrice(),
+                        'available' => $available,
+                        'image_url' => $imageUrl,
+                        'image_alt' => $media?->alt_text ?: $variant->product?->name,
+                        'inventory_owner' => $ownerType,
+                    ];
+                })
+                ->filter()
+                ->values();
         }
 
         return response()->json(['locations' => $locations, 'variants' => $variants]);

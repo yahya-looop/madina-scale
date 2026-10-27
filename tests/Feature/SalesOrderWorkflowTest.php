@@ -70,6 +70,102 @@ class SalesOrderWorkflowTest extends TestCase
         return [$location, $variant];
     }
 
+    public function test_order_options_return_all_inventory_variants_at_selected_location_including_zero_available(): void
+    {
+        [$location, $stockedVariant] = $this->orderFixture();
+        $user = $this->orderUser($location);
+
+        $outOfStockVariant = ProductVariant::query()->create([
+            'product_id' => $stockedVariant->product_id,
+            'name' => 'Out of stock variant',
+            'sku' => 'ORD-EMPTY-'.Str::upper(Str::random(5)),
+            'selling_price' => 100,
+            'cost_price' => 60,
+            'status' => 'active',
+            'is_default' => false,
+        ]);
+        InventoryStock::query()->create([
+            'product_variant_id' => $outOfStockVariant->id,
+            'location_id' => $location->id,
+            'quantity' => 3,
+            'reserved_quantity' => 3,
+        ]);
+
+        $otherLocation = Location::query()->create([
+            'name' => 'Other Orders Store',
+            'code' => 'ORD-'.Str::upper(Str::random(5)),
+            'type' => 'store',
+            'is_active' => true,
+        ]);
+        $otherLocationOnlyVariant = ProductVariant::query()->create([
+            'product_id' => $stockedVariant->product_id,
+            'name' => 'Other location only',
+            'sku' => 'ORD-OTHER-'.Str::upper(Str::random(5)),
+            'selling_price' => 100,
+            'cost_price' => 60,
+            'status' => 'active',
+            'is_default' => false,
+        ]);
+        InventoryStock::query()->create([
+            'product_variant_id' => $otherLocationOnlyVariant->id,
+            'location_id' => $otherLocation->id,
+            'quantity' => 20,
+            'reserved_quantity' => 0,
+        ]);
+
+        $response = $this->actingAs($user)->getJson('/api/orders/options?location_id='.$location->id);
+
+        $response->assertOk()
+            ->assertJsonCount(2, 'variants')
+            ->assertJsonPath('variants.0.id', $stockedVariant->id)
+            ->assertJsonPath('variants.0.available', '10.0000')
+            ->assertJsonPath('variants.1.id', $outOfStockVariant->id)
+            ->assertJsonPath('variants.1.available', '0.0000');
+    }
+
+    public function test_order_options_include_simple_product_inventory_and_image_field(): void
+    {
+        $location = Location::query()->create([
+            'name' => 'Simple Product Store', 'code' => 'SMP-'.Str::upper(Str::random(5)),
+            'type' => 'store', 'is_active' => true,
+        ]);
+        $product = \inventoryTestProduct('simple');
+        $variant = ProductVariant::query()->create([
+            'product_id' => $product->id, 'name' => 'Standard',
+            // Simple-product identifiers belong to the product record, not its price variant.
+            'selling_price' => 150,
+            'cost_price' => 80, 'status' => 'active', 'is_default' => true,
+        ]);
+        InventoryStock::query()->create([
+            'product_id' => $product->id, 'location_id' => $location->id,
+            'quantity' => 4, 'reserved_quantity' => 1,
+        ]);
+        InventoryReservationPurpose::query()->firstOrCreate(
+            ['key' => 'customer_order'],
+            ['label' => 'Customer order', 'is_active' => true, 'sort_order' => 10]
+        );
+        $user = $this->orderUser($location);
+
+        $this->actingAs($user)->getJson('/api/orders/options?location_id='.$location->id)
+            ->assertOk()
+            ->assertJsonCount(1, 'variants')
+            ->assertJsonPath('variants.0.id', $variant->id)
+            ->assertJsonPath('variants.0.available', '3.0000')
+            ->assertJsonStructure(['variants' => [['image_url', 'image_alt', 'inventory_owner']]])
+            ->assertJsonPath('variants.0.inventory_owner', 'product');
+
+        $this->actingAs($user)->postJson('/api/orders', [
+            'location_id' => $location->id,
+            'customer_name' => 'Simple Product Buyer',
+            'items' => [['product_variant_id' => $variant->id, 'quantity' => 2]],
+        ])->assertCreated();
+
+        $this->assertDatabaseHas('inventory_stocks', [
+            'product_id' => $product->id, 'location_id' => $location->id,
+            'reserved_quantity' => '3.0000',
+        ]);
+    }
+
     public function test_order_creation_reserves_stock_and_cancellation_releases_it(): void
     {
         [$location, $variant] = $this->orderFixture();

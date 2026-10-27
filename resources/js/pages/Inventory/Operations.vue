@@ -28,6 +28,7 @@ interface Location {
   name: string;
   code?: string | null;
   is_active?: boolean;
+  access_level: "view" | "receive" | "manage";
 }
 interface LowStockRow {
   id: number;
@@ -80,6 +81,19 @@ const props = withDefaults(defineProps<Props>(), {
 const operation = ref<Operation>("receive");
 const products = ref<Product[]>([]);
 const locations = ref<Location[]>([]);
+const receivableLocations = computed(() =>
+  locations.value.filter((location) =>
+    ["receive", "manage"].includes(location.access_level)
+  )
+);
+const manageableLocations = computed(() =>
+  locations.value.filter((location) => location.access_level === "manage")
+);
+const operationLocations = computed(() =>
+  operation.value === "receive"
+    ? receivableLocations.value
+    : manageableLocations.value
+);
 const variants = ref<Variant[]>([]);
 const lowStockRows = ref<LowStockRow[]>([]);
 const transferRows = ref<TransferRow[]>([]);
@@ -459,19 +473,36 @@ async function confirmTransferAction(): Promise<void> {
 async function loadOptions(): Promise<void> {
   loadingOptions.value = true;
   error.value = "";
+
+  // Do not leave a previously loaded catalogue visible if a refresh fails.
+  // Product and location eligibility must always come from the current API response.
+  products.value = [];
+  locations.value = [];
+  productId.value = "";
+  variantId.value = "";
+  variants.value = [];
+
   try {
     const [productResponse, locationResponse] = await Promise.all([
-      fetch("/api/products?status=active", {
+      fetch(`/api/products?status=active&_=${Date.now()}`, {
+        method: "GET",
+        cache: "no-store",
         credentials: "same-origin",
         headers: {
           Accept: "application/json",
+          "Cache-Control": "no-cache",
+          Pragma: "no-cache",
           "X-Requested-With": "XMLHttpRequest",
         },
       }),
-      fetch("/api/locations?active=1", {
+      fetch(`/api/inventory/locations?_=${Date.now()}`, {
+        method: "GET",
+        cache: "no-store",
         credentials: "same-origin",
         headers: {
           Accept: "application/json",
+          "Cache-Control": "no-cache",
+          Pragma: "no-cache",
           "X-Requested-With": "XMLHttpRequest",
         },
       }),
@@ -486,10 +517,17 @@ async function loadOptions(): Promise<void> {
     if (!locationResponse.ok)
       throw new Error(
         locationPayload.message ||
-          `Locations request failed (HTTP ${locationResponse.status}).`
+          `Inventory locations request failed (HTTP ${locationResponse.status}).`
       );
     products.value = Array.isArray(productPayload.data)
-      ? productPayload.data.filter((p) => !p.status || p.status === "active")
+      ? Array.from(
+          new Map(
+            productPayload.data
+              .filter((p) => p && Number.isFinite(Number(p.id)) && Number(p.id) > 0)
+              .filter((p) => !p.status || p.status === "active")
+              .map((p) => [Number(p.id), { ...p, id: Number(p.id) }])
+          ).values()
+        )
       : [];
     locations.value = Array.isArray(locationPayload.data)
       ? locationPayload.data.filter((l) => l.is_active !== false)
@@ -499,8 +537,13 @@ async function loadOptions(): Promise<void> {
         "No active products are available, or your account cannot view products.";
     else if (!locations.value.length)
       error.value =
-        "No active locations are available, or your account cannot view locations.";
+        "No active locations are assigned to your account for inventory access.";
   } catch (e) {
+    products.value = [];
+    locations.value = [];
+    productId.value = "";
+    variantId.value = "";
+    variants.value = [];
     error.value =
       e instanceof Error ? e.message : "Unable to load products and locations.";
   } finally {
@@ -1096,7 +1139,7 @@ onMounted(() => {
                       <select v-model="sourceLocationId" required :disabled="submitting">
                         <option value="">Choose source warehouse…</option>
                         <option
-                          v-for="location in locations.filter(
+                          v-for="location in manageableLocations.filter(
                             (location) =>
                               String(location.id) !==
                               String(selectedRestockStock?.location_id ?? '')
@@ -1407,7 +1450,7 @@ onMounted(() => {
                     <select v-model="sourceLocationId" required :disabled="submitting">
                       <option value="">Select source location</option>
                       <option
-                        v-for="location in locations"
+                        v-for="location in manageableLocations"
                         :key="location.id"
                         :value="String(location.id)"
                       >
@@ -1428,7 +1471,7 @@ onMounted(() => {
                     >
                       <option value="">Select destination location</option>
                       <option
-                        v-for="location in locations.filter(
+                        v-for="location in receivableLocations.filter(
                           (l) => String(l.id) !== sourceLocationId
                         )"
                         :key="location.id"
@@ -1448,7 +1491,7 @@ onMounted(() => {
                   <select v-model="locationId" required :disabled="submitting">
                     <option value="">Select location</option>
                     <option
-                      v-for="location in locations"
+                      v-for="location in operationLocations"
                       :key="location.id"
                       :value="String(location.id)"
                     >
