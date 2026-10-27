@@ -164,7 +164,6 @@ const user = ref<User | null>(null);
 
 const roleCatalog = ref<Role[]>([]);
 const locations = ref<LocationOption[]>([]);
-const canManageLocations = ref(false);
 const locationAssignments = ref<LocationAssignment[]>([]);
 
 const isLoadingRoles = ref(false);
@@ -432,10 +431,8 @@ async function loadLocations(): Promise<void> {
     try {
         const response = await apiRequest<LocationOption[] | { data: LocationOption[] }>('/api/users/options/locations', 'GET');
         locations.value = Array.isArray(response) ? response : response.data;
-        canManageLocations.value = true;
     } catch {
         locations.value = [];
-        canManageLocations.value = false;
     }
 }
 
@@ -494,7 +491,7 @@ async function save(): Promise<void> {
     const payload: Record<string, unknown> = {
         name: form.name.trim(),
         designation: form.designation.trim() || null,
-        ...(canManageLocations.value ? { location_assignments: locationAssignments.value } : {}),
+        location_assignments: locationAssignments.value,
 
         email: form.email.trim(),
 
@@ -1029,8 +1026,10 @@ onMounted(() => {
                             </div>
                         </section>
 
-                        <section class="panel">
-                            <header class="panel-heading">
+
+
+                        <section class="panel panel-role-access">
+                            <header class="panel-heading role-access-heading">
                                 <div>
                                     <span class="section-kicker">
                                         Access Control
@@ -1145,12 +1144,12 @@ onMounted(() => {
                                 </span>
                             </div>
                         </section>
-                        <section v-if="canManageLocations" class="panel location-panel" aria-labelledby="location-access-title">
-                            <header class="panel-heading"><div><span class="section-kicker">Operational scope</span><h2 id="location-access-title">Location access</h2><p>Choose which locations this user can access.</p></div></header>
+                        <section class="panel panel-location-scope" aria-labelledby="location-access-title">
+                            <header class="panel-heading location-scope-heading"><div><span class="section-kicker">Operational scope</span><h2 id="location-access-title">Location access</h2><p>Choose which locations this user can access.</p></div><span class="scope-count">{{ locations.filter((location) => !!locationAccess(location.id)).length }} assigned</span></header>
                             <div v-if="locations.length === 0" class="empty-state"><strong>No locations available</strong><span>Ensure you have Location Management permission and active locations exist.</span></div>
-                            <div v-else class="form-grid">
-                                <label v-for="location in locations" :key="location.id" class="field full">
-                                    <span>{{ location.name }} <small>({{ location.code }} · {{ location.type }})</small></span>
+                            <div v-else class="form-grid location-access-grid">
+                                <label v-for="location in locations" :key="location.id" class="field full location-access-field">
+                                    <span class="location-label"><strong>{{ location.name }}</strong><small>{{ location.code }} · {{ location.type }}</small></span>
                                     <select :value="locationAccess(location.id)" @change="setLocationAccess(location.id, ($event.target as HTMLSelectElement).value as LocationAssignment['access_level'] | '')">
                                         <option value="">No access</option><option value="view">View only</option><option value="receive">Receive transfers</option><option value="manage">Manage &amp; receive</option>
                                     </select>
@@ -1158,7 +1157,6 @@ onMounted(() => {
                             </div>
                             <small v-if="formErrors.location_assignments" class="form-error">{{ formErrors.location_assignments }}</small>
                         </section>
-
                     </form>
 
                     <section class="metadata-grid" aria-label="User metadata">
@@ -1632,10 +1630,6 @@ h1 {
     grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.9fr);
 
     gap: 16px;
-}
-
-.location-panel {
-    grid-column: 1 / -1;
 }
 
 .panel {
@@ -2295,6 +2289,12 @@ h1 {
     .content-grid {
         grid-template-columns: 1fr;
     }
+
+    .panel-role-access,
+    .panel-location-scope {
+        grid-column: 1 / -1;
+        grid-row: auto;
+    }
 }
 
 @media (max-width: 720px) {
@@ -2343,4 +2343,146 @@ h1 {
         flex-direction: column;
     }
 }
+
+/* Focused futuristic styling: Access Control and Operational Scope only. */
+.panel-location-scope,
+.panel-role-access {
+    position: relative;
+    border: 1px solid color-mix(in srgb, var(--border, #e7ebf0) 58%, #10b981 42%);
+    border-radius: 17px;
+    background: linear-gradient(155deg, var(--surface, #fff) 0%, color-mix(in srgb, var(--surface, #fff) 96%, #10b981 4%) 100%);
+    box-shadow: 0 10px 28px rgba(20, 40, 60, 0.055), 0 1px 0 rgba(255, 255, 255, 0.75) inset;
+}
+
+/* The role card occupies the second column; location scope spans the full row below. */
+.panel-role-access {
+    grid-column: 2;
+    grid-row: 1;
+}
+
+.panel-location-scope {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    min-width: 0;
+}
+
+.location-scope-heading,
+.role-access-heading {
+    align-items: center;
+    padding: 16px 18px;
+    border-bottom: 1px solid color-mix(in srgb, var(--border, #e7ebf0) 68%, #10b981 32%);
+    background: linear-gradient(112deg, rgba(16, 185, 129, 0.12), rgba(20, 184, 166, 0.045) 52%, rgba(99, 102, 241, 0.035));
+}
+
+.location-scope-heading h2,
+.role-access-heading h2 {
+    font-size: 16px;
+    letter-spacing: -0.025em;
+}
+
+.location-scope-heading .section-kicker,
+.role-access-heading .section-kicker {
+    color: #07845e;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.11em;
+}
+
+.location-scope-heading p,
+.role-access-heading p {
+    font-size: 12px;
+}
+
+.scope-count {
+    flex-shrink: 0;
+    padding: 5px 9px;
+    border: 1px solid rgba(16, 185, 129, 0.2);
+    border-radius: 999px;
+    color: #087f5b;
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.14), rgba(20, 184, 166, 0.07));
+    box-shadow: 0 2px 8px rgba(16, 185, 129, 0.07);
+    font-size: 11px;
+    font-weight: 750;
+}
+
+.location-access-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    padding: 16px;
+}
+
+.location-access-field {
+    min-width: 0;
+    gap: 8px;
+    padding: 12px;
+    border: 1px solid color-mix(in srgb, var(--border, #e7ebf0) 76%, #10b981 24%);
+    border-radius: 13px;
+    background: linear-gradient(145deg, var(--surface, #fff), color-mix(in srgb, var(--surface, #fff) 97%, #10b981 3%));
+    box-shadow: 0 2px 7px rgba(24, 45, 62, 0.025);
+    transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease, background 160ms ease;
+}
+
+.location-access-field:hover {
+    border-color: rgba(16, 185, 129, 0.58);
+    background: linear-gradient(145deg, var(--surface, #fff), rgba(16, 185, 129, 0.045));
+    box-shadow: 0 8px 20px rgba(16, 80, 60, 0.075), 0 0 0 2px rgba(16, 185, 129, 0.045);
+    transform: translateY(-1px);
+}
+
+.location-access-field .location-label {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 3px;
+    min-width: 0;
+    line-height: 1.35;
+}
+
+.location-access-field .location-label strong {
+    color: var(--text-primary, #17202a);
+    font-size: 12px;
+    font-weight: 750;
+    overflow-wrap: anywhere;
+}
+
+.location-access-field .location-label small {
+    color: var(--text-secondary, #7b8798);
+    font-size: 10px;
+    font-weight: 500;
+    overflow-wrap: anywhere;
+}
+
+.location-access-field select {
+    min-height: 38px;
+    border-radius: 9px;
+    font-size: 12px;
+}
+
+.panel-role-access .selection-count {
+    padding: 5px 9px;
+    border: 1px solid color-mix(in srgb, var(--border, #e7ebf0) 65%, #10b981 35%);
+    border-radius: 999px;
+    background: linear-gradient(135deg, var(--surface, #fff), rgba(16, 185, 129, 0.055));
+    color: var(--text-primary, #17202a);
+}
+
+.panel-role-access .role-row {
+    padding: 11px 16px;
+    transition: background 150ms ease, box-shadow 150ms ease;
+}
+
+.panel-role-access .role-row[aria-pressed="true"] {
+    background: rgba(16, 185, 129, 0.055);
+}
+
+@media (max-width: 1100px) {
+    .location-access-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 640px) {
+    .location-access-grid { grid-template-columns: 1fr; padding: 12px; }
+    .location-scope-heading, .role-access-heading { padding: 14px; }
+    .scope-count { font-size: 10px; }
+}
+
 </style>
