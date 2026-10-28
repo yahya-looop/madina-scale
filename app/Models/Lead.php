@@ -17,12 +17,22 @@ class Lead extends Model
         'area', 'district', 'division', 'source', 'source_detail', 'customer_type',
         'interested_product', 'status', 'last_contact_outcome', 'interest_level',
         'notes', 'next_follow_up_at', 'assigned_to', 'customer_id', 'converted_order_id',
-        'created_by', 'updated_by',
+        'created_by', 'updated_by', 'location_id',
     ];
 
     protected function casts(): array
     {
         return ['next_follow_up_at' => 'datetime'];
+    }
+
+    public function assignmentHistory(): HasMany
+    {
+        return $this->hasMany(LeadAssignmentHistory::class)->latest();
+    }
+
+    public function location(): BelongsTo
+    {
+        return $this->belongsTo(Location::class);
     }
 
     public function activities(): HasMany

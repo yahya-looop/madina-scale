@@ -77,6 +77,29 @@ class SalesCrmLeadManagementTest extends TestCase
         $this->actingAs($user)->getJson('/api/leads/'.$lead->id)->assertOk()->assertJsonCount(1, 'data.activities');
     }
 
+    public function test_regular_user_cannot_claim_an_unassigned_lead_for_themselves(): void
+    {
+        $user = $this->crmUser();
+        $this->actingAs($user)->postJson('/api/leads', [
+            'name' => 'Unassigned Prospect', 'phone' => '01712345678', 'source' => 'manual',
+            'customer_type' => 'retail', 'status' => 'new', 'interest_level' => 'warm',
+        ])->assertCreated();
+
+        $lead = Lead::query()->firstOrFail();
+
+        $this->actingAs($user)->postJson('/api/leads/'.$lead->id.'/assignment', [
+            'assigned_to' => $user->id,
+        ])->assertUnprocessable()->assertJsonValidationErrors('assigned_to');
+
+        $this->assertDatabaseHas('leads', [
+            'id' => $lead->id,
+            'assigned_to' => null,
+        ]);
+        $this->assertDatabaseMissing('lead_assignment_history', [
+            'lead_id' => $lead->id,
+        ]);
+    }
+
     public function test_lead_endpoints_require_explicit_permissions(): void
     {
         $user = User::factory()->create();

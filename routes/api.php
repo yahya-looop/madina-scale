@@ -32,10 +32,12 @@ Route::middleware(['web', 'auth'])->group(function () {
     | Sales CRM — Lead management and activity history
     |--------------------------------------------------------------------------
     */
+    Route::get('/leads/assignment-options', [LeadController::class, 'assignmentOptions'])->middleware('permission:system.crm.leads.view');
     Route::get('/leads', [LeadController::class, 'index'])->middleware('permission:system.crm.leads.view');
     Route::post('/leads', [LeadController::class, 'store'])->middleware('permission:system.crm.leads.create');
     Route::get('/leads/{lead}', [LeadController::class, 'show'])->middleware('permission:system.crm.leads.view');
     Route::put('/leads/{lead}', [LeadController::class, 'update'])->middleware('permission:system.crm.leads.update');
+    Route::post('/leads/{lead}/assignment', [LeadController::class, 'assign'])->middleware('permission:system.crm.leads.update');
     Route::delete('/leads/{lead}', [LeadController::class, 'destroy'])->middleware('permission:system.crm.leads.delete');
     Route::post('/leads/{lead}/activities', [LeadController::class, 'storeActivity'])->middleware('permission:system.crm.activities.create');
 

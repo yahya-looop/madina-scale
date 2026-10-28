@@ -38,7 +38,10 @@ type Lead = {
   notes: string | null;
   next_follow_up_at: string | null;
   assigned_to: number | null;
-  assignee?: { id: number; name: string } | null;
+  location_id?: number | null;
+  assignee?: { id: number; name: string; designation?: string | null } | null;
+  assignment_history?: AssignmentHistory[];
+
   activities_count?: number;
   activities?: Activity[];
   customer?: {
@@ -57,6 +60,20 @@ type Lead = {
   created_by?: number | null;
   creator?: { id: number; name: string } | null;
   updated_by?: number | null;
+};
+type AssignmentMember = {
+  id: number;
+  name: string;
+  designation: string | null;
+  location_ids: number[];
+};
+type AssignmentHistory = {
+  id: number;
+  from_user?: { id: number; name: string } | null;
+  to_user?: { id: number; name: string } | null;
+  actor?: { id: number; name: string } | null;
+  reason: string | null;
+  created_at: string;
 };
 type Activity = {
   id: number;
@@ -84,6 +101,8 @@ type Form = {
   interest_level: "hot" | "warm" | "cold";
   notes: string;
   next_follow_up_at: string;
+  assigned_to: number | null;
+  location_id: number | null;
 };
 type ActivityForm = {
   activity_type: string;
@@ -114,7 +133,15 @@ const formOpen = ref(false),
   detail = ref<Lead | null>(null),
   activityOpen = ref(false),
   activitySaving = ref(false),
-  quickSaving = ref(false);
+  quickSaving = ref(false),
+  assignmentSaving = ref(false);
+const assignmentMembers = ref<AssignmentMember[]>([]);
+const assignmentLocations = ref<{ id: number; name: string }[]>([]);
+const assignmentCurrentUserId = ref<number | null>(null);
+const canManageAssignments = ref(false);
+const assignmentTarget = ref<number | null>(null);
+const assignmentReason = ref("");
+const assignmentLocationId = ref<number | null>(null);
 const form = reactive<Form>(emptyForm());
 const activity = reactive<ActivityForm>(emptyActivity());
 const statuses: { value: LeadStatus; label: string }[] = [
@@ -167,6 +194,8 @@ function emptyForm(): Form {
     interest_level: "warm",
     notes: "",
     next_follow_up_at: "",
+    assigned_to: null,
+    location_id: null,
   };
 }
 function emptyActivity(): ActivityForm {
@@ -260,6 +289,8 @@ function openEdit(lead: Lead) {
   Object.assign(form, {
     ...emptyForm(),
     ...lead,
+    location_id: lead.location_id ?? null,
+    assigned_to: lead.assigned_to ?? null,
     next_follow_up_at: lead.next_follow_up_at ? lead.next_follow_up_at.slice(0, 16) : "",
     alternate_phone: lead.alternate_phone || "",
     email: lead.email || "",
@@ -383,6 +414,59 @@ async function quickUpdateLead(
   }
 }
 
+async function loadAssignmentOptions() {
+  try {
+    const response = await fetch("/api/leads/assignment-options", {
+      headers: headers(),
+      credentials: "same-origin",
+      cache: "no-store",
+    });
+    if (!response.ok) return;
+    const payload = await response.json();
+    assignmentMembers.value = payload.members || [];
+    assignmentLocations.value = payload.locations || [];
+    assignmentCurrentUserId.value = payload.current_user_id ?? null;
+    canManageAssignments.value = !!payload.can_manage_assignments;
+  } catch {
+    assignmentMembers.value = [];
+    assignmentLocations.value = [];
+  }
+}
+function membersForLocation(locationId: number | null | undefined) {
+  if (locationId) return assignmentMembers.value.filter((member) => member.location_ids.includes(locationId));
+  return assignmentMembers.value;
+}
+async function saveAssignment() {
+  if (!detail.value || !assignmentTarget.value || assignmentSaving.value) return;
+  assignmentSaving.value = true;
+  error.value = "";
+  notice.value = "";
+  try {
+    const r = await fetch(`/api/leads/${detail.value.id}/assignment`, {
+      method: "POST",
+      headers: headers(),
+      credentials: "same-origin",
+      body: JSON.stringify({
+        assigned_to: assignmentTarget.value,
+        reason: assignmentReason.value.trim() || null,
+        location_id: detail.value.location_id || assignmentLocationId.value || null,
+      }),
+    });
+    if (!r.ok) throw new Error(await readError(r, "Could not assign lead."));
+    const payload = await r.json();
+    detail.value = payload.data;
+    assignmentTarget.value = null;
+    assignmentReason.value = "";
+    assignmentLocationId.value = null;
+    notice.value = "Lead owner updated successfully.";
+    await loadLeads();
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "Could not assign lead.";
+  } finally {
+    assignmentSaving.value = false;
+  }
+}
+
 async function openDetail(lead: Lead) {
   error.value = "";
   try {
@@ -394,6 +478,9 @@ async function openDetail(lead: Lead) {
     if (!r.ok) throw new Error(await readError(r, "Could not load lead details."));
     const p = await r.json();
     detail.value = p.data;
+    assignmentTarget.value = null;
+    assignmentReason.value = "";
+    assignmentLocationId.value = p.data.location_id ?? null;
   } catch (e) {
     error.value = e instanceof Error ? e.message : "Could not load lead details.";
   }
@@ -465,7 +552,7 @@ function formatDate(value: string | null | undefined) {
 function isOverdue(value: string | null) {
   return !!value && new Date(value).getTime() <= Date.now();
 }
-onMounted(loadLeads);
+onMounted(() => { loadLeads(); loadAssignmentOptions(); });
 </script>
 
 <template>
@@ -877,6 +964,25 @@ onMounted(loadLeads);
                 v-model="form.next_follow_up_at"
                 type="datetime-local"
             /></label>
+            <label v-if="!editing && assignmentLocations.length"
+              >Team location
+              <select v-model="form.location_id">
+                <option :value="null">Auto-select from my team</option>
+                <option v-for="location in assignmentLocations" :key="location.id" :value="location.id">
+                  {{ location.name }}
+                </option>
+              </select>
+            </label>
+            <label v-if="!editing && assignmentMembers.length"
+              >Initial owner
+              <select v-model="form.assigned_to">
+                <option :value="null">Leave unassigned</option>
+                <option v-for="member in membersForLocation(form.location_id)" :key="member.id" :value="member.id" :disabled="member.id === assignmentCurrentUserId && !canManageAssignments">
+                  {{ member.name }}{{ member.designation ? ` · ${member.designation}` : "" }}
+                </option>
+              </select>
+              <small>Only members of your assigned locations are listed.</small>
+            </label>
             <div class="crm-form-section full">
               <span class="crm-section-icon"><Icon name="map-pin" :size="17" /></span>
               <div>
@@ -998,6 +1104,28 @@ onMounted(loadLeads);
             <small><Icon name="user-check" :size="13" /> Assigned owner</small
             ><strong>{{ detail.assignee?.name || "Unassigned" }}</strong>
           </div>
+          <div v-if="canManageAssignments || detail.assigned_to === assignmentCurrentUserId || detail.created_by === assignmentCurrentUserId" class="crm-assignment-panel">
+            <small><Icon name="users" :size="13" /> Assign / transfer owner</small>
+            <select v-if="!detail.location_id && assignmentLocations.length" v-model="assignmentLocationId" :disabled="assignmentSaving">
+              <option :value="null">Select team location…</option>
+              <option v-for="location in assignmentLocations" :key="location.id" :value="location.id">{{ location.name }}</option>
+            </select>
+            <select v-model="assignmentTarget" :disabled="assignmentSaving">
+              <option :value="null">Select team member…</option>
+              <option
+                v-for="member in membersForLocation(detail.location_id || assignmentLocationId)"
+                :key="member.id"
+                :value="member.id"
+                :disabled="member.id === detail.assigned_to || (member.id === assignmentCurrentUserId && !canManageAssignments)"
+              >
+                {{ member.name }}{{ member.designation ? ` · ${member.designation}` : "" }}
+              </option>
+            </select>
+            <input v-model="assignmentReason" maxlength="500" placeholder="Reason for assignment / transfer (optional)" :disabled="assignmentSaving" />
+            <button class="crm-primary" type="button" :disabled="!assignmentTarget || assignmentSaving" @click="saveAssignment">
+              {{ assignmentSaving ? "Saving…" : "Update owner" }}
+            </button>
+          </div>
           <div>
             <small><Icon name="map-pin" :size="13" /> Location</small
             ><strong>{{
@@ -1032,6 +1160,14 @@ onMounted(loadLeads);
           ><button class="crm-primary" @click="openActivity">
             <Icon name="phone-call" :size="15" /> Log interaction
           </button>
+        </div>
+        <div v-if="detail.assignment_history?.length" class="crm-timeline crm-assignment-history">
+          <h3><Icon name="users" :size="16" /> Assignment history</h3>
+          <div v-for="entry in detail.assignment_history" :key="entry.id" class="crm-assignment-entry">
+            <strong>{{ entry.from_user?.name || "Unassigned" }} → {{ entry.to_user?.name || "Unassigned" }}</strong>
+            <small>{{ entry.actor?.name || "System" }} · {{ formatDate(entry.created_at) }}</small>
+            <p v-if="entry.reason">{{ entry.reason }}</p>
+          </div>
         </div>
         <div class="crm-timeline">
           <h3><Icon name="history" :size="16" /> Activity timeline</h3>
@@ -1495,6 +1631,44 @@ onMounted(loadLeads);
   color: #047857;
   border-color: #86efac;
   background: #f0fdf4;
+}
+.crm-assignment-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 220px;
+  margin-top: 12px;
+}
+.crm-assignment-panel select,
+.crm-assignment-panel input {
+  width: 100%;
+  min-width: 0;
+  padding: 9px 10px;
+  border: 1px solid #dce4ed;
+  border-radius: 8px;
+  background: #fff;
+  color: #334155;
+  font-size: 12px;
+}
+.crm-assignment-panel .crm-primary {
+  justify-content: center;
+}
+.crm-assignment-entry {
+  padding: 10px 0;
+  border-bottom: 1px solid #edf1f6;
+}
+.crm-assignment-entry strong,
+.crm-assignment-entry small {
+  display: block;
+}
+.crm-assignment-entry small {
+  margin-top: 4px;
+  color: #94a3b8;
+}
+.crm-assignment-entry p {
+  margin: 6px 0 0;
+  color: #64748b;
+  font-size: 12px;
 }
 .crm-empty {
   display: flex;
