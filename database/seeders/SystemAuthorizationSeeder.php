@@ -458,6 +458,21 @@ class SystemAuthorizationSeeder extends Seeder
             ],
 
             [
+                'name' => 'Sales CRM',
+                'slug' => 'crm',
+                'description' => 'Lead capture, sales conversations, follow-up and conversion tracking.',
+                'icon' => 'customers',
+                'sort_order' => 45,
+                'permissions' => [
+                    ['name' => 'View Leads', 'slug' => 'system.crm.leads.view', 'description' => 'View and search sales leads.'],
+                    ['name' => 'Create Leads', 'slug' => 'system.crm.leads.create', 'description' => 'Create new sales leads.'],
+                    ['name' => 'Update Leads', 'slug' => 'system.crm.leads.update', 'description' => 'Update lead details and pipeline status.'],
+                    ['name' => 'Archive Leads', 'slug' => 'system.crm.leads.delete', 'description' => 'Archive eligible leads.'],
+                    ['name' => 'Record Lead Activities', 'slug' => 'system.crm.activities.create', 'description' => 'Record calls, notes and other lead interactions.'],
+                ],
+            ],
+
+            [
 
                 'name' => 'Products',
 

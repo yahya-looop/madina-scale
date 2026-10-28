@@ -132,6 +132,21 @@ export const primaryNavigation: NavigationItem[] = [
     },
 
     {
+        label: 'Sales CRM',
+        icon: 'customers',
+        expandable: true,
+        permission: 'system.crm.leads.view',
+        children: [
+            {
+                label: 'Lead Management',
+                href: '/sales-crm/leads',
+                icon: 'users',
+                permission: 'system.crm.leads.view',
+            },
+        ],
+    },
+
+    {
         label: 'B2B & Wholesale',
         icon: 'wholesale',
         permission: 'system.b2b.view',

@@ -248,6 +248,21 @@ Route::middleware('auth')->group(function () {
 
     /*
     |--------------------------------------------------------------------------
+    | Sales CRM — Lead Management
+    |--------------------------------------------------------------------------
+    */
+    Route::get('/sales-crm/leads', function () {
+        $user = request()->user();
+        abort_unless($user !== null, 401);
+        abort_unless($user->can('system.crm.leads.view'), 403);
+        return Inertia::render('SalesCRM/Leads/Index', [
+            'userName' => $user->name,
+            'userEmail' => $user->email,
+        ]);
+    })->name('sales-crm.leads.index');
+
+    /*
+    |--------------------------------------------------------------------------
     | Customer Management
     |--------------------------------------------------------------------------
     */
