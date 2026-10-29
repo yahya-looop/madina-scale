@@ -35,6 +35,8 @@ Route::middleware(['web', 'auth'])->group(function () {
     Route::get('/leads/assignment-options', [LeadController::class, 'assignmentOptions'])->middleware('permission:system.crm.leads.view');
     Route::get('/leads', [LeadController::class, 'index'])->middleware('permission:system.crm.leads.view');
     Route::post('/leads', [LeadController::class, 'store'])->middleware('permission:system.crm.leads.create');
+    Route::post('/leads/{lead}/convert-with-order', [LeadController::class, 'convertWithOrder'])
+        ->middleware(['permission:system.customers.create', 'permission:system.orders.create']);
     Route::get('/leads/{lead}', [LeadController::class, 'show'])->middleware('permission:system.crm.leads.view');
     Route::put('/leads/{lead}', [LeadController::class, 'update'])->middleware('permission:system.crm.leads.update');
     Route::post('/leads/{lead}/assignment', [LeadController::class, 'assign'])->middleware('permission:system.crm.leads.update');

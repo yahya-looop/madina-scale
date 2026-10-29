@@ -17,7 +17,7 @@ class Lead extends Model
         'area', 'district', 'division', 'source', 'source_detail', 'customer_type',
         'interested_product', 'status', 'last_contact_outcome', 'interest_level',
         'notes', 'next_follow_up_at', 'assigned_to', 'customer_id', 'converted_order_id',
-        'created_by', 'updated_by', 'location_id',
+        'created_by', 'updated_by', 'location_id', 'owner_id',
     ];
 
     protected function casts(): array
@@ -28,6 +28,11 @@ class Lead extends Model
     public function assignmentHistory(): HasMany
     {
         return $this->hasMany(LeadAssignmentHistory::class)->latest();
+    }
+
+    public function owner(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'owner_id');
     }
 
     public function location(): BelongsTo

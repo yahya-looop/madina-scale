@@ -22,6 +22,10 @@ class SettingsUpdateRequest extends FormRequest
     public static function definitions(): array
     {
         return [
+            'crm.default_follow_up_hours' => [
+                'group' => 'crm',
+                'type' => 'integer',
+            ],
             /*
             |--------------------------------------------------------------------------
             | General

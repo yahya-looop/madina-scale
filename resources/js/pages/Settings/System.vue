@@ -16,7 +16,8 @@ type SettingGroup =
     | 'currency'
     | 'business'
     | 'security'
-    | 'system';
+    | 'system'
+    | 'crm';
 
 type SettingType = 'string' | 'boolean' | 'integer' | 'json';
 
@@ -96,6 +97,12 @@ const categories: CategoryDefinition[] = [
         label: 'Security',
         description: 'Authentication protection and password policy.',
         icon: 'security',
+    },
+    {
+        id: 'crm',
+        label: 'Sales CRM',
+        description: 'Lead ownership and follow-up defaults.',
+        icon: 'users',
     },
     {
         id: 'system',
@@ -450,6 +457,14 @@ const definitions: SettingDefinition[] = [
         icon: 'security',
     },
 
+    {
+        key: 'crm.default_follow_up_hours',
+        label: 'Default Lead Follow-up (Hours)',
+        description: 'Default time from lead creation to the next follow-up. Use 24 for one day; allowed range is 1–8760 hours.',
+        group: 'crm',
+        type: 'integer',
+        icon: 'clock',
+    },
     {
         key: 'system.maintenance_mode',
         label: 'Maintenance Mode',

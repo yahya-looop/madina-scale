@@ -38,6 +38,8 @@ type Lead = {
   notes: string | null;
   next_follow_up_at: string | null;
   assigned_to: number | null;
+  owner_id?: number | null;
+  owner?: { id: number; name: string } | null;
   location_id?: number | null;
   assignee?: { id: number; name: string; designation?: string | null } | null;
   assignment_history?: AssignmentHistory[];
@@ -49,6 +51,8 @@ type Lead = {
     customer_code: string;
     name: string;
     phone: string | null;
+    email?: string | null;
+    company_name?: string | null;
   } | null;
   converted_order?: {
     id: number;
@@ -115,6 +119,10 @@ type ActivityForm = {
 const leads = ref<Lead[]>([]),
   loading = ref(false),
   saving = ref(false),
+  convertConfirmOpen = ref(false),
+  orderModalOpen = ref(false),
+  orderOptionsLoading = ref(false),
+  orderSubmitting = ref(false),
   search = ref(""),
   statusFilter = ref("all"),
   typeFilter = ref("all"),
@@ -136,12 +144,26 @@ const formOpen = ref(false),
   quickSaving = ref(false),
   assignmentSaving = ref(false);
 const assignmentMembers = ref<AssignmentMember[]>([]);
+type OrderVariant = { id: number; product_id: number; name: string; sku: string | null; price: string | number; available: string | number; image_url?: string | null };
+type OrderCartLine = { product_variant_id: number; name: string; sku: string | null; price: number; quantity: number; available: number };
+const orderLocations = ref<{ id: number; name: string; code?: string }[]>([]);
+const orderVariants = ref<OrderVariant[]>([]);
+const orderLocationId = ref<number | null>(null);
+const orderVariantId = ref<number | null>(null);
+const orderQuantity = ref(1);
+const orderNotes = ref("");
+const orderCart = ref<OrderCartLine[]>([]);
+const orderIdempotencyKey = ref("");
+const orderSubtotal = computed(() => orderCart.value.reduce((sum, item) => sum + item.price * item.quantity, 0));
+const selectedOrderVariant = computed(() => orderVariants.value.find(v => v.id === orderVariantId.value) || null);
+
 const assignmentLocations = ref<{ id: number; name: string }[]>([]);
 const assignmentCurrentUserId = ref<number | null>(null);
 const canManageAssignments = ref(false);
 const assignmentTarget = ref<number | null>(null);
 const assignmentReason = ref("");
 const assignmentLocationId = ref<number | null>(null);
+const defaultFollowUpHours = ref(24);
 const form = reactive<Form>(emptyForm());
 const activity = reactive<ActivityForm>(emptyActivity());
 const statuses: { value: LeadStatus; label: string }[] = [
@@ -174,8 +196,15 @@ const hasActiveFilters = computed(
     sortDirection.value !== "asc"
 );
 const editableStatuses = computed(() =>
-  statuses.filter((s) => s.value !== "converted" || editing.value?.status === "converted")
+  editing.value?.status === "converted"
+    ? statuses.filter((s) => s.value === "converted")
+    : statuses.filter((s) => s.value !== "converted")
 );
+function defaultFollowUpInput() {
+  const d = new Date(Date.now() + defaultFollowUpHours.value * 60 * 60 * 1000);
+  d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+  return d.toISOString().slice(0, 16);
+}
 function emptyForm(): Form {
   return {
     name: "",
@@ -193,7 +222,7 @@ function emptyForm(): Form {
     status: "new",
     interest_level: "warm",
     notes: "",
-    next_follow_up_at: "",
+    next_follow_up_at: defaultFollowUpInput(),
     assigned_to: null,
     location_id: null,
   };
@@ -282,6 +311,7 @@ function clearFilters() {
 function openCreate() {
   editing.value = null;
   Object.assign(form, emptyForm());
+  form.next_follow_up_at = defaultFollowUpInput();
   formOpen.value = true;
 }
 function openEdit(lead: Lead) {
@@ -425,6 +455,7 @@ async function loadAssignmentOptions() {
     const payload = await response.json();
     assignmentMembers.value = payload.members || [];
     assignmentLocations.value = payload.locations || [];
+    defaultFollowUpHours.value = Math.max(1, Math.min(8760, Number(payload.default_follow_up_hours) || 24));
     assignmentCurrentUserId.value = payload.current_user_id ?? null;
     canManageAssignments.value = !!payload.can_manage_assignments;
   } catch {
@@ -465,6 +496,101 @@ async function saveAssignment() {
   } finally {
     assignmentSaving.value = false;
   }
+}
+
+function convertLeadToCustomer() {
+  if (!detail.value || detail.value.status !== "qualified" || detail.value.customer || saving.value) return;
+  convertConfirmOpen.value = true;
+}
+
+async function confirmConvertAndCreateOrder() {
+  const lead = detail.value;
+  if (!lead || lead.status !== "qualified" || saving.value) return;
+  convertConfirmOpen.value = false;
+  orderModalOpen.value = true;
+  orderLocationId.value = lead.location_id || assignmentLocations.value[0]?.id || null;
+  orderVariantId.value = null;
+  orderQuantity.value = 1;
+  orderNotes.value = `Lead ${lead.lead_code}`;
+  orderCart.value = [];
+  orderIdempotencyKey.value = `lead-${lead.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  await loadOrderOptions();
+}
+
+async function loadOrderOptions() {
+  orderOptionsLoading.value = true;
+  error.value = "";
+  try {
+    const r = await fetch("/api/orders/options", { headers: headers(), credentials: "same-origin" });
+    if (!r.ok) throw new Error(await readError(r, "Could not load order locations."));
+    const payload = await r.json();
+    orderLocations.value = payload.locations || [];
+    if (!orderLocationId.value || !orderLocations.value.some(l => l.id === orderLocationId.value)) {
+      orderLocationId.value = orderLocations.value[0]?.id ?? null;
+    }
+    await loadOrderVariants();
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "Could not load order options.";
+  } finally {
+    orderOptionsLoading.value = false;
+  }
+}
+
+async function loadOrderVariants() {
+  orderVariants.value = [];
+  if (!orderLocationId.value) return;
+  const r = await fetch(`/api/orders/options?location_id=${orderLocationId.value}`, { headers: headers(), credentials: "same-origin" });
+  if (!r.ok) throw new Error(await readError(r, "Could not load products for this location."));
+  const payload = await r.json();
+  orderVariants.value = payload.variants || [];
+}
+
+function addOrderLine() {
+  const v = selectedOrderVariant.value;
+  if (!v || orderQuantity.value <= 0) return;
+  const available = Number(v.available);
+  if (orderQuantity.value > available) { error.value = `Only ${available} unit(s) are available for ${v.name}.`; return; }
+  const existing = orderCart.value.find(item => item.product_variant_id === v.id);
+  if (existing) {
+    if (existing.quantity + orderQuantity.value > available) { error.value = `Available quantity exceeded for ${v.name}.`; return; }
+    existing.quantity += orderQuantity.value;
+  } else {
+    orderCart.value.push({ product_variant_id: v.id, name: v.name, sku: v.sku, price: Number(v.price), quantity: orderQuantity.value, available });
+  }
+  error.value = "";
+  orderVariantId.value = null;
+  orderQuantity.value = 1;
+}
+
+async function submitConversionOrder() {
+  const lead = detail.value;
+  if (!lead || !orderLocationId.value || !orderCart.value.length || orderSubmitting.value) return;
+  orderSubmitting.value = true;
+  error.value = "";
+  try {
+    const r = await fetch(`/api/leads/${lead.id}/convert-with-order`, {
+      method: "POST", headers: headers(), credentials: "same-origin",
+      body: JSON.stringify({
+        location_id: orderLocationId.value, notes: orderNotes.value || null,
+        idempotency_key: orderIdempotencyKey.value,
+        items: orderCart.value.map(item => ({ product_variant_id: item.product_variant_id, quantity: item.quantity })),
+      }),
+    });
+    if (!r.ok) throw new Error(await readError(r, "Order could not be created. The lead remains unchanged."));
+    const payload = await r.json();
+    detail.value = payload.data;
+    orderModalOpen.value = false;
+    notice.value = `Order ${payload.order?.order_number || ""} created and customer conversion completed.`;
+    await loadLeads();
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "Order failed. The lead remains unchanged.";
+  } finally {
+    orderSubmitting.value = false;
+  }
+}
+function viewCustomer() {
+  if (!detail.value?.customer) return;
+  window.location.href = `/customers?search=${encodeURIComponent(detail.value.customer.customer_code)}`;
 }
 
 async function openDetail(lead: Lead) {
@@ -735,7 +861,7 @@ onMounted(() => { loadLeads(); loadAssignmentOptions(); });
           ><span>Add your first prospect or adjust the filters.</span>
         </div>
         <div v-else class="crm-table-wrap">
-          <table class="crm-table">
+          <table class="crm-table crm-lead-register-table">
             <thead>
               <tr>
                 <th>Lead / contact</th>
@@ -743,7 +869,7 @@ onMounted(() => { loadLeads(); loadAssignmentOptions(); });
                 <th>Type</th>
                 <th>Pipeline</th>
                 <th>Next follow-up</th>
-                <th>Created by / owner</th>
+                <th>Created by / Assigned</th>
                 <th>Actions</th>
               </tr>
             </thead>
@@ -777,7 +903,7 @@ onMounted(() => { loadLeads(); loadAssignmentOptions(); });
                     class="crm-inline-select crm-inline-type"
                     :class="lead.customer_type"
                     :value="lead.customer_type"
-                    :disabled="quickSaving"
+                    :disabled="quickSaving || lead.status === 'converted'"
                     aria-label="Update customer type"
                     @click.stop
                     @change="quickUpdateLead(lead, 'customer_type', $event)"
@@ -792,7 +918,7 @@ onMounted(() => { loadLeads(); loadAssignmentOptions(); });
                     class="crm-inline-select crm-inline-status"
                     :class="lead.status"
                     :value="lead.status"
-                    :disabled="quickSaving"
+                    :disabled="quickSaving || lead.status === 'converted'"
                     aria-label="Update pipeline status"
                     @click.stop
                     @change="quickUpdateLead(lead, 'status', $event)"
@@ -808,6 +934,7 @@ onMounted(() => { loadLeads(); loadAssignmentOptions(); });
                       {{ s.label }}
                     </option>
                   </select>
+                  <small v-if="lead.status === 'converted'" class="crm-converted-lock"><Icon name="lock-keyhole" :size="12" /> <Icon name="check-circle-2" :size="12" /> Converted</small>
                   <small v-if="lead.last_contact_outcome"
                     >Last outcome:
                     {{ lead.last_contact_outcome.replaceAll("_", " ") }}</small
@@ -827,14 +954,14 @@ onMounted(() => { loadLeads(); loadAssignmentOptions(); });
                   <span class="created-by"
                     ><Icon name="user" :size="13" />
                     {{ lead.creator?.name || "Unknown user" }}</span
-                  ><small>Owner: {{ lead.assignee?.name || "Unassigned" }}</small
+                  ><small>Assigned: {{ lead.assignee?.name || "Unassigned" }}</small
                   ><small>Added: {{ formatDate(lead.created_at) }}</small>
                 </td>
                 <td>
                   <div class="crm-actions">
                     <button title="View timeline" @click.stop="openDetail(lead)">
                       <Icon name="eye" :size="16" /></button
-                    ><button title="Edit lead" @click.stop="openEdit(lead)">
+                    ><button v-if="lead.status !== 'converted'" title="Edit lead" @click.stop="openEdit(lead)">
                       <Icon name="pencil" :size="16" /></button
                     ><button
                       v-if="!['converted'].includes(lead.status)"
@@ -973,16 +1100,14 @@ onMounted(() => { loadLeads(); loadAssignmentOptions(); });
                 </option>
               </select>
             </label>
-            <label v-if="!editing && assignmentMembers.length"
-              >Initial owner
-              <select v-model="form.assigned_to">
-                <option :value="null">Leave unassigned</option>
-                <option v-for="member in membersForLocation(form.location_id)" :key="member.id" :value="member.id" :disabled="member.id === assignmentCurrentUserId && !canManageAssignments">
-                  {{ member.name }}{{ member.designation ? ` · ${member.designation}` : "" }}
-                </option>
-              </select>
-              <small>Only members of your assigned locations are listed.</small>
-            </label>
+            <div v-if="!editing" class="crm-owner-default-note">
+              <span class="crm-owner-default-icon"><Icon name="shield-check" :size="16" /></span>
+              <div>
+                <span class="crm-owner-badge">Permanent owner</span>
+                <strong>You’ll own this lead</strong>
+                <small>Assign a teammate for service; the original owner never changes.</small>
+              </div>
+            </div>
             <div class="crm-form-section full">
               <span class="crm-section-icon"><Icon name="map-pin" :size="17" /></span>
               <div>
@@ -1013,7 +1138,7 @@ onMounted(() => { loadLeads(); loadAssignmentOptions(); });
       </section>
     </div>
     <div v-if="detail" class="crm-overlay" @click.self="detail = null">
-      <section class="crm-modal detail-modal">
+      <section class="crm-modal detail-modal detail-modal-premium">
         <header>
           <div>
             <div class="eyebrow">{{ detail.lead_code }}</div>
@@ -1054,18 +1179,32 @@ onMounted(() => { loadLeads(); loadAssignmentOptions(); });
             >
           </div>
         </div>
+        <div v-if="detail.customer || detail.status === 'converted'" class="crm-converted-banner">
+          <div class="crm-converted-icon"><Icon name="user-check" :size="19" /></div>
+          <div class="crm-converted-copy">
+            <strong>Converted to Customer</strong>
+            <span v-if="detail.customer">{{ detail.customer.customer_code }} · {{ detail.customer.name }}<span v-if="detail.customer.phone"> · {{ detail.customer.phone }}</span></span>
+            <span v-else>Conversion status recorded, but the linked customer record was not returned.</span>
+          </div>
+          <button v-if="detail.customer" type="button" class="crm-customer-link" @click="viewCustomer">View customer <Icon name="arrow-up-right" :size="14" /></button>
+        </div>
+        <div v-else-if="detail.status === 'qualified'" class="crm-convert-action">
+          <div class="crm-convert-mark"><Icon name="user-round-check" :size="21" /></div>
+          <div class="crm-convert-copy"><span class="crm-convert-eyebrow">QUALIFIED LEAD</span><strong>Ready for the next step?</strong><span>Convert this lead to a customer, then prepare an order with their details pre-filled. Product, quantity and live catalogue pricing can be reviewed before saving.</span></div>
+          <button type="button" class="crm-convert-cta" :disabled="saving" @click="convertLeadToCustomer"><Icon name="arrow-right-circle" :size="17" /> Convert & create order <Icon name="arrow-up-right" :size="14" /></button>
+        </div>
         <div class="crm-detail-summary">
-          <div class="crm-detail-edit-card pipeline-edit-card">
-            <small><Icon name="git-branch" :size="13" /> Pipeline</small>
+          <div class="crm-detail-edit-card pipeline-edit-card" :class="{ 'is-locked': detail.status === 'converted' }">
+            <small><Icon name="git-branch" :size="13" /> Pipeline <span v-if="detail.status === 'converted'" class="crm-lock-chip"><Icon name="lock-keyhole" :size="11" /> Locked <Icon name="check-circle-2" :size="12" /></span></small>
             <select
               class="crm-detail-inline-select"
               :value="detail.status"
-              :disabled="quickSaving"
+              :disabled="quickSaving || detail.status === 'converted'"
               aria-label="Update pipeline status"
               @change="quickUpdateLead(detail, 'status', $event)"
             >
               <option
-                v-for="s in statuses.filter((item) => item.value !== 'converted' || detail!.status === 'converted')"
+                v-for="s in statuses.filter((item) => item.value !== 'converted')"
                 :key="s.value"
                 :value="s.value"
               >
@@ -1073,13 +1212,13 @@ onMounted(() => { loadLeads(); loadAssignmentOptions(); });
               </option>
             </select>
           </div>
-          <div class="crm-detail-edit-card followup-edit-card">
-            <small><Icon name="calendar-clock" :size="13" /> Next follow-up</small>
+          <div class="crm-detail-edit-card followup-edit-card" :class="{ 'is-locked': detail.status === 'converted' }">
+            <small><Icon name="calendar-clock" :size="13" /> Next follow-up <span v-if="detail.status === 'converted'" class="crm-lock-chip"><Icon name="lock-keyhole" :size="11" /> Locked <Icon name="check-circle-2" :size="12" /></span></small>
             <input
               class="crm-detail-inline-date"
               type="datetime-local"
               :value="toLocalInput(detail.next_follow_up_at)"
-              :disabled="quickSaving"
+              :disabled="quickSaving || detail.status === 'converted'"
               aria-label="Update next follow-up"
               @change="quickUpdateLead(detail, 'next_follow_up_at', $event)"
             />
@@ -1100,17 +1239,18 @@ onMounted(() => { loadLeads(); loadAssignmentOptions(); });
               detail.activities_count || detail.activities?.length || 0
             }}</strong>
           </div>
-          <div>
-            <small><Icon name="user-check" :size="13" /> Assigned owner</small
-            ><strong>{{ detail.assignee?.name || "Unassigned" }}</strong>
+          <div class="crm-owner-assigned-card">
+            <small><Icon name="user-check" :size="13" /> Created by / Assigned</small>
+            <strong>{{ detail.creator?.name || "Unknown user" }}</strong>
+            <small class="crm-assigned-label">Assigned: {{ detail.assignee?.name || "Unassigned" }}</small>
           </div>
-          <div v-if="canManageAssignments || detail.assigned_to === assignmentCurrentUserId || detail.created_by === assignmentCurrentUserId" class="crm-assignment-panel">
-            <small><Icon name="users" :size="13" /> Assign / transfer owner</small>
-            <select v-if="!detail.location_id && assignmentLocations.length" v-model="assignmentLocationId" :disabled="assignmentSaving">
+          <div v-if="canManageAssignments || detail.assigned_to === assignmentCurrentUserId || detail.created_by === assignmentCurrentUserId" class="crm-assignment-panel" :class="{ 'is-locked': detail.status === 'converted' }">
+            <small><Icon name="users" :size="13" /> Assigned teammate <span v-if="detail.status === 'converted'" class="crm-lock-chip"><Icon name="lock-keyhole" :size="11" /> Locked <Icon name="check-circle-2" :size="12" /></span></small>
+            <select v-if="!detail.location_id && assignmentLocations.length" v-model="assignmentLocationId" :disabled="assignmentSaving || detail.status === 'converted'">
               <option :value="null">Select team location…</option>
               <option v-for="location in assignmentLocations" :key="location.id" :value="location.id">{{ location.name }}</option>
             </select>
-            <select v-model="assignmentTarget" :disabled="assignmentSaving">
+            <select v-model="assignmentTarget" :disabled="assignmentSaving || detail.status === 'converted'">
               <option :value="null">Select team member…</option>
               <option
                 v-for="member in membersForLocation(detail.location_id || assignmentLocationId)"
@@ -1121,8 +1261,8 @@ onMounted(() => { loadLeads(); loadAssignmentOptions(); });
                 {{ member.name }}{{ member.designation ? ` · ${member.designation}` : "" }}
               </option>
             </select>
-            <input v-model="assignmentReason" maxlength="500" placeholder="Reason for assignment / transfer (optional)" :disabled="assignmentSaving" />
-            <button class="crm-primary" type="button" :disabled="!assignmentTarget || assignmentSaving" @click="saveAssignment">
+            <input v-model="assignmentReason" maxlength="500" placeholder="Reason for assignment / transfer (optional)" :disabled="assignmentSaving || detail.status === 'converted'" />
+            <button v-if="detail.status !== 'converted'" class="crm-primary" type="button" :disabled="!assignmentTarget || assignmentSaving" @click="saveAssignment">
               {{ assignmentSaving ? "Saving…" : "Update owner" }}
             </button>
           </div>
@@ -1138,35 +1278,31 @@ onMounted(() => { loadLeads(); loadAssignmentOptions(); });
             <small><Icon name="package" :size="13" /> Interested product</small
             ><strong>{{ detail.interested_product || "Not specified" }}</strong>
           </div>
-        </div>
-        <div v-if="detail.source || detail.notes" class="crm-detail-context">
-          <div v-if="detail.source">
-            <small>Lead source</small
-            ><strong
-              >{{ detail.source.replaceAll("_", " ")
-              }}<span v-if="detail.source_detail">
-                · {{ detail.source_detail }}</span
-              ></strong
-            >
+          <div>
+            <small><Icon name="share-2" :size="13" /> Lead source</small
+            ><strong>{{ detail.source.replaceAll("_", " ") || "Not specified" }}<span v-if="detail.source_detail"> · {{ detail.source_detail }}</span></strong>
           </div>
+        </div>
+        <div v-if="detail.notes" class="crm-detail-context">
           <div v-if="detail.notes">
             <small>Notes & requirements</small>
             <p>{{ detail.notes }}</p>
           </div>
         </div>
         <div class="crm-detail-actions">
-          <button class="crm-secondary" @click="openEdit(detail!); detail = null">
+          <button v-if="detail.status !== 'converted'" class="crm-secondary" @click="openEdit(detail!); detail = null">
             <Icon name="pencil" :size="15" /> Edit lead</button
-          ><button class="crm-primary" @click="openActivity">
+          ><button v-if="detail.status !== 'converted'" class="crm-primary" @click="openActivity">
             <Icon name="phone-call" :size="15" /> Log interaction
           </button>
         </div>
         <div v-if="detail.assignment_history?.length" class="crm-timeline crm-assignment-history">
           <h3><Icon name="users" :size="16" /> Assignment history</h3>
           <div v-for="entry in detail.assignment_history" :key="entry.id" class="crm-assignment-entry">
-            <strong>{{ entry.from_user?.name || "Unassigned" }} → {{ entry.to_user?.name || "Unassigned" }}</strong>
+            <strong v-if="entry.reason === 'Lead owner set to creator on creation'">Created and assigned to {{ entry.to_user?.name || detail.creator?.name || 'lead creator' }}</strong>
+            <strong v-else>{{ entry.from_user?.name || 'Previous owner not recorded' }} → {{ entry.to_user?.name || 'Unassigned' }}</strong>
             <small>{{ entry.actor?.name || "System" }} · {{ formatDate(entry.created_at) }}</small>
-            <p v-if="entry.reason">{{ entry.reason }}</p>
+            <p v-if="entry.reason && entry.reason !== 'Lead owner set to creator on creation'">{{ entry.reason }}</p>
           </div>
         </div>
         <div class="crm-timeline">
@@ -1283,6 +1419,44 @@ onMounted(() => { loadLeads(); loadAssignmentOptions(); });
             </button>
           </footer>
         </form>
+      </section>
+    </div>
+    <div v-if="convertConfirmOpen && detail" class="crm-convert-confirm-backdrop" role="presentation" @click.self="convertConfirmOpen = false" @keydown.esc="convertConfirmOpen = false">
+      <section class="crm-convert-confirm" role="dialog" aria-modal="true" aria-labelledby="crm-convert-confirm-title">
+        <button class="crm-convert-confirm-close" type="button" aria-label="Close confirmation" :disabled="saving" @click="convertConfirmOpen = false"><Icon name="x" :size="18" /></button>
+        <div class="crm-confirm-icon"><Icon name="user-round-check" :size="25" /></div>
+        <span class="crm-confirm-kicker">LEAD CONVERSION</span>
+        <h3 id="crm-convert-confirm-title">Convert {{ detail.name }} to a customer?</h3>
+        <p>A customer record is created only after an order succeeds. Choose a location and at least one product in the next step; prices and stock are verified by the server.</p>
+        <div class="crm-confirm-summary"><span><Icon name="user-round" :size="15" /> {{ detail.name }}</span><span v-if="detail.phone"><Icon name="phone" :size="15" /> {{ detail.phone }}</span><span v-if="detail.interested_product"><Icon name="package" :size="15" /> Interested in {{ detail.interested_product }}</span></div>
+        <div class="crm-confirm-actions"><button type="button" class="crm-confirm-cancel" :disabled="saving" @click="convertConfirmOpen = false">Not yet</button><button type="button" class="crm-confirm-primary" :disabled="saving" @click="confirmConvertAndCreateOrder"><Icon :name="saving ? 'loader-circle' : 'check-circle-2'" :size="16" /> {{ saving ? 'Converting…' : 'Continue to order' }}</button></div>
+      </section>
+    </div>
+    <div v-if="orderModalOpen && detail" class="crm-order-backdrop" role="presentation" @click.self="!orderSubmitting && (orderModalOpen = false)">
+      <section class="crm-order-modal" role="dialog" aria-modal="true" aria-labelledby="crm-order-title">
+        <header class="crm-order-header">
+          <div><span class="crm-order-kicker">ORDER FIRST · CUSTOMER AFTER PURCHASE</span><h3 id="crm-order-title">Create order for {{ detail.name }}</h3><p>{{ detail.lead_code }} · {{ detail.phone }}</p></div>
+          <button type="button" class="crm-convert-confirm-close" :disabled="orderSubmitting" aria-label="Close order modal" @click="orderModalOpen = false"><Icon name="x" :size="18" /></button>
+        </header>
+        <div class="crm-order-body">
+          <div class="crm-order-grid">
+            <label>Fulfilment location<select v-model.number="orderLocationId" :disabled="orderOptionsLoading || orderSubmitting" @change="loadOrderVariants().catch(e => error = e.message)"><option :value="null" disabled>Select location</option><option v-for="loc in orderLocations" :key="loc.id" :value="loc.id">{{ loc.name }}</option></select></label>
+            <label>Product / variant<select v-model.number="orderVariantId" :disabled="orderOptionsLoading || orderSubmitting || !orderVariants.length"><option :value="null">Select product</option><option v-for="v in orderVariants" :key="v.id" :value="v.id">{{ v.name }} · ৳{{ Number(v.price).toLocaleString() }} · Available {{ v.available }}</option></select></label>
+            <label>Quantity<input v-model.number="orderQuantity" type="number" min="0.0001" step="any" :disabled="orderSubmitting" /></label>
+            <button type="button" class="crm-primary crm-order-add" :disabled="!selectedOrderVariant || orderQuantity <= 0 || orderSubmitting" @click="addOrderLine"><Icon name="plus" :size="15" /> Add product</button>
+          </div>
+          <div v-if="orderOptionsLoading" class="crm-order-empty">Loading location and catalogue…</div>
+          <div v-else-if="!orderVariants.length" class="crm-order-empty">No sellable products with inventory were found at this location.</div>
+          <div v-else-if="!orderCart.length" class="crm-order-empty">Add at least one product to place the order. Customer conversion happens only after order success.</div>
+          <div v-if="orderCart.length" class="crm-order-lines">
+            <div v-for="line in orderCart" :key="line.product_variant_id" class="crm-order-line"><div><strong>{{ line.name }}</strong><small>{{ line.sku || 'No SKU' }} · {{ line.quantity }} × ৳{{ line.price.toLocaleString() }}</small></div><strong>৳{{ (line.price * line.quantity).toLocaleString() }}</strong><button type="button" :disabled="orderSubmitting" aria-label="Remove item" @click="orderCart = orderCart.filter(item => item.product_variant_id !== line.product_variant_id)"><Icon name="trash-2" :size="15" /></button></div>
+            <div class="crm-order-total"><span>Order subtotal</span><strong>৳{{ orderSubtotal.toLocaleString() }}</strong></div>
+          </div>
+          <label class="crm-order-notes">Order notes<textarea v-model="orderNotes" rows="2" placeholder="Optional note for this order" :disabled="orderSubmitting"></textarea></label>
+          <p class="crm-order-footnote"><Icon name="shield-check" :size="15" /> Prices and stock are verified server-side. If order creation fails, this lead remains a lead.</p>
+          <p v-if="error" class="crm-order-error">{{ error }}</p>
+        </div>
+        <footer class="crm-order-footer"><button type="button" class="crm-secondary" :disabled="orderSubmitting" @click="orderModalOpen = false">Cancel</button><button type="button" class="crm-primary" :disabled="orderSubmitting || orderOptionsLoading || !orderLocationId || !orderCart.length" @click="submitConversionOrder"><Icon :name="orderSubmitting ? 'loader-circle' : 'shopping-cart'" :size="16" /> {{ orderSubmitting ? 'Creating order…' : 'Place order & convert to customer' }}</button></footer>
       </section>
     </div>
   </ErpLayout>
@@ -2608,4 +2782,338 @@ onMounted(() => { loadLeads(); loadAssignmentOptions(); });
     font-size: 10px;
   }
 }
+
+
+/* Premium lead details experience; intentionally scoped to this modal only. */
+.crm-owner-default-note {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid #d8eee5;
+  border-radius: 14px;
+  background: linear-gradient(115deg, #f0fdf7 0%, #f8fffc 100%);
+}
+.crm-owner-default-icon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+  border-radius: 11px;
+  color: #087f5b;
+  background: #d9f7e9;
+}
+.crm-owner-default-note strong,
+.crm-owner-default-note small { display: block; }
+.crm-owner-default-note strong { color: #145744; font-size: 12px; font-weight: 750; }
+.crm-owner-default-note small { margin-top: 3px; color: #66877b; font-size: 11px; line-height: 1.5; }
+.detail-modal-premium {
+  width: min(1080px, 100%);
+  max-height: min(88vh, 920px);
+  border: 1px solid #e3eaf2;
+  border-radius: 24px;
+  background: #fff;
+  box-shadow: 0 32px 100px rgba(15, 23, 42, .28), 0 4px 18px rgba(15, 23, 42, .08);
+  scrollbar-color: #cbd5e1 transparent;
+}
+.detail-modal-premium > header {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  align-items: center;
+  padding: 20px 28px;
+  background: rgba(255, 255, 255, .94);
+  backdrop-filter: blur(16px);
+  border-bottom: 1px solid #e9eef5;
+}
+.detail-modal-premium > header p { color: #64748b; font-size: 12px; }
+.detail-modal-premium .crm-detail-hero {
+  padding: 24px 28px 18px;
+  background: linear-gradient(180deg, #f8fbff 0%, #fff 100%);
+  border-bottom: 1px solid #edf2f7;
+}
+.detail-modal-premium .crm-detail-avatar {
+  width: 60px; height: 60px; flex-basis: 60px; border-radius: 18px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.85), 0 5px 14px rgba(16,185,129,.10);
+}
+.detail-modal-premium .crm-detail-identity > p { color: #475569; font-size: 12px; line-height: 1.7; }
+.detail-modal-premium .crm-detail-identity > small { color: #8290a4; font-size: 11px; }
+.detail-modal-premium .crm-detail-summary {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  padding: 20px 28px;
+}
+.detail-modal-premium .crm-detail-summary > div {
+  min-width: 0;
+  border: 1px solid #e7edf4 !important;
+  border-radius: 16px;
+  padding: 15px 16px;
+  background: #fff !important;
+  box-shadow: 0 2px 5px rgba(15,23,42,.025);
+  transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease;
+}
+.detail-modal-premium .crm-detail-summary > div:hover {
+  border-color: #cbd9e8 !important;
+  box-shadow: 0 8px 22px rgba(15,23,42,.055);
+  transform: translateY(-1px);
+}
+.detail-modal-premium .crm-detail-summary > div small,
+.detail-modal-premium .crm-detail-summary > div small :deep(svg) { color: #64748b !important; }
+.detail-modal-premium .crm-detail-summary > div strong { color: #1e293b; font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; }
+.detail-modal-premium .crm-assignment-panel {
+  background: linear-gradient(145deg, #f3fbf8, #fbfefd) !important;
+  border-color: #ccebe0 !important;
+}
+.detail-modal-premium .crm-assignment-panel select,
+.detail-modal-premium .crm-assignment-panel input {
+  width: 100%; min-width: 0; border: 1px solid #dbe5ee; border-radius: 11px;
+  background-color: #fff; color: #243247; padding: 11px 12px; font-size: 12px;
+  outline: none; transition: border-color .18s ease, box-shadow .18s ease;
+}
+.detail-modal-premium .crm-assignment-panel select:focus,
+.detail-modal-premium .crm-assignment-panel input:focus {
+  border-color: #34b38a; box-shadow: 0 0 0 3px rgba(16,185,129,.12);
+}
+.detail-modal-premium .crm-assignment-panel .crm-primary { min-height: 42px; border-radius: 11px; box-shadow: 0 5px 12px rgba(5,150,105,.14); }
+.detail-modal-premium .crm-detail-context {
+  margin: 0 28px 20px; padding: 18px 20px; border: 1px solid #e7edf4;
+  border-radius: 16px; background: #fbfcfe;
+}
+.detail-modal-premium .crm-detail-actions {
+  position: sticky; bottom: 0; z-index: 4; padding: 14px 28px;
+  background: rgba(255,255,255,.94); backdrop-filter: blur(14px);
+  border-top: 1px solid #e9eef5; border-bottom: 1px solid #e9eef5;
+}
+.detail-modal-premium .crm-detail-actions button { min-height: 42px; border-radius: 12px; padding-inline: 16px; }
+.detail-modal-premium .crm-timeline { padding: 20px 28px 26px; }
+.detail-modal-premium .crm-timeline h3 { display: flex; align-items: center; gap: 8px; color: #243247; font-weight: 750; }
+.detail-modal-premium .crm-assignment-history { margin: 0 28px 18px; padding: 18px 20px; border: 1px solid #e7edf4; border-radius: 16px; background: #fbfcfe; }
+.detail-modal-premium .crm-assignment-history .crm-assignment-entry { padding: 12px 0; border-top: 1px solid #edf2f7; }
+.detail-modal-premium .crm-assignment-history .crm-assignment-entry:first-of-type { border-top: 0; }
+@media (max-width: 760px) {
+  .detail-modal-premium { max-height: 94vh; border-radius: 18px; }
+  .detail-modal-premium > header, .detail-modal-premium .crm-detail-hero { padding-inline: 18px; }
+  .detail-modal-premium .crm-detail-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 16px 18px; gap: 9px; }
+  .detail-modal-premium .crm-detail-actions { padding-inline: 18px; }
+  .detail-modal-premium .crm-detail-context { margin-inline: 18px; }
+  .detail-modal-premium .crm-timeline { padding-inline: 18px; }
+  .detail-modal-premium .crm-assignment-history { margin-inline: 18px; }
+}
+@media (max-width: 460px) {
+  .detail-modal-premium .crm-detail-summary { grid-template-columns: minmax(0, 1fr); }
+  .detail-modal-premium .crm-detail-actions { flex-wrap: wrap; }
+  .detail-modal-premium .crm-detail-actions button { flex: 1 1 auto; }
+}
+
+
+/* Final polish: white information cards with color reserved for labels/icons. */
+.detail-modal-premium .crm-detail-summary > div:not(.crm-assignment-panel) {
+  background: #fff !important;
+  border: 1px solid #e6ebf2 !important;
+  box-shadow: 0 3px 10px rgba(15, 23, 42, .025);
+}
+.detail-modal-premium .crm-detail-summary > div small { color: #64748b; }
+.detail-modal-premium .crm-detail-summary > div:nth-child(1) small,
+.detail-modal-premium .crm-detail-summary > div:nth-child(4) small { color: #2563eb; }
+.detail-modal-premium .crm-detail-summary > div:nth-child(2) small { color: #d97706; }
+.detail-modal-premium .crm-detail-summary > div:nth-child(3) small { color: #059669; }
+.detail-modal-premium .crm-detail-summary > div:nth-child(7) small { color: #db2777; }
+.detail-modal-premium .crm-detail-summary > div:nth-child(8) small { color: #7c3aed; }
+.crm-converted-banner, .crm-convert-action {
+  margin: 18px 28px 0; padding: 16px 18px; border: 1px solid #dbece4; border-radius: 15px;
+  display: flex; align-items: center; gap: 13px; background: #fff;
+}
+.crm-converted-icon { width: 40px; height: 40px; flex: 0 0 40px; display: grid; place-items: center; color: #059669; background: #ecfdf5; border-radius: 12px; }
+.crm-converted-copy, .crm-convert-action > div { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0; }
+.crm-converted-copy strong, .crm-convert-action strong { color: #065f46; font-size: 14px; }
+.crm-converted-copy span, .crm-convert-action span { color: #64748b; font-size: 12px; overflow-wrap: anywhere; }
+.crm-customer-link { display: inline-flex; align-items: center; gap: 6px; border: 1px solid #cfe7dc; background: #fff; color: #047857; border-radius: 10px; padding: 10px 12px; font-weight: 700; white-space: nowrap; }
+.crm-convert-action { border-color: #dce6f3; justify-content: space-between; }
+.crm-convert-action strong { color: #243247; }
+.crm-convert-action .crm-primary { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; }
+@media (max-width: 600px) { .crm-converted-banner, .crm-convert-action { margin-inline: 18px; align-items: flex-start; flex-wrap: wrap; } .crm-customer-link { margin-left: 53px; } }
+
+</style>
+
+<style scoped>
+/* Lead detail visual refinement: neutral white surfaces with color reserved for labels/icons. */
+.detail-modal-premium .crm-detail-summary > div,
+.detail-modal-premium .crm-assignment-panel { background: #fff !important; border-color: #e5eaf1 !important; }
+.detail-modal-premium .crm-detail-summary > div small { color: #0f766e !important; }
+.detail-modal-premium .crm-detail-summary > div:nth-child(1) small { color: #2563eb !important; }
+.detail-modal-premium .crm-detail-summary > div:nth-child(2) small { color: #c2410c !important; }
+.detail-modal-premium .crm-detail-summary > div:nth-child(3) small { color: #0f766e !important; }
+.detail-modal-premium .crm-detail-summary > div:nth-child(4) small { color: #7c3aed !important; }
+.detail-modal-premium .crm-detail-summary > div:nth-child(5) small { color: #0891b2 !important; }
+.detail-modal-premium .crm-detail-summary > div:nth-child(6) small { color: #b45309 !important; }
+.detail-modal-premium .crm-detail-summary > div:nth-child(7) small { color: #db2777 !important; }
+.detail-modal-premium .crm-detail-summary > div:nth-child(8) small { color: #2563eb !important; }
+.crm-convert-action { margin: 18px 28px 0; padding: 18px 20px; border: 1px solid #dbe5ef; border-radius: 18px; display: flex; align-items: center; gap: 15px; background: linear-gradient(135deg,#fff 0%,#f8fbff 100%); box-shadow: 0 8px 24px rgba(15,23,42,.055); }
+.crm-convert-mark { width: 48px; height: 48px; flex: 0 0 48px; display: grid; place-items: center; border-radius: 15px; color: #047857; background: #ecfdf5; border: 1px solid #c7f0dd; }
+.crm-convert-copy { display: flex; flex-direction: column; gap: 5px; flex: 1; min-width: 0; }
+.crm-convert-copy .crm-convert-eyebrow { font-size: 10px; font-weight: 800; letter-spacing: .12em; color: #0f766e; }
+.crm-convert-copy strong { color: #172b43; font-size: 15px; }
+.crm-convert-copy > span:last-child { color: #64748b; font-size: 12px; line-height: 1.6; }
+.crm-convert-cta { min-height: 44px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 0 15px; border: 1px solid #059669; border-radius: 12px; color: #fff; background: linear-gradient(135deg,#059669,#047857); box-shadow: 0 6px 14px rgba(5,150,105,.18); font-size: 12px; font-weight: 750; white-space: nowrap; transition: transform .18s ease, box-shadow .18s ease; }
+.crm-convert-cta:hover { transform: translateY(-1px); box-shadow: 0 9px 20px rgba(5,150,105,.23); }
+.crm-convert-cta:disabled { opacity: .65; cursor: wait; }
+.crm-convert-confirm-backdrop { position: fixed; inset: 0; z-index: 1200; display: grid; place-items: center; padding: 20px; background: rgba(15,23,42,.54); backdrop-filter: blur(7px); }
+.crm-convert-confirm { position: relative; width: min(100%, 510px); padding: 30px; border: 1px solid rgba(255,255,255,.75); border-radius: 24px; background: #fff; box-shadow: 0 28px 90px rgba(15,23,42,.3); animation: crm-confirm-in .18s ease-out; }
+.crm-convert-confirm-close { position: absolute; top: 16px; right: 16px; width: 34px; height: 34px; display: grid; place-items: center; border: 1px solid #e2e8f0; border-radius: 10px; color: #64748b; background: #fff; }
+.crm-confirm-icon { width: 54px; height: 54px; display: grid; place-items: center; margin-bottom: 17px; border-radius: 17px; color: #047857; background: #ecfdf5; border: 1px solid #c7f0dd; }
+.crm-confirm-kicker { color: #059669; font-size: 10px; font-weight: 850; letter-spacing: .14em; }
+.crm-convert-confirm h3 { margin: 8px 35px 10px 0; color: #14263e; font-size: 22px; line-height: 1.3; letter-spacing: -.025em; }
+.crm-convert-confirm > p { margin: 0; color: #64748b; font-size: 13px; line-height: 1.75; }
+.crm-confirm-summary { display: flex; flex-direction: column; gap: 10px; margin-top: 19px; padding: 15px; border: 1px solid #e8edf3; border-radius: 14px; background: #f8fafc; }
+.crm-confirm-summary span { display: flex; align-items: center; gap: 9px; color: #334155; font-size: 12px; overflow-wrap: anywhere; }
+.crm-confirm-summary svg { flex: 0 0 auto; color: #0f766e; }
+.crm-confirm-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; }
+.crm-confirm-cancel, .crm-confirm-primary { min-height: 43px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 0 14px; border-radius: 11px; font-size: 12px; font-weight: 750; }
+.crm-confirm-cancel { border: 1px solid #dbe3ec; color: #475569; background: #fff; }
+.crm-confirm-primary { border: 1px solid #047857; color: #fff; background: #047857; box-shadow: 0 5px 14px rgba(4,120,87,.17); }
+.crm-confirm-primary:disabled { opacity: .65; cursor: wait; }
+@keyframes crm-confirm-in { from { opacity: 0; transform: translateY(7px) scale(.985); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@media (max-width: 680px) { .crm-convert-action { margin-inline: 18px; align-items: flex-start; flex-wrap: wrap; } .crm-convert-cta { width: 100%; } .crm-convert-confirm { padding: 24px 20px; } .crm-confirm-actions { flex-direction: column-reverse; } .crm-confirm-actions button { width: 100%; } }
+</style>
+
+<style scoped>
+/* Final detail-modal refinement: white cards and colored labels/icons only. */
+.detail-modal-premium .crm-detail-summary > div, .detail-modal-premium .crm-assignment-panel { background:#fff !important; border-color:#e5eaf1 !important; }
+.detail-modal-premium .crm-detail-summary > div small { color:#0f766e !important; }
+.detail-modal-premium .crm-detail-summary > div:nth-child(1) small { color:#2563eb !important; }
+.detail-modal-premium .crm-detail-summary > div:nth-child(2) small { color:#c2410c !important; }
+.detail-modal-premium .crm-detail-summary > div:nth-child(3) small { color:#0f766e !important; }
+.detail-modal-premium .crm-detail-summary > div:nth-child(4) small { color:#7c3aed !important; }
+.detail-modal-premium .crm-detail-summary > div:nth-child(5) small { color:#0891b2 !important; }
+.detail-modal-premium .crm-detail-summary > div:nth-child(6) small { color:#b45309 !important; }
+.detail-modal-premium .crm-detail-summary > div:nth-child(7) small { color:#db2777 !important; }
+.detail-modal-premium .crm-detail-summary > div:nth-child(8) small { color:#2563eb !important; }
+.crm-convert-action { margin:18px 28px 0; padding:18px 20px; border:1px solid #dbe5ef; border-radius:18px; display:flex; align-items:center; gap:15px; background:linear-gradient(135deg,#fff 0%,#f8fbff 100%); box-shadow:0 8px 24px rgba(15,23,42,.055); }
+.crm-convert-mark { width:48px; height:48px; flex:0 0 48px; display:grid; place-items:center; border-radius:15px; color:#047857; background:#ecfdf5; border:1px solid #c7f0dd; }
+.crm-convert-copy { display:flex; flex-direction:column; gap:5px; flex:1; min-width:0; }
+.crm-convert-copy .crm-convert-eyebrow { font-size:10px; font-weight:800; letter-spacing:.12em; color:#0f766e; }
+.crm-convert-copy strong { color:#172b43; font-size:15px; }
+.crm-convert-copy > span:last-child { color:#64748b; font-size:12px; line-height:1.6; }
+.crm-convert-cta { min-height:44px; display:inline-flex; align-items:center; justify-content:center; gap:8px; padding:0 15px; border:1px solid #059669; border-radius:12px; color:#fff; background:linear-gradient(135deg,#059669,#047857); box-shadow:0 6px 14px rgba(5,150,105,.18); font-size:12px; font-weight:750; white-space:nowrap; transition:transform .18s ease,box-shadow .18s ease; }
+.crm-convert-cta:hover { transform:translateY(-1px); box-shadow:0 9px 20px rgba(5,150,105,.23); }
+.crm-convert-confirm-backdrop { position:fixed; inset:0; z-index:1200; display:grid; place-items:center; padding:20px; background:rgba(15,23,42,.54); backdrop-filter:blur(7px); }
+.crm-convert-confirm { position:relative; width:min(100%,510px); padding:30px; border:1px solid rgba(255,255,255,.75); border-radius:24px; background:#fff; box-shadow:0 28px 90px rgba(15,23,42,.3); animation:crm-confirm-in .18s ease-out; }
+.crm-convert-confirm-close { position:absolute; top:16px; right:16px; width:34px; height:34px; display:grid; place-items:center; border:1px solid #e2e8f0; border-radius:10px; color:#64748b; background:#fff; }
+.crm-confirm-icon { width:54px; height:54px; display:grid; place-items:center; margin-bottom:17px; border-radius:17px; color:#047857; background:#ecfdf5; border:1px solid #c7f0dd; }
+.crm-confirm-kicker { color:#059669; font-size:10px; font-weight:850; letter-spacing:.14em; }
+.crm-convert-confirm h3 { margin:8px 35px 10px 0; color:#14263e; font-size:22px; line-height:1.3; letter-spacing:-.025em; }
+.crm-convert-confirm > p { margin:0; color:#64748b; font-size:13px; line-height:1.75; }
+.crm-confirm-summary { display:flex; flex-direction:column; gap:10px; margin-top:19px; padding:15px; border:1px solid #e8edf3; border-radius:14px; background:#f8fafc; }
+.crm-confirm-summary span { display:flex; align-items:center; gap:9px; color:#334155; font-size:12px; overflow-wrap:anywhere; }
+.crm-confirm-summary svg { flex:0 0 auto; color:#0f766e; }
+.crm-confirm-actions { display:flex; justify-content:flex-end; gap:10px; margin-top:22px; }
+.crm-confirm-cancel,.crm-confirm-primary { min-height:43px; display:inline-flex; align-items:center; justify-content:center; gap:8px; padding:0 14px; border-radius:11px; font-size:12px; font-weight:750; }
+.crm-confirm-cancel { border:1px solid #dbe3ec; color:#475569; background:#fff; }
+.crm-confirm-primary { border:1px solid #047857; color:#fff; background:#047857; box-shadow:0 5px 14px rgba(4,120,87,.17); }
+.crm-confirm-primary:disabled { opacity:.65; cursor:wait; }
+@keyframes crm-confirm-in { from { opacity:0; transform:translateY(7px) scale(.985); } to { opacity:1; transform:translateY(0) scale(1); } }
+@media(max-width:680px) { .crm-convert-action { margin-inline:18px; align-items:flex-start; flex-wrap:wrap; } .crm-convert-cta { width:100%; } .crm-convert-confirm { padding:24px 20px; } .crm-confirm-actions { flex-direction:column-reverse; } .crm-confirm-actions button { width:100%; } }
+</style>
+
+<style scoped>
+.crm-order-backdrop{position:fixed;inset:0;z-index:1300;display:grid;place-items:center;padding:18px;background:rgba(15,23,42,.58);backdrop-filter:blur(8px)}
+.crm-order-modal{width:min(100%,780px);max-height:min(90vh,900px);overflow:auto;border:1px solid #e4eaf2;border-radius:22px;background:#fff;box-shadow:0 30px 100px rgba(15,23,42,.32);color:#172b43}
+.crm-order-header{position:sticky;top:0;z-index:2;display:flex;justify-content:space-between;gap:20px;align-items:flex-start;padding:22px 26px 18px;border-bottom:1px solid #edf1f6;background:rgba(255,255,255,.96);backdrop-filter:blur(10px)}
+.crm-order-kicker{font-size:10px;font-weight:800;letter-spacing:.12em;color:#059669}
+.crm-order-header h3{margin:7px 0 4px;font-size:21px;letter-spacing:-.03em}
+.crm-order-header p{margin:0;color:#64748b;font-size:12px}
+.crm-order-body{padding:20px 26px}
+.crm-order-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.5fr) 100px auto;gap:12px;align-items:end}
+.crm-order-grid label,.crm-order-notes{display:flex;flex-direction:column;gap:7px;font-size:12px;font-weight:700;color:#475569}
+.crm-order-grid select,.crm-order-grid input,.crm-order-notes textarea{width:100%;min-height:42px;padding:10px 11px;border:1px solid #dbe4ef;border-radius:10px;background:#fff;color:#172b43;font:inherit;font-weight:500;outline:none}
+.crm-order-grid select:focus,.crm-order-grid input:focus,.crm-order-notes textarea:focus{border-color:#34b48a;box-shadow:0 0 0 3px rgba(16,185,129,.1)}
+.crm-order-add{min-height:42px;white-space:nowrap}
+.crm-order-empty{margin-top:16px;padding:20px;border:1px dashed #d7e1ed;border-radius:12px;background:#f8fafc;color:#64748b;text-align:center;font-size:12px}
+.crm-order-lines{margin-top:16px;border:1px solid #e5ebf3;border-radius:13px;overflow:hidden}
+.crm-order-line{display:grid;grid-template-columns:minmax(0,1fr) auto 30px;gap:14px;align-items:center;padding:12px 14px;border-bottom:1px solid #edf1f6}
+.crm-order-line div{display:flex;flex-direction:column;gap:4px;min-width:0}
+.crm-order-line strong{font-size:12px;overflow-wrap:anywhere}
+.crm-order-line small{font-size:11px;color:#64748b}
+.crm-order-line button{width:30px;height:30px;border:0;border-radius:8px;color:#dc2626;background:#fff1f2}
+.crm-order-total{display:flex;justify-content:space-between;align-items:center;padding:14px;background:#f8fafc;font-size:12px}
+.crm-order-total strong{font-size:17px;color:#047857}
+.crm-order-notes{margin-top:16px}
+.crm-order-notes textarea{resize:vertical}
+.crm-order-footnote{display:flex;gap:8px;align-items:flex-start;margin:14px 0 0;color:#64748b;font-size:11px;line-height:1.6}
+.crm-order-footnote :deep(svg){flex:0 0 auto;color:#059669}
+.crm-order-error{padding:10px 12px;border-radius:9px;background:#fff1f2;color:#be123c;font-size:12px}
+.crm-order-footer{position:sticky;bottom:0;display:flex;justify-content:flex-end;gap:10px;padding:14px 26px;border-top:1px solid #edf1f6;background:rgba(255,255,255,.96);backdrop-filter:blur(10px)}
+.crm-owner-badge{display:inline-flex;align-items:center;gap:6px;width:max-content;padding:5px 9px;border:1px solid #b7ecd6;border-radius:999px;background:#ecfdf5;color:#047857;font-size:10px;font-weight:800}
+@media(max-width:700px){.crm-order-grid{grid-template-columns:1fr 1fr}.crm-order-grid label:nth-child(2){grid-column:1/-1}.crm-order-add{grid-column:1/-1}.crm-order-header,.crm-order-body{padding-inline:17px}.crm-order-footer{padding-inline:17px;flex-wrap:wrap}.crm-order-footer button{flex:1}.crm-order-line{grid-template-columns:minmax(0,1fr) auto 28px;gap:8px}}
+@media(max-width:440px){.crm-order-grid{grid-template-columns:1fr}.crm-order-grid label:nth-child(2),.crm-order-add{grid-column:auto}.crm-order-modal{border-radius:16px}.crm-order-header h3{font-size:18px}}
+</style>
+
+<style scoped>
+.crm-converted-lock{display:flex;align-items:center;gap:4px;color:#059669;font-weight:700;margin-top:5px}.crm-owner-assigned-card .crm-assigned-label{display:block;margin-top:8px;color:#64748b;font-weight:500}.crm-owner-assigned-card strong{display:block}
+
+
+/* Lead register alignment: compact, consistent rows without stacked visual clutter. */
+.crm-lead-register-table {
+  width: 100%;
+  min-width: 1080px;
+  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+.crm-lead-register-table th,
+.crm-lead-register-table td { vertical-align: middle; }
+.crm-lead-register-table th { white-space: nowrap; padding: 13px 16px; }
+.crm-lead-register-table td { padding: 15px 16px; }
+.crm-lead-register-table th:nth-child(1), .crm-lead-register-table td:nth-child(1) { width: 20%; }
+.crm-lead-register-table th:nth-child(2), .crm-lead-register-table td:nth-child(2) { width: 10%; }
+.crm-lead-register-table th:nth-child(3), .crm-lead-register-table td:nth-child(3) { width: 15%; }
+.crm-lead-register-table th:nth-child(4), .crm-lead-register-table td:nth-child(4) { width: 13%; }
+.crm-lead-register-table th:nth-child(5), .crm-lead-register-table td:nth-child(5) { width: 14%; }
+.crm-lead-register-table th:nth-child(6), .crm-lead-register-table td:nth-child(6) { width: 20%; }
+.crm-lead-register-table th:nth-child(7), .crm-lead-register-table td:nth-child(7) { width: 8%; }
+.crm-lead-register-table td > small { display: block; margin-top: 5px; line-height: 1.45; }
+.crm-lead-register-table .crm-inline-select { max-width: 100%; }
+.crm-lead-register-table .created-by { display: flex; align-items: center; gap: 7px; white-space: normal; line-height: 1.4; }
+.crm-lead-register-table .crm-converted-lock { display: flex; align-items: center; gap: 4px; color: #07845d; font-weight: 700; }
+.crm-lead-register-table .crm-actions { display: flex; justify-content: flex-start; gap: 6px; }
+.crm-detail-summary .is-locked {
+  position: relative;
+  border-color: #cfe8df !important;
+  background: linear-gradient(145deg, #f2fbf7, #fbfefd) !important;
+}
+.crm-detail-summary .is-locked .crm-detail-inline-select,
+.crm-detail-summary .is-locked .crm-detail-inline-date,
+.crm-detail-summary .is-locked select,
+.crm-detail-summary .is-locked input {
+  color: #64748b !important;
+  background: #edf3f1 !important;
+  border-color: #dce9e4 !important;
+  cursor: not-allowed;
+  opacity: .9;
+}
+.crm-lock-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  padding: 3px 7px;
+  border: 1px solid #c7eadc;
+  border-radius: 999px;
+  background: #e6f8ef;
+  color: #087f5b;
+  font-size: 9px;
+  font-weight: 750;
+  letter-spacing: .02em;
+  white-space: nowrap;
+}
+.crm-detail-summary .is-locked > small:first-child { display: flex; align-items: center; gap: 6px; }
+.crm-detail-summary .crm-assignment-panel.is-locked { background: linear-gradient(145deg, #f2fbf7, #fbfefd) !important; }
+.crm-detail-summary .crm-assignment-panel.is-locked button { display: none; }
+@media (max-width: 760px) {
+  .crm-lead-register-table { min-width: 1040px; }
+  .crm-lead-register-table th, .crm-lead-register-table td { padding: 12px 10px; }
+}
+
 </style>

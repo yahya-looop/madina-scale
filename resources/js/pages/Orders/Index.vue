@@ -632,8 +632,45 @@ watch([status, search], () => {
   page.value = 1;
   void load(1);
 });
-onMounted(() => {
+onMounted(async () => {
   void load(1);
+  const params = new URLSearchParams(window.location.search);
+  if (params.get("create") !== "1" || !params.get("customer_id")) return;
+
+  // Conversion hand-off: use query data only to prefill the form; the order API
+  // remains responsible for validating customer, location, stock and pricing.
+  locationId.value = params.get("location_id") || "";
+  openCreate();
+  customerId.value = Number(params.get("customer_id")) || null;
+  customerName.value = params.get("customer_name") || "";
+  customerPhone.value = params.get("customer_phone") || "";
+  customerEmail.value = params.get("customer_email") || "";
+  customerSearch.value = customerName.value;
+  notes.value = `Created from lead ${params.get("lead_code") || params.get("lead_id") || ""}`;
+  await loadOptions();
+
+  const interested = (params.get("interested_product") || "").trim().toLocaleLowerCase();
+  if (interested && variants.value.length) {
+    const match = variants.value.find((variant) => {
+      const name = variant.name.trim().toLocaleLowerCase();
+      return name === interested || name.includes(interested) || interested.includes(name);
+    });
+    if (match && Number(match.available) > 0) {
+      cart.value = [{
+        product_variant_id: match.id,
+        quantity: 1,
+        name: match.name,
+        sku: match.sku,
+        price: Number(match.price),
+        available: Number(match.available),
+      }];
+      notice.value = `Order draft prepared for ${customerName.value}. Review the suggested product and current catalogue price before creating the order.`;
+    } else if (interested) {
+      notice.value = `Customer details are ready. We couldn't confidently match “${params.get("interested_product")}" to an in-stock variant, so please choose the correct product from the live catalogue.`;
+    }
+  }
+  // Remove the hand-off query so refresh/back navigation does not re-open a second draft.
+  window.history.replaceState({}, "", window.location.pathname);
 });
 </script>
 

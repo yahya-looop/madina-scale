@@ -3,9 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Models\Lead;
+use App\Models\Customer;
 use App\Models\Location;
 use App\Models\User;
 use App\Services\AuthorizationService;
+use App\Services\SalesOrderService;
+use App\Services\LocationInventoryAccessService;
+use App\Services\SettingsService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -56,7 +60,7 @@ class LeadController extends Controller
      * Return only active staff in locations the signed-in user belongs to.
      * The server re-checks every assignment; this endpoint is only for UI choices.
      */
-    public function assignmentOptions(Request $request, AuthorizationService $authorization): JsonResponse
+    public function assignmentOptions(Request $request, AuthorizationService $authorization, SettingsService $settings): JsonResponse
     {
         $user = $request->user();
         $isDeveloper = $authorization->isDeveloper($user);
@@ -88,13 +92,14 @@ class LeadController extends Controller
             'members' => $members,
             'can_manage_assignments' => $isDeveloper || $canAssignAcrossLocations || $this->isManagerOrSupervisor($user),
             'current_user_id' => $user->id,
+            'default_follow_up_hours' => max(1, min(8760, (int) $settings->get('crm.default_follow_up_hours', 24))),
         ]);
     }
 
     public function show(Lead $lead): JsonResponse
     {
         $lead->load([
-            'assignee:id,name,designation', 'creator:id,name', 'customer:id,customer_code,name,phone,company_name',
+            'assignee:id,name,designation', 'owner:id,name', 'creator:id,name', 'customer:id,customer_code,name,phone,email,company_name',
             'convertedOrder:id,order_number,status,grand_total',
             'activities.creator:id,name',
             'assignmentHistory.fromUser:id,name', 'assignmentHistory.toUser:id,name', 'assignmentHistory.actor:id,name',
@@ -102,37 +107,34 @@ class LeadController extends Controller
         return response()->json(['data' => $lead]);
     }
 
-    public function store(Request $request, AuthorizationService $authorization): JsonResponse
+    public function store(Request $request, AuthorizationService $authorization, SettingsService $settings): JsonResponse
     {
         $data = $this->validated($request);
-        $requestedAssignee = $request->input('assigned_to');
         $requestedLocation = $request->validate(['location_id' => ['nullable', 'integer', 'exists:locations,id']])['location_id'] ?? null;
-        $lead = DB::transaction(function () use ($data, $request, $requestedAssignee, $requestedLocation, $authorization): Lead {
+        $lead = DB::transaction(function () use ($data, $request, $requestedLocation, $authorization, $settings): Lead {
+            $creatorId = (int) $request->user()->id;
             $data['lead_code'] = $this->newCode();
-            $data['created_by'] = $request->user()?->id;
-            $data['updated_by'] = $request->user()?->id;
+            $data['created_by'] = $creatorId;
+            $data['updated_by'] = $creatorId;
+            // Ownership starts with the person who creates the lead. Reassignment
+            // must go through the dedicated endpoint so authorization and history apply.
+            $data['owner_id'] = $creatorId;
+            $data['assigned_to'] = $creatorId;
             $data['location_id'] = $requestedLocation ? (int) $requestedLocation : $this->defaultLocationId($request->user(), $authorization);
+            if (empty($data['next_follow_up_at'])) {
+                $hours = (int) ($settings->get('crm.default_follow_up_hours', 24) ?? 24);
+                $data['next_follow_up_at'] = now()->addHours(max(1, min(8760, $hours)));
+            }
             if ($data['location_id'] && ! $authorization->isDeveloper($request->user()) && ! $request->user()->locations()->where('locations.id', $data['location_id'])->where('locations.is_active', true)->exists()) {
                 abort(403, 'You cannot create leads for a location you are not assigned to.');
             }
-            if ($requestedAssignee !== null && $requestedAssignee !== '') {
-                $assignee = User::query()->where('status', 'active')->findOrFail($requestedAssignee);
-                if ((int) $assignee->id === (int) $request->user()->id && ! $authorization->isDeveloper($request->user()) && ! $request->user()->can('system.crm.leads.assign') && ! $this->isManagerOrSupervisor($request->user())) {
-                    throw ValidationException::withMessages(['assigned_to' => 'You cannot assign a lead to yourself. Ask a manager to assign it to you.']);
-                }
-                $locationId = $this->resolveAssignmentLocation($request->user(), $assignee, $data['location_id'], $authorization, true);
-                $data['location_id'] = $locationId;
-                $data['assigned_to'] = $assignee->id;
-            }
             $created = Lead::create($data);
-            if (! empty($data['assigned_to'])) {
-                $created->assignmentHistory()->create([
-                    'from_user_id' => null,
-                    'to_user_id' => $data['assigned_to'],
-                    'assigned_by' => $request->user()?->id,
-                    'reason' => 'Initial assignment on lead creation',
-                ]);
-            }
+            $created->assignmentHistory()->create([
+                'from_user_id' => null,
+                'to_user_id' => $creatorId,
+                'assigned_by' => $creatorId,
+                'reason' => 'Lead owner set to creator on creation',
+            ]);
             return $created;
         });
         return response()->json(['message' => 'Lead created successfully.', 'data' => $lead->load('assignee:id,name')], 201);
@@ -140,6 +142,9 @@ class LeadController extends Controller
 
     public function update(Request $request, Lead $lead): JsonResponse
     {
+        if ($lead->status === 'converted' || $lead->customer_id !== null || $lead->converted_order_id !== null) {
+            return response()->json(['message' => 'Converted leads are locked and can no longer be edited.'], 422);
+        }
         $data = $this->validated($request, $lead);
         // Owner changes must use the dedicated assignment endpoint so policy and audit history cannot be bypassed.
         unset($data['assigned_to']);
@@ -150,6 +155,9 @@ class LeadController extends Controller
 
     public function assign(Request $request, Lead $lead, AuthorizationService $authorization): JsonResponse
     {
+        if ($lead->status === 'converted' || $lead->customer_id !== null || $lead->converted_order_id !== null) {
+            return response()->json(['message' => 'Converted leads are locked and can no longer be reassigned.'], 422);
+        }
         $data = $request->validate([
             'assigned_to' => ['required', 'integer', 'exists:users,id'],
             'reason' => ['nullable', 'string', 'max:500'],
@@ -215,6 +223,106 @@ class LeadController extends Controller
         ]);
     }
 
+    /**
+     * Create a real order first, then link/create the customer and lock the lead.
+     * The outer transaction makes order + customer conversion atomic.
+     */
+    public function convertWithOrder(
+        Request $request,
+        Lead $lead,
+        SalesOrderService $orders,
+        LocationInventoryAccessService $locationAccess,
+    ): JsonResponse {
+        $data = $request->validate([
+            'location_id' => ['required', 'integer', 'exists:locations,id'],
+            'notes' => ['nullable', 'string', 'max:5000'],
+            'discount_total' => ['nullable', 'numeric', 'min:0', 'max:1000000000'],
+            'channel' => ['nullable', Rule::in(['backoffice', 'website', 'mobile_app'])],
+            'idempotency_key' => ['required', 'string', 'max:100'],
+            'items' => ['required', 'array', 'min:1', 'max:50'],
+            'items.*.product_variant_id' => ['required', 'integer', 'distinct', 'exists:product_variants,id'],
+            'items.*.quantity' => ['required', 'numeric', 'gt:0', 'max:1000000'],
+        ]);
+
+        $locationAccess->assertManage($request->user(), (int) $data['location_id']);
+
+        $result = DB::transaction(function () use ($request, $lead, $orders, $data): array {
+            $lockedLead = Lead::query()->lockForUpdate()->findOrFail($lead->id);
+            if ($lockedLead->customer_id !== null || $lockedLead->status === 'converted' || $lockedLead->converted_order_id !== null) {
+                throw ValidationException::withMessages(['lead' => 'This lead has already been converted.']);
+            }
+            if ($lockedLead->status !== 'qualified') {
+                throw ValidationException::withMessages(['status' => 'Only qualified leads can place a conversion order.']);
+            }
+
+            $order = $orders->create([
+                ...$data,
+                'customer_name' => $lockedLead->name,
+                'customer_email' => $lockedLead->email,
+                'customer_phone' => $lockedLead->phone,
+            ], $request->user());
+
+            // A retried idempotency key must not silently convert a different lead
+            // against an order already linked to another customer/lead.
+            if ($order->customer_id !== null) {
+                throw ValidationException::withMessages(['idempotency_key' => 'This order is already linked to a customer. Start a new order request.']);
+            }
+
+            $phoneDigits = preg_replace('/\\D+/', '', (string) $lockedLead->phone);
+            $customer = null;
+            if ($phoneDigits !== '') {
+                $customer = Customer::query()->whereNotNull('phone')->get()->first(
+                    fn (Customer $candidate) => preg_replace('/\\D+/', '', (string) $candidate->phone) === $phoneDigits
+                );
+            }
+            if (! $customer && $lockedLead->email) {
+                $customer = Customer::query()->whereRaw('LOWER(email) = ?', [mb_strtolower($lockedLead->email)])->first();
+            }
+            if (! $customer) {
+                do {
+                    $code = 'CUS-'.now()->format('ym').'-'.Str::upper(Str::random(6));
+                } while (Customer::where('customer_code', $code)->exists());
+                $customer = Customer::create([
+                    'customer_code' => $code,
+                    'name' => $lockedLead->name,
+                    'phone' => $lockedLead->phone,
+                    'email' => $lockedLead->email,
+                    'address_line' => $lockedLead->address_line,
+                    'area' => $lockedLead->area,
+                    'district' => $lockedLead->district,
+                    'division' => $lockedLead->division,
+                    'notes' => $lockedLead->notes,
+                    'status' => 'active',
+                ]);
+            }
+
+            $order->update(['customer_id' => $customer->id]);
+            $lockedLead->update([
+                'customer_id' => $customer->id,
+                'converted_order_id' => $order->id,
+                'status' => 'converted',
+                'updated_by' => $request->user()?->id,
+            ]);
+
+            return [
+                'lead' => $lockedLead->fresh([
+                    'assignee:id,name,designation', 'creator:id,name', 'owner:id,name',
+                    'customer:id,customer_code,name,phone,email,company_name',
+                    'convertedOrder:id,order_number,status,grand_total',
+                    'activities.creator:id,name',
+                    'assignmentHistory.fromUser:id,name', 'assignmentHistory.toUser:id,name', 'assignmentHistory.actor:id,name',
+                ])->loadCount('activities'),
+                'order' => $order->fresh(['items', 'customer:id,customer_code,name,phone']),
+            ];
+        });
+
+        return response()->json([
+            'message' => 'Order created and lead converted to customer successfully.',
+            'data' => $result['lead'],
+            'order' => $result['order'],
+        ], 201);
+    }
+
     public function destroy(Lead $lead): JsonResponse
     {
         if ($lead->status === 'converted' || $lead->customer_id !== null || $lead->converted_order_id !== null) {
@@ -262,7 +370,7 @@ class LeadController extends Controller
             'source_detail' => ['nullable', 'string', 'max:190'],
             'customer_type' => ['required', Rule::in(['retail', 'b2b', 'undecided'])],
             'interested_product' => ['nullable', 'string', 'max:190'],
-            'status' => ['required', Rule::in($lead?->status === 'converted' ? $this->statuses() : array_values(array_diff($this->statuses(), ['converted'])) )],
+            'status' => ['required', Rule::in($lead?->status === 'converted' ? ['converted'] : array_values(array_diff($this->statuses(), ['converted'])) )],
             'last_contact_outcome' => ['nullable', Rule::in(['answered', 'no_answer', 'busy', 'callback_requested', 'interested', 'not_interested', 'wrong_number', 'message_sent', 'other'])],
             'interest_level' => ['required', Rule::in(['hot', 'warm', 'cold'])],
             'notes' => ['nullable', 'string', 'max:10000'],

@@ -456,6 +456,10 @@ const initials = (c: Customer) =>
 onMounted(() => {
     loadCustomLocationSuggestions();
     load();
+    const customerId = new URLSearchParams(window.location.search).get('customer_id');
+    if (customerId && /^\d+$/.test(customerId)) {
+        void showCustomer({ id: Number(customerId) } as Customer);
+    }
 });
 </script>
 <template>
