@@ -19,12 +19,15 @@ use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\ProductCategoryController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProductVariantController;
+use App\Http\Controllers\PricingPromotionController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\SalesOrderController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\UnitController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
+
+Route::middleware('web')->get('/public/flash-sales', [PricingPromotionController::class, 'publicFlashSales']);
 
 Route::middleware(['web', 'auth'])->group(function () {
 
@@ -43,6 +46,22 @@ Route::middleware(['web', 'auth'])->group(function () {
     Route::post('/leads/{lead}/assignment', [LeadController::class, 'assign'])->middleware('permission:system.crm.leads.update');
     Route::delete('/leads/{lead}', [LeadController::class, 'destroy'])->middleware('permission:system.crm.leads.delete');
     Route::post('/leads/{lead}/activities', [LeadController::class, 'storeActivity'])->middleware('permission:system.crm.activities.create');
+
+    /*
+    |--------------------------------------------------------------------------
+    | Pricing & Promotions / Flash Sales
+    |--------------------------------------------------------------------------
+    */
+    Route::get('/pricing/options', [PricingPromotionController::class, 'options'])->middleware('permission:system.pricing.view');
+    Route::post('/pricing/quote', [PricingPromotionController::class, 'quotePromotion'])->middleware('permission:system.pricing.view');
+    Route::get('/pricing/promotions', [PricingPromotionController::class, 'promotions'])->middleware('permission:system.pricing.view');
+    Route::post('/pricing/promotions', [PricingPromotionController::class, 'storePromotion'])->middleware('permission:system.pricing.create');
+    Route::put('/pricing/promotions/{promotion}', [PricingPromotionController::class, 'updatePromotion'])->middleware('permission:system.pricing.update');
+    Route::delete('/pricing/promotions/{promotion}', [PricingPromotionController::class, 'deletePromotion'])->middleware('permission:system.pricing.delete');
+    Route::get('/pricing/flash-sales', [PricingPromotionController::class, 'flashSales'])->middleware('permission:system.pricing.view');
+    Route::post('/pricing/flash-sales', [PricingPromotionController::class, 'storeFlashSale'])->middleware('permission:system.pricing.create');
+    Route::put('/pricing/flash-sales/{flashSale}', [PricingPromotionController::class, 'updateFlashSale'])->middleware('permission:system.pricing.update');
+    Route::delete('/pricing/flash-sales/{flashSale}', [PricingPromotionController::class, 'deleteFlashSale'])->middleware('permission:system.pricing.delete');
 
     /*
     |--------------------------------------------------------------------------

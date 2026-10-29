@@ -20,9 +20,12 @@ use Inertia\Inertia;
 
 Route::get('/', [StorefrontController::class, 'index'])->name('storefront.home');
 Route::get('/shop', [StorefrontController::class, 'index'])->name('storefront.index');
+Route::get('/shop/flash-sales', fn () => Inertia::render('Storefront/FlashSales'))
+    ->name('storefront.flash-sales');
 Route::get('/shop/{slug}', [StorefrontController::class, 'show'])
     ->where('slug', '[A-Za-z0-9\-]+')
     ->name('storefront.show');
+
 
 /*
 |--------------------------------------------------------------------------
@@ -275,6 +278,32 @@ Route::middleware('auth')->group(function () {
             'userEmail' => $user->email,
         ]);
     })->name('b2b.index');
+
+    /*
+    |--------------------------------------------------------------------------
+    | Pricing & Promotions
+    |--------------------------------------------------------------------------
+    */
+    Route::get('/pricing', function () {
+        $user = request()->user();
+        abort_unless($user !== null, 401);
+        abort_unless($user->can('system.pricing.view'), 403);
+        return Inertia::render('Pricing/Index', [
+            'userName' => $user->name,
+            'userEmail' => $user->email,
+        ]);
+    })->name('pricing.index');
+
+    Route::get('/flash-sales', function () {
+        $user = request()->user();
+        abort_unless($user !== null, 401);
+        abort_unless($user->can('system.pricing.view'), 403);
+        return Inertia::render('Pricing/Index', [
+            'userName' => $user->name,
+            'userEmail' => $user->email,
+            'initialTab' => 'flash',
+        ]);
+    })->name('flash-sales.index');
 
     /*
     |--------------------------------------------------------------------------

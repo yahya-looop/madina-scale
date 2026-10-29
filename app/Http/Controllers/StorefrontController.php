@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Product;
 use App\Models\ProductCategory;
+use App\Services\PricingEngine;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -78,7 +79,9 @@ class StorefrontController extends Controller
             ->map(fn ($variant): array => [
                 'id' => $variant->id,
                 'name' => $variant->name ?: 'Standard',
-                'price' => $variant->effectiveSellingPrice(),
+                'price' => app(PricingEngine::class)->flashSalePriceForVariant($variant->id) ?? $variant->effectiveSellingPrice(),
+                'has_flash_sale' => app(PricingEngine::class)->flashSalePriceForVariant($variant->id) !== null,
+                'regular_price' => $variant->effectiveSellingPrice(),
                 'has_wholesale_pricing' => $variant->wholesale_price !== null,
                 'is_default' => $variant->is_default,
             ])
@@ -144,7 +147,11 @@ class StorefrontController extends Controller
             'image_url' => $primaryMedia
                 ? $this->mediaUrl($primaryMedia->disk, $primaryMedia->path)
                 : null,
-            'price' => $defaultVariant?->effectiveSellingPrice(),
+            'price' => $defaultVariant
+                ? (app(PricingEngine::class)->flashSalePriceForVariant($defaultVariant->id) ?? $defaultVariant->effectiveSellingPrice())
+                : null,
+            'has_flash_sale' => $defaultVariant ? app(PricingEngine::class)->flashSalePriceForVariant($defaultVariant->id) !== null : false,
+            'regular_price' => $defaultVariant?->effectiveSellingPrice(),
             'has_wholesale_pricing' => $variants->contains(
                 fn ($variant): bool => $variant->wholesale_price !== null
             ),

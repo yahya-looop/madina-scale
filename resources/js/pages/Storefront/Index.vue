@@ -13,6 +13,8 @@ interface StoreProduct {
     unit: string | null;
     image_url: string | null;
     price: string | null;
+    regular_price: string | null;
+    has_flash_sale: boolean;
     has_wholesale_pricing: boolean;
     variant_count: number;
 }
@@ -334,6 +336,13 @@ function pageLabel(label: string): string {
                                 {{ product.short_description }}
                             </p>
                             <div class="mt-auto pt-4">
+                                <span
+                                    v-if="product.has_flash_sale"
+                                    class="mb-2 inline-flex rounded-full bg-rose-50 px-2 py-1 text-[10px] font-bold text-rose-700"
+                                >FLASH SALE</span>
+                                <div v-if="product.has_flash_sale" class="mb-1 text-xs text-slate-400 line-through">
+                                    {{ formatPrice(product.regular_price) }}
+                                </div>
                                 <p
                                     class="text-lg font-extrabold tracking-tight text-emerald-700"
                                 >

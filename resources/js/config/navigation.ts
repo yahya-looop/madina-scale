@@ -155,10 +155,11 @@ export const primaryNavigation: NavigationItem[] = [
 
     {
         label: 'Pricing & Promotions',
+        href: '/pricing',
         icon: 'pricing',
-        expandable: true,
         permission: 'system.pricing.view',
     },
+
 
     {
         label: 'Shipping & Delivery',
