@@ -149,6 +149,7 @@ export const primaryNavigation: NavigationItem[] = [
     {
         label: 'B2B & Wholesale',
         icon: 'wholesale',
+        href: '/b2b',
         permission: 'system.b2b.view',
     },
 

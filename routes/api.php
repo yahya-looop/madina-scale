@@ -4,6 +4,7 @@ use App\Http\Controllers\ActivityLogController;
 use App\Http\Controllers\AttributeController;
 use App\Http\Controllers\AttributeValueController;
 use App\Http\Controllers\BrandController;
+use App\Http\Controllers\B2BController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\CustomerLocationSuggestionController;
 use App\Http\Controllers\InventoryController;
@@ -42,6 +43,22 @@ Route::middleware(['web', 'auth'])->group(function () {
     Route::post('/leads/{lead}/assignment', [LeadController::class, 'assign'])->middleware('permission:system.crm.leads.update');
     Route::delete('/leads/{lead}', [LeadController::class, 'destroy'])->middleware('permission:system.crm.leads.delete');
     Route::post('/leads/{lead}/activities', [LeadController::class, 'storeActivity'])->middleware('permission:system.crm.activities.create');
+
+    /*
+    |--------------------------------------------------------------------------
+    | B2B & Wholesale — business accounts and quotations
+    |--------------------------------------------------------------------------
+    */
+    Route::get('/b2b/options', [B2BController::class, 'options'])->middleware('permission:system.b2b.view');
+    Route::get('/b2b/accounts', [B2BController::class, 'index'])->middleware('permission:system.b2b.view');
+    Route::post('/b2b/accounts', [B2BController::class, 'store'])->middleware('permission:system.b2b.create');
+    Route::get('/b2b/accounts/{account}', [B2BController::class, 'show'])->middleware('permission:system.b2b.view');
+    Route::put('/b2b/accounts/{account}', [B2BController::class, 'update'])->middleware('permission:system.b2b.update');
+    Route::delete('/b2b/accounts/{account}', [B2BController::class, 'destroy'])->middleware('permission:system.b2b.delete');
+    Route::get('/b2b/quotes', [B2BController::class, 'quotes'])->middleware('permission:system.b2b.view');
+    Route::post('/b2b/quotes', [B2BController::class, 'storeQuote'])->middleware('permission:system.b2b.create');
+    Route::get('/b2b/quotes/{quote}', [B2BController::class, 'showQuote'])->middleware('permission:system.b2b.view');
+    Route::patch('/b2b/quotes/{quote}/status', [B2BController::class, 'updateQuoteStatus'])->middleware('permission:system.b2b.update');
 
     /*
     |--------------------------------------------------------------------------

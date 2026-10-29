@@ -263,6 +263,21 @@ Route::middleware('auth')->group(function () {
 
     /*
     |--------------------------------------------------------------------------
+    | B2B & Wholesale Management
+    |--------------------------------------------------------------------------
+    */
+    Route::get('/b2b', function () {
+        $user = request()->user();
+        abort_unless($user !== null, 401);
+        abort_unless($user->can('system.b2b.view'), 403);
+        return Inertia::render('B2B/Index', [
+            'userName' => $user->name,
+            'userEmail' => $user->email,
+        ]);
+    })->name('b2b.index');
+
+    /*
+    |--------------------------------------------------------------------------
     | Customer Management
     |--------------------------------------------------------------------------
     */
