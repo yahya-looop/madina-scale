@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\ActivityLogController;
+use App\Http\Controllers\FinanceController;
 use App\Http\Controllers\AttributeController;
 use App\Http\Controllers\AttributeValueController;
 use App\Http\Controllers\BrandController;
@@ -136,6 +137,22 @@ Route::middleware(['web', 'auth'])->group(function () {
         ->middleware('permission:system.orders.shipment.manage');
     Route::post('/orders/{order}/shipments/{shipment}/retry', [OrderOperationsController::class, 'retryShipment'])
         ->middleware('permission:system.orders.shipment.manage');
+
+    /*
+    |--------------------------------------------------------------------------
+    | Accounts & Finance — double-entry ledger
+    |--------------------------------------------------------------------------
+    */
+    Route::get('/finance/overview', [FinanceController::class, 'overview'])->middleware('permission:system.finance.view');
+    Route::get('/finance/accounts', [FinanceController::class, 'accounts'])->middleware('permission:system.finance.view');
+    Route::get('/finance/customer-options', [FinanceController::class, 'customerOptions'])->middleware('permission:system.finance.transactions.create');
+    Route::post('/finance/accounts', [FinanceController::class, 'storeAccount'])->middleware('permission:system.finance.accounts.manage');
+    Route::put('/finance/accounts/{account}', [FinanceController::class, 'updateAccount'])->middleware('permission:system.finance.accounts.manage');
+    Route::get('/finance/journals', [FinanceController::class, 'journals'])->middleware('permission:system.finance.journals.view');
+    Route::post('/finance/journals', [FinanceController::class, 'storeJournal'])->middleware('permission:system.finance.journals.create');
+    Route::post('/finance/journals/{journal}/post', [FinanceController::class, 'postJournal'])->middleware('permission:system.finance.journals.post');
+    Route::get('/finance/transactions', [FinanceController::class, 'transactions'])->middleware('permission:system.finance.transactions.view');
+    Route::post('/finance/transactions', [FinanceController::class, 'storeTransaction'])->middleware('permission:system.finance.transactions.create');
 
     /*
     |--------------------------------------------------------------------------

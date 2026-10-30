@@ -162,6 +162,21 @@ export const primaryNavigation: NavigationItem[] = [
 
 
     {
+        label: 'Accounts & Finance',
+        icon: 'wallet',
+        expandable: true,
+        permission: 'system.finance.view',
+        children: [
+            {
+                label: 'Finance Overview',
+                href: '/finance',
+                icon: 'chart-no-axes-combined',
+                permission: 'system.finance.view',
+            },
+        ],
+    },
+
+    {
         label: 'Shipping & Delivery',
         icon: 'shipping',
         expandable: true,

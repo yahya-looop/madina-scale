@@ -391,6 +391,38 @@ class SystemAuthorizationSeeder extends Seeder
 
             [
 
+                'name' => 'Accounts & Finance',
+
+                'slug' => 'finance',
+
+                'description' => 'Double-entry accounting, cash and bank, income, expenses and customer receipts.',
+
+                'icon' => 'wallet',
+
+                'sort_order' => 35,
+
+                'permissions' => [
+
+                    ['name' => 'View Finance', 'slug' => 'system.finance.view', 'description' => 'View finance overview and permitted location financial records.'],
+
+                    ['name' => 'Manage Chart of Accounts', 'slug' => 'system.finance.accounts.manage', 'description' => 'Create and maintain non-system chart of account entries.'],
+
+                    ['name' => 'View Journals', 'slug' => 'system.finance.journals.view', 'description' => 'View journal entries and posting status.'],
+
+                    ['name' => 'Create Journals', 'slug' => 'system.finance.journals.create', 'description' => 'Create draft double-entry journal entries.'],
+
+                    ['name' => 'Post Journals', 'slug' => 'system.finance.journals.post', 'description' => 'Post balanced journal entries to the general ledger.'],
+
+                    ['name' => 'View Financial Transactions', 'slug' => 'system.finance.transactions.view', 'description' => 'View income, expenses and customer receipts.'],
+
+                    ['name' => 'Create Financial Transactions', 'slug' => 'system.finance.transactions.create', 'description' => 'Record income, expenses and customer advance receipts.'],
+
+                ],
+
+            ],
+
+            [
+
                 'name' => 'Customers',
 
                 'slug' => 'customers',

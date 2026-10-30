@@ -337,6 +337,23 @@ Route::middleware('auth')->group(function () {
         ]);
     })->name('orders.index');
 
+
+    /*
+    |--------------------------------------------------------------------------
+    | Accounts & Finance
+    |--------------------------------------------------------------------------
+    */
+    Route::get('/finance', function () {
+        $user = request()->user();
+        abort_unless($user !== null, 401);
+        abort_unless($user->can('system.finance.view'), 403);
+
+        return Inertia::render('Finance/Index', [
+            'userName' => $user->name,
+            'userEmail' => $user->email,
+        ]);
+    })->name('finance.index');
+
     /*
     |--------------------------------------------------------------------------
     | Inventory Pages
