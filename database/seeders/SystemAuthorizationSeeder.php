@@ -417,6 +417,10 @@ class SystemAuthorizationSeeder extends Seeder
 
                     ['name' => 'Create Financial Transactions', 'slug' => 'system.finance.transactions.create', 'description' => 'Record income, expenses and customer advance receipts.'],
 
+                    ['name' => 'View Sales Returns', 'slug' => 'system.sales_returns.view', 'description' => 'View sales returns and refund records.'],
+
+                    ['name' => 'Create Sales Returns', 'slug' => 'system.sales_returns.create', 'description' => 'Process fulfilled sales returns, stock receipts and refunds.'],
+
                 ],
 
             ],

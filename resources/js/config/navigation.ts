@@ -29,6 +29,12 @@ export const primaryNavigation: NavigationItem[] = [
                 icon: 'orders',
                 permission: 'system.orders.view',
             },
+            {
+                label: 'Sales Returns',
+                href: '/sales-returns',
+                icon: 'undo-2',
+                permission: 'system.sales_returns.view',
+            },
         ],
     },
 

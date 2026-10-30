@@ -4,7 +4,8 @@ namespace App\Services;
 
 use App\Models\Location;
 use App\Models\User;
-use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Builder as EloquentBuilder;
+use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Support\Collection;
 
 /** Enforces the per-location inventory permissions configured in location_user. */
@@ -71,7 +72,7 @@ class LocationInventoryAccessService
     }
 
     /** Apply the user's viewable-location scope to a location_id query. */
-    public function scopeViewable(Builder $query, User $user, string $column = 'location_id'): Builder
+    public function scopeViewable(EloquentBuilder|QueryBuilder $query, User $user, string $column = 'location_id'): EloquentBuilder|QueryBuilder
     {
         if ($this->isGlobalManager($user)) {
             return $query;

@@ -343,6 +343,12 @@ Route::middleware('auth')->group(function () {
     | Accounts & Finance
     |--------------------------------------------------------------------------
     */
+    Route::get('/sales-returns', function () {
+        $user = request()->user();
+        abort_unless($user !== null && $user->can('system.sales_returns.view'), 403);
+        return Inertia::render('SalesReturns/Index', ['userName' => $user->name, 'userEmail' => $user->email]);
+    })->name('sales-returns.index');
+
     Route::get('/finance', function () {
         $user = request()->user();
         abort_unless($user !== null, 401);

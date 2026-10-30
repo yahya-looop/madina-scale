@@ -154,6 +154,10 @@ Route::middleware(['web', 'auth'])->group(function () {
     Route::get('/finance/transactions', [FinanceController::class, 'transactions'])->middleware('permission:system.finance.transactions.view');
     Route::post('/finance/transactions', [FinanceController::class, 'storeTransaction'])->middleware('permission:system.finance.transactions.create');
 
+    Route::get('/sales-returns', [\App\Http\Controllers\SalesReturnController::class, 'index'])->middleware('permission:system.sales_returns.view');
+    Route::get('/sales-returns/options', [\App\Http\Controllers\SalesReturnController::class, 'options'])->middleware('permission:system.sales_returns.create');
+    Route::post('/sales-returns', [\App\Http\Controllers\SalesReturnController::class, 'store'])->middleware('permission:system.sales_returns.create');
+
     /*
     |--------------------------------------------------------------------------
     | Users
