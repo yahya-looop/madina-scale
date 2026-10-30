@@ -287,6 +287,9 @@ test('simultaneous B2B orders cannot exceed one account credit limit across diff
 
     $product = inventoryTestProduct('variable');
     $variant = inventoryTestVariant($product);
+    // Each concurrent order must consume BDT 100 against the BDT 150 limit.
+    // The shared helper defaults to BDT 20, which would let both orders pass.
+    $variant->update(['selling_price' => 100]);
     $firstLocation = inventoryTestLocation('credit-a-'.Str::lower(Str::random(5)));
     $secondLocation = inventoryTestLocation('credit-b-'.Str::lower(Str::random(5)));
     foreach ([$firstLocation, $secondLocation] as $location) {

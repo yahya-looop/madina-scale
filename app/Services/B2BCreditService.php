@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\B2BAccount;
 use App\Models\SalesOrder;
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class B2BCreditService
@@ -47,6 +48,20 @@ class B2BCreditService
      */
     public function assess(B2BAccount $account, string $orderAmount, ?int $excludeOrderId = null): array
     {
+        // Serialize credit decisions independently of inventory location. Two
+        // orders for one account may lock different location rows, so a shared
+        // PostgreSQL transaction advisory lock is the account-wide mutex.
+        // The enclosing transaction must remain open until the order commits.
+        if (DB::transactionLevel() < 1) {
+            throw new \LogicException('B2B credit assessment must run inside the order transaction.');
+        }
+
+        if (DB::connection()->getDriverName() === 'pgsql') {
+            DB::select('SELECT pg_advisory_xact_lock(hashtextextended(?, 0))', [
+                'madina-scale:b2b-credit:'.$account->id,
+            ]);
+        }
+
         $locked = B2BAccount::query()->lockForUpdate()->findOrFail($account->id);
         $amount = bcadd($orderAmount, '0', 2);
         if (bccomp($amount, '0.00', 2) < 0) {
