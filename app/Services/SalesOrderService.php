@@ -25,6 +25,7 @@ class SalesOrderService
         private readonly InventoryReservationService $reservations,
         private readonly OrderRiskService $risk,
         private readonly CommercialPricingService $commercialPricing,
+        private readonly B2BCreditService $b2bCredit,
     ) {}
 
     /** Resolve the actual inventory owner used by this location for an order line. */
@@ -73,9 +74,14 @@ class SalesOrderService
             }
 
             $preserveQuotePricing = (bool) ($data['preserve_quote_pricing'] ?? false);
-            $b2bAccount = ! $preserveQuotePricing && ! empty($data['customer_id'])
-                ? B2BAccount::query()->where('customer_id', $data['customer_id'])->where('status', 'active')->lockForUpdate()->first()
-                : null;
+            $b2bAccount = ! empty($data['b2b_account_id'])
+                ? B2BAccount::query()->whereKey($data['b2b_account_id'])->lockForUpdate()->firstOrFail()
+                : (! empty($data['customer_id'])
+                    ? B2BAccount::query()->where('customer_id', $data['customer_id'])->lockForUpdate()->first()
+                    : null);
+            if ($b2bAccount && $b2bAccount->status !== 'active') {
+                throw ValidationException::withMessages(['account' => 'The linked business account is not active and cannot place orders.']);
+            }
 
             $order = SalesOrder::query()->create([
                 'order_number' => 'MS-'.now()->format('ymd').'-'.Str::upper(Str::random(6)),
@@ -83,6 +89,7 @@ class SalesOrderService
                 'channel' => $data['channel'] ?? 'backoffice',
                 'location_id' => $location->id,
                 'customer_id' => $data['customer_id'] ?? null,
+                'b2b_account_id' => $b2bAccount?->id,
                 'customer_name' => trim($data['customer_name']),
                 'customer_email' => isset($data['customer_email']) ? trim($data['customer_email']) : null,
                 'customer_phone' => isset($data['customer_phone']) ? trim($data['customer_phone']) : null,
@@ -195,7 +202,14 @@ class SalesOrderService
                 'total_discount' => $discountTotal,
                 'calculated_at' => now()->toIso8601String(),
             ];
-            $order->save();
+            if ($b2bAccount && ! $preserveQuotePricing) {
+                $creditSnapshot = $this->b2bCredit->assess($b2bAccount, (string) $order->grand_total, (int) $order->id);
+                $order->credit_snapshot = $creditSnapshot;
+                $order->payment_due_at = $creditSnapshot['payment_due_at'];
+                $order->save();
+            } else {
+                $order->save();
+            }
 
             SalesOrderStatusHistory::query()->create([
                 'sales_order_id' => $order->id, 'from_status' => null, 'to_status' => 'pending',
@@ -258,8 +272,11 @@ class SalesOrderService
             $locked->items()->delete();
 
             $b2bAccount = ! empty($data['customer_id'])
-                ? B2BAccount::query()->where('customer_id', $data['customer_id'])->where('status', 'active')->lockForUpdate()->first()
+                ? B2BAccount::query()->where('customer_id', $data['customer_id'])->lockForUpdate()->first()
                 : null;
+            if ($b2bAccount && $b2bAccount->status !== 'active') {
+                throw ValidationException::withMessages(['account' => 'The linked business account is not active and cannot place orders.']);
+            }
             $subtotal = '0.00';
             foreach ($data['items'] as $line) {
                 $variant = ProductVariant::query()
@@ -360,6 +377,15 @@ class SalesOrderService
             $locked->promotion_code = $promotionResult['promotion_code'];
             $locked->tax_total = '0.00';
             $locked->grand_total = bcsub($subtotal, $discountTotal, 2);
+            $locked->b2b_account_id = $b2bAccount?->id;
+            if ($b2bAccount) {
+                $creditSnapshot = $this->b2bCredit->assess($b2bAccount, (string) $locked->grand_total, (int) $locked->id);
+                $locked->credit_snapshot = $creditSnapshot;
+                $locked->payment_due_at = $creditSnapshot['payment_due_at'];
+            } else {
+                $locked->credit_snapshot = null;
+                $locked->payment_due_at = null;
+            }
             $locked->pricing_snapshot = [
                 'engine' => 'commercial_pricing_v1',
                 'price_basis' => 'catalogue_and_commercial_rules',
@@ -557,6 +583,76 @@ class SalesOrderService
         }, 3);
     }
 
+    private function assertFinancialIntegrity(SalesOrder $order): void
+    {
+        $items = $order->items()->orderBy('id')->get();
+        if ($items->isEmpty()) {
+            throw ValidationException::withMessages(['pricing' => 'An order without line items cannot be confirmed.']);
+        }
+
+        $snapshot = $order->pricing_snapshot ?? [];
+        $basis = $snapshot['price_basis'] ?? 'catalogue_and_commercial_rules';
+        if ($basis === 'b2b_quote') {
+            $grossSubtotal = '0.00';
+            $netLineSubtotal = '0.00';
+            $lineDiscounts = '0.00';
+            foreach ($items as $item) {
+                $gross = bcmul((string) $item->quantity, (string) $item->unit_price, 2);
+                $lineDiscount = number_format((float) (($item->pricing_snapshot ?? [])['line_discount'] ?? 0), 2, '.', '');
+                if (bccomp($lineDiscount, $gross, 2) > 0
+                    || bccomp((string) $item->line_total, bcsub($gross, $lineDiscount, 2), 2) !== 0) {
+                    throw ValidationException::withMessages(['pricing' => 'An accepted quotation line does not reconcile with its saved price and discount.']);
+                }
+                $grossSubtotal = bcadd($grossSubtotal, $gross, 2);
+                $netLineSubtotal = bcadd($netLineSubtotal, (string) $item->line_total, 2);
+                $lineDiscounts = bcadd($lineDiscounts, $lineDiscount, 2);
+            }
+            $quoteDiscount = number_format((float) ($snapshot['accepted_discount'] ?? 0), 2, '.', '');
+            $acceptedLineSubtotal = number_format((float) ($snapshot['accepted_line_subtotal'] ?? 0), 2, '.', '');
+            $acceptedTax = number_format((float) ($snapshot['accepted_tax'] ?? 0), 2, '.', '');
+            $acceptedTotal = number_format((float) ($snapshot['accepted_total'] ?? 0), 2, '.', '');
+            if (bccomp($grossSubtotal, (string) $order->subtotal, 2) !== 0
+                || bccomp($netLineSubtotal, $acceptedLineSubtotal, 2) !== 0
+                || bccomp($acceptedTax, (string) $order->tax_total, 2) !== 0
+                || bccomp($acceptedTotal, (string) $order->grand_total, 2) !== 0
+                || bccomp(bcadd($lineDiscounts, $quoteDiscount, 2), (string) $order->discount_total, 2) !== 0) {
+                throw ValidationException::withMessages(['pricing' => 'Accepted quotation lines, discounts and order subtotal no longer reconcile.']);
+            }
+        } else {
+            $grossSubtotal = '0.00';
+            $lineDiscounts = '0.00';
+            foreach ($items as $item) {
+                $gross = bcmul((string) $item->quantity, (string) $item->unit_price, 2);
+                $lineDiscount = number_format((float) (($item->pricing_snapshot ?? [])['line_discount'] ?? 0), 2, '.', '');
+                if (bccomp($lineDiscount, $gross, 2) > 0
+                    || bccomp((string) $item->line_total, bcsub($gross, $lineDiscount, 2), 2) !== 0) {
+                    throw ValidationException::withMessages(['pricing' => 'An order line does not reconcile with its immutable unit price and line discount.']);
+                }
+                $grossSubtotal = bcadd($grossSubtotal, $gross, 2);
+                $lineDiscounts = bcadd($lineDiscounts, $lineDiscount, 2);
+            }
+            if (bccomp($grossSubtotal, (string) $order->subtotal, 2) !== 0) {
+                throw ValidationException::withMessages(['pricing' => 'Order lines no longer reconcile with the saved subtotal.']);
+            }
+            $promotionDiscount = number_format((float) ($snapshot['promotion_discount'] ?? 0), 2, '.', '');
+            $manualDiscount = number_format((float) ($snapshot['manual_discount'] ?? 0), 2, '.', '');
+            if (bccomp(bcadd($promotionDiscount, $manualDiscount, 2), (string) $order->discount_total, 2) !== 0
+                || bccomp($lineDiscounts, $promotionDiscount, 2) > 0) {
+                throw ValidationException::withMessages(['pricing' => 'Order discounts no longer reconcile with the saved pricing snapshot.']);
+            }
+        }
+
+        $expectedGrand = bcadd(
+            bcsub((string) $order->subtotal, (string) $order->discount_total, 2),
+            (string) $order->tax_total,
+            2
+        );
+        if (bccomp($expectedGrand, (string) $order->grand_total, 2) !== 0
+            || bccomp((string) $order->discount_total, (string) $order->subtotal, 2) > 0) {
+            throw ValidationException::withMessages(['pricing' => 'Order subtotal, discount, tax and grand total do not reconcile.']);
+        }
+    }
+
     public function confirm(SalesOrder $order, User $actor): SalesOrder
     {
         return DB::transaction(function () use ($order, $actor): SalesOrder {
@@ -566,6 +662,18 @@ class SalesOrderService
             }
             if ($locked->status !== 'pending') {
                 throw ValidationException::withMessages(['status' => 'Only pending orders can be confirmed.']);
+            }
+
+            $this->assertFinancialIntegrity($locked);
+            if ($locked->b2b_account_id) {
+                $account = B2BAccount::query()->lockForUpdate()->findOrFail($locked->b2b_account_id);
+                if ($account->status !== 'active') {
+                    throw ValidationException::withMessages(['account' => 'The business account must remain active until order confirmation.']);
+                }
+                $creditSnapshot = $this->b2bCredit->assess($account, (string) $locked->grand_total, (int) $locked->id);
+                $locked->credit_snapshot = $creditSnapshot;
+                $locked->payment_due_at = $creditSnapshot['payment_due_at'];
+                $locked->save();
             }
 
             $activeCount = InventoryReservation::query()

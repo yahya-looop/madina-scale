@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\B2BAccount;
+use App\Models\Customer;
 use App\Models\FlashSale;
 use App\Models\FlashSaleItem;
 use App\Models\PricingPromotion;
@@ -716,6 +717,71 @@ class SalesOrderWorkflowTest extends TestCase
         $this->assertCount(2, $order->pricing_snapshot['applied_promotions']);
         $this->assertSame('First stack', $order->pricing_snapshot['applied_promotions'][0]['name']);
         $this->assertSame('Second stack', $order->pricing_snapshot['applied_promotions'][1]['name']);
+    }
+
+
+    public function test_b2b_order_is_linked_to_account_and_credit_exposure_is_enforced_with_due_date_snapshot(): void
+    {
+        [$location, $variant] = $this->orderFixture();
+        $user = $this->orderUser($location);
+        $customer = Customer::query()->create([
+            'customer_code' => 'CUS-'.Str::upper(Str::random(8)),
+            'name' => 'Credit Test Customer',
+            'status' => 'active',
+        ]);
+        $account = B2BAccount::query()->create([
+            'account_code' => 'B2B-'.Str::upper(Str::random(8)),
+            'company_name' => 'Credit Test Wholesale',
+            'business_type' => 'retailer',
+            'tier' => 'gold',
+            'status' => 'active',
+            'customer_id' => $customer->id,
+            'payment_terms' => 'net_30',
+            'credit_limit' => 150,
+            'default_discount_percent' => 0,
+        ]);
+
+        $this->actingAs($user)->postJson('/api/orders', [
+            'location_id' => $location->id,
+            'customer_id' => $customer->id,
+            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1]],
+        ])->assertCreated();
+
+        $order = SalesOrder::query()->firstOrFail();
+        $this->assertSame($account->id, (int) $order->b2b_account_id);
+        $this->assertSame('net_30', $order->credit_snapshot['payment_terms']);
+        $this->assertSame('100.00', $order->credit_snapshot['order_amount']);
+        $this->assertNotNull($order->payment_due_at);
+        // Delivery does not automatically settle an invoice, so fulfilled credit orders remain exposed.
+        $order->update(['status' => 'fulfilled']);
+
+        $this->actingAs($user)->postJson('/api/orders', [
+            'location_id' => $location->id,
+            'customer_id' => $customer->id,
+            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1]],
+        ])->assertUnprocessable()->assertJsonValidationErrors('credit_limit');
+
+        $this->assertDatabaseCount('sales_orders', 1);
+    }
+
+    public function test_order_confirmation_rejects_financial_snapshot_mismatch(): void
+    {
+        [$location, $variant] = $this->orderFixture();
+        $user = $this->orderUser($location);
+        $response = $this->actingAs($user)->postJson('/api/orders', [
+            'location_id' => $location->id,
+            'customer_name' => 'Snapshot Integrity Buyer',
+            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1]],
+        ])->assertCreated();
+
+        $order = SalesOrder::query()->findOrFail($response->json('data.id'));
+        $order->update(['grand_total' => '1.00']);
+
+        $this->actingAs($user)->postJson('/api/orders/'.$order->id.'/confirm')
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('pricing');
+
+        $this->assertDatabaseHas('sales_orders', ['id' => $order->id, 'status' => 'pending']);
     }
 
 }

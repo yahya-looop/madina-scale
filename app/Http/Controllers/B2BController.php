@@ -6,7 +6,9 @@ use App\Models\B2BAccount;
 use App\Models\B2BQuote;
 use App\Models\Customer;
 use App\Models\Lead;
+use App\Models\Location;
 use App\Services\SalesOrderService;
+use App\Services\B2BCreditService;
 use App\Services\LocationInventoryAccessService;
 use App\Models\ProductVariant;
 use Illuminate\Database\Eloquent\Builder;
@@ -19,7 +21,7 @@ use Illuminate\Validation\ValidationException;
 
 class B2BController extends Controller
 {
-    public function index(Request $request): JsonResponse
+    public function index(Request $request, B2BCreditService $credit): JsonResponse
     {
         $query = B2BAccount::query()->with(['customer:id,customer_code,name', 'lead:id,lead_code,name,status'])
             ->withCount('quotes')->withSum('quotes as quoted_value', 'total')->search($request->string('search')->toString());
@@ -37,6 +39,10 @@ class B2BController extends Controller
             'open_quotes' => B2BQuote::whereIn('status', ['draft', 'sent', 'under_review'])->count(),
         ];
         $accounts = $query->latest('id')->paginate(min(max($request->integer('per_page', 15), 1), 50))->withQueryString();
+        $accounts->getCollection()->transform(function (B2BAccount $account) use ($credit): B2BAccount {
+            $account->setAttribute('credit_summary', $credit->summary($account));
+            return $account;
+        });
         return response()->json(array_merge($accounts->toArray(), ['stats' => $stats]));
     }
 
@@ -49,8 +55,9 @@ class B2BController extends Controller
         ]);
     }
 
-    public function show(B2BAccount $account): JsonResponse
+    public function show(B2BAccount $account, B2BCreditService $credit): JsonResponse
     {
+        $account->setAttribute('credit_summary', $credit->summary($account));
         $account->load(['customer:id,customer_code,name,phone,email', 'lead:id,lead_code,name,status', 'quotes' => fn ($q) => $q->withCount('items')->latest()->limit(20)]);
         return response()->json(['data' => $account]);
     }
@@ -134,24 +141,31 @@ class B2BController extends Controller
                 'discount_amount' => $data['discount_amount'] ?? 0, 'tax_amount' => $data['tax_amount'] ?? 0,
                 'terms' => $data['terms'] ?? null, 'notes' => $data['notes'] ?? null, 'created_by' => $request->user()->id,
             ]);
-            $subtotal = 0;
+            $subtotal = '0.00';
             foreach ($data['items'] as $item) {
-                $lineGross = (float) $item['quantity'] * (float) $item['unit_price'];
-                $lineTotal = round($lineGross * (1 - ((float) ($item['discount_percent'] ?? 0) / 100)), 2);
-                $subtotal += $lineTotal;
+                $quantity = number_format((float) $item['quantity'], 3, '.', '');
+                $unitPrice = number_format((float) $item['unit_price'], 2, '.', '');
+                $discountPercent = number_format((float) ($item['discount_percent'] ?? 0), 2, '.', '');
+                $gross = bcmul($quantity, $unitPrice, 2);
+                $rawDiscount = bcdiv(bcmul($gross, $discountPercent, 4), '100', 4);
+                $lineDiscount = bcdiv(bcadd($rawDiscount, '0.0050', 4), '1', 2);
+                $lineTotal = bcsub($gross, $lineDiscount, 2);
+                $subtotal = bcadd($subtotal, $lineTotal, 2);
                 $quote->items()->create([
                     'product_variant_id' => $item['product_variant_id'] ?? null,
                     'sku' => $item['sku'] ?? null,
                     'description' => $item['description'],
-                    'quantity' => $item['quantity'],
-                    'unit_price' => $item['unit_price'],
-                    'discount_percent' => $item['discount_percent'] ?? 0,
+                    'quantity' => $quantity,
+                    'unit_price' => $unitPrice,
+                    'discount_percent' => $discountPercent,
                     'line_total' => $lineTotal,
                 ]);
             }
-            $discount = (float) ($data['discount_amount'] ?? 0);
-            if ($discount > $subtotal) throw ValidationException::withMessages(['discount_amount' => 'The quote discount cannot exceed the item subtotal.']);
-            $quote->update(['subtotal' => round($subtotal, 2), 'total' => round($subtotal - $discount + (float) ($data['tax_amount'] ?? 0), 2)]);
+            $discount = number_format((float) ($data['discount_amount'] ?? 0), 2, '.', '');
+            $tax = number_format((float) ($data['tax_amount'] ?? 0), 2, '.', '');
+            if (bccomp($discount, $subtotal, 2) > 0) throw ValidationException::withMessages(['discount_amount' => 'The quote discount cannot exceed the item subtotal.']);
+            $total = bcadd(bcsub($subtotal, $discount, 2), $tax, 2);
+            $quote->update(['subtotal' => $subtotal, 'discount_amount' => $discount, 'tax_amount' => $tax, 'total' => $total]);
             return $quote->load(['account:id,account_code,company_name', 'items']);
         });
         return response()->json(['message' => 'Quotation draft created successfully.', 'data' => $quote], 201);
@@ -208,6 +222,7 @@ class B2BController extends Controller
         B2BQuote $quote,
         SalesOrderService $orders,
         LocationInventoryAccessService $locationAccess,
+        B2BCreditService $credit,
     ): JsonResponse {
         $data = $request->validate([
             'location_id' => ['required', 'integer', 'exists:locations,id'],
@@ -216,8 +231,8 @@ class B2BController extends Controller
         ]);
         $locationAccess->assertManage($request->user(), (int) $data['location_id']);
 
-        $order = DB::transaction(function () use ($request, $quote, $orders, $data): \App\Models\SalesOrder {
-            $lockedQuote = B2BQuote::query()->with(['account', 'items'])->lockForUpdate()->findOrFail($quote->id);
+        $order = DB::transaction(function () use ($request, $quote, $orders, $data, $credit): \App\Models\SalesOrder {
+            $lockedQuote = B2BQuote::query()->with(['account', 'items' => fn ($query) => $query->orderBy('id')])->lockForUpdate()->findOrFail($quote->id);
 
             $keyedOrder = \App\Models\SalesOrder::query()
                 ->where('idempotency_key', $data['idempotency_key'])
@@ -244,6 +259,11 @@ class B2BController extends Controller
             if ($lockedQuote->valid_until && $lockedQuote->valid_until->isBefore(today())) {
                 throw ValidationException::withMessages(['quote' => 'This quotation has expired.']);
             }
+            // Keep lock order aligned with direct order creation: location, then B2B account.
+            $location = Location::query()->lockForUpdate()->findOrFail($data['location_id']);
+            if (! $location->is_active) {
+                throw ValidationException::withMessages(['location_id' => 'Choose an active location.']);
+            }
             $account = B2BAccount::query()->lockForUpdate()->findOrFail($lockedQuote->b2b_account_id);
             if ($account->status !== 'active') {
                 throw ValidationException::withMessages(['account' => 'The business account must be active to place an order.']);
@@ -255,14 +275,11 @@ class B2BController extends Controller
                 throw ValidationException::withMessages(['items' => 'Every quotation line must be linked to an active product variant before order conversion.']);
             }
 
-            $outstanding = (float) \App\Models\SalesOrder::query()
-                ->where('b2b_account_id', $account->id)
-                ->whereIn('status', ['pending', 'confirmed', 'processing', 'partially_fulfilled'])
-                ->sum('grand_total');
-            $availableCredit = max(0, (float) $account->credit_limit - $outstanding);
-            if ($account->payment_terms !== 'prepaid' && (float) $lockedQuote->total > $availableCredit) {
-                throw ValidationException::withMessages(['credit_limit' => 'The quotation exceeds the available B2B credit limit.']);
+            if (strtoupper($lockedQuote->currency) !== 'BDT') {
+                throw ValidationException::withMessages(['currency' => 'Only BDT quotations can be converted into the current sales order workflow.']);
             }
+            $creditSnapshot = $credit->assess($account, (string) $lockedQuote->total);
+            $this->assertQuoteFinancialIntegrity($lockedQuote);
 
             $customer = Customer::query()->lockForUpdate()->findOrFail($account->customer_id);
             $lines = $lockedQuote->items->map(fn ($item) => [
@@ -273,6 +290,7 @@ class B2BController extends Controller
             $order = $orders->create([
                 'location_id' => $data['location_id'],
                 'customer_id' => $customer->id,
+                'b2b_account_id' => $account->id,
                 'customer_name' => $customer->name,
                 'customer_email' => $customer->email,
                 'customer_phone' => $customer->phone,
@@ -290,6 +308,8 @@ class B2BController extends Controller
 
             // Replace catalog-derived provisional amounts with the accepted quote's
             // immutable commercial snapshots; stock reservations remain quantity-based.
+            $grossSubtotal = '0.00';
+            $lineDiscountTotal = '0.00';
             foreach ($lockedQuote->items as $index => $quoteItem) {
                 $orderItem = $order->items->get($index);
                 if (! $orderItem) {
@@ -297,6 +317,11 @@ class B2BController extends Controller
                 }
                 $lineTotal = number_format((float) $quoteItem->line_total, 2, '.', '');
                 $unitPrice = number_format((float) $quoteItem->unit_price, 2, '.', '');
+                $quantity = number_format((float) $quoteItem->quantity, 3, '.', '');
+                $grossLine = bcmul($quantity, $unitPrice, 2);
+                $lineDiscount = bcsub($grossLine, $lineTotal, 2);
+                $grossSubtotal = bcadd($grossSubtotal, $grossLine, 2);
+                $lineDiscountTotal = bcadd($lineDiscountTotal, $lineDiscount, 2);
                 $orderItem->update([
                     'unit_price' => $unitPrice,
                     'line_total' => $lineTotal,
@@ -306,27 +331,34 @@ class B2BController extends Controller
                         'quote_number' => $lockedQuote->quote_number,
                         'accepted_unit_price' => $unitPrice,
                         'accepted_line_total' => $lineTotal,
-                        'line_discount' => '0.00',
+                        'discount_percent' => number_format((float) $quoteItem->discount_percent, 2, '.', ''),
+                        'line_discount' => $lineDiscount,
                     ],
                 ]);
             }
+            $totalDiscount = bcadd($lineDiscountTotal, (string) $lockedQuote->discount_amount, 2);
             $order->update([
                 'b2b_account_id' => $account->id,
                 'b2b_quote_id' => $lockedQuote->id,
                 'lead_id' => $account->lead_id,
                 'source_type' => 'b2b_quote',
                 'source_id' => $lockedQuote->id,
-                'subtotal' => $lockedQuote->subtotal,
-                'discount_total' => $lockedQuote->discount_amount,
+                'subtotal' => $grossSubtotal,
+                'discount_total' => $totalDiscount,
                 'tax_total' => $lockedQuote->tax_amount,
                 'grand_total' => $lockedQuote->total,
+                'credit_snapshot' => $creditSnapshot,
+                'payment_due_at' => $creditSnapshot['payment_due_at'],
                 'pricing_snapshot' => [
                     'engine' => 'commercial_pricing_v1',
                     'price_basis' => 'b2b_quote',
                     'quote_id' => $lockedQuote->id,
                     'quote_number' => $lockedQuote->quote_number,
-                    'accepted_subtotal' => number_format((float) $lockedQuote->subtotal, 2, '.', ''),
+                    'accepted_line_subtotal' => number_format((float) $lockedQuote->subtotal, 2, '.', ''),
+                    'gross_subtotal' => $grossSubtotal,
+                    'line_discount_total' => $lineDiscountTotal,
                     'accepted_discount' => number_format((float) $lockedQuote->discount_amount, 2, '.', ''),
+                    'total_discount' => $totalDiscount,
                     'accepted_tax' => number_format((float) $lockedQuote->tax_amount, 2, '.', ''),
                     'accepted_total' => number_format((float) $lockedQuote->total, 2, '.', ''),
                     'calculated_at' => now()->toIso8601String(),
@@ -343,6 +375,38 @@ class B2BController extends Controller
         }, 3);
 
         return response()->json(['message' => 'Accepted quotation converted to sales order.', 'data' => $order], 201);
+    }
+
+    private function assertQuoteFinancialIntegrity(B2BQuote $quote): void
+    {
+        $lineSubtotal = '0.00';
+        foreach ($quote->items as $item) {
+            $quantity = number_format((float) $item->quantity, 3, '.', '');
+            $unitPrice = number_format((float) $item->unit_price, 2, '.', '');
+            $gross = bcmul($quantity, $unitPrice, 2);
+            $discountPercent = number_format((float) $item->discount_percent, 2, '.', '');
+            $rawDiscount = bcdiv(bcmul($gross, $discountPercent, 4), '100', 4);
+            $discount = bcdiv(bcadd($rawDiscount, '0.0050', 4), '1', 2);
+            $expected = bcsub($gross, $discount, 2);
+            if (bccomp($expected, (string) $item->line_total, 2) !== 0) {
+                throw ValidationException::withMessages(['quote' => 'A quotation line no longer reconciles with its saved quantity, price and discount.']);
+            }
+            $lineSubtotal = bcadd($lineSubtotal, $expected, 2);
+        }
+
+        if (bccomp($lineSubtotal, (string) $quote->subtotal, 2) !== 0
+            || bccomp((string) $quote->discount_amount, $lineSubtotal, 2) > 0) {
+            throw ValidationException::withMessages(['quote' => 'The quotation subtotal or discount does not reconcile with its saved lines.']);
+        }
+
+        $expectedTotal = bcadd(
+            bcsub($lineSubtotal, (string) $quote->discount_amount, 2),
+            (string) $quote->tax_amount,
+            2
+        );
+        if (bccomp($expectedTotal, (string) $quote->total, 2) !== 0) {
+            throw ValidationException::withMessages(['quote' => 'The quotation total does not reconcile with its subtotal, discount and tax.']);
+        }
     }
 
     private function validated(Request $request, ?B2BAccount $account = null): array
