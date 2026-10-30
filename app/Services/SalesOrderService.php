@@ -54,13 +54,25 @@ class SalesOrderService
     {
         return DB::transaction(function () use ($data, $actor): SalesOrder {
             if (! empty($data['idempotency_key'])) {
+                // PostgreSQL transaction-scoped advisory lock closes the race
+                // where identical keys arrive at different locations and thus
+                // do not contend on the same location row.
+                if (DB::connection()->getDriverName() === 'pgsql') {
+                    DB::select('SELECT pg_advisory_xact_lock(hashtextextended(?, 0))', [
+                        (string) $data['idempotency_key'],
+                    ]);
+                }
+
                 $existing = SalesOrder::query()->where('idempotency_key', $data['idempotency_key'])->first();
                 if ($existing) {
                     if ((int) $existing->created_by !== (int) $actor->id) {
                         throw ValidationException::withMessages(['idempotency_key' => 'This request key has already been used. Start a new order request.']);
                     }
 
-                    return $existing->load(['items', 'location', 'creator']);
+                    $existing->load(['items', 'location', 'creator']);
+                    $this->assertIdempotentReplayMatches($existing, $data);
+
+                    return $existing;
                 }
             }
 
@@ -224,6 +236,61 @@ class SalesOrderService
     }
 
     /**
+     * An idempotency key may replay only the same logical request. Returning an
+     * old order for a changed cart/customer/location silently hides client bugs
+     * and can make a retry appear to have succeeded with different data.
+     */
+    private function assertIdempotentReplayMatches(SalesOrder $existing, array $data): void
+    {
+        $normalizeText = static function ($value): ?string {
+            $value = trim((string) ($value ?? ''));
+
+            return $value === '' ? null : $value;
+        };
+
+        $requestedItems = collect($data['items'] ?? [])
+            ->map(fn (array $item): array => [
+                'variant_id' => (int) $item['product_variant_id'],
+                'quantity' => number_format((float) $item['quantity'], 4, '.', ''),
+            ])
+            ->sortBy(fn (array $item): string => str_pad((string) $item['variant_id'], 20, '0', STR_PAD_LEFT))
+            ->values()
+            ->all();
+
+        $existingItems = $existing->items
+            ->map(fn (SalesOrderItem $item): array => [
+                'variant_id' => (int) $item->product_variant_id,
+                'quantity' => number_format((float) $item->quantity, 4, '.', ''),
+            ])
+            ->sortBy(fn (array $item): string => str_pad((string) $item['variant_id'], 20, '0', STR_PAD_LEFT))
+            ->values()
+            ->all();
+
+        $snapshot = $existing->pricing_snapshot ?? [];
+        $requestedManualDiscount = number_format((float) ($data['discount_total'] ?? 0), 2, '.', '');
+        $existingManualDiscount = number_format((float) ($snapshot['manual_discount'] ?? 0), 2, '.', '');
+        $requestedPromotionCode = strtoupper(trim((string) ($data['promotion_code'] ?? '')));
+        $existingPromotionCode = strtoupper(trim((string) ($existing->promotion_code ?? $snapshot['promotion_code'] ?? '')));
+
+        $matches = (int) $existing->location_id === (int) ($data['location_id'] ?? 0)
+            && (int) ($existing->customer_id ?? 0) === (int) ($data['customer_id'] ?? 0)
+            && $normalizeText($existing->customer_name) === $normalizeText($data['customer_name'] ?? null)
+            && $normalizeText($existing->customer_email) === $normalizeText($data['customer_email'] ?? null)
+            && $normalizeText($existing->customer_phone) === $normalizeText($data['customer_phone'] ?? null)
+            && (string) $existing->channel === (string) ($data['channel'] ?? 'backoffice')
+            && $normalizeText($existing->notes) === $normalizeText($data['notes'] ?? null)
+            && $requestedItems === $existingItems
+            && $requestedManualDiscount === $existingManualDiscount
+            && $requestedPromotionCode === $existingPromotionCode;
+
+        if (! $matches) {
+            throw ValidationException::withMessages([
+                'idempotency_key' => 'This request key was already used for a different order payload. Use a new key for changed order details.',
+            ]);
+        }
+    }
+
+    /**
      * Update a pending order while preserving atomic stock reservation semantics.
      * Confirmed or partially fulfilled orders are immutable through this endpoint.
      */
@@ -235,6 +302,11 @@ class SalesOrderService
             if ($locked->status !== 'pending') {
                 throw ValidationException::withMessages([
                     'status' => 'Only pending orders can be edited. Cancel and recreate the order if changes are required after confirmation.',
+                ]);
+            }
+            if ($locked->b2b_quote_id !== null) {
+                throw ValidationException::withMessages([
+                    'status' => 'An order converted from an accepted B2B quotation is commercially locked and cannot be edited.',
                 ]);
             }
 

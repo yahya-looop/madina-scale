@@ -5,6 +5,7 @@ use App\Models\User;
 use App\Services\InventoryReservationService;
 use App\Services\InventoryService;
 use App\Services\InventoryTransferService;
+use App\Services\SalesOrderService;
 use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Validation\ValidationException;
 
@@ -58,6 +59,7 @@ try {
         ),
         'issue' => app(InventoryService::class)->issue($payload['data'], $actor),
         'reserve' => app(InventoryReservationService::class)->reserve($payload['data'], $actor),
+        'b2b_order' => app(SalesOrderService::class)->create($payload['data'], $actor),
         default => throw new InvalidArgumentException('Unsupported concurrency operation.'),
     };
 

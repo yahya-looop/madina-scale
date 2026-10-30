@@ -19,8 +19,8 @@ class B2BCreditService
                 $query->whereNull('credit_snapshot')
                     ->orWhere('credit_snapshot->credit_used', true);
             });
-        $outstanding = number_format((float) $query->sum('grand_total'), 2, '.', '');
-        $limit = number_format((float) $account->credit_limit, 2, '.', '');
+        $outstanding = bcadd((string) ($query->sum('grand_total') ?? '0'), '0', 2);
+        $limit = bcadd((string) $account->credit_limit, '0', 2);
         $available = bccomp($limit, $outstanding, 2) > 0 ? bcsub($limit, $outstanding, 2) : '0.00';
 
         return [
@@ -29,7 +29,9 @@ class B2BCreditService
             'outstanding' => $outstanding,
             'available_credit' => $available,
             'utilization_percent' => bccomp($limit, '0.00', 2) > 0
-                ? number_format(min(100, ((float) $outstanding / (float) $limit) * 100), 2, '.', '')
+                ? (bccomp($outstanding, $limit, 2) >= 0
+                    ? '100.00'
+                    : bcdiv(bcmul($outstanding, '100', 4), $limit, 2))
                 : (bccomp($outstanding, '0.00', 2) > 0 ? '100.00' : '0.00'),
         ];
     }
@@ -63,8 +65,8 @@ class B2BCreditService
         if ($excludeOrderId) {
             $outstandingQuery->where('id', '!=', $excludeOrderId);
         }
-        $outstanding = number_format((float) $outstandingQuery->sum('grand_total'), 2, '.', '');
-        $limit = number_format((float) $locked->credit_limit, 2, '.', '');
+        $outstanding = bcadd((string) ($outstandingQuery->sum('grand_total') ?? '0'), '0', 2);
+        $limit = bcadd((string) $locked->credit_limit, '0', 2);
         $available = bccomp($limit, $outstanding, 2) > 0 ? bcsub($limit, $outstanding, 2) : '0.00';
         $usesCredit = $locked->payment_terms !== 'prepaid';
 

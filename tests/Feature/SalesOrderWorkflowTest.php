@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\B2BAccount;
+use App\Models\B2BQuote;
 use App\Models\Customer;
 use App\Models\FlashSale;
 use App\Models\FlashSaleItem;
@@ -475,6 +476,39 @@ class SalesOrderWorkflowTest extends TestCase
         ]);
     }
 
+    public function test_idempotency_key_replays_only_an_identical_order_payload(): void
+    {
+        [$location, $variant] = $this->orderFixture();
+        $user = $this->orderUser($location);
+        $key = (string) Str::uuid();
+        $payload = [
+            'idempotency_key' => $key,
+            'location_id' => $location->id,
+            'customer_name' => 'Idempotent Buyer',
+            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1]],
+        ];
+
+        $first = $this->actingAs($user)->postJson('/api/orders', $payload)->assertCreated();
+        $orderId = $first->json('data.id');
+
+        $this->postJson('/api/orders', $payload)
+            ->assertOk()
+            ->assertJsonPath('data.id', $orderId);
+
+        $changedPayload = $payload;
+        $changedPayload['items'][0]['quantity'] = 2;
+        $this->postJson('/api/orders', $changedPayload)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('idempotency_key');
+
+        $this->assertDatabaseCount('sales_orders', 1);
+        $this->assertDatabaseHas('inventory_stocks', [
+            'product_variant_id' => $variant->id,
+            'location_id' => $location->id,
+            'reserved_quantity' => '1.0000',
+        ]);
+    }
+
     public function test_user_without_order_permission_cannot_list_orders(): void
     {
         $this->actingAs(User::factory()->create())->getJson('/api/orders')->assertForbidden();
@@ -762,6 +796,67 @@ class SalesOrderWorkflowTest extends TestCase
         ])->assertUnprocessable()->assertJsonValidationErrors('credit_limit');
 
         $this->assertDatabaseCount('sales_orders', 1);
+    }
+
+    public function test_order_converted_from_b2b_quote_cannot_be_edited_through_generic_order_endpoint(): void
+    {
+        [$location, $variant] = $this->orderFixture();
+        $user = $this->orderUser($location);
+        $customer = Customer::query()->create([
+            'customer_code' => 'CUS-'.Str::upper(Str::random(8)),
+            'name' => 'Quote Locked Customer',
+            'status' => 'active',
+        ]);
+        $account = B2BAccount::query()->create([
+            'account_code' => 'B2B-'.Str::upper(Str::random(8)),
+            'company_name' => 'Quote Locked Account',
+            'business_type' => 'retailer',
+            'tier' => 'gold',
+            'status' => 'active',
+            'customer_id' => $customer->id,
+            'payment_terms' => 'prepaid',
+            'credit_limit' => 0,
+            'default_discount_percent' => 0,
+        ]);
+        $quote = B2BQuote::query()->create([
+            'quote_number' => 'QT-'.Str::upper(Str::random(8)),
+            'b2b_account_id' => $account->id,
+            'status' => 'accepted',
+            'currency' => 'BDT',
+            'subtotal' => 100,
+            'discount_amount' => 0,
+            'tax_amount' => 0,
+            'total' => 100,
+        ]);
+
+        $response = $this->actingAs($user)->postJson('/api/orders', [
+            'location_id' => $location->id,
+            'customer_id' => $customer->id,
+            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1]],
+        ])->assertCreated();
+        $orderId = $response->json('data.id');
+        SalesOrder::query()->whereKey($orderId)->update([
+            'b2b_quote_id' => $quote->id,
+            'source_type' => 'b2b_quote',
+            'source_id' => $quote->id,
+        ]);
+
+        $this->putJson('/api/orders/'.$orderId, [
+            'customer_id' => $customer->id,
+            'items' => [['product_variant_id' => $variant->id, 'quantity' => 2]],
+        ])->assertUnprocessable()->assertJsonValidationErrors('status');
+
+        $this->assertDatabaseHas('sales_orders', [
+            'id' => $orderId,
+            'b2b_quote_id' => $quote->id,
+            'source_type' => 'b2b_quote',
+            'grand_total' => '100.00',
+        ]);
+        $this->assertDatabaseHas('inventory_stocks', [
+            'product_variant_id' => $variant->id,
+            'location_id' => $location->id,
+            'reserved_quantity' => '1.0000',
+        ]);
     }
 
     public function test_order_confirmation_rejects_financial_snapshot_mismatch(): void

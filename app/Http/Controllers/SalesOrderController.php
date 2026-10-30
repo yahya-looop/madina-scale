@@ -199,8 +199,12 @@ class SalesOrderController extends Controller
         }
         $this->locationAccess->assertManage($request->user(), (int) $data['location_id']);
         $order = $this->orders->create($data, $request->user());
+        $status = $order->wasRecentlyCreated ? 201 : 200;
 
-        return response()->json(['message' => 'Order created and stock reserved.', 'data' => $order], 201);
+        return response()->json([
+            'message' => $status === 201 ? 'Order created and stock reserved.' : 'Existing order request replayed.',
+            'data' => $order,
+        ], $status);
     }
 
     public function update(Request $request, SalesOrder $order): JsonResponse
