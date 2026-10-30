@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class PricingPromotion extends Model
 {
@@ -30,6 +31,7 @@ class PricingPromotion extends Model
     public function product(): BelongsTo { return $this->belongsTo(Product::class); }
     public function variant(): BelongsTo { return $this->belongsTo(ProductVariant::class, 'product_variant_id'); }
     public function category(): BelongsTo { return $this->belongsTo(ProductCategory::class, 'product_category_id'); }
+    public function redemptions(): HasMany { return $this->hasMany(PricingPromotionRedemption::class, 'pricing_promotion_id'); }
 
     public function isCurrentlyActive(): bool
     {

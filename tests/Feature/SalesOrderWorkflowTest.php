@@ -2,6 +2,11 @@
 
 namespace Tests\Feature;
 
+use App\Models\FlashSale;
+use App\Models\FlashSaleItem;
+use App\Models\PricingPromotion;
+use App\Models\PricingPromotionRedemption;
+use App\Models\SalesOrderFlashSaleAllocation;
 use App\Models\InventoryReservationPurpose;
 use App\Models\InventoryStock;
 use App\Models\Location;
@@ -471,4 +476,76 @@ class SalesOrderWorkflowTest extends TestCase
     {
         $this->actingAs(User::factory()->create())->getJson('/api/orders')->assertForbidden();
     }
+
+    public function test_coupon_redemption_is_counted_and_released_when_order_is_cancelled(): void
+    {
+        [$location, $variant] = $this->orderFixture();
+        $user = $this->orderUser($location);
+        $promotion = PricingPromotion::query()->create([
+            'name' => 'Order coupon', 'code' => 'SAVE10', 'discount_type' => 'percent',
+            'discount_value' => 10, 'scope' => 'order', 'minimum_order_amount' => 0,
+            'minimum_quantity' => 1, 'usage_limit' => 1, 'per_customer_limit' => null,
+            'usage_count' => 0, 'stackable' => false, 'publicly_visible' => false,
+            'status' => 'active', 'starts_at' => now()->subMinute(), 'ends_at' => now()->addDay(),
+        ]);
+
+        $response = $this->actingAs($user)->postJson('/api/orders', [
+            'location_id' => $location->id, 'customer_name' => 'Coupon Buyer',
+            'promotion_code' => 'save10',
+            'items' => [['product_variant_id' => $variant->id, 'quantity' => 2]],
+        ])->assertCreated()->assertJsonPath('data.discount_total', '20.00')
+            ->assertJsonPath('data.grand_total', '180.00');
+
+        $orderId = $response->json('data.id');
+        $this->assertDatabaseHas('pricing_promotions', ['id' => $promotion->id, 'usage_count' => 1]);
+        $this->assertDatabaseHas('pricing_promotion_redemptions', [
+            'pricing_promotion_id' => $promotion->id, 'sales_order_id' => $orderId, 'status' => 'applied',
+        ]);
+
+        $this->actingAs($user)->postJson("/api/orders/{$orderId}/cancel", [
+            'reason' => 'Coupon lifecycle test cancellation',
+        ])->assertOk();
+
+        $this->assertDatabaseHas('pricing_promotions', ['id' => $promotion->id, 'usage_count' => 0]);
+        $this->assertDatabaseHas('pricing_promotion_redemptions', [
+            'pricing_promotion_id' => $promotion->id, 'sales_order_id' => $orderId, 'status' => 'released',
+        ]);
+    }
+
+    public function test_flash_sale_quota_is_reserved_and_released_on_order_cancellation(): void
+    {
+        [$location, $variant] = $this->orderFixture();
+        $user = $this->orderUser($location);
+        $sale = FlashSale::query()->create([
+            'title' => 'Order flash sale', 'slug' => 'order-flash-'.Str::lower(Str::random(8)),
+            'status' => 'active', 'accent_color' => '#059669',
+            'starts_at' => now()->subMinute(), 'ends_at' => now()->addDay(),
+            'show_on_storefront' => true, 'priority' => 1,
+        ]);
+        $saleItem = FlashSaleItem::query()->create([
+            'flash_sale_id' => $sale->id, 'product_variant_id' => $variant->id,
+            'regular_price' => 100, 'sale_price' => 70, 'quantity_limit' => 3, 'quantity_sold' => 0,
+        ]);
+
+        $response = $this->actingAs($user)->postJson('/api/orders', [
+            'location_id' => $location->id, 'customer_name' => 'Flash Sale Buyer',
+            'items' => [['product_variant_id' => $variant->id, 'quantity' => 2]],
+        ])->assertCreated()->assertJsonPath('data.grand_total', '140.00');
+
+        $orderId = $response->json('data.id');
+        $this->assertDatabaseHas('flash_sale_items', ['id' => $saleItem->id, 'quantity_sold' => 2]);
+        $this->assertDatabaseHas('sales_order_flash_sale_allocations', [
+            'flash_sale_item_id' => $saleItem->id, 'sales_order_id' => $orderId, 'status' => 'reserved',
+        ]);
+
+        $this->actingAs($user)->postJson("/api/orders/{$orderId}/cancel", [
+            'reason' => 'Flash sale lifecycle test cancellation',
+        ])->assertOk();
+
+        $this->assertDatabaseHas('flash_sale_items', ['id' => $saleItem->id, 'quantity_sold' => 0]);
+        $this->assertDatabaseHas('sales_order_flash_sale_allocations', [
+            'flash_sale_item_id' => $saleItem->id, 'sales_order_id' => $orderId, 'status' => 'released',
+        ]);
+    }
+
 }

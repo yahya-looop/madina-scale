@@ -54,6 +54,16 @@ class SalesOrder extends Model
         return $this->hasMany(SalesOrderItem::class, 'sales_order_id');
     }
 
+    public function promotionRedemptions(): HasMany
+    {
+        return $this->hasMany(PricingPromotionRedemption::class, 'sales_order_id');
+    }
+
+    public function flashSaleAllocations(): HasMany
+    {
+        return $this->hasMany(SalesOrderFlashSaleAllocation::class, 'sales_order_id');
+    }
+
     public function statusHistory(): HasMany
     {
         return $this->hasMany(SalesOrderStatusHistory::class, 'sales_order_id')->latest('id');

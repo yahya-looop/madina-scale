@@ -279,6 +279,7 @@ class B2BController extends Controller
                 'channel' => 'backoffice',
                 'notes' => trim(($data['notes'] ?? '')."\nB2B quotation ".$lockedQuote->quote_number),
                 'idempotency_key' => $data['idempotency_key'],
+                'preserve_quote_pricing' => true,
                 'items' => $lines,
             ], $request->user());
 
@@ -296,7 +297,18 @@ class B2BController extends Controller
                 }
                 $lineTotal = number_format((float) $quoteItem->line_total, 2, '.', '');
                 $unitPrice = number_format((float) $quoteItem->unit_price, 2, '.', '');
-                $orderItem->update(['unit_price' => $unitPrice, 'line_total' => $lineTotal]);
+                $orderItem->update([
+                    'unit_price' => $unitPrice,
+                    'line_total' => $lineTotal,
+                    'pricing_snapshot' => [
+                        'price_source' => 'b2b_quote',
+                        'quote_id' => $lockedQuote->id,
+                        'quote_number' => $lockedQuote->quote_number,
+                        'accepted_unit_price' => $unitPrice,
+                        'accepted_line_total' => $lineTotal,
+                        'line_discount' => '0.00',
+                    ],
+                ]);
             }
             $order->update([
                 'b2b_account_id' => $account->id,

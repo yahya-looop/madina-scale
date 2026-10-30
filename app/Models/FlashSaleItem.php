@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class FlashSaleItem extends Model
 {
@@ -25,6 +26,7 @@ class FlashSaleItem extends Model
 
     public function sale(): BelongsTo { return $this->belongsTo(FlashSale::class, 'flash_sale_id'); }
     public function variant(): BelongsTo { return $this->belongsTo(ProductVariant::class, 'product_variant_id'); }
+    public function allocations(): HasMany { return $this->hasMany(SalesOrderFlashSaleAllocation::class, 'flash_sale_item_id'); }
 
     public function remainingQuantity(): ?int
     {

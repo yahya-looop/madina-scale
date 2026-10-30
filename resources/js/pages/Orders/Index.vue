@@ -194,6 +194,7 @@ const customerLookupError = ref("");
 const customerPhone = ref("");
 const customerEmail = ref("");
 const notes = ref("");
+const promotionCode = ref("");
 const lineVariantId = ref("");
 const lineQuantity = ref("1");
 const cart = ref<
@@ -351,6 +352,7 @@ function openCreate() {
   customerPhone.value = "";
   customerEmail.value = "";
   notes.value = "";
+  promotionCode.value = "";
   cart.value = [];
   lineVariantId.value = "";
   lineQuantity.value = "1";
@@ -418,6 +420,7 @@ async function createOrder() {
         customer_phone: customerPhone.value.trim() || null,
         customer_email: customerEmail.value.trim() || null,
         notes: notes.value.trim() || null,
+        promotion_code: promotionCode.value.trim() || null,
         items: cart.value.map((line) => ({
           product_variant_id: line.product_variant_id,
           quantity: line.quantity,
@@ -1024,6 +1027,16 @@ onMounted(async () => {
                       type="email"
                       maxlength="190"
                       placeholder="name@example.com"
+                    />
+                  </label>
+                  <label>
+                    <span><Icon name="ticket-percent" :size="13" /> Promotion / coupon code</span>
+                    <input
+                      v-model="promotionCode"
+                      type="text"
+                      maxlength="60"
+                      autocomplete="off"
+                      placeholder="Enter a promotion code (optional)"
                     />
                   </label>
                   <label class="orders-form-wide">

@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use App\Models\B2BAccount;
+use App\Models\SalesOrderFlashSaleAllocation;
 use App\Models\InventoryReservation;
 use App\Models\InventoryReservationPurpose;
 use App\Models\InventoryStock;
@@ -19,7 +21,11 @@ use Illuminate\Validation\ValidationException;
 
 class SalesOrderService
 {
-    public function __construct(private readonly InventoryReservationService $reservations, private readonly OrderRiskService $risk) {}
+    public function __construct(
+        private readonly InventoryReservationService $reservations,
+        private readonly OrderRiskService $risk,
+        private readonly CommercialPricingService $commercialPricing,
+    ) {}
 
     /** Resolve the actual inventory owner used by this location for an order line. */
     private function reservationOwner(ProductVariant $variant, int $locationId): array
@@ -66,6 +72,11 @@ class SalesOrderService
                 throw ValidationException::withMessages(['items' => 'The active “Customer order” reservation purpose is required before creating orders.']);
             }
 
+            $preserveQuotePricing = (bool) ($data['preserve_quote_pricing'] ?? false);
+            $b2bAccount = ! $preserveQuotePricing && ! empty($data['customer_id'])
+                ? B2BAccount::query()->where('customer_id', $data['customer_id'])->where('status', 'active')->lockForUpdate()->first()
+                : null;
+
             $order = SalesOrder::query()->create([
                 'order_number' => 'MS-'.now()->format('ymd').'-'.Str::upper(Str::random(6)),
                 'status' => 'pending',
@@ -93,7 +104,10 @@ class SalesOrderService
                     throw ValidationException::withMessages(['items' => 'One of the selected products is no longer available for sale.']);
                 }
                 $qty = number_format((float) $line['quantity'], 4, '.', '');
-                $unitPrice = $variant->effectiveSellingPrice();
+                $resolvedPrice = $preserveQuotePricing
+                    ? ['unit_price' => $variant->effectiveSellingPrice(), 'catalogue_price' => $variant->effectiveSellingPrice(), 'price_source' => 'b2b_quote_pending', 'flash_sale_item' => null, 'flash_sale_regular_price' => null]
+                    : $this->commercialPricing->priceLine($variant, $qty, $b2bAccount);
+                $unitPrice = $resolvedPrice['unit_price'];
                 if (bccomp($unitPrice, '0', 2) < 0) {
                     throw ValidationException::withMessages(['items' => 'Product price must not be negative.']);
                 }
@@ -110,7 +124,26 @@ class SalesOrderService
                     'quantity' => $qty,
                     'unit_price' => $unitPrice,
                     'line_total' => $lineTotal,
+                    'pricing_snapshot' => [
+                        'catalogue_price' => $resolvedPrice['catalogue_price'],
+                        'price_source' => $resolvedPrice['price_source'],
+                        'flash_sale_item_id' => $resolvedPrice['flash_sale_item']?->id,
+                        'flash_sale_regular_price' => $resolvedPrice['flash_sale_regular_price'],
+                        'line_discount' => '0.00',
+                    ],
                 ]);
+
+                if ($resolvedPrice['flash_sale_item']) {
+                    SalesOrderFlashSaleAllocation::query()->create([
+                        'flash_sale_item_id' => $resolvedPrice['flash_sale_item']->id,
+                        'sales_order_id' => $order->id,
+                        'sales_order_item_id' => $item->id,
+                        'quantity' => (int) $qty,
+                        'regular_unit_price' => $resolvedPrice['flash_sale_regular_price'],
+                        'sale_unit_price' => $unitPrice,
+                        'status' => 'reserved',
+                    ]);
+                }
 
                 $reservation = $this->reservations->reserve(array_merge(
                     $this->reservationOwner($variant, (int) $location->id), [
@@ -126,14 +159,32 @@ class SalesOrderService
                 $item->save();
             }
 
-            $discountTotal = number_format((float) ($data['discount_total'] ?? 0), 2, '.', '');
+            $pricedLines = [];
+            foreach ($order->items()->with('variant.product')->orderBy('id')->get() as $orderItem) {
+                $snapshot = $orderItem->pricing_snapshot ?? [];
+                $pricedLines[] = [
+                    'item' => $orderItem,
+                    'variant' => $orderItem->variant,
+                    'gross' => bcmul((string) $orderItem->quantity, (string) $orderItem->unit_price, 2),
+                    'snapshot' => $snapshot,
+                ];
+            }
+            $promotionResult = $preserveQuotePricing
+                ? ['discount_total' => '0.00', 'order_discount' => '0.00', 'promotion_id' => null, 'promotion_code' => null]
+                : $this->commercialPricing->applyPromotions($order, $pricedLines, $data['customer_id'] ?? null, $data['promotion_code'] ?? null);
+
+            $manualDiscount = $preserveQuotePricing
+                ? '0.00'
+                : number_format((float) ($data['discount_total'] ?? 0), 2, '.', '');
+            $discountTotal = bcadd($promotionResult['discount_total'], $manualDiscount, 2);
             if (bccomp($discountTotal, '0.00', 2) < 0 || bccomp($discountTotal, $subtotal, 2) > 0) {
                 throw ValidationException::withMessages(['discount_total' => 'Discount must be between BDT 0.00 and the order subtotal.']);
             }
-
             $order->subtotal = $subtotal;
             $order->discount_total = $discountTotal;
             $order->grand_total = bcsub($subtotal, $discountTotal, 2);
+            $order->promotion_id = $promotionResult['promotion_id'];
+            $order->promotion_code = $promotionResult['promotion_code'];
             $order->save();
 
             SalesOrderStatusHistory::query()->create([
@@ -177,6 +228,10 @@ class SalesOrderService
                 throw ValidationException::withMessages(['items' => 'The active “Customer order” reservation purpose is required before editing orders.']);
             }
 
+            // Release commercial quota/redemptions and stock reservations atomically.
+            // If the replacement cart fails, the transaction restores the previous state.
+            $this->commercialPricing->releaseOrder($locked);
+
             // Release this order's current active reservations first. If the new cart
             // cannot be reserved, the surrounding transaction rolls these changes back.
             $reservations = InventoryReservation::query()
@@ -192,6 +247,9 @@ class SalesOrderService
 
             $locked->items()->delete();
 
+            $b2bAccount = ! empty($data['customer_id'])
+                ? B2BAccount::query()->where('customer_id', $data['customer_id'])->where('status', 'active')->lockForUpdate()->first()
+                : null;
             $subtotal = '0.00';
             foreach ($data['items'] as $line) {
                 $variant = ProductVariant::query()
@@ -204,7 +262,8 @@ class SalesOrderService
                 }
 
                 $qty = number_format((float) $line['quantity'], 4, '.', '');
-                $unitPrice = $variant->effectiveSellingPrice();
+                $resolvedPrice = $this->commercialPricing->priceLine($variant, $qty, $b2bAccount);
+                $unitPrice = $resolvedPrice['unit_price'];
 
                 if (bccomp($unitPrice, '0', 2) < 0) {
                     throw ValidationException::withMessages(['items' => 'Product price must not be negative.']);
@@ -223,7 +282,26 @@ class SalesOrderService
                     'quantity' => $qty,
                     'unit_price' => $unitPrice,
                     'line_total' => $lineTotal,
+                    'pricing_snapshot' => [
+                        'catalogue_price' => $resolvedPrice['catalogue_price'],
+                        'price_source' => $resolvedPrice['price_source'],
+                        'flash_sale_item_id' => $resolvedPrice['flash_sale_item']?->id,
+                        'flash_sale_regular_price' => $resolvedPrice['flash_sale_regular_price'],
+                        'line_discount' => '0.00',
+                    ],
                 ]);
+
+                if ($resolvedPrice['flash_sale_item']) {
+                    SalesOrderFlashSaleAllocation::query()->create([
+                        'flash_sale_item_id' => $resolvedPrice['flash_sale_item']->id,
+                        'sales_order_id' => $locked->id,
+                        'sales_order_item_id' => $item->id,
+                        'quantity' => (int) $qty,
+                        'regular_unit_price' => $resolvedPrice['flash_sale_regular_price'],
+                        'sale_unit_price' => $unitPrice,
+                        'status' => 'reserved',
+                    ]);
+                }
 
                 $reservation = $this->reservations->reserve(array_merge(
                     $this->reservationOwner($variant, (int) $location->id), [
@@ -251,13 +329,25 @@ class SalesOrderService
             $locked->notes = isset($data['notes']) && trim((string) $data['notes']) !== ''
                 ? trim((string) $data['notes'])
                 : null;
-            $discountTotal = number_format((float) ($data['discount_total'] ?? 0), 2, '.', '');
+            $pricedLines = [];
+            foreach ($locked->items()->with('variant.product')->orderBy('id')->get() as $orderItem) {
+                $pricedLines[] = [
+                    'item' => $orderItem, 'variant' => $orderItem->variant,
+                    'gross' => bcmul((string) $orderItem->quantity, (string) $orderItem->unit_price, 2),
+                    'snapshot' => $orderItem->pricing_snapshot ?? [],
+                ];
+            }
+            $promotionResult = $this->commercialPricing->applyPromotions($locked, $pricedLines, $data['customer_id'] ?? null, $data['promotion_code'] ?? null);
+            $manualDiscount = number_format((float) ($data['discount_total'] ?? 0), 2, '.', '');
+            $discountTotal = bcadd($promotionResult['discount_total'], $manualDiscount, 2);
             if (bccomp($discountTotal, '0.00', 2) < 0 || bccomp($discountTotal, $subtotal, 2) > 0) {
                 throw ValidationException::withMessages(['discount_total' => 'Discount must be between BDT 0.00 and the order subtotal.']);
             }
 
             $locked->subtotal = $subtotal;
             $locked->discount_total = $discountTotal;
+            $locked->promotion_id = $promotionResult['promotion_id'];
+            $locked->promotion_code = $promotionResult['promotion_code'];
             $locked->tax_total = '0.00';
             $locked->grand_total = bcsub($subtotal, $discountTotal, 2);
             $locked->save();
@@ -292,6 +382,8 @@ class SalesOrderService
             if (! in_array($locked->status, ['pending', 'confirmed'], true)) {
                 throw ValidationException::withMessages(['status' => 'Only pending or confirmed orders can be cancelled.']);
             }
+
+            $this->commercialPricing->releaseOrder($locked);
 
             $reservations = InventoryReservation::query()
                 ->where('reference_type', 'sales_order')
@@ -463,6 +555,7 @@ class SalesOrderService
                 throw ValidationException::withMessages(['status' => 'One or more stock reservations have expired or been released. Recreate the order before confirming.']);
             }
 
+            $this->commercialPricing->consumeOrderFlashSales($locked);
             $locked->status = 'confirmed';
             $locked->confirmed_at = now();
             $locked->save();

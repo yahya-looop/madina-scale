@@ -66,6 +66,9 @@ class PricingPromotionController extends Controller
 
     public function deletePromotion(PricingPromotion $promotion): JsonResponse
     {
+        if ($promotion->redemptions()->exists()) {
+            throw ValidationException::withMessages(['promotion' => 'This promotion has order redemption history and cannot be deleted. Set its status to ended instead.']);
+        }
         $promotion->delete();
         return response()->json(['message' => 'Promotion deleted.']);
     }
@@ -132,6 +135,11 @@ class PricingPromotionController extends Controller
 
     public function deleteFlashSale(FlashSale $flashSale): JsonResponse
     {
+        $hasAllocations = FlashSaleItem::query()->where('flash_sale_id', $flashSale->id)
+            ->whereHas('allocations')->exists();
+        if ($hasAllocations) {
+            throw ValidationException::withMessages(['flash_sale' => 'This flash sale has order allocation history and cannot be deleted. Set its status to ended instead.']);
+        }
         $flashSale->delete();
         return response()->json(['message' => 'Flash sale deleted.']);
     }
@@ -227,6 +235,9 @@ class PricingPromotionController extends Controller
             }
         }
         $existing = $sale->items()->get()->keyBy('product_variant_id');
+        if ($sale->items()->whereHas('allocations')->exists()) {
+            throw ValidationException::withMessages(['items' => 'Flash sale items with order allocation history cannot be replaced. End the sale and create a new flash sale for changed items.']);
+        }
         $sale->items()->delete();
         foreach ($items as $item) {
             $previous = $existing->get((int) $item['product_variant_id']);
