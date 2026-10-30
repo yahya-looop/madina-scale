@@ -165,32 +165,38 @@ class B2BController extends Controller
     public function updateQuoteStatus(Request $request, B2BQuote $quote): JsonResponse
     {
         $data = $request->validate(['status' => ['required', Rule::in(['sent', 'under_review', 'accepted', 'rejected', 'expired'])]]);
-        $allowed = [
-            'draft' => ['sent'], 'sent' => ['under_review', 'accepted', 'rejected', 'expired'],
-            'under_review' => ['accepted', 'rejected', 'expired'],
-        ];
-        if ($data['status'] === 'sent' && $quote->valid_until?->isBefore(today())) {
-            throw ValidationException::withMessages(['status' => 'An expired quotation cannot be sent. Update its validity before sending.']);
-        }
-        if (!in_array($data['status'], $allowed[$quote->status] ?? [], true)) {
-            throw ValidationException::withMessages(['status' => "Cannot move a {$quote->status} quotation to {$data['status']}."]);
-        }
-        if ($data['status'] === 'accepted' && $quote->valid_until?->isBefore(today())) {
-            throw ValidationException::withMessages(['status' => 'An expired quotation cannot be accepted.']);
-        }
-        DB::transaction(function () use ($quote, $data): void {
+
+        $updated = DB::transaction(function () use ($quote, $data): B2BQuote {
             $locked = B2BQuote::query()->lockForUpdate()->findOrFail($quote->id);
-            if ($locked->status !== $quote->status) {
-                throw ValidationException::withMessages(['status' => 'The quotation changed while you were updating it. Refresh and try again.']);
+
+            if ($locked->converted_order_id) {
+                throw ValidationException::withMessages(['status' => 'A quotation converted to an order can no longer be changed.']);
             }
+
+            $allowed = [
+                'draft' => ['sent'],
+                'sent' => ['under_review', 'accepted', 'rejected', 'expired'],
+                'under_review' => ['accepted', 'rejected', 'expired'],
+            ];
+
+            if ($locked->valid_until?->isBefore(today()) && in_array($data['status'], ['sent', 'accepted'], true)) {
+                throw ValidationException::withMessages(['status' => 'An expired quotation cannot be sent or accepted.']);
+            }
+
+            if (! in_array($data['status'], $allowed[$locked->status] ?? [], true)) {
+                throw ValidationException::withMessages(['status' => "Cannot move a {$locked->status} quotation to {$data['status']}."]);
+            }
+
             $locked->status = $data['status'];
             if ($data['status'] === 'accepted') {
                 $locked->accepted_at = now();
             }
             $locked->save();
-        });
 
-        return response()->json(['message' => 'Quotation status updated.', 'data' => $quote->fresh()]);
+            return $locked->fresh(['account', 'items']);
+        }, 3);
+
+        return response()->json(['message' => 'Quotation status updated.', 'data' => $updated]);
     }
 
     /**
@@ -212,8 +218,25 @@ class B2BController extends Controller
 
         $order = DB::transaction(function () use ($request, $quote, $orders, $data): \App\Models\SalesOrder {
             $lockedQuote = B2BQuote::query()->with(['account', 'items'])->lockForUpdate()->findOrFail($quote->id);
+
+            $keyedOrder = \App\Models\SalesOrder::query()
+                ->where('idempotency_key', $data['idempotency_key'])
+                ->lockForUpdate()
+                ->first();
+            if ($keyedOrder && (int) $keyedOrder->b2b_quote_id !== (int) $lockedQuote->id) {
+                throw ValidationException::withMessages([
+                    'idempotency_key' => 'This request key is already associated with a different order. Use a new key for this quotation.',
+                ]);
+            }
+
             if ($lockedQuote->converted_order_id) {
-                return \App\Models\SalesOrder::query()->with(['items', 'customer'])->findOrFail($lockedQuote->converted_order_id);
+                $existingOrder = \App\Models\SalesOrder::query()->with(['items', 'customer'])->findOrFail($lockedQuote->converted_order_id);
+                if ((int) $existingOrder->b2b_quote_id !== (int) $lockedQuote->id
+                    || (int) $existingOrder->b2b_account_id !== (int) $lockedQuote->b2b_account_id) {
+                    throw ValidationException::withMessages(['quote' => 'The linked order does not match this quotation. Contact an administrator.']);
+                }
+
+                return $existingOrder;
             }
             if ($lockedQuote->status !== 'accepted') {
                 throw ValidationException::withMessages(['quote' => 'Only accepted quotations can be converted into orders.']);
@@ -258,6 +281,11 @@ class B2BController extends Controller
                 'idempotency_key' => $data['idempotency_key'],
                 'items' => $lines,
             ], $request->user());
+
+            $order->load(['items' => fn ($query) => $query->orderBy('id')]);
+            if ($order->items->count() !== $lockedQuote->items->count()) {
+                throw ValidationException::withMessages(['items' => 'The order lines do not match the accepted quotation. No conversion was completed.']);
+            }
 
             // Replace catalog-derived provisional amounts with the accepted quote's
             // immutable commercial snapshots; stock reservations remain quantity-based.
