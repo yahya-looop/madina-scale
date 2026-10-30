@@ -11,7 +11,7 @@ class PricingPromotion extends Model
     protected $fillable = [
         'name', 'code', 'description', 'discount_type', 'discount_value', 'scope',
         'product_id', 'product_variant_id', 'product_category_id', 'minimum_order_amount',
-        'minimum_quantity', 'usage_limit', 'per_customer_limit', 'usage_count',
+        'minimum_quantity', 'usage_limit', 'per_customer_limit', 'usage_count', 'priority',
         'stackable', 'publicly_visible', 'status', 'starts_at', 'ends_at', 'created_by', 'updated_by',
     ];
 
@@ -21,6 +21,7 @@ class PricingPromotion extends Model
             'discount_value' => 'decimal:2',
             'minimum_order_amount' => 'decimal:2',
             'minimum_quantity' => 'decimal:3',
+            'priority' => 'integer',
             'stackable' => 'boolean',
             'publicly_visible' => 'boolean',
             'starts_at' => 'datetime',

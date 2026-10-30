@@ -86,4 +86,19 @@ class PricingPromotionAndFlashSaleTest extends TestCase
 
         $this->getJson('/api/public/flash-sales')->assertOk()->assertJsonPath('data', []);
     }
+
+    public function test_coupon_codes_are_unique_without_case_sensitivity(): void
+    {
+        $user = $this->pricingUser();
+        $payload = [
+            'name' => 'First coupon', 'code' => 'case10', 'discount_type' => 'percent',
+            'discount_value' => 10, 'scope' => 'order', 'status' => 'active',
+        ];
+        $this->actingAs($user)->postJson('/api/pricing/promotions', $payload)->assertCreated();
+
+        $this->actingAs($user)->postJson('/api/pricing/promotions', array_replace($payload, [
+            'name' => 'Duplicate coupon', 'code' => 'CASE10',
+        ]))->assertUnprocessable()->assertJsonValidationErrors('code');
+    }
+
 }

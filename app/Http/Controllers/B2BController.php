@@ -320,6 +320,17 @@ class B2BController extends Controller
                 'discount_total' => $lockedQuote->discount_amount,
                 'tax_total' => $lockedQuote->tax_amount,
                 'grand_total' => $lockedQuote->total,
+                'pricing_snapshot' => [
+                    'engine' => 'commercial_pricing_v1',
+                    'price_basis' => 'b2b_quote',
+                    'quote_id' => $lockedQuote->id,
+                    'quote_number' => $lockedQuote->quote_number,
+                    'accepted_subtotal' => number_format((float) $lockedQuote->subtotal, 2, '.', ''),
+                    'accepted_discount' => number_format((float) $lockedQuote->discount_amount, 2, '.', ''),
+                    'accepted_tax' => number_format((float) $lockedQuote->tax_amount, 2, '.', ''),
+                    'accepted_total' => number_format((float) $lockedQuote->total, 2, '.', ''),
+                    'calculated_at' => now()->toIso8601String(),
+                ],
             ]);
             $lockedQuote->update(['converted_order_id' => $order->id, 'converted_at' => now()]);
             if ($account->lead_id) {

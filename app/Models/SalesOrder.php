@@ -11,7 +11,7 @@ class SalesOrder extends Model
     protected $fillable = [
         'order_number', 'status', 'channel', 'location_id', 'customer_id', 'b2b_account_id', 'b2b_quote_id', 'lead_id', 'source_type', 'source_id', 'promotion_id', 'promotion_code',
         'customer_name', 'customer_email', 'customer_phone',
-        'currency', 'subtotal', 'discount_total', 'tax_total', 'grand_total',
+        'currency', 'subtotal', 'discount_total', 'tax_total', 'grand_total', 'pricing_snapshot',
         'notes', 'created_by', 'confirmed_at', 'cancelled_at', 'cancellation_reason',
         'idempotency_key',
     ];
@@ -23,6 +23,7 @@ class SalesOrder extends Model
             'discount_total' => 'decimal:2',
             'tax_total' => 'decimal:2',
             'grand_total' => 'decimal:2',
+            'pricing_snapshot' => 'array',
             'confirmed_at' => 'datetime',
             'cancelled_at' => 'datetime',
         ];

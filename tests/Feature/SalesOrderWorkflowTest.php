@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\B2BAccount;
 use App\Models\FlashSale;
 use App\Models\FlashSaleItem;
 use App\Models\PricingPromotion;
@@ -16,6 +17,7 @@ use App\Models\ProductVariant;
 use App\Models\Role;
 use App\Models\SalesOrder;
 use App\Models\User;
+use App\Services\CommercialPricingService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -546,6 +548,174 @@ class SalesOrderWorkflowTest extends TestCase
         $this->assertDatabaseHas('sales_order_flash_sale_allocations', [
             'flash_sale_item_id' => $saleItem->id, 'sales_order_id' => $orderId, 'status' => 'released',
         ]);
+    }
+
+
+    public function test_promotion_priority_selects_the_highest_priority_non_stackable_rule_and_snapshots_it(): void
+    {
+        [$location, $variant] = $this->orderFixture();
+        $user = $this->orderUser($location);
+
+        $lowerPriority = PricingPromotion::query()->create([
+            'name' => 'Lower priority offer', 'discount_type' => 'percent', 'discount_value' => 20,
+            'scope' => 'order', 'minimum_order_amount' => 0, 'minimum_quantity' => 1,
+            'usage_count' => 0, 'priority' => 200, 'stackable' => false, 'publicly_visible' => true,
+            'status' => 'active', 'starts_at' => now()->subMinute(), 'ends_at' => now()->addDay(),
+        ]);
+        $higherPriority = PricingPromotion::query()->create([
+            'name' => 'Highest priority offer', 'discount_type' => 'percent', 'discount_value' => 10,
+            'scope' => 'order', 'minimum_order_amount' => 0, 'minimum_quantity' => 1,
+            'usage_count' => 0, 'priority' => 10, 'stackable' => false, 'publicly_visible' => true,
+            'status' => 'active', 'starts_at' => now()->subMinute(), 'ends_at' => now()->addDay(),
+        ]);
+
+        $response = $this->actingAs($user)->postJson('/api/orders', [
+            'location_id' => $location->id,
+            'customer_name' => 'Priority Buyer',
+            'items' => [['product_variant_id' => $variant->id, 'quantity' => 2]],
+        ])->assertCreated()
+            ->assertJsonPath('data.discount_total', '20.00')
+            ->assertJsonPath('data.grand_total', '180.00');
+
+        $order = SalesOrder::query()->findOrFail($response->json('data.id'));
+        $this->assertSame($higherPriority->id, $order->promotion_id);
+        $this->assertSame('Highest priority offer', $order->pricing_snapshot['applied_promotions'][0]['name']);
+        $this->assertDatabaseHas('pricing_promotions', ['id' => $higherPriority->id, 'usage_count' => 1]);
+        $this->assertDatabaseHas('pricing_promotions', ['id' => $lowerPriority->id, 'usage_count' => 0]);
+    }
+
+    public function test_product_scoped_promotion_is_applied_to_matching_order_lines(): void
+    {
+        [$location, $variant] = $this->orderFixture();
+        $user = $this->orderUser($location);
+        $promotion = PricingPromotion::query()->create([
+            'name' => 'Product line offer', 'discount_type' => 'percent', 'discount_value' => 10,
+            'scope' => 'product', 'product_id' => $variant->product_id,
+            'minimum_order_amount' => 0, 'minimum_quantity' => 1, 'usage_count' => 0,
+            'priority' => 50, 'stackable' => false, 'publicly_visible' => true,
+            'status' => 'active', 'starts_at' => now()->subMinute(), 'ends_at' => now()->addDay(),
+        ]);
+
+        $response = $this->actingAs($user)->postJson('/api/orders', [
+            'location_id' => $location->id,
+            'customer_name' => 'Product Promotion Buyer',
+            'items' => [['product_variant_id' => $variant->id, 'quantity' => 2]],
+        ])->assertCreated()
+            ->assertJsonPath('data.discount_total', '20.00')
+            ->assertJsonPath('data.grand_total', '180.00');
+
+        $orderId = $response->json('data.id');
+        $item = SalesOrder::query()->findOrFail($orderId)->items()->firstOrFail();
+        $this->assertSame('20.00', $item->pricing_snapshot['line_discount']);
+        $this->assertSame($promotion->id, $item->pricing_snapshot['line_promotions'][0]['promotion_id']);
+    }
+
+    public function test_per_customer_limited_coupon_requires_a_linked_customer(): void
+    {
+        [$location, $variant] = $this->orderFixture();
+        $user = $this->orderUser($location);
+        $promotion = PricingPromotion::query()->create([
+            'name' => 'Customer-bound coupon', 'code' => 'CUSTOMER10',
+            'discount_type' => 'percent', 'discount_value' => 10, 'scope' => 'order',
+            'minimum_order_amount' => 0, 'minimum_quantity' => 1,
+            'usage_limit' => 10, 'per_customer_limit' => 1, 'usage_count' => 0,
+            'priority' => 100, 'stackable' => false, 'publicly_visible' => false,
+            'status' => 'active', 'starts_at' => now()->subMinute(), 'ends_at' => now()->addDay(),
+        ]);
+
+        $this->actingAs($user)->postJson('/api/orders', [
+            'location_id' => $location->id,
+            'customer_name' => 'Unlinked Coupon Buyer',
+            'promotion_code' => 'customer10',
+            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1]],
+        ])->assertUnprocessable()->assertJsonValidationErrors('promotion_code');
+
+        $this->assertDatabaseHas('pricing_promotions', ['id' => $promotion->id, 'usage_count' => 0]);
+        $this->assertDatabaseCount('sales_orders', 0);
+    }
+
+    public function test_active_b2b_account_uses_variant_wholesale_price_before_account_discount_fallback(): void
+    {
+        [, $variant] = $this->orderFixture();
+        $variant->update(['selling_price' => 100, 'wholesale_price' => 82]);
+        $account = B2BAccount::query()->create([
+            'account_code' => 'B2B-'.Str::upper(Str::random(8)),
+            'company_name' => 'Wholesale Price Test',
+            'business_type' => 'retailer', 'tier' => 'gold', 'status' => 'active',
+            'payment_terms' => 'prepaid', 'credit_limit' => 0, 'default_discount_percent' => 15,
+        ]);
+
+        $resolved = app(CommercialPricingService::class)->priceLine($variant->fresh(), '2.0000', $account);
+
+        $this->assertSame('82.00', $resolved['unit_price']);
+        $this->assertSame('wholesale', $resolved['price_source']);
+    }
+
+    public function test_pending_order_edit_releases_old_flash_sale_allocation_and_reserves_replacement(): void
+    {
+        [$location, $variant] = $this->orderFixture();
+        $user = $this->orderUser($location);
+        $sale = FlashSale::query()->create([
+            'title' => 'Editable flash sale', 'slug' => 'editable-flash-'.Str::lower(Str::random(8)),
+            'status' => 'active', 'accent_color' => '#059669',
+            'starts_at' => now()->subMinute(), 'ends_at' => now()->addDay(),
+            'show_on_storefront' => true, 'priority' => 1,
+        ]);
+        $saleItem = FlashSaleItem::query()->create([
+            'flash_sale_id' => $sale->id, 'product_variant_id' => $variant->id,
+            'regular_price' => 100, 'sale_price' => 70, 'quantity_limit' => 5, 'quantity_sold' => 0,
+        ]);
+
+        $response = $this->actingAs($user)->postJson('/api/orders', [
+            'location_id' => $location->id, 'customer_name' => 'Editable Flash Buyer',
+            'items' => [['product_variant_id' => $variant->id, 'quantity' => 2]],
+        ])->assertCreated();
+        $orderId = $response->json('data.id');
+        $oldAllocation = SalesOrderFlashSaleAllocation::query()->where('sales_order_id', $orderId)->firstOrFail();
+
+        $this->actingAs($user)->putJson("/api/orders/{$orderId}", [
+            'customer_name' => 'Editable Flash Buyer',
+            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1]],
+        ])->assertOk();
+
+        $this->assertDatabaseHas('sales_order_flash_sale_allocations', [
+            'id' => $oldAllocation->id, 'status' => 'released', 'sales_order_item_id' => null,
+        ]);
+        $this->assertDatabaseHas('sales_order_flash_sale_allocations', [
+            'sales_order_id' => $orderId, 'flash_sale_item_id' => $saleItem->id, 'status' => 'reserved', 'quantity' => 1,
+        ]);
+        $this->assertDatabaseHas('flash_sale_items', ['id' => $saleItem->id, 'quantity_sold' => 1]);
+    }
+
+
+    public function test_stackable_order_promotions_apply_in_priority_order_without_exceeding_subtotal(): void
+    {
+        [$location, $variant] = $this->orderFixture();
+        $user = $this->orderUser($location);
+        foreach ([
+            ['name' => 'First stack', 'value' => 10, 'priority' => 10],
+            ['name' => 'Second stack', 'value' => 20, 'priority' => 20],
+        ] as $rule) {
+            PricingPromotion::query()->create([
+                'name' => $rule['name'], 'discount_type' => 'percent', 'discount_value' => $rule['value'],
+                'scope' => 'order', 'minimum_order_amount' => 0, 'minimum_quantity' => 1,
+                'usage_count' => 0, 'priority' => $rule['priority'], 'stackable' => true,
+                'publicly_visible' => true, 'status' => 'active',
+                'starts_at' => now()->subMinute(), 'ends_at' => now()->addDay(),
+            ]);
+        }
+
+        $response = $this->actingAs($user)->postJson('/api/orders', [
+            'location_id' => $location->id, 'customer_name' => 'Stacking Buyer',
+            'items' => [['product_variant_id' => $variant->id, 'quantity' => 2]],
+        ])->assertCreated()
+            ->assertJsonPath('data.discount_total', '56.00')
+            ->assertJsonPath('data.grand_total', '144.00');
+
+        $order = SalesOrder::query()->findOrFail($response->json('data.id'));
+        $this->assertCount(2, $order->pricing_snapshot['applied_promotions']);
+        $this->assertSame('First stack', $order->pricing_snapshot['applied_promotions'][0]['name']);
+        $this->assertSame('Second stack', $order->pricing_snapshot['applied_promotions'][1]['name']);
     }
 
 }

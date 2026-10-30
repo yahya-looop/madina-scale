@@ -94,7 +94,7 @@ class CommercialPricingService
                 if ($normalizedCode !== null) $q->where('code', $normalizedCode);
                 else $q->whereRaw('1 = 0');
             })->orWhere(fn ($q) => $q->whereNull('code')->where('publicly_visible', true)))
-            ->orderBy('id')->lockForUpdate()->get()
+            ->orderBy('priority')->orderBy('id')->lockForUpdate()->get()
             ->filter(fn (PricingPromotion $p) => $p->isCurrentlyActive())
             ->sortBy(fn (PricingPromotion $p) => $normalizedCode !== null
                 && mb_strtoupper((string) $p->code) === $normalizedCode ? 0 : 1)
@@ -174,6 +174,7 @@ class CommercialPricingService
                 'pricing_promotion_id' => $promotion->id,
                 'sales_order_id' => $order->id,
             ]);
+            $wasAlreadyApplied = $redemption->exists && $redemption->status === 'applied';
             $redemption->fill([
                 'customer_id' => $customerId,
                 'promotion_code' => $promotion->code,
@@ -183,7 +184,9 @@ class CommercialPricingService
                 'released_at' => null,
             ]);
             $redemption->save();
-            $promotion->increment('usage_count');
+            if (! $wasAlreadyApplied) {
+                $promotion->increment('usage_count');
+            }
         }
 
         $discountTotal = bcadd($lineDiscountTotal, $orderDiscount, 2);
@@ -198,12 +201,22 @@ class CommercialPricingService
             'order_discount' => $orderDiscount,
             'promotion_id' => $primary?->id,
             'promotion_code' => $normalizedCode,
+            'applied_promotions' => collect($used)->map(fn (array $entry): array => [
+                'promotion_id' => $entry['promotion']->id,
+                'name' => $entry['promotion']->name,
+                'code' => $entry['promotion']->code,
+                'scope' => $entry['promotion']->scope,
+                'discount' => $entry['discount'],
+                'priority' => (int) $entry['promotion']->priority,
+                'stackable' => (bool) $entry['promotion']->stackable,
+            ])->values()->all(),
         ];
     }
 
     private function withinCustomerLimit(PricingPromotion $promotion, ?int $customerId): bool
     {
-        if (! $promotion->per_customer_limit || ! $customerId) return true;
+        if (! $promotion->per_customer_limit) return true;
+        if (! $customerId) return false;
         $used = PricingPromotionRedemption::query()
             ->where('pricing_promotion_id', $promotion->id)
             ->where('customer_id', $customerId)
@@ -214,11 +227,19 @@ class CommercialPricingService
     private function selectPromotions(Collection $promotions): Collection
     {
         if ($promotions->isEmpty()) return collect();
-        $nonStackable = $promotions->first(fn ($p) => ! $p->stackable);
-        if ($nonStackable) {
-            return collect([$nonStackable]);
+
+        // Rules are already sorted by priority (then ID). Apply them in that
+        // order and stop at the first non-stackable rule. This preserves a
+        // higher-priority stackable rule instead of incorrectly skipping it.
+        $selected = collect();
+        foreach ($promotions as $promotion) {
+            $selected->push($promotion);
+            if (! $promotion->stackable) {
+                break;
+            }
         }
-        return $promotions;
+
+        return $selected;
     }
 
     private function discount(PricingPromotion $promotion, string $base): string
@@ -226,9 +247,12 @@ class CommercialPricingService
         if (bccomp($base, '0.00', 2) <= 0) return '0.00';
         if ($promotion->discount_type === 'percent') {
             $raw = bcdiv(bcmul($base, (string) $promotion->discount_value, 4), '100', 4);
-            $amount = bcadd($raw, '0.005', 2);
+            // BC Math truncates at the requested scale; add half a cent at
+            // four-decimal precision before reducing to two decimals (half-up).
+            $amount = bcadd($raw, '0.0050', 4);
+            $amount = bcdiv($amount, '1', 2);
         } else {
-            $amount = min($base, number_format((float) $promotion->discount_value, 2, '.', ''));
+            $amount = number_format((float) $promotion->discount_value, 2, '.', '');
         }
         return bccomp($amount, $base, 2) > 0 ? $base : $amount;
     }

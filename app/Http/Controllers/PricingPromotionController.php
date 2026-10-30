@@ -169,6 +169,14 @@ class PricingPromotionController extends Controller
 
     private function validatePromotion(Request $request, ?PricingPromotion $promotion = null): array
     {
+        // Coupon codes are stored uppercase; normalize before the unique rule so
+        // differently-cased submissions cannot bypass the application check.
+        if ($request->has('code')) {
+            $request->merge(['code' => filled($request->input('code'))
+                ? Str::upper(trim((string) $request->input('code')))
+                : null]);
+        }
+
         $data = $request->validate([
             'name' => ['required', 'string', 'max:160'],
             'code' => ['nullable', 'string', 'max:60', Rule::unique('pricing_promotions', 'code')->ignore($promotion?->id)],
@@ -183,6 +191,7 @@ class PricingPromotionController extends Controller
             'minimum_quantity' => ['nullable', 'numeric', 'gt:0'],
             'usage_limit' => ['nullable', 'integer', 'min:1'],
             'per_customer_limit' => ['nullable', 'integer', 'min:1'],
+            'priority' => ['nullable', 'integer', 'min:0', 'max:100000'],
             'stackable' => ['sometimes', 'boolean'],
             'publicly_visible' => ['sometimes', 'boolean'],
             'status' => ['required', Rule::in(['draft', 'active', 'paused', 'ended'])],

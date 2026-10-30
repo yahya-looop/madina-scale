@@ -170,7 +170,7 @@ class SalesOrderService
                 ];
             }
             $promotionResult = $preserveQuotePricing
-                ? ['discount_total' => '0.00', 'order_discount' => '0.00', 'promotion_id' => null, 'promotion_code' => null]
+                ? ['discount_total' => '0.00', 'order_discount' => '0.00', 'promotion_id' => null, 'promotion_code' => null, 'applied_promotions' => []]
                 : $this->commercialPricing->applyPromotions($order, $pricedLines, $data['customer_id'] ?? null, $data['promotion_code'] ?? null);
 
             $manualDiscount = $preserveQuotePricing
@@ -185,6 +185,16 @@ class SalesOrderService
             $order->grand_total = bcsub($subtotal, $discountTotal, 2);
             $order->promotion_id = $promotionResult['promotion_id'];
             $order->promotion_code = $promotionResult['promotion_code'];
+            $order->pricing_snapshot = [
+                'engine' => 'commercial_pricing_v1',
+                'price_basis' => $preserveQuotePricing ? 'b2b_quote' : 'catalogue_and_commercial_rules',
+                'promotion_code' => $promotionResult['promotion_code'],
+                'applied_promotions' => $promotionResult['applied_promotions'] ?? [],
+                'promotion_discount' => $promotionResult['discount_total'],
+                'manual_discount' => $manualDiscount,
+                'total_discount' => $discountTotal,
+                'calculated_at' => now()->toIso8601String(),
+            ];
             $order->save();
 
             SalesOrderStatusHistory::query()->create([
@@ -350,6 +360,16 @@ class SalesOrderService
             $locked->promotion_code = $promotionResult['promotion_code'];
             $locked->tax_total = '0.00';
             $locked->grand_total = bcsub($subtotal, $discountTotal, 2);
+            $locked->pricing_snapshot = [
+                'engine' => 'commercial_pricing_v1',
+                'price_basis' => 'catalogue_and_commercial_rules',
+                'promotion_code' => $promotionResult['promotion_code'],
+                'applied_promotions' => $promotionResult['applied_promotions'] ?? [],
+                'promotion_discount' => $promotionResult['discount_total'],
+                'manual_discount' => $manualDiscount,
+                'total_discount' => $discountTotal,
+                'calculated_at' => now()->toIso8601String(),
+            ];
             $locked->save();
 
             SalesOrderStatusHistory::query()->create([
