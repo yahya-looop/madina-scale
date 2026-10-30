@@ -6,6 +6,8 @@ use App\Models\Customer;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\DB;
+use App\Services\CustomerIdentityService;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
@@ -49,18 +51,25 @@ class CustomerController extends Controller
         return response()->json(['data' => $customer]);
     }
 
-    public function store(Request $request): JsonResponse
+    public function store(Request $request, CustomerIdentityService $identities): JsonResponse
     {
         $data = $this->validated($request);
-        $data['customer_code'] = $this->newCode();
-        $customer = Customer::create($data);
+        $customer = DB::transaction(function () use ($data, $identities): Customer {
+            $identities->assertAvailable($data['phone'] ?? null, $data['email'] ?? null);
+            $data['customer_code'] = $this->newCode();
+            return Customer::create($data);
+        });
 
         return response()->json(['message' => 'Customer created successfully.', 'data' => $customer], 201);
     }
 
-    public function update(Request $request, Customer $customer): JsonResponse
+    public function update(Request $request, Customer $customer, CustomerIdentityService $identities): JsonResponse
     {
-        $customer->update($this->validated($request, $customer));
+        $data = $this->validated($request, $customer);
+        DB::transaction(function () use ($customer, $data, $identities): void {
+            $identities->assertAvailable($data['phone'] ?? null, $data['email'] ?? null, (int) $customer->id);
+            $customer->update($data);
+        });
 
         return response()->json(['message' => 'Customer updated successfully.', 'data' => $customer->fresh()]);
     }
@@ -79,8 +88,8 @@ class CustomerController extends Controller
     {
         return $request->validate([
             'name' => ['required', 'string', 'max:160'],
-            'phone' => ['nullable', 'string', 'max:40', 'regex:/^[0-9+()\- .]{7,40}$/', Rule::unique('customers', 'phone')->ignore($customer?->id)->where(fn ($q) => $q->whereNotNull('phone'))],
-            'email' => ['nullable', 'email', 'max:190', Rule::unique('customers', 'email')->ignore($customer?->id)->where(fn ($q) => $q->whereNotNull('email'))],
+            'phone' => ['nullable', 'string', 'max:40', 'regex:/^[0-9+()\- .]{7,40}$/'],
+            'email' => ['nullable', 'email', 'max:190'],
             'company_name' => ['nullable', 'string', 'max:160'],
             'address_line' => ['nullable', 'string', 'max:500'],
             'area' => ['nullable', 'string', 'max:120'],

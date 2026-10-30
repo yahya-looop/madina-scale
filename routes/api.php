@@ -78,6 +78,7 @@ Route::middleware(['web', 'auth'])->group(function () {
     Route::post('/b2b/quotes', [B2BController::class, 'storeQuote'])->middleware('permission:system.b2b.create');
     Route::get('/b2b/quotes/{quote}', [B2BController::class, 'showQuote'])->middleware('permission:system.b2b.view');
     Route::patch('/b2b/quotes/{quote}/status', [B2BController::class, 'updateQuoteStatus'])->middleware('permission:system.b2b.update');
+    Route::post('/b2b/quotes/{quote}/convert-to-order', [B2BController::class, 'convertQuoteToOrder'])->middleware(['permission:system.b2b.update', 'permission:system.orders.create']);
 
     /*
     |--------------------------------------------------------------------------

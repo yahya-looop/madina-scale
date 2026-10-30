@@ -6,6 +6,8 @@ use App\Models\B2BAccount;
 use App\Models\B2BQuote;
 use App\Models\Customer;
 use App\Models\Lead;
+use App\Services\SalesOrderService;
+use App\Services\LocationInventoryAccessService;
 use App\Models\ProductVariant;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
@@ -176,8 +178,120 @@ class B2BController extends Controller
         if ($data['status'] === 'accepted' && $quote->valid_until?->isBefore(today())) {
             throw ValidationException::withMessages(['status' => 'An expired quotation cannot be accepted.']);
         }
-        $quote->update(['status' => $data['status']]);
+        DB::transaction(function () use ($quote, $data): void {
+            $locked = B2BQuote::query()->lockForUpdate()->findOrFail($quote->id);
+            if ($locked->status !== $quote->status) {
+                throw ValidationException::withMessages(['status' => 'The quotation changed while you were updating it. Refresh and try again.']);
+            }
+            $locked->status = $data['status'];
+            if ($data['status'] === 'accepted') {
+                $locked->accepted_at = now();
+            }
+            $locked->save();
+        });
+
         return response()->json(['message' => 'Quotation status updated.', 'data' => $quote->fresh()]);
+    }
+
+    /**
+     * Convert an accepted B2B quotation into exactly one inventory-reserving sales order.
+     * The quotation's commercial line prices are snapshotted onto the resulting order.
+     */
+    public function convertQuoteToOrder(
+        Request $request,
+        B2BQuote $quote,
+        SalesOrderService $orders,
+        LocationInventoryAccessService $locationAccess,
+    ): JsonResponse {
+        $data = $request->validate([
+            'location_id' => ['required', 'integer', 'exists:locations,id'],
+            'idempotency_key' => ['required', 'string', 'max:100'],
+            'notes' => ['nullable', 'string', 'max:5000'],
+        ]);
+        $locationAccess->assertManage($request->user(), (int) $data['location_id']);
+
+        $order = DB::transaction(function () use ($request, $quote, $orders, $data): \App\Models\SalesOrder {
+            $lockedQuote = B2BQuote::query()->with(['account', 'items'])->lockForUpdate()->findOrFail($quote->id);
+            if ($lockedQuote->converted_order_id) {
+                return \App\Models\SalesOrder::query()->with(['items', 'customer'])->findOrFail($lockedQuote->converted_order_id);
+            }
+            if ($lockedQuote->status !== 'accepted') {
+                throw ValidationException::withMessages(['quote' => 'Only accepted quotations can be converted into orders.']);
+            }
+            if ($lockedQuote->valid_until && $lockedQuote->valid_until->isBefore(today())) {
+                throw ValidationException::withMessages(['quote' => 'This quotation has expired.']);
+            }
+            $account = B2BAccount::query()->lockForUpdate()->findOrFail($lockedQuote->b2b_account_id);
+            if ($account->status !== 'active') {
+                throw ValidationException::withMessages(['account' => 'The business account must be active to place an order.']);
+            }
+            if (! $account->customer_id) {
+                throw ValidationException::withMessages(['account' => 'Link this business account to a customer before converting its quotation.']);
+            }
+            if ($lockedQuote->items->contains(fn ($item) => ! $item->product_variant_id)) {
+                throw ValidationException::withMessages(['items' => 'Every quotation line must be linked to an active product variant before order conversion.']);
+            }
+
+            $outstanding = (float) \App\Models\SalesOrder::query()
+                ->where('b2b_account_id', $account->id)
+                ->whereIn('status', ['pending', 'confirmed', 'processing', 'partially_fulfilled'])
+                ->sum('grand_total');
+            $availableCredit = max(0, (float) $account->credit_limit - $outstanding);
+            if ($account->payment_terms !== 'prepaid' && (float) $lockedQuote->total > $availableCredit) {
+                throw ValidationException::withMessages(['credit_limit' => 'The quotation exceeds the available B2B credit limit.']);
+            }
+
+            $customer = Customer::query()->lockForUpdate()->findOrFail($account->customer_id);
+            $lines = $lockedQuote->items->map(fn ($item) => [
+                'product_variant_id' => (int) $item->product_variant_id,
+                'quantity' => (float) $item->quantity,
+            ])->all();
+
+            $order = $orders->create([
+                'location_id' => $data['location_id'],
+                'customer_id' => $customer->id,
+                'customer_name' => $customer->name,
+                'customer_email' => $customer->email,
+                'customer_phone' => $customer->phone,
+                'channel' => 'backoffice',
+                'notes' => trim(($data['notes'] ?? '')."\nB2B quotation ".$lockedQuote->quote_number),
+                'idempotency_key' => $data['idempotency_key'],
+                'items' => $lines,
+            ], $request->user());
+
+            // Replace catalog-derived provisional amounts with the accepted quote's
+            // immutable commercial snapshots; stock reservations remain quantity-based.
+            foreach ($lockedQuote->items as $index => $quoteItem) {
+                $orderItem = $order->items->get($index);
+                if (! $orderItem) {
+                    throw ValidationException::withMessages(['items' => 'The order lines could not be matched to the accepted quotation.']);
+                }
+                $lineTotal = number_format((float) $quoteItem->line_total, 2, '.', '');
+                $unitPrice = number_format((float) $quoteItem->unit_price, 2, '.', '');
+                $orderItem->update(['unit_price' => $unitPrice, 'line_total' => $lineTotal]);
+            }
+            $order->update([
+                'b2b_account_id' => $account->id,
+                'b2b_quote_id' => $lockedQuote->id,
+                'lead_id' => $account->lead_id,
+                'source_type' => 'b2b_quote',
+                'source_id' => $lockedQuote->id,
+                'subtotal' => $lockedQuote->subtotal,
+                'discount_total' => $lockedQuote->discount_amount,
+                'tax_total' => $lockedQuote->tax_amount,
+                'grand_total' => $lockedQuote->total,
+            ]);
+            $lockedQuote->update(['converted_order_id' => $order->id, 'converted_at' => now()]);
+            if ($account->lead_id) {
+                Lead::query()->whereKey($account->lead_id)->where('status', '!=', 'converted')->update([
+                    'status' => 'converted', 'customer_id' => $customer->id, 'converted_order_id' => $order->id,
+                    'updated_by' => $request->user()->id,
+                ]);
+            }
+            return $order->fresh(['items', 'customer', 'b2bAccount', 'b2bQuote']);
+        }, 3);
+
+        return response()->json(['message' => 'Accepted quotation converted to sales order.', 'data' => $order], 201);
     }
 
     private function validated(Request $request, ?B2BAccount $account = null): array

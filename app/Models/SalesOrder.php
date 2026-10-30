@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class SalesOrder extends Model
 {
     protected $fillable = [
-        'order_number', 'status', 'channel', 'location_id', 'customer_id',
+        'order_number', 'status', 'channel', 'location_id', 'customer_id', 'b2b_account_id', 'b2b_quote_id', 'lead_id', 'source_type', 'source_id', 'promotion_id', 'promotion_code',
         'customer_name', 'customer_email', 'customer_phone',
         'currency', 'subtotal', 'discount_total', 'tax_total', 'grand_total',
         'notes', 'created_by', 'confirmed_at', 'cancelled_at', 'cancellation_reason',
@@ -27,6 +27,12 @@ class SalesOrder extends Model
             'cancelled_at' => 'datetime',
         ];
     }
+
+    public function b2bAccount(): BelongsTo { return $this->belongsTo(B2BAccount::class, 'b2b_account_id'); }
+
+    public function b2bQuote(): BelongsTo { return $this->belongsTo(B2BQuote::class, 'b2b_quote_id'); }
+
+    public function lead(): BelongsTo { return $this->belongsTo(Lead::class); }
 
     public function customer(): BelongsTo
     {

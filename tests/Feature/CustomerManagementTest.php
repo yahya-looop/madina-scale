@@ -63,4 +63,28 @@ class CustomerManagementTest extends TestCase
         $this->actingAs($user)->postJson('/api/customers', $payload)->assertCreated();
         $this->actingAs($user)->postJson('/api/customers', ['name' => 'Buyer Two', 'phone' => '01812345678', 'status' => 'active'])->assertUnprocessable()->assertJsonValidationErrors('phone');
     }
+    public function test_customer_duplicate_phone_is_rejected_after_normalization(): void
+    {
+        $user = $this->customerUser();
+        $this->actingAs($user)->postJson('/api/customers', [
+            'name' => 'Buyer One', 'phone' => '+880 1712-345678', 'status' => 'active',
+        ])->assertCreated();
+
+        $this->actingAs($user)->postJson('/api/customers', [
+            'name' => 'Buyer Two', 'phone' => '8801712345678', 'status' => 'active',
+        ])->assertUnprocessable()->assertJsonValidationErrors('phone');
+    }
+
+    public function test_customer_duplicate_email_is_rejected_case_insensitively(): void
+    {
+        $user = $this->customerUser();
+        $this->actingAs($user)->postJson('/api/customers', [
+            'name' => 'Buyer One', 'email' => 'Buyer@Example.com', 'status' => 'active',
+        ])->assertCreated();
+
+        $this->actingAs($user)->postJson('/api/customers', [
+            'name' => 'Buyer Two', 'email' => 'buyer@example.com', 'status' => 'active',
+        ])->assertUnprocessable()->assertJsonValidationErrors('phone');
+    }
+
 }

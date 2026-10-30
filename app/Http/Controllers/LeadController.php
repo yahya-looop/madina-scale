@@ -143,7 +143,9 @@ class LeadController extends Controller
     public function update(Request $request, Lead $lead): JsonResponse
     {
         if ($lead->status === 'converted' || $lead->customer_id !== null || $lead->converted_order_id !== null) {
-            return response()->json(['message' => 'Converted leads are locked and can no longer be edited.'], 422);
+            throw ValidationException::withMessages([
+                'status' => 'Converted leads are locked and can no longer be edited.',
+            ]);
         }
         $data = $this->validated($request, $lead);
         // Owner changes must use the dedicated assignment endpoint so policy and audit history cannot be bypassed.
@@ -232,6 +234,7 @@ class LeadController extends Controller
         Lead $lead,
         SalesOrderService $orders,
         LocationInventoryAccessService $locationAccess,
+        \App\Services\CustomerIdentityService $identities,
     ): JsonResponse {
         $data = $request->validate([
             'location_id' => ['required', 'integer', 'exists:locations,id'],
@@ -246,7 +249,7 @@ class LeadController extends Controller
 
         $locationAccess->assertManage($request->user(), (int) $data['location_id']);
 
-        $result = DB::transaction(function () use ($request, $lead, $orders, $data): array {
+        $result = DB::transaction(function () use ($request, $lead, $orders, $data, $identities): array {
             $lockedLead = Lead::query()->lockForUpdate()->findOrFail($lead->id);
             if ($lockedLead->customer_id !== null || $lockedLead->status === 'converted' || $lockedLead->converted_order_id !== null) {
                 throw ValidationException::withMessages(['lead' => 'This lead has already been converted.']);
@@ -262,41 +265,21 @@ class LeadController extends Controller
                 'customer_phone' => $lockedLead->phone,
             ], $request->user());
 
-            // A retried idempotency key must not silently convert a different lead
-            // against an order already linked to another customer/lead.
-            if ($order->customer_id !== null) {
-                throw ValidationException::withMessages(['idempotency_key' => 'This order is already linked to a customer. Start a new order request.']);
+            // A retry may only resume the same lead conversion.
+            if ($order->lead_id !== null && (int) $order->lead_id !== (int) $lockedLead->id) {
+                throw ValidationException::withMessages(['idempotency_key' => 'This request key is already linked to another lead. Start a new order request.']);
+            }
+            if ($order->customer_id !== null && $order->lead_id === null) {
+                throw ValidationException::withMessages(['idempotency_key' => 'This request key belongs to an order outside this lead conversion. Start a new order request.']);
             }
 
-            $phoneDigits = preg_replace('/\\D+/', '', (string) $lockedLead->phone);
-            $customer = null;
-            if ($phoneDigits !== '') {
-                $customer = Customer::query()->whereNotNull('phone')->get()->first(
-                    fn (Customer $candidate) => preg_replace('/\\D+/', '', (string) $candidate->phone) === $phoneDigits
-                );
-            }
-            if (! $customer && $lockedLead->email) {
-                $customer = Customer::query()->whereRaw('LOWER(email) = ?', [mb_strtolower($lockedLead->email)])->first();
-            }
-            if (! $customer) {
-                do {
-                    $code = 'CUS-'.now()->format('ym').'-'.Str::upper(Str::random(6));
-                } while (Customer::where('customer_code', $code)->exists());
-                $customer = Customer::create([
-                    'customer_code' => $code,
-                    'name' => $lockedLead->name,
-                    'phone' => $lockedLead->phone,
-                    'email' => $lockedLead->email,
-                    'address_line' => $lockedLead->address_line,
-                    'area' => $lockedLead->area,
-                    'district' => $lockedLead->district,
-                    'division' => $lockedLead->division,
-                    'notes' => $lockedLead->notes,
-                    'status' => 'active',
-                ]);
-            }
-
-            $order->update(['customer_id' => $customer->id]);
+            $customer = $identities->resolveLead($lockedLead);
+            $order->update([
+                'customer_id' => $customer->id,
+                'lead_id' => $lockedLead->id,
+                'source_type' => 'lead',
+                'source_id' => $lockedLead->id,
+            ]);
             $lockedLead->update([
                 'customer_id' => $customer->id,
                 'converted_order_id' => $order->id,
