@@ -187,6 +187,9 @@ export const primaryNavigation: NavigationItem[] = [
         icon: 'shipping',
         expandable: true,
         permission: 'system.shipping.view',
+        children: [
+            { label: 'Delivery Dashboard', href: '/shipping-delivery', icon: 'truck', permission: 'system.shipping.view' },
+        ],
     },
 
     {

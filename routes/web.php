@@ -349,6 +349,8 @@ Route::middleware('auth')->group(function () {
         return Inertia::render('SalesReturns/Index', ['userName' => $user->name, 'userEmail' => $user->email]);
     })->name('sales-returns.index');
 
+    Route::get('/shipping-delivery', [\App\Http\Controllers\ShippingDeliveryController::class, 'page'])->name('shipping-delivery.index');
+
     Route::get('/finance', function () {
         $user = request()->user();
         abort_unless($user !== null, 401);

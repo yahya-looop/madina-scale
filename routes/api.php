@@ -23,6 +23,7 @@ use App\Http\Controllers\ProductVariantController;
 use App\Http\Controllers\PricingPromotionController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\SalesOrderController;
+use App\Http\Controllers\ShippingDeliveryController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\UnitController;
 use App\Http\Controllers\UserController;
@@ -153,6 +154,10 @@ Route::middleware(['web', 'auth'])->group(function () {
     Route::post('/finance/journals/{journal}/post', [FinanceController::class, 'postJournal'])->middleware('permission:system.finance.journals.post');
     Route::get('/finance/transactions', [FinanceController::class, 'transactions'])->middleware('permission:system.finance.transactions.view');
     Route::post('/finance/transactions', [FinanceController::class, 'storeTransaction'])->middleware('permission:system.finance.transactions.create');
+
+    Route::get('/shipping/overview', [ShippingDeliveryController::class, 'index'])->middleware('permission:system.shipping.view');
+    Route::get('/shipping/shipments/{shipment}/events', [ShippingDeliveryController::class, 'events'])->middleware('permission:system.shipping.view');
+    Route::patch('/shipping/shipments/{shipment}/status', [ShippingDeliveryController::class, 'updateStatus'])->middleware('permission:system.shipping.delivery.manage');
 
     Route::get('/sales-returns', [\App\Http\Controllers\SalesReturnController::class, 'index'])->middleware('permission:system.sales_returns.view');
     Route::get('/sales-returns/options', [\App\Http\Controllers\SalesReturnController::class, 'options'])->middleware('permission:system.sales_returns.create');
