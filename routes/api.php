@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\ActivityLogController;
 use App\Http\Controllers\FinanceController;
+use App\Http\Controllers\ReportController;
 use App\Http\Controllers\AttributeController;
 use App\Http\Controllers\AttributeValueController;
 use App\Http\Controllers\BrandController;
@@ -144,6 +145,9 @@ Route::middleware(['web', 'auth'])->group(function () {
     | Accounts & Finance — double-entry ledger
     |--------------------------------------------------------------------------
     */
+    Route::get('/reports/data', [ReportController::class, 'data'])->middleware('permission:system.reports.view');
+    Route::get('/reports/export', [ReportController::class, 'export'])->middleware('permission:system.reports.export');
+
     Route::get('/finance/overview', [FinanceController::class, 'overview'])->middleware('permission:system.finance.view');
     Route::get('/finance/accounts', [FinanceController::class, 'accounts'])->middleware('permission:system.finance.view');
     Route::get('/finance/customer-options', [FinanceController::class, 'customerOptions'])->middleware('permission:system.finance.transactions.create');

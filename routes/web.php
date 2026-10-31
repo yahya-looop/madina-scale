@@ -3,6 +3,7 @@
 use App\Http\Controllers\Access\RolesPermissionsController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\ReportController;
 use App\Http\Controllers\StorefrontController;
 use App\Http\Controllers\UserPageController;
 use Illuminate\Support\Facades\Route;
@@ -75,6 +76,10 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/dashboard', DashboardController::class)
         ->name('dashboard');
+
+    Route::get('/reports', [ReportController::class, 'page'])
+        ->middleware('permission:system.reports.view')
+        ->name('reports.index');
 
     /*
     |--------------------------------------------------------------------------

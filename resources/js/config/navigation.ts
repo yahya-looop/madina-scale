@@ -218,6 +218,7 @@ export const primaryNavigation: NavigationItem[] = [
 
     {
         label: 'Reports',
+        href: '/reports',
         icon: 'reports',
         permission: 'system.reports.view',
     },

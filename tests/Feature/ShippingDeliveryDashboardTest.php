@@ -16,7 +16,7 @@ class ShippingDeliveryDashboardTest extends TestCase
 {
     use RefreshDatabase;
 
-    private function fixture(): array
+    private function fixture(string $accessLevel = 'manage'): array
     {
         $location = \inventoryTestLocation();
         $user = User::factory()->create();
@@ -30,7 +30,7 @@ class ShippingDeliveryDashboardTest extends TestCase
         $role = Role::create(['name' => 'Shipping Test '.Str::random(8), 'slug' => 'shipping-test-'.Str::lower(Str::random(10)), 'description' => null, 'is_system' => false, 'is_active' => true]);
         $role->permissions()->attach($permissions->pluck('id'));
         $user->roles()->attach($role->id);
-        $user->locations()->attach($location->id, ['access_level' => 'manage']);
+        $user->locations()->attach($location->id, ['access_level' => $accessLevel]);
         $order = SalesOrder::query()->create([
             'order_number' => 'SHIP-'.strtoupper(Str::random(8)), 'status' => 'confirmed', 'channel' => 'backoffice',
             'location_id' => $location->id, 'customer_name' => 'Shipping Customer', 'customer_phone' => '01711111111',
@@ -63,6 +63,26 @@ class ShippingDeliveryDashboardTest extends TestCase
         $this->assertDatabaseHas('sales_order_shipment_events', [
             'sales_order_shipment_id' => $shipment->id, 'provider' => 'manual',
             'previous_status' => 'booked', 'received_status' => 'in_transit', 'outcome' => 'applied',
+        ]);
+    }
+
+
+    public function test_view_only_location_access_cannot_manually_change_delivery_status(): void
+    {
+        ['user' => $user, 'shipment' => $shipment] = $this->fixture('view');
+
+        $this->actingAs($user)->patchJson('/api/shipping/shipments/'.$shipment->id.'/status', [
+            'status' => 'in_transit',
+            'reason' => 'Attempted update from a view-only location assignment.',
+        ])->assertForbidden();
+
+        $this->assertDatabaseHas('sales_order_shipments', [
+            'id' => $shipment->id,
+            'status' => 'booked',
+        ]);
+        $this->assertDatabaseMissing('sales_order_shipment_events', [
+            'sales_order_shipment_id' => $shipment->id,
+            'provider' => 'manual',
         ]);
     }
 
