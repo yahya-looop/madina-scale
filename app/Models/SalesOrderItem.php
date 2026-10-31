@@ -39,6 +39,12 @@ class SalesOrderItem extends Model
         return $this->belongsTo(InventoryReservation::class);
     }
 
+
+    public function warranties(): HasMany
+    {
+        return $this->hasMany(\App\Models\ProductWarranty::class, 'sales_order_item_id');
+    }
+
     public function fulfillmentItems(): HasMany
     {
         return $this->hasMany(SalesOrderFulfillmentItem::class, 'sales_order_item_id');

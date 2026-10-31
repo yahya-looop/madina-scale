@@ -5,6 +5,8 @@ use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\StorefrontController;
+use App\Http\Controllers\PublicCmsPageController;
+use App\Http\Controllers\PublicSeoController;
 use App\Http\Controllers\UserPageController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -19,10 +21,14 @@ use Inertia\Inertia;
 |
 */
 
+Route::get('/robots.txt', [PublicSeoController::class, 'robots'])->name('seo.robots');
+Route::get('/sitemap.xml', [PublicSeoController::class, 'sitemap'])->name('seo.sitemap');
+
 Route::get('/', [StorefrontController::class, 'index'])->name('storefront.home');
 Route::get('/shop', [StorefrontController::class, 'index'])->name('storefront.index');
 Route::get('/shop/flash-sales', fn () => Inertia::render('Storefront/FlashSales'))
     ->name('storefront.flash-sales');
+Route::get('/pages/{slug}', [PublicCmsPageController::class, 'show'])->where('slug', '[A-Za-z0-9\-]+')->name('storefront.pages.show');
 Route::get('/shop/{slug}', [StorefrontController::class, 'show'])
     ->where('slug', '[A-Za-z0-9\-]+')
     ->name('storefront.show');
@@ -76,6 +82,21 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/dashboard', DashboardController::class)
         ->name('dashboard');
+
+    Route::get('/content/pages', function () {
+        abort_unless(request()->user()?->can('system.content.view'), 403);
+        return Inertia::render('Content/Pages');
+    })->name('content.pages');
+
+    Route::get('/content/media', function () { abort_unless(request()->user()?->can('system.content.view'),403); return Inertia::render('Content/Media'); })->name('content.media');
+    Route::get('/content/banners', function () { abort_unless(request()->user()?->can('system.content.view'),403); return Inertia::render('Content/Banners'); })->name('content.banners');
+    Route::get('/content/sections', function () { abort_unless(request()->user()?->can('system.content.view'),403); return Inertia::render('Content/Sections'); })->name('content.sections');
+
+    Route::get('/seo', function () { abort_unless(request()->user()?->can('system.seo.view'),403); return Inertia::render('Content/Seo'); })->name('seo.index');
+    Route::get('/marketing', [\App\Http\Controllers\MarketingController::class, 'page'])->middleware('permission:system.marketing.view')->name('marketing.index');
+    Route::get('/marketing/{view}', [\App\Http\Controllers\MarketingController::class, 'page'])->whereIn('view',['campaigns','coupons'])->middleware('permission:system.marketing.view')->name('marketing.view');
+    Route::get('/analytics', [\App\Http\Controllers\BusinessAnalyticsController::class, 'page'])->middleware('permission:system.analytics.view')->name('analytics.index');
+    Route::get('/analytics/{view}', [\App\Http\Controllers\BusinessAnalyticsController::class, 'page'])->whereIn('view',['sales','website','marketing'])->middleware('permission:system.analytics.view')->name('analytics.view');
 
     Route::get('/reports', [ReportController::class, 'page'])
         ->middleware('permission:system.reports.view')
@@ -356,6 +377,19 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/shipping-delivery', [\App\Http\Controllers\ShippingDeliveryController::class, 'page'])->name('shipping-delivery.index');
 
+    Route::get('/warranty-service', [\App\Http\Controllers\WarrantyServiceController::class, 'page'])
+        ->name('warranty-service.index');
+
+    Route::get('/payments', function () {
+        $user = request()->user();
+        abort_unless($user !== null, 401);
+        abort_unless($user->can('system.payments.view'), 403);
+        return Inertia::render('Payments/Index', [
+            'userName' => $user->name,
+            'userEmail' => $user->email,
+        ]);
+    })->name('payments.index');
+
     Route::get('/finance', function () {
         $user = request()->user();
         abort_unless($user !== null, 401);
@@ -521,6 +555,16 @@ Route::middleware('auth')->group(function () {
     | access through the application's AuthorizationService.
     |
     */
+
+    Route::get('/developer/api-providers', function () {
+        $user = request()->user();
+        abort_unless($user !== null, 401);
+        abort_unless($user->can('system.api_providers.view'), 403);
+        return Inertia::render('Developer/ApiProviders', [
+            'userName' => $user->name,
+            'userEmail' => $user->email,
+        ]);
+    })->name('developer.api-providers');
 
     Route::get('/developer/modules', function () {
         $user = request()->user();

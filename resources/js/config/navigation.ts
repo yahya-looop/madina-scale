@@ -194,45 +194,54 @@ export const primaryNavigation: NavigationItem[] = [
 
     {
         label: 'Payments',
+        href: '/payments',
         icon: 'payments',
         permission: 'system.payments.view',
     },
 
     {
         label: 'Warranty & Service',
+        href: '/warranty-service',
         icon: 'service',
         permission: 'system.warranty.view',
     },
 
     {
+        label: 'Website Management',
+        icon: 'globe',
+        expandable: true,
+        permission: 'system.content.view',
+        children: [
+            { label: 'Content Pages', href: '/content/pages', icon: 'cms', permission: 'system.content.view' },
+            { label: 'Media Library', href: '/content/media', icon: 'image', permission: 'system.content.view' },
+            { label: 'Banner Management', href: '/content/banners', icon: 'image', permission: 'system.content.view' },
+            { label: 'Reusable Sections', href: '/content/sections', icon: 'layout', permission: 'system.content.view' },
+            { label: 'SEO Management', href: '/seo', icon: 'seo', permission: 'system.seo.view' },
+        ],
+    },
+    {
         label: 'Marketing',
         icon: 'marketing',
+        expandable: true,
         permission: 'system.marketing.view',
+        children: [
+            { label: 'Marketing Overview', href: '/marketing', icon: 'dashboard', permission: 'system.marketing.view' },
+            { label: 'Campaigns', href: '/marketing/campaigns', icon: 'target', permission: 'system.marketing.view' },
+            { label: 'Coupons & Offers', href: '/marketing/coupons', icon: 'tag', permission: 'system.marketing.view' },
+        ],
     },
-
     {
         label: 'Analytics',
         icon: 'analytics',
+        expandable: true,
         permission: 'system.analytics.view',
-    },
-
-    {
-        label: 'Reports',
-        href: '/reports',
-        icon: 'reports',
-        permission: 'system.reports.view',
-    },
-
-    {
-        label: 'Content (CMS)',
-        icon: 'cms',
-        permission: 'system.content.view',
-    },
-
-    {
-        label: 'SEO',
-        icon: 'seo',
-        permission: 'system.seo.view',
+        children: [
+            { label: 'Analytics Overview', href: '/analytics', icon: 'chart-column', permission: 'system.analytics.view' },
+            { label: 'Sales Analytics', href: '/analytics/sales', icon: 'sales', permission: 'system.analytics.view' },
+            { label: 'Website Analytics', href: '/analytics/website', icon: 'globe', permission: 'system.analytics.view' },
+            { label: 'Marketing Analytics', href: '/analytics/marketing', icon: 'megaphone', permission: 'system.analytics.view' },
+            { label: 'Reports', href: '/reports', icon: 'reports', permission: 'system.reports.view' },
+        ],
     },
 
     {
@@ -294,6 +303,12 @@ export const primaryNavigation: NavigationItem[] = [
         developerOnly: true,
 
         children: [
+            {
+                label: 'API & Providers',
+                href: '/developer/api-providers',
+                icon: 'plug-zap',
+                permission: 'system.api_providers.view',
+            },
             {
                 label: 'Module Management',
                 href: '/developer/modules',

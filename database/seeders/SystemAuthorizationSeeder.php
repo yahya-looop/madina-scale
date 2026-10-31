@@ -2139,6 +2139,26 @@ class SystemAuthorizationSeeder extends Seeder
             ],
 
             [
+                'name' => 'API & Providers',
+                'slug' => 'api-providers',
+                'description' => 'Manage external API providers, credentials and integration configuration.',
+                'icon' => 'plug-zap',
+                'sort_order' => 239,
+                'permissions' => [
+                    [
+                        'name' => 'View API Providers',
+                        'slug' => 'system.api_providers.view',
+                        'description' => 'View configured API providers without exposing credentials.',
+                    ],
+                    [
+                        'name' => 'Manage API Providers',
+                        'slug' => 'system.api_providers.manage',
+                        'description' => 'Create, update and delete API provider configurations.',
+                    ],
+                ],
+            ],
+
+            [
                 'name' => 'Module Management',
                 'slug' => 'modules',
                 'description' => 'Manage application modules and their configuration.',

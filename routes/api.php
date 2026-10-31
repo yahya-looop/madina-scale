@@ -1,7 +1,12 @@
 <?php
 
 use App\Http\Controllers\ActivityLogController;
+use App\Http\Controllers\ApiProviderController;
+use App\Http\Controllers\CmsPageController;
+use App\Http\Controllers\CmsContentController;
+use App\Http\Controllers\Api\V1\HeadOfficeController;
 use App\Http\Controllers\FinanceController;
+use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\AttributeController;
 use App\Http\Controllers\AttributeValueController;
@@ -28,9 +33,11 @@ use App\Http\Controllers\ShippingDeliveryController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\UnitController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\WarrantyServiceController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware('web')->get('/public/flash-sales', [PricingPromotionController::class, 'publicFlashSales']);
+Route::middleware('web')->get('/public/cms/banners', [CmsContentController::class, 'publicBanners']);
 
 Route::middleware(['web', 'auth'])->group(function () {
 
@@ -148,6 +155,24 @@ Route::middleware(['web', 'auth'])->group(function () {
     Route::get('/reports/data', [ReportController::class, 'data'])->middleware('permission:system.reports.view');
     Route::get('/reports/export', [ReportController::class, 'export'])->middleware('permission:system.reports.export');
 
+    /*
+    |--------------------------------------------------------------------------
+    | Warranty & Service — after-sales operations
+    |--------------------------------------------------------------------------
+    */
+    Route::get('/warranty-service', [WarrantyServiceController::class, 'index'])->middleware('permission:system.warranty.view');
+    Route::get('/warranty-service/options', [WarrantyServiceController::class, 'options'])->middleware('permission:system.warranty.view');
+    Route::post('/warranty-service/warranties', [WarrantyServiceController::class, 'registerWarranty'])->middleware('permission:system.warranty.create');
+    Route::post('/warranty-service/tickets', [WarrantyServiceController::class, 'createTicket'])->middleware('permission:system.warranty.create');
+    Route::put('/warranty-service/tickets/{ticket}', [WarrantyServiceController::class, 'updateTicket']);
+    Route::post('/warranty-service/tickets/{ticket}/parts', [WarrantyServiceController::class, 'addPart'])->middleware('permission:system.warranty.process');
+
+    Route::get('/payments', [PaymentController::class, 'index'])->middleware('permission:system.payments.view');
+    Route::get('/payments/options', [PaymentController::class, 'options'])->middleware('permission:system.payments.view');
+    Route::post('/payments/receipts', [PaymentController::class, 'storeReceipt'])->middleware('permission:system.payments.create');
+    Route::get('/payments/{payment}/allocations', [PaymentController::class, 'allocations'])->middleware('permission:system.payments.view');
+    Route::post('/payments/{payment}/allocations', [PaymentController::class, 'allocate'])->middleware('permission:system.payments.update');
+
     Route::get('/finance/overview', [FinanceController::class, 'overview'])->middleware('permission:system.finance.view');
     Route::get('/finance/accounts', [FinanceController::class, 'accounts'])->middleware('permission:system.finance.view');
     Route::get('/finance/customer-options', [FinanceController::class, 'customerOptions'])->middleware('permission:system.finance.transactions.create');
@@ -262,6 +287,52 @@ Route::middleware(['web', 'auth'])->group(function () {
 
     Route::put('/settings', [SettingsController::class, 'update'])
         ->middleware('permission:system.settings.update');
+
+    /* Marketing */
+    Route::get('/marketing/campaigns', [\App\Http\Controllers\MarketingController::class, 'campaigns'])->middleware('permission:system.marketing.view');
+    Route::post('/marketing/campaigns', [\App\Http\Controllers\MarketingController::class, 'storeCampaign'])->middleware('permission:system.marketing.create');
+    Route::put('/marketing/campaigns/{campaign}', [\App\Http\Controllers\MarketingController::class, 'updateCampaign'])->middleware('permission:system.marketing.update');
+    Route::delete('/marketing/campaigns/{campaign}', [\App\Http\Controllers\MarketingController::class, 'deleteCampaign'])->middleware('permission:system.marketing.delete');
+    Route::get('/marketing/coupons', [\App\Http\Controllers\MarketingController::class, 'coupons'])->middleware('permission:system.marketing.view');
+    Route::post('/marketing/coupons', [\App\Http\Controllers\MarketingController::class, 'storeCoupon'])->middleware('permission:system.marketing.create');
+    Route::put('/marketing/coupons/{coupon}', [\App\Http\Controllers\MarketingController::class, 'updateCoupon'])->middleware('permission:system.marketing.update');
+    Route::delete('/marketing/coupons/{coupon}', [\App\Http\Controllers\MarketingController::class, 'deleteCoupon'])->middleware('permission:system.marketing.delete');
+    Route::get('/marketing/analytics', [\App\Http\Controllers\MarketingController::class, 'analytics'])->middleware('permission:system.marketing.view');
+    Route::post('/marketing/campaigns/{campaign}/events', [\App\Http\Controllers\MarketingController::class, 'track'])->middleware('throttle:120,1');
+    Route::get('/analytics/overview', [\App\Http\Controllers\BusinessAnalyticsController::class, 'data'])->middleware('permission:system.analytics.view');
+
+    /* CMS */
+    Route::get('/cms/pages', [CmsPageController::class, 'index'])->middleware('permission:system.content.view');
+    Route::get('/cms/pages/{cmsPage}', [CmsPageController::class, 'show'])->middleware('permission:system.content.view');
+    Route::post('/cms/pages', [CmsPageController::class, 'store'])->middleware('permission:system.content.create');
+    Route::put('/cms/pages/{cmsPage}', [CmsPageController::class, 'update'])->middleware('permission:system.content.update');
+    Route::delete('/cms/pages/{cmsPage}', [CmsPageController::class, 'destroy'])->middleware('permission:system.content.delete');
+    Route::post('/cms/media', [CmsPageController::class, 'upload'])->middleware('permission:system.content.create');
+    Route::get('/cms/media', [CmsContentController::class, 'media'])->middleware('permission:system.content.view');
+    Route::post('/cms/media-library', [CmsContentController::class, 'upload'])->middleware('permission:system.content.create');
+    Route::patch('/cms/media/{cmsMedium}', [CmsContentController::class, 'updateMedia'])->middleware('permission:system.content.update');
+    Route::delete('/cms/media/{cmsMedium}', [CmsContentController::class, 'deleteMedia'])->middleware('permission:system.content.delete');
+    Route::get('/cms/banners', [CmsContentController::class, 'banners'])->middleware('permission:system.content.view');
+    Route::post('/cms/banners', [CmsContentController::class, 'storeBanner'])->middleware('permission:system.content.create');
+    Route::put('/cms/banners/{cmsBanner}', [CmsContentController::class, 'updateBanner'])->middleware('permission:system.content.update');
+    Route::delete('/cms/banners/{cmsBanner}', [CmsContentController::class, 'deleteBanner'])->middleware('permission:system.content.delete');
+    Route::get('/cms/sections', [CmsContentController::class, 'sections'])->middleware('permission:system.content.view');
+    Route::post('/cms/sections', [CmsContentController::class, 'storeSection'])->middleware('permission:system.content.create');
+    Route::put('/cms/sections/{cmsContentSection}', [CmsContentController::class, 'updateSection'])->middleware('permission:system.content.update');
+    Route::delete('/cms/sections/{cmsContentSection}', [CmsContentController::class, 'deleteSection'])->middleware('permission:system.content.delete');
+    Route::get('/cms/pages/{cmsPage}/revisions', [CmsContentController::class, 'revisions'])->middleware('permission:system.content.view');
+    Route::post('/cms/pages/{cmsPage}/revisions/{revision}/restore', [CmsContentController::class, 'restore'])->middleware('permission:system.content.update');
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | API Providers
+    |--------------------------------------------------------------------------
+    */
+    Route::get('/api-providers', [ApiProviderController::class, 'index'])->middleware('permission:system.api_providers.view');
+    Route::post('/api-providers', [ApiProviderController::class, 'store'])->middleware('permission:system.api_providers.manage');
+    Route::put('/api-providers/{apiProvider}', [ApiProviderController::class, 'update'])->middleware('permission:system.api_providers.manage');
+    Route::delete('/api-providers/{apiProvider}', [ApiProviderController::class, 'destroy'])->middleware('permission:system.api_providers.manage');
 
     /*
     |--------------------------------------------------------------------------
@@ -539,3 +610,32 @@ Route::middleware(['web', 'auth'])->group(function () {
 
 // Provider callbacks authenticate with a dedicated bearer secret and must not require a staff session.
 Route::post('/webhooks/couriers/{provider}', [OrderOperationsController::class, 'courierWebhook']);
+
+
+/*
+|--------------------------------------------------------------------------
+| Head Office ERP Integration API — v1 (read-only contract)
+|--------------------------------------------------------------------------
+|
+| Uses dedicated Sanctum personal access tokens with narrow abilities.
+| The token owner must also retain the corresponding Madina Scale
+| permissions; location-scoped datasets remain location-scoped.
+*/
+Route::prefix('v1/head-office')
+    ->middleware(['auth:sanctum', 'throttle:60,1'])
+    ->group(function (): void {
+        Route::get('/health', [HeadOfficeController::class, 'health'])
+            ->middleware('abilities:head-office:health');
+
+        Route::get('/catalog/products', [HeadOfficeController::class, 'products'])
+            ->middleware('abilities:head-office:catalog:read');
+
+        Route::get('/inventory/stocks', [HeadOfficeController::class, 'inventory'])
+            ->middleware('abilities:head-office:inventory:read');
+
+        Route::get('/sales/orders', [HeadOfficeController::class, 'orders'])
+            ->middleware('abilities:head-office:orders:read');
+
+        Route::get('/customers', [HeadOfficeController::class, 'customers'])
+            ->middleware('abilities:head-office:customers:read');
+    });

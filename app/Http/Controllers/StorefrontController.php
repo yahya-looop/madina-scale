@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Product;
 use App\Models\ProductCategory;
+use App\Models\CmsBanner;
 use App\Services\PricingEngine;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
@@ -45,9 +46,20 @@ class StorefrontController extends Controller
             ->orderBy('name')
             ->get(['id', 'name', 'slug']);
 
+        $now = now();
+        $banners = CmsBanner::query()
+            ->whereIn('status', ['active', 'scheduled'])
+            ->where(fn (Builder $query) => $query->whereNull('starts_at')->orWhere('starts_at', '<=', $now))
+            ->where(fn (Builder $query) => $query->whereNull('ends_at')->orWhere('ends_at', '>=', $now))
+            ->where('placement', 'homepage')
+            ->orderBy('sort_order')
+            ->orderBy('id')
+            ->get(['id', 'title', 'image_url', 'alt_text', 'link_url']);
+
         return Inertia::render('Storefront/Index', [
             'products' => $products,
             'categories' => $categories,
+            'banners' => $banners,
             'filters' => [
                 'q' => $search,
                 'category' => $categorySlug,

@@ -25,6 +25,14 @@ interface Category {
     slug: string;
 }
 
+interface StoreBanner {
+    id: number;
+    title: string;
+    image_url: string;
+    alt_text: string | null;
+    link_url: string | null;
+}
+
 interface PaginationLink {
     url: string | null;
     label: string;
@@ -42,6 +50,7 @@ interface ProductPaginator {
 const props = defineProps<{
     products: ProductPaginator;
     categories: Category[];
+    banners: StoreBanner[];
     filters: { q: string; category: string };
 }>();
 
@@ -181,6 +190,29 @@ function pageLabel(label: string): string {
                 </nav>
             </div>
         </header>
+
+        <section
+            v-if="banners.length"
+            aria-label="Homepage promotions"
+            class="mx-auto grid max-w-7xl gap-4 px-4 pt-6 sm:px-6 lg:grid-cols-2 lg:px-8"
+        >
+            <component
+                :is="banner.link_url ? 'a' : 'div'"
+                v-for="banner in banners"
+                :key="banner.id"
+                :href="banner.link_url || undefined"
+                class="group block overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
+                :target="banner.link_url?.startsWith('http') ? '_blank' : undefined"
+                :rel="banner.link_url?.startsWith('http') ? 'noopener noreferrer' : undefined"
+            >
+                <img
+                    :src="banner.image_url"
+                    :alt="banner.alt_text || banner.title"
+                    class="h-44 w-full object-cover transition duration-300 group-hover:scale-[1.01] sm:h-56"
+                    loading="lazy"
+                />
+            </component>
+        </section>
 
         <main>
             <section
