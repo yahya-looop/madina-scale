@@ -11,6 +11,7 @@ class AuthenticationService
 {
     public function __construct(
         protected AccountSecurityService $accountSecurity,
+        protected ActivityLogService $activityLog,
     ) {}
 
     /**
@@ -34,6 +35,7 @@ class AuthenticationService
          * Do not reveal whether the account exists.
          */
         if ($user === null) {
+            $this->activityLog->recordSystem('login_failed', 'authentication', 'A login attempt failed.', metadata: ['email_fingerprint' => hash('sha256', mb_strtolower(trim($email))), 'reason' => 'unknown_account']);
             throw $this->invalidCredentials();
         }
 
@@ -42,6 +44,7 @@ class AuthenticationService
          * password verification.
          */
         if (! $this->accountSecurity->canAuthenticate($user)) {
+            $this->activityLog->recordForUser($user, 'login_blocked', 'authentication', 'A login attempt was blocked by account security.', metadata: ['reason' => 'account_not_eligible']);
             throw $this->invalidCredentials();
         }
 
@@ -50,6 +53,7 @@ class AuthenticationService
          */
         if (! Hash::check($password, $user->password)) {
             $this->accountSecurity->recordFailedLogin($user);
+            $this->activityLog->recordForUser($user, 'login_failed', 'authentication', 'A login attempt failed.', metadata: ['reason' => 'invalid_password']);
 
             throw $this->invalidCredentials();
         }
@@ -66,6 +70,7 @@ class AuthenticationService
             $user,
             $ipAddress,
         );
+        $this->activityLog->recordForUser($user, 'login', 'authentication', 'User signed in successfully.');
 
         return $user->fresh();
     }
@@ -75,6 +80,10 @@ class AuthenticationService
      */
     public function logout(): void
     {
+        $user = Auth::user();
+        if ($user instanceof User) {
+            $this->activityLog->recordForUser($user, 'logout', 'authentication', 'User signed out.');
+        }
         Auth::logout();
     }
 

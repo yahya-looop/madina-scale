@@ -6,6 +6,7 @@ use App\Http\Requests\Permission\StorePermissionRequest;
 use App\Http\Requests\Permission\UpdatePermissionRequest;
 use App\Models\Permission;
 use App\Services\PermissionService;
+use App\Services\ActivityLogService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Response;
 
@@ -13,6 +14,7 @@ class PermissionController extends Controller
 {
     public function __construct(
         protected PermissionService $permissions,
+        protected ActivityLogService $activityLog,
     ) {}
 
     /**
@@ -52,6 +54,7 @@ class PermissionController extends Controller
         $attributes = $request->validated();
 
         $permission = $this->permissions->create($attributes);
+        $this->activityLog->recordForUser($request->user(), 'create', 'permissions', 'Permission created.', $permission, null, $permission->only(['module_id', 'name', 'slug', 'description']));
 
         $permission->load('module');
 
@@ -76,10 +79,12 @@ class PermissionController extends Controller
          */
         $attributes = $request->validated();
 
+        $before = $permission->only(['module_id', 'name', 'slug', 'description']);
         $permission = $this->permissions->update(
             $permission,
             $attributes,
         );
+        $this->activityLog->recordForUser($request->user(), 'update', 'permissions', 'Permission updated.', $permission, $before, $permission->only(['module_id', 'name', 'slug', 'description']));
 
         $permission->load('module');
 

@@ -45,6 +45,9 @@ class ActivityLogIndexRequest extends FormRequest
                 'max:100',
             ],
 
+            'from' => ['nullable', 'date'],
+            'to' => ['nullable', 'date', 'after_or_equal:from'],
+
             'actor_type' => [
                 'nullable',
                 'in:user,system',

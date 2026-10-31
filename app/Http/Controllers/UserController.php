@@ -7,6 +7,7 @@ use App\Http\Requests\User\UpdateUserRequest;
 use App\Models\User;
 use App\Services\UserService;
 use App\Services\AuthorizationService;
+use App\Services\ActivityLogService;
 use App\Models\Location;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
@@ -16,6 +17,7 @@ class UserController extends Controller
     public function __construct(
         private readonly UserService $userService,
         private readonly AuthorizationService $authorization,
+        private readonly ActivityLogService $activityLog,
     ) {}
 
     /** Return active locations available for assignment. */
@@ -73,6 +75,8 @@ class UserController extends Controller
                 );
             }
 
+            $this->activityLog->recordForUser($request->user(), 'create', 'users', 'User account created.', $user, null, ['name' => $user->name, 'email' => $user->email, 'status' => $user->status, 'role_ids' => $user->roles->pluck('id')->all()]);
+
             return response()->json([
                 'message' => 'User created successfully.',
                 'data' => $this->userPayload($user),
@@ -126,6 +130,8 @@ class UserController extends Controller
                     (int) $request->user()->id,
                 );
             }
+
+            $this->activityLog->recordForUser($request->user(), 'update', 'users', 'User account updated.', $user, null, ['name' => $user->name, 'email' => $user->email, 'status' => $user->status, 'role_ids' => $user->roles->pluck('id')->all()]);
 
             return response()->json([
                 'message' => 'User updated successfully.',

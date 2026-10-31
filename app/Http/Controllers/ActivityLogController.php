@@ -76,6 +76,14 @@ class ActivityLogController extends Controller
                 ),
             )
             ->when(
+                filled($validated['from'] ?? null),
+                fn ($query) => $query->whereDate('created_at', '>=', $validated['from']),
+            )
+            ->when(
+                filled($validated['to'] ?? null),
+                fn ($query) => $query->whereDate('created_at', '<=', $validated['to']),
+            )
+            ->when(
                 filled($validated['actor_type'] ?? null),
                 fn ($query) => $query->where(
                     'actor_type',
@@ -128,4 +136,60 @@ class ActivityLogController extends Controller
             'data' => $activityLog,
         ]);
     }
+
+    /** Export a bounded, permission-protected CSV audit extract. */
+    public function export(ActivityLogIndexRequest $request): \Symfony\Component\HttpFoundation\StreamedResponse
+    {
+        $validated = $request->validated();
+        $query = ActivityLog::query()
+            ->when(filled($validated['search'] ?? null), function ($query) use ($validated): void {
+                $term = $validated['search'];
+                $query->where(function ($nested) use ($term): void {
+                    $nested->where('description', 'ilike', "%{$term}%")
+                        ->orWhere('module', 'ilike', "%{$term}%")
+                        ->orWhere('action', 'ilike', "%{$term}%")
+                        ->orWhere('request_id', 'ilike', "%{$term}%");
+                });
+            })
+            ->when(filled($validated['module'] ?? null), fn ($q) => $q->where('module', $validated['module']))
+            ->when(filled($validated['action'] ?? null), fn ($q) => $q->where('action', $validated['action']))
+            ->when(filled($validated['actor_type'] ?? null), fn ($q) => $q->where('actor_type', $validated['actor_type']))
+            ->when(filled($validated['from'] ?? null), fn ($q) => $q->whereDate('created_at', '>=', $validated['from']))
+            ->when(filled($validated['to'] ?? null), fn ($q) => $q->whereDate('created_at', '<=', $validated['to']))
+            ->with('actor:id,name,email')
+            ->latest('created_at')->latest('id');
+
+        // Prevent unbounded exports; a maximum 90-day window is mandatory.
+        abort_unless(filled($validated['from'] ?? null) && filled($validated['to'] ?? null), 422, 'Select both From and To dates before exporting.');
+        abort_if(\Illuminate\Support\Carbon::parse($validated['from'])->diffInDays(\Illuminate\Support\Carbon::parse($validated['to'])) > 90, 422, 'Audit exports are limited to 90 days.');
+
+        $filename = 'madina-scale-audit-' . now()->format('Ymd-His') . '.csv';
+        return response()->streamDownload(function () use ($query): void {
+            $out = fopen('php://output', 'w');
+            fputcsv($out, ['ID', 'Timestamp', 'Actor', 'Actor Type', 'Action', 'Module', 'Description', 'Subject Type', 'Subject ID', 'IP Address', 'Request ID', 'Integrity']);
+            $query->chunk(500, function ($logs) use ($out): void {
+                foreach ($logs as $log) {
+                    $cells = [$log->id, $log->created_at?->toISOString(), $log->actor?->name ?? ($log->actor_type === 'system' ? 'System' : 'Unknown'), $log->actor_type, $log->action, $log->module, $log->description, $log->subject_type, $log->subject_id, $log->ip_address, $log->request_id, $log->hasValidIntegrityHash() ? 'valid' : 'invalid'];
+                    // Neutralize spreadsheet formula injection in all textual cells.
+                    $cells = array_map(static function ($value) {
+                        if (! is_string($value)) return $value;
+                        return preg_match('/^[\s]*[=+@\-]/u', $value) ? "'" . $value : $value;
+                    }, $cells);
+                    fputcsv($out, $cells);
+                }
+            });
+            fclose($out);
+        }, $filename, ['Content-Type' => 'text/csv; charset=UTF-8']);
+    }
+
+    /** Return integrity status for a single immutable audit entry. */
+    public function verify(Request $request, ActivityLog $activityLog): JsonResponse
+    {
+        abort_unless($request->user() && $this->authorization->can($request->user(), 'system.activity_logs.view'), 403);
+        return response()->json(['data' => [
+            'id' => $activityLog->id,
+            'integrity' => $activityLog->hasValidIntegrityHash() ? 'valid' : 'invalid_or_legacy',
+        ]]);
+    }
+
 }

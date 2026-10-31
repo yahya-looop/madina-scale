@@ -44,6 +44,7 @@ use Illuminate\Support\Carbon;
     'user_agent',
     'request_id',
     'metadata',
+    'integrity_hash',
     'created_at',
 ])]
 class ActivityLog extends Model
@@ -103,6 +104,55 @@ class ActivityLog extends Model
     public function isSystemActivity(): bool
     {
         return $this->actor_type === 'system';
+    }
+
+    /** Verify the record's HMAC integrity against the configured application key. */
+    public function hasValidIntegrityHash(): bool
+    {
+        if (! is_string($this->integrity_hash) || $this->integrity_hash === '') {
+            return false;
+        }
+
+        $payload = $this->getAttributes();
+        unset($payload['integrity_hash'], $payload['created_at']);
+        foreach (['old_values', 'new_values', 'metadata'] as $jsonField) {
+            $decoded = isset($payload[$jsonField]) && is_string($payload[$jsonField])
+                ? json_decode($payload[$jsonField], true)
+                : ($payload[$jsonField] ?? null);
+            $payload[$jsonField] = $this->sortAuditValue($decoded);
+        }
+        $canonical = json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION);
+        $expected = hash_hmac('sha256', $canonical === false ? '' : $canonical, (string) config('app.key'));
+
+        return hash_equals($expected, $this->integrity_hash);
+    }
+
+    private function sortAuditValue(mixed $value): mixed
+    {
+        if (! is_array($value)) {
+            return $value;
+        }
+
+        foreach ($value as $key => $item) {
+            $value[$key] = $this->sortAuditValue($item);
+        }
+
+        if (! array_is_list($value)) {
+            ksort($value);
+        }
+
+        return $value;
+    }
+
+    /** Audit records must never be modified or removed through Eloquent. */
+    public function update(array $attributes = [], array $options = [])
+    {
+        throw new \LogicException('Audit records are immutable.');
+    }
+
+    public function delete()
+    {
+        throw new \LogicException('Audit records are immutable.');
     }
 
     /**

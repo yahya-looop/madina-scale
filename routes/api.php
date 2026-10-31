@@ -236,6 +236,12 @@ Route::middleware(['web', 'auth'])->group(function () {
     Route::get('/activity-logs', [ActivityLogController::class, 'index'])
         ->middleware('permission:system.activity_logs.view');
 
+    Route::get('/activity-logs/export', [ActivityLogController::class, 'export'])
+        ->middleware('permission:system.activity_logs.view');
+
+    Route::get('/activity-logs/{activityLog}/verify', [ActivityLogController::class, 'verify'])
+        ->middleware('permission:system.activity_logs.view');
+
     Route::get('/activity-logs/{activityLog}', [ActivityLogController::class, 'show'])
         ->middleware('permission:system.activity_logs.view');
 

@@ -123,7 +123,7 @@ class ActivityLogService
             $requestId = null;
         }
 
-        return ActivityLog::query()->create([
+        $payload = [
             'actor_user_id' => $actor?->id,
             'actor_type' => $actorType,
             'action' => $action,
@@ -150,7 +150,11 @@ class ActivityLogService
             ),
 
             'created_at' => now(),
-        ]);
+        ];
+
+        $payload['integrity_hash'] = $this->makeIntegrityHash($payload);
+
+        return ActivityLog::query()->create($payload);
     }
 
     /**
@@ -214,6 +218,37 @@ class ActivityLogService
             metadata: $metadata,
             actor: null,
         );
+    }
+
+
+    /** Create a keyed integrity digest so unauthorized database edits can be detected. */
+    private function makeIntegrityHash(array $payload): string
+    {
+        unset($payload['integrity_hash']);
+        foreach (['old_values', 'new_values', 'metadata'] as $jsonField) {
+            $payload[$jsonField] = $this->sortRecursively($payload[$jsonField] ?? null);
+        }
+        unset($payload['created_at']);
+        $canonical = json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION);
+
+        return hash_hmac('sha256', $canonical === false ? '' : $canonical, (string) config('app.key'));
+    }
+
+    private function sortRecursively(mixed $value): mixed
+    {
+        if (! is_array($value)) {
+            return $value;
+        }
+
+        foreach ($value as $key => $item) {
+            $value[$key] = $this->sortRecursively($item);
+        }
+
+        if (! array_is_list($value)) {
+            ksort($value);
+        }
+
+        return $value;
     }
 
     /**

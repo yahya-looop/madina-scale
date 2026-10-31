@@ -54,6 +54,7 @@ interface ActivityLog {
     metadata?: Record<string, unknown> | null;
 
     created_at: string;
+    integrity_hash?: string | null;
 }
 
 interface PaginationMeta {
@@ -100,6 +101,8 @@ const isRefreshing = ref(false);
 const search = ref('');
 const moduleFilter = ref('');
 const actorFilter = ref('');
+const fromDate = ref('');
+const toDate = ref('');
 
 const currentPage = ref(1);
 const perPage = ref(25);
@@ -400,6 +403,18 @@ function hasSnapshot(
     );
 }
 
+function exportAuditLogs(): void {
+    if (!fromDate.value || !toDate.value) {
+        operationMessage.value = 'Choose both date boundaries before exporting (maximum 90 days).';
+        operationMessageType.value = 'error';
+        return;
+    }
+    const params = new URLSearchParams(buildQuery());
+    params.delete('page');
+    params.delete('per_page');
+    window.location.assign(`/api/activity-logs/export?${params.toString()}`);
+}
+
 /*
 |--------------------------------------------------------------------------
 | API query
@@ -422,6 +437,8 @@ function buildQuery(): string {
     if (actorFilter.value) {
         params.set('actor_type', actorFilter.value);
     }
+    if (fromDate.value) params.set('from', fromDate.value);
+    if (toDate.value) params.set('to', toDate.value);
 
     params.set('per_page', String(perPage.value));
 
@@ -496,6 +513,8 @@ function resetFilters(): void {
     search.value = '';
     moduleFilter.value = '';
     actorFilter.value = '';
+    fromDate.value = '';
+    toDate.value = '';
     currentPage.value = 1;
 
     void fetchLogs();
@@ -744,6 +763,8 @@ onMounted(() => {
                     </label>
 
                     <div class="activity-toolbar-actions">
+                        <input v-model="fromDate" class="activity-select" type="date" aria-label="From date" />
+                        <input v-model="toDate" class="activity-select" type="date" aria-label="To date" />
                         <select
                             v-model="moduleFilter"
                             class="activity-select"
@@ -786,6 +807,9 @@ onMounted(() => {
 
                             Apply
                         </button>
+                        <button class="activity-btn" type="button" @click="exportAuditLogs">
+                            Export CSV
+                        </button>
                     </div>
                 </div>
 
@@ -799,7 +823,7 @@ onMounted(() => {
                     </span>
 
                     <button
-                        v-if="search || moduleFilter || actorFilter"
+                        v-if="search || moduleFilter || actorFilter || fromDate || toDate"
                         class="toolbar-text-btn"
                         type="button"
                         @click="resetFilters"
@@ -854,7 +878,7 @@ onMounted(() => {
                     </p>
 
                     <button
-                        v-if="search || moduleFilter || actorFilter"
+                        v-if="search || moduleFilter || actorFilter || fromDate || toDate"
                         class="activity-btn activity-btn-secondary"
                         type="button"
                         @click="resetFilters"
