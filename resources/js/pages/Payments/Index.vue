@@ -2,6 +2,7 @@
 import { computed, onMounted, reactive, ref } from 'vue';
 import { Head } from '@inertiajs/vue3';
 import ErpLayout from '@/layouts/ErpLayout.vue';
+import Icon from '@/components/dashboard/Icon.vue';
 
 interface Props { userName?: string; userEmail?: string }
 interface Location { id: number; name: string; access_level?: string }
@@ -103,12 +104,15 @@ onMounted(load);
 <template>
     <Head title="Payments" />
     <ErpLayout :user-name="props.userName" :user-email="props.userEmail">
-        <div class="space-y-6 p-5 lg:p-7">
-            <div class="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-                <div>
-                    <p class="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-600">Receivables workspace</p>
-                    <h1 class="mt-1 text-3xl font-bold text-slate-900">Payments</h1>
-                    <p class="mt-2 text-sm text-slate-500">Receive customer payments, allocate them to sales orders and track outstanding advances.</p>
+        <div class="payments-page space-y-5">
+            <div class="erp-page-header flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+                <div class="erp-page-heading">
+                    <nav class="erp-page-breadcrumb" aria-label="Breadcrumb"><span>Workspace</span><span aria-hidden="true">›</span><span>Payments</span></nav>
+                    <div class="erp-page-title-line"><span class="erp-page-title-icon"><Icon name="payments" :size="20" /></span><div>
+                    <p class="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-600">RECEIVABLES WORKSPACE</p>
+                    <h1>Payments</h1>
+                    <p class="text-sm text-slate-500">Receive customer payments, allocate them to sales orders and track outstanding advances.</p>
+                    </div></div>
                 </div>
                 <div class="flex gap-2">
                     <button class="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50" @click="load">Refresh</button>

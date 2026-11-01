@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue';
 import { Head } from '@inertiajs/vue3';
 import ErpLayout from '@/layouts/ErpLayout.vue';
+import Icon from '@/components/dashboard/Icon.vue';
 
 interface Provider {
     id: number; name: string; slug: string; category: string; base_url: string;
@@ -40,10 +41,10 @@ onMounted(load);
 <template>
     <Head title="API & Providers" />
     <ErpLayout :user-name="props.userName" :user-email="props.userEmail">
-        <div class="space-y-6 p-4 md:p-6">
-            <div class="flex flex-wrap items-start justify-between gap-4">
-                <div><p class="text-sm font-medium text-indigo-600">Developer / Integrations</p><h1 class="mt-1 text-2xl font-bold text-slate-900">API & Providers</h1><p class="mt-1 text-sm text-slate-500">Manage payment, courier, SMS, email, Head Office and other external API configurations from one place.</p></div>
-                <button class="rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700" @click="create">+ Add Provider</button>
+        <div class="api-providers-page space-y-5">
+            <div class="erp-page-header flex flex-wrap items-end justify-between gap-4">
+                <div class="erp-page-heading"><nav class="erp-page-breadcrumb" aria-label="Breadcrumb"><span>Workspace</span><span aria-hidden="true">›</span><span>Developer</span><span aria-hidden="true">›</span><strong>API & Providers</strong></nav><div class="erp-page-title-line"><span class="erp-page-title-icon"><Icon name="tool" :size="20" /></span><div><p class="text-xs font-semibold tracking-widest text-indigo-600">DEVELOPER / INTEGRATIONS</p><h1>API & Providers</h1><p class="text-sm text-slate-500">Manage payment, courier, SMS, email, Head Office and other external API configurations from one place.</p></div></div></div>
+                <button class="rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700" @click="create">+ Add Provider</button>
             </div>
             <div v-if="success" class="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{{ success }}</div>
             <div v-if="error" class="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{{ error }}</div>

@@ -2524,13 +2524,12 @@ td strong {
 }
 
 @media (min-width: 1450px) {
-    .erp-content {
+    .erp-content:has(.right-rail) {
         padding-right: 285px;
     }
 
     .right-rail {
         display: block;
-
         top: 16px;
     }
 }
@@ -2887,4 +2886,1893 @@ td strong {
 
 :root[data-theme='dark'] .tasks-card input {
     border-color: #526274;
+}
+
+
+/* MADINA SCALE — PROJECT-WIDE DARK THEME COMPATIBILITY LAYER (GENERATED) */
+/*
+ * The authenticated ERP pages contain legacy scoped styles as well as newer
+ * semantic-token styles. These compatibility rules keep the existing visual
+ * hierarchy while remapping neutral and soft semantic colors in dark mode.
+ * Business logic, page data and component behavior are not affected.
+ */
+:root {
+    --ms-primary-hover: color-mix(in srgb, var(--ms-primary) 86%, #000 14%);
+    --ms-primary-soft: color-mix(in srgb, var(--ms-primary) 10%, var(--ms-surface));
+    --ms-info: #3b82f6;
+    --ms-info-bg: rgba(59, 130, 246, 0.10);
+    --ms-info-soft: var(--ms-info-bg);
+    --ms-overlay: rgba(5, 12, 20, 0.58);
+    --ms-radius-control: 8px;
+    --ms-radius-button: 9px;
+    --ms-radius-card: 12px;
+    --ms-radius-panel: 14px;
+    --ms-radius-modal-sm: 18px;
+    --ms-radius-modal-md: 22px;
+    --ms-radius-modal-lg: 20px;
+    --ms-space-1: 4px;
+    --ms-space-2: 8px;
+    --ms-space-3: 12px;
+    --ms-space-4: 16px;
+    --ms-space-5: 20px;
+    --ms-space-6: 24px;
+    --ms-space-7: 28px;
+    --ms-space-8: 32px;
+    --ms-transition-fast: 150ms ease;
+    --ms-transition-standard: 180ms ease;
+}
+:root[data-theme='dark'] {
+    --ms-primary-hover: color-mix(in srgb, var(--ms-primary) 84%, #fff 16%);
+    --ms-primary-soft: rgba(25, 184, 125, 0.13);
+    --ms-info: #60a5fa;
+    --ms-info-bg: rgba(96, 165, 250, 0.14);
+    --ms-info-soft: var(--ms-info-bg);
+    --ms-overlay: rgba(0, 0, 0, 0.68);
+}
+
+/* Tailwind utility compatibility for ERP pages using legacy utility classes. */
+:root[data-theme='dark'] .erp-content .bg-white { background-color: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .bg-slate-50,
+:root[data-theme='dark'] .erp-content [class~='bg-slate-50/70'],
+:root[data-theme='dark'] .erp-content .bg-slate-100,
+:root[data-theme='dark'] .erp-content .bg-gray-50,
+:root[data-theme='dark'] .erp-content .bg-gray-100 { background-color: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .text-slate-900,
+:root[data-theme='dark'] .erp-content .text-slate-800,
+:root[data-theme='dark'] .erp-content .text-gray-900,
+:root[data-theme='dark'] .erp-content .text-gray-800 { color: var(--ms-text-heading) !important; }
+:root[data-theme='dark'] .erp-content .text-slate-700,
+:root[data-theme='dark'] .erp-content .text-slate-600,
+:root[data-theme='dark'] .erp-content .text-slate-500,
+:root[data-theme='dark'] .erp-content .text-slate-400,
+:root[data-theme='dark'] .erp-content .text-gray-700,
+:root[data-theme='dark'] .erp-content .text-gray-600,
+:root[data-theme='dark'] .erp-content .text-gray-500,
+:root[data-theme='dark'] .erp-content .text-gray-400 { color: var(--ms-text-body) !important; }
+:root[data-theme='dark'] .erp-content .border-slate-100,
+:root[data-theme='dark'] .erp-content .border-slate-200,
+:root[data-theme='dark'] .erp-content .border-slate-300,
+:root[data-theme='dark'] .erp-content .border-gray-100,
+:root[data-theme='dark'] .erp-content .border-gray-200,
+:root[data-theme='dark'] .erp-content .border-gray-300 { border-color: var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .divide-slate-100 > :not([hidden]) ~ :not([hidden]),
+:root[data-theme='dark'] .erp-content .divide-slate-200 > :not([hidden]) ~ :not([hidden]) { border-color: var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .hover\:bg-slate-50:hover,
+:root[data-theme='dark'] .erp-content .hover\:bg-gray-50:hover { background-color: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content input,
+:root[data-theme='dark'] .erp-content select,
+:root[data-theme='dark'] .erp-content textarea { color-scheme: dark; }
+
+/* Shell gutter is the sole outer page gutter; page roots remain shrinkable. */
+.erp-content { width: 100%; min-width: 0; }
+.erp-page-transition { width: 100%; min-width: 0; }
+.erp-content :where(table) { max-width: 100%; }
+.erp-content :where(.table-wrap,.table,.table-wrap,.overflow-x-auto) { max-width: 100%; }
+.erp-content :where(img,svg,canvas) { max-width: 100%; }
+.sr-page { padding: 0 !important; width: 100%; min-width: 0; box-sizing: border-box; }
+
+/* Responsive safety net for dense operational screens and long forms. */
+@media (max-width: 900px) {
+    .erp-content { padding: 12px; }
+    .erp-content :where(.grid) { min-width: 0; }
+    .erp-content :where(input,select,textarea) { max-width: 100%; }
+}
+@media (max-width: 560px) {
+    .erp-content { padding: 10px; }
+    .erp-content :where(.overflow-x-auto,.table-wrap,.table,.table-container,.table-scroll) { max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .erp-content :where(.overflow-x-auto table,.table-wrap table,.table table,.table-container table,.table-scroll table) { min-width: 620px; }
+    .erp-content :where(.modal,.dialog,[role='dialog']) { max-width: calc(100vw - 20px); max-height: calc(100dvh - 20px); overflow: auto; }
+}
+
+/* Semantic utility colors used by compact ERP pages and status surfaces. */
+:root[data-theme='dark'] .erp-content .bg-emerald-50,
+:root[data-theme='dark'] .erp-content .bg-emerald-100,
+:root[data-theme='dark'] .erp-content .bg-green-50,
+:root[data-theme='dark'] .erp-content .bg-green-100 { background-color: var(--ms-success-bg) !important; }
+:root[data-theme='dark'] .erp-content .bg-rose-50,
+:root[data-theme='dark'] .erp-content .bg-red-50,
+:root[data-theme='dark'] .erp-content .bg-red-100 { background-color: var(--ms-danger-bg) !important; }
+:root[data-theme='dark'] .erp-content .bg-amber-50,
+:root[data-theme='dark'] .erp-content .bg-yellow-50,
+:root[data-theme='dark'] .erp-content .bg-orange-50 { background-color: var(--ms-warning-bg) !important; }
+:root[data-theme='dark'] .erp-content .bg-blue-50,
+:root[data-theme='dark'] .erp-content .bg-indigo-50,
+:root[data-theme='dark'] .erp-content .bg-sky-50 { background-color: var(--ms-info-bg) !important; }
+:root[data-theme='dark'] .erp-content .text-emerald-600,
+:root[data-theme='dark'] .erp-content .text-emerald-700,
+:root[data-theme='dark'] .erp-content .text-emerald-800,
+:root[data-theme='dark'] .erp-content .text-green-600,
+:root[data-theme='dark'] .erp-content .text-green-700 { color: var(--ms-success) !important; }
+:root[data-theme='dark'] .erp-content .text-rose-600,
+:root[data-theme='dark'] .erp-content .text-rose-700,
+:root[data-theme='dark'] .erp-content .text-red-600,
+:root[data-theme='dark'] .erp-content .text-red-700 { color: var(--ms-danger) !important; }
+:root[data-theme='dark'] .erp-content .text-amber-700,
+:root[data-theme='dark'] .erp-content .text-amber-800,
+:root[data-theme='dark'] .erp-content .text-amber-900 { color: var(--ms-warning) !important; }
+:root[data-theme='dark'] .erp-content .text-blue-600,
+:root[data-theme='dark'] .erp-content .text-blue-700,
+:root[data-theme='dark'] .erp-content .text-indigo-600,
+:root[data-theme='dark'] .erp-content .text-indigo-700 { color: var(--ms-info) !important; }
+:root[data-theme='dark'] .erp-content .border-emerald-200,
+:root[data-theme='dark'] .erp-content .border-green-200 { border-color: color-mix(in srgb, var(--ms-success) 28%, var(--ms-border)) !important; }
+:root[data-theme='dark'] .erp-content .border-rose-200,
+:root[data-theme='dark'] .erp-content .border-red-200 { border-color: color-mix(in srgb, var(--ms-danger) 28%, var(--ms-border)) !important; }
+:root[data-theme='dark'] .erp-content .border-amber-200,
+:root[data-theme='dark'] .erp-content .border-yellow-200 { border-color: color-mix(in srgb, var(--ms-warning) 28%, var(--ms-border)) !important; }
+:root[data-theme='dark'] .erp-content .bg-slate-900,
+:root[data-theme='dark'] .erp-content .bg-indigo-600,
+:root[data-theme='dark'] .erp-content .bg-emerald-600 { background-color: var(--ms-primary) !important; }
+
+/* One shell-owned gutter: prevent page roots from adding a second outer inset. */
+.erp-content .erp-page-transition > .access-page,
+.erp-content .erp-page-transition > .activity-page,
+.erp-content .erp-page-transition > .analytics-page,
+.erp-content .erp-page-transition > .attributes-page,
+.erp-content .erp-page-transition > .b2b-page,
+.erp-content .erp-page-transition > .master-page,
+.erp-content .erp-page-transition > .wrap,
+.erp-content .erp-page-transition > .cms-page,
+.erp-content .erp-page-transition > .seo-page,
+.erp-content .erp-page-transition > .customers-page,
+.erp-content .erp-page-transition > .dashboard-page,
+.erp-content .erp-page-transition > .modules-page,
+.erp-content .erp-page-transition > .finance-page,
+.erp-content .erp-page-transition > .inventory-page,
+.erp-content .erp-page-transition > .reservations-page,
+.erp-content .erp-page-transition > .location-edit-page,
+.erp-content .erp-page-transition > .locations-page,
+.erp-content .erp-page-transition > .location-show-page,
+.erp-content .erp-page-transition > .marketing-page,
+.erp-content .erp-page-transition > .orders-page,
+.erp-content .erp-page-transition > .pricing-page,
+.erp-content .erp-page-transition > .product-create-page,
+.erp-content .erp-page-transition > .product-edit-page,
+.erp-content .erp-page-transition > .products-page,
+.erp-content .erp-page-transition > .product-show-page,
+.erp-content .erp-page-transition > .crm-page,
+.erp-content .erp-page-transition > .sr-page,
+.erp-content .erp-page-transition > .settings-page,
+.erp-content .erp-page-transition > .user-create-page,
+.erp-content .erp-page-transition > .user-edit-page,
+.erp-content .erp-page-transition > .users-page,
+.erp-content .erp-page-transition > .user-show-page,
+.erp-content .erp-page-transition > .min-h-screen {
+    padding: 0 !important;
+}
+
+.erp-content .erp-page-transition > .space-y-6,
+.erp-content .erp-page-transition > .space-y-6.p-4,
+.erp-content .erp-page-transition > .space-y-6.p-5,
+.erp-content .erp-page-transition > .space-y-5.p-6 {
+    padding: 0 !important;
+}
+.erp-content .erp-page-transition > .wrap,
+.erp-content .erp-page-transition > .cms-page { min-width: 0; width: 100%; }
+
+.erp-content button:not(:disabled),
+.erp-content a[role='button'] { cursor: pointer; }
+.erp-content button:disabled,
+.erp-content [aria-disabled='true'] { cursor: not-allowed; }
+.erp-content :focus-visible { outline: 2px solid var(--ms-primary); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) {
+    .erp-content *, .erp-content *::before, .erp-content *::after {
+        scroll-behavior: auto !important;
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}
+
+/* Per-page dark-mode mappings generated from existing scoped CSS declarations. */
+:root[data-theme='dark'] .erp-content .mini-spinner { border-top-color: var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .permission-toggle span { background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .icon-btn.danger:hover { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .spinner.small { border-top-color: var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .b2b-page { color: var(--color-foreground,var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .crumb { color: var(--color-muted-foreground,var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .crumb b { color: var(--color-foreground,var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .title-line p { color: var(--color-muted-foreground,var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .panel-head p { color: var(--color-muted-foreground,var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .btn { border: 1px solid var(--color-border,var(--ms-border)) !important; }
+:root[data-theme='dark'] .erp-content .btn.secondary { background: var(--ms-surface) !important; border-color: color-mix(in srgb, var(--ms-success) 28%, var(--ms-border)) !important; }
+:root[data-theme='dark'] .erp-content .btn.secondary:hover { background: var(--ms-success-bg) !important; border-color: color-mix(in srgb, var(--ms-success) 28%, var(--ms-border)) !important; }
+:root[data-theme='dark'] .erp-content .btn.ghost { color: var(--color-muted-foreground,var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .btn.ghost:hover { background: var(--color-muted,var(--ms-surface-muted)) !important; color: var(--color-foreground,var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .icon-btn:hover { background: var(--color-muted,var(--ms-surface-muted)) !important; color: var(--color-foreground,var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .notice.success { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .notice.error { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .tabs { border-bottom: 1px solid var(--color-border,var(--ms-border)) !important; }
+:root[data-theme='dark'] .erp-content .tabs button { color: var(--color-muted-foreground,var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .tabs button.active { background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .tabs button span { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .stats article { border: 1px solid var(--color-border,var(--ms-border)) !important; background: var(--color-card,var(--ms-surface)) !important; }
+:root[data-theme='dark'] .erp-content .metric-top { color: var(--color-muted-foreground,var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .metric-icon.blue { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .metric-icon.teal { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .metric-icon.violet { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .stats article>small { color: var(--color-muted-foreground,var(--ms-text-body)) !important; }
+:root[data-theme='dark'] .erp-content .panel { border: 1px solid var(--color-border,var(--ms-border)) !important; background: var(--color-card,var(--ms-surface)) !important; }
+:root[data-theme='dark'] .erp-content .panel-head { border-bottom: 1px solid var(--color-border,var(--ms-border)) !important; }
+:root[data-theme='dark'] .erp-content .directory-head { border-bottom: 1px solid var(--color-border,var(--ms-border)) !important; }
+:root[data-theme='dark'] .erp-content .directory-title h2 { color: var(--color-foreground,var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .directory-title p { color: var(--color-muted-foreground,var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .view-switch { border: 1px solid var(--color-border,var(--ms-border)) !important; background: var(--color-muted,var(--ms-surface)) !important; }
+:root[data-theme='dark'] .erp-content .directory-filters select { border: 1px solid var(--color-border,var(--ms-border)) !important; background: var(--color-card,var(--ms-surface)) !important; color: var(--color-foreground,var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .clear-filters { color: var(--color-muted-foreground,var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .search { border: 1px solid var(--color-border,var(--ms-border)) !important; color: var(--ms-text-body) !important; }
+:root[data-theme='dark'] .erp-content .search input { color: var(--color-foreground,var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .panel-tools select { border: 1px solid var(--color-border,var(--ms-border)) !important; background: var(--color-card,var(--ms-surface)) !important; color: var(--color-foreground,var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .account-card { border: 1px solid var(--color-border,var(--ms-border)) !important; background: var(--color-card,var(--ms-surface)) !important; }
+:root[data-theme='dark'] .erp-content .account-card:hover { border-color: color-mix(in srgb, var(--ms-success) 28%, var(--ms-border)) !important; }
+:root[data-theme='dark'] .erp-content .account-avatar { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .account-card-contact { color: var(--color-muted-foreground,var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .account-card-meta { border-top: 1px solid var(--color-border,var(--ms-border)) !important; }
+:root[data-theme='dark'] .erp-content .subline { color: var(--ms-text-body) !important; }
+:root[data-theme='dark'] .erp-content .tier.standard { background: var(--ms-surface-muted) !important; color: var(--ms-text-heading) !important; }
+:root[data-theme='dark'] .erp-content .tier.silver { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .tier.platinum { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .status.active { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .status.accepted { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .status.on_hold { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .status.rejected { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .status.expired { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .status.inactive { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .status.sent { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .link-chip { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .link-chip.lead { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .muted { color: var(--ms-text-body) !important; }
+:root[data-theme='dark'] .erp-content .icon-btn { border: 1px solid var(--color-border,var(--ms-border)) !important; color: var(--ms-text-heading) !important; }
+:root[data-theme='dark'] .erp-content .state { color: var(--ms-text-body) !important; }
+:root[data-theme='dark'] .erp-content .empty { color: var(--ms-text-body) !important; }
+:root[data-theme='dark'] .erp-content .pagination { border-top: 1px solid var(--color-border,var(--ms-border)) !important; color: var(--ms-text-body) !important; }
+:root[data-theme='dark'] .erp-content .modal { background: var(--color-card,var(--ms-surface)) !important; border: 1px solid var(--color-border,var(--ms-border)) !important; }
+:root[data-theme='dark'] .erp-content .modal-head { border-bottom: 1px solid var(--color-border,var(--ms-border)) !important; }
+:root[data-theme='dark'] .erp-content .modal-head p { color: var(--ms-text-body) !important; }
+:root[data-theme='dark'] .erp-content .field>span { color: var(--ms-text-heading) !important; }
+:root[data-theme='dark'] .erp-content .field input { border: 1px solid var(--color-border,var(--ms-border)) !important; background: var(--color-background,var(--ms-surface)) !important; }
+:root[data-theme='dark'] .erp-content .field select { border: 1px solid var(--color-border,var(--ms-border)) !important; background: var(--color-background,var(--ms-surface)) !important; }
+:root[data-theme='dark'] .erp-content .field textarea { border: 1px solid var(--color-border,var(--ms-border)) !important; background: var(--color-background,var(--ms-surface)) !important; }
+:root[data-theme='dark'] .erp-content .section-label { color: var(--ms-text-heading) !important; border-top: 1px solid var(--color-border,var(--ms-border)) !important; }
+:root[data-theme='dark'] .erp-content .modal-foot { border-top: 1px solid var(--color-border,var(--ms-border)) !important; }
+:root[data-theme='dark'] .erp-content .quote-line { background: var(--color-muted,var(--ms-surface)) !important; border: 1px solid var(--color-border,var(--ms-border)) !important; }
+:root[data-theme='dark'] .erp-content .quote-total { background: var(--ms-surface-muted) !important; border: 1px solid var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .detail-grid>div>span { color: var(--ms-text-body) !important; }
+:root[data-theme='dark'] .erp-content .detail-grid p { color: var(--ms-text-heading) !important; }
+:root[data-theme='dark'] .erp-content .detail-grid small { color: var(--ms-text-body) !important; }
+:root[data-theme='dark'] .erp-content .mini-quotes>div { border: 1px solid var(--color-border,var(--ms-border)) !important; }
+:root[data-theme='dark'] .erp-content .confirm p { color: var(--ms-text-heading) !important; }
+:root[data-theme='dark'] .erp-content .pill-active { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .pill-visible { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .pill-archived { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .pill-hidden { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .feedback.success { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .feedback.error { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .table { border: 1px solid var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .modal input { border: 1px solid var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .modal select { border: 1px solid var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .wrap { color: var(--text-primary,var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .primary { border: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .grid article { border: 1px solid var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .grid img { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .cms-page { color: var(--text-primary,var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .stats article { background: var(--surface,var(--ms-surface)) !important; border: 1px solid var(--border,var(--ms-border)) !important; }
+:root[data-theme='dark'] .erp-content .table-wrap { background: var(--surface,var(--ms-surface)) !important; border: 1px solid var(--border,var(--ms-border)) !important; }
+:root[data-theme='dark'] .erp-content .toolbar input { border: 1px solid var(--ms-border) !important; color: var(--ms-text-heading) !important; }
+:root[data-theme='dark'] .erp-content .toolbar select { border: 1px solid var(--ms-border) !important; color: var(--ms-text-heading) !important; }
+:root[data-theme='dark'] .erp-content .field input { border: 1px solid var(--ms-border) !important; color: var(--ms-text-heading) !important; }
+:root[data-theme='dark'] .erp-content .field textarea { border: 1px solid var(--ms-border) !important; color: var(--ms-text-heading) !important; }
+:root[data-theme='dark'] .erp-content .field select { border: 1px solid var(--ms-border) !important; color: var(--ms-text-heading) !important; }
+:root[data-theme='dark'] .erp-content .toolbar button { border: 1px solid var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .actions button { border: 1px solid var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .actions a { border: 1px solid var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .primary { border: 1px solid var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .status { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .status.draft { background: var(--ms-warning-bg) !important; }
+:root[data-theme='dark'] .erp-content .status.archived { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .error { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .editor footer { border-top: 1px solid var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .list { border: 1px solid var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .list article { border-bottom: 1px solid var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .list code { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .modal textarea { border: 1px solid var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .customers-page { color: var(--foreground, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .crumb b { color: var(--foreground, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .notice.success { background: var(--ms-surface) !important; border-color: color-mix(in srgb, var(--ms-success) 28%, var(--ms-border)) !important; }
+:root[data-theme='dark'] .erp-content .notice.error { background: var(--ms-surface-muted) !important; border-color: color-mix(in srgb, var(--ms-danger) 28%, var(--ms-border)) !important; }
+:root[data-theme='dark'] .erp-content .stats article { border: 1px solid var(--border, var(--ms-border)) !important; background: var(--card, var(--ms-surface)) !important; }
+:root[data-theme='dark'] .erp-content .metric-icon.blue { background: var(--ms-surface-muted) !important; border-color: var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .metric-icon.teal { background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .metric-icon.green { background: var(--ms-surface) !important; border-color: var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .panel-head { border-bottom: 1px solid var(--border, var(--ms-border)) !important; }
+:root[data-theme='dark'] .erp-content .record-count { border: 1px solid var(--border, var(--ms-border)) !important; background: var(--muted, var(--ms-surface)) !important; }
+:root[data-theme='dark'] .erp-content .stats strong { color: var(--foreground, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .panel { border: 1px solid var(--border, var(--ms-border)) !important; background: var(--card, var(--ms-surface)) !important; }
+:root[data-theme='dark'] .erp-content .toolbar { border-bottom: 1px solid var(--border, var(--ms-border)) !important; }
+:root[data-theme='dark'] .erp-content .search { border: 1px solid var(--border, var(--ms-border)) !important; }
+:root[data-theme='dark'] .erp-content .search input { color: var(--foreground, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .search input::placeholder { color: var(--ms-text-body) !important; }
+:root[data-theme='dark'] .erp-content .filters select { border: 1px solid var(--border, var(--ms-border)) !important; background: var(--card, var(--ms-surface)) !important; color: var(--foreground, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .field input { border: 1px solid var(--border, var(--ms-border)) !important; background: var(--card, var(--ms-surface)) !important; color: var(--foreground, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .field select { border: 1px solid var(--border, var(--ms-border)) !important; background: var(--card, var(--ms-surface)) !important; color: var(--foreground, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .field textarea { border: 1px solid var(--border, var(--ms-border)) !important; background: var(--card, var(--ms-surface)) !important; color: var(--foreground, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .table-wrap { border-top: 1px solid var(--border, var(--ms-border)) !important; }
+:root[data-theme='dark'] .erp-content .customer-cell b { color: var(--foreground, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .contact { color: var(--foreground, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .avatar { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .count { background: var(--muted, var(--ms-surface-muted)) !important; color: var(--foreground, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .status.active { background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .icon-btn { border: 1px solid var(--border, var(--ms-border)) !important; background: var(--card, var(--ms-surface)) !important; }
+:root[data-theme='dark'] .erp-content .icon-btn:hover { border-color: color-mix(in srgb, var(--ms-info) 28%, var(--ms-border)) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .pagination { border-top: 1px solid var(--border, var(--ms-border)) !important; }
+:root[data-theme='dark'] .erp-content .empty b { color: var(--foreground, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .modal { border: 1px solid var(--border, var(--ms-border)) !important; background: var(--card, var(--ms-surface)) !important; }
+:root[data-theme='dark'] .erp-content .confirm { border: 1px solid var(--border, var(--ms-border)) !important; background: var(--card, var(--ms-surface)) !important; }
+:root[data-theme='dark'] .erp-content .modal-head { border-bottom: 1px solid var(--border, var(--ms-border)) !important; }
+:root[data-theme='dark'] .erp-content .modal-title-icon { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .form-section + .form-section { border-top: 1px solid var(--border, var(--ms-border)) !important; }
+:root[data-theme='dark'] .erp-content .section-icon { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .modal-foot { border-top: 1px solid var(--border, var(--ms-border)) !important; }
+:root[data-theme='dark'] .erp-content .profile-hero { border: 1px solid var(--border, var(--ms-border)) !important; background: var(--muted, var(--ms-surface-muted)) !important; }
+:root[data-theme='dark'] .erp-content .order-list > div { border-bottom: 1px solid var(--border, var(--ms-border)) !important; }
+:root[data-theme='dark'] .erp-content .delete-icon { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .confirm .modal-foot { border-top: 1px solid var(--border, var(--ms-border)) !important; }
+:root[data-theme='dark'] .erp-content .stats article:hover { border-color: var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .field select:disabled { background: var(--muted, var(--ms-surface)) !important; }
+:root[data-theme='dark'] .erp-content .customer-row:hover { background: color-mix(
+        in srgb,
+        var(--primary, #059669) 4%,
+        var(--card, var(--ms-surface))
+    ) !important; }
+:root[data-theme='dark'] .erp-content .profile-section-title { color: var(--foreground, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .profile-field { border: 1px solid var(--border, var(--ms-border)) !important; background: var(--card, var(--ms-surface)) !important; }
+:root[data-theme='dark'] .erp-content .profile-field-icon { background: var(--muted, var(--ms-surface-muted)) !important; }
+:root[data-theme='dark'] .erp-content .profile-address { border: 1px solid var(--border, var(--ms-border)) !important; }
+:root[data-theme='dark'] .erp-content .profile-notes { background: var(--muted, var(--ms-surface-muted)) !important; }
+:root[data-theme='dark'] .erp-content .profile-body .small-empty { border: 1px dashed var(--border, var(--ms-border)) !important; }
+:root[data-theme='dark'] .erp-content .profile-body .small-empty b { color: var(--foreground, var(--ms-text-heading)) !important; }
+@media (max-width: 640px) {
+:root[data-theme='dark'] .erp-content .profile-value { border-top: 1px solid var(--border, var(--ms-border)) !important; }
+}
+:root[data-theme='dark'] .erp-content .profile-modal > .profile-head { border-bottom: 1px solid var(--border, var(--ms-border)) !important; }
+:root[data-theme='dark'] .erp-content .profile-modal .profile-hero { border: 1px solid var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .profile-modal .profile-value strong { color: var(--foreground, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .profile-modal .profile-field { background: var(--card, var(--ms-surface)) !important; }
+:root[data-theme='dark'] .erp-content .profile-modal .profile-foot { border-top: 1px solid var(--border, var(--ms-border)) !important; background: var(--ms-surface) !important; }
+@media (max-width: 680px) {
+:root[data-theme='dark'] .erp-content .profile-modal .profile-value { border-top: 1px solid var(--border, var(--ms-border)) !important; }
+}
+:root[data-theme='dark'] .erp-content .customer-form-modal.is-editing { background: var(--card, var(--ms-surface)) !important; }
+:root[data-theme='dark'] .erp-content .customer-form-modal.is-editing .modal-head { border-bottom: 1px solid var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .customer-form-modal.is-editing .modal-title-icon { background: var(--ms-surface) !important; border-color: color-mix(in srgb, var(--ms-success) 28%, var(--ms-border)) !important; }
+:root[data-theme='dark'] .erp-content .customer-form-modal.is-editing .icon-btn { background: var(--ms-surface) !important; border-color: var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .customer-form-modal.is-editing .icon-btn:hover { background: var(--ms-surface-muted) !important; border-color: var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .customer-form-modal.is-editing .modal-body { background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .customer-form-modal.is-editing .form-section { border: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .customer-form-modal.is-editing .form-section + .form-section { border-top: 1px solid var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .customer-form-modal.is-editing .section-icon { background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .customer-form-modal.is-editing .field input { border: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; color: var(--ms-text-heading) !important; }
+:root[data-theme='dark'] .erp-content .customer-form-modal.is-editing .field select { border: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; color: var(--ms-text-heading) !important; }
+:root[data-theme='dark'] .erp-content .customer-form-modal.is-editing .field textarea { border: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; color: var(--ms-text-heading) !important; }
+:root[data-theme='dark'] .erp-content .customer-form-modal.is-editing .field input::placeholder { color: var(--ms-text-body) !important; }
+:root[data-theme='dark'] .erp-content .customer-form-modal.is-editing .field textarea::placeholder { color: var(--ms-text-body) !important; }
+:root[data-theme='dark'] .erp-content .customer-form-modal.is-editing .field input:hover { border-color: var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .customer-form-modal.is-editing .field select:hover { border-color: var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .customer-form-modal.is-editing .field textarea:hover { border-color: var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .customer-form-modal.is-editing .field input:focus { background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .customer-form-modal.is-editing .field select:focus { background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .customer-form-modal.is-editing .field textarea:focus { background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .customer-form-modal.is-editing .field .field-error { border: 1px solid color-mix(in srgb, var(--ms-danger) 28%, var(--ms-border)) !important; background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .customer-form-modal.is-editing .modal-foot { background: var(--ms-surface) !important; border-top: 1px solid var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .chart-tooltip small { color: var(--ms-text-body) !important; }
+:root[data-theme='dark'] .erp-content .status-pill.pending { background: var(--ms-warning-bg) !important; }
+:root[data-theme='dark'] .erp-content .status-pill.delivered { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .status-pill.cancelled { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .channel-icon { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .quick-green { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .quick-blue { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .quick-purple { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .finance-page { color: var(--text-primary,var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .btn { border: 1px solid var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .toolbar select { border: 1px solid var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .finance-page input { border: 1px solid var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .finance-page select { border: 1px solid var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .tabs { border-bottom: 1px solid var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .kpi { border: 1px solid var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .panel { border: 1px solid var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .balance-item { border: 1px solid var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .system-tag { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .status.posted { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .notice-error { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .notice-success { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .close { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .context-number { background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .stat-card:hover { border-color: var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .record-badge { background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .clear-search:hover { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .product-avatar { background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .status-normal { border-color: color-mix(in srgb, var(--ms-success) 28%, var(--ms-border)) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .status-low { border-color: color-mix(in srgb, var(--ms-danger) 28%, var(--ms-border)) !important; background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .state-icon { background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .loading-icon { background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .error-icon { border-color: color-mix(in srgb, var(--ms-danger) 28%, var(--ms-border)) !important; background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .stock-modal { background: var(--card, var(--ms-surface)) !important; color: var(--foreground, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .stock-modal-header h2 { color: var(--foreground, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .subtitle-separator { color: var(--ms-text-body) !important; }
+:root[data-theme='dark'] .erp-content .record-status.unlinked { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .status-good { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .status-low { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .updated-meta strong { color: var(--foreground, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .stock-modal-close { background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .stock-modal-close:hover { border-color: var(--ms-border) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .stock-modal-body { background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .stock-detail-section { background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .stock-detail-list > div { border-bottom: 1px solid var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .stock-detail-list dd { color: var(--foreground, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .stock-detail-tile strong { color: var(--ms-text-heading) !important; }
+:root[data-theme='dark'] .erp-content .quantity-on-hand { border-color: var(--ms-border) !important; background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .quantity-reserved { background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .quantity-available { border-color: var(--ms-border) !important; background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .stock-inline-summary > div { border: 1px solid var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .threshold-icon { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .threshold-form input { border: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; color: var(--foreground, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .threshold-form input::placeholder { color: var(--ms-text-body) !important; }
+:root[data-theme='dark'] .erp-content .stock-operation-link { border: 1px solid var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .stock-operation-link:hover { background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .operation-link-icon { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .audit-detail-list > div { border-bottom: 1px solid var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .audit-detail-list dd { color: var(--foreground, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .audit-note { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .stock-modal-footer { background: var(--ms-surface) !important; }
+@media (max-width: 640px) {
+:root[data-theme='dark'] .erp-content .stock-detail-list > div:nth-last-child(2) { border-bottom: 1px solid var(--ms-border) !important; }
+}
+:root[data-theme='dark'] .erp-content .reservation-toast { border: 1px solid color-mix(in srgb, var(--ms-success) 28%, var(--ms-border)) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .reservation-modal { border: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .reservation-modal-header { border-bottom: 1px solid var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .reservation-modal-heading-icon { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .reservation-modal-heading-copy h2 { color: var(--ms-text-heading) !important; }
+:root[data-theme='dark'] .erp-content .reservation-close { border: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .reservation-availability > div { border: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .reservation-availability strong { color: var(--ms-text-heading) !important; }
+:root[data-theme='dark'] .erp-content .reservation-availability > div:last-child { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .reservation-field span small { color: var(--ms-text-body) !important; }
+:root[data-theme='dark'] .erp-content .reservation-field input { border: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; color: var(--ms-text-heading) !important; }
+:root[data-theme='dark'] .erp-content .reservation-field select { border: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; color: var(--ms-text-heading) !important; }
+:root[data-theme='dark'] .erp-content .reservation-field textarea { border: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; color: var(--ms-text-heading) !important; }
+:root[data-theme='dark'] .erp-content .reservation-field > small { color: var(--ms-text-body) !important; }
+:root[data-theme='dark'] .erp-content .reservation-error { border: 1px solid color-mix(in srgb, var(--ms-danger) 28%, var(--ms-border)) !important; background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .reservation-modal-footer { border-top: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .reservation-success { border: 1px solid color-mix(in srgb, var(--ms-success) 28%, var(--ms-border)) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .reservation-modal { border: 1px solid color-mix(in srgb, var(--border, var(--ms-border)) 78%, #8aa5ff) !important; background: var(--card, var(--ms-surface)) !important; color: var(--foreground, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .reservation-close { background: var(--card, var(--ms-surface)) !important; }
+:root[data-theme='dark'] .erp-content .reservation-close:hover:not(:disabled) { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .reservation-availability > div { border-color: var(--border, var(--ms-border)) !important; background: var(--muted, var(--ms-surface)) !important; }
+:root[data-theme='dark'] .erp-content .reservation-availability > div:last-child { border-color: color-mix(in srgb, var(--ms-info) 28%, var(--ms-border)) !important; }
+:root[data-theme='dark'] .erp-content .reservation-field input { border-color: var(--input, var(--ms-border)) !important; background: var(--background, var(--ms-surface)) !important; color: var(--foreground, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .reservation-field select { border-color: var(--input, var(--ms-border)) !important; background: var(--background, var(--ms-surface)) !important; color: var(--foreground, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .reservation-field textarea { border-color: var(--input, var(--ms-border)) !important; background: var(--background, var(--ms-surface)) !important; color: var(--foreground, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .reservation-modal-footer { border-top-color: var(--border, var(--ms-border)) !important; background: color-mix(in srgb, var(--card, var(--ms-surface)) 92%, transparent) !important; }
+:root[data-theme='dark'] .erp-content .reservation-field input[type="datetime-local"] { border: 1px solid var(--input, var(--ms-border)) !important; color: var(--foreground, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .reservation-field input[type="datetime-local"]:hover { background: var(--background, var(--ms-surface)) !important; }
+:root[data-theme='dark'] .erp-content .movement-kind { background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .movement-kind.kind-receive { border-color: color-mix(in srgb, var(--ms-success) 28%, var(--ms-border)) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .movement-kind.kind-issue { border-color: color-mix(in srgb, var(--ms-danger) 28%, var(--ms-border)) !important; background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .movement-kind.kind-transfer { border-color: color-mix(in srgb, var(--ms-info) 28%, var(--ms-border)) !important; background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .movement-kind.kind-adjust { border-color: color-mix(in srgb, var(--ms-danger) 28%, var(--ms-border)) !important; background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .page-title-icon.warning { border-color: color-mix(in srgb, var(--ms-danger) 28%, var(--ms-border)) !important; background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .section-icon.warning { border-color: color-mix(in srgb, var(--ms-danger) 28%, var(--ms-border)) !important; background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .movement-kind.kind-restock { border-color: color-mix(in srgb, var(--ms-success) 28%, var(--ms-border)) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .product-details-modal { background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .details-modal-header { border-bottom: 1px solid var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .details-modal-footer { border-bottom: 1px solid var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .details-title-icon { border: 1px solid var(--ms-border) !important; background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .details-title-copy h2 { color: var(--ms-text-heading) !important; }
+:root[data-theme='dark'] .erp-content .details-close { border: 1px solid var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .details-close:hover { border-color: var(--ms-border) !important; color: var(--ms-text-heading) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .details-kpi { border: 1px solid var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .details-kpi:hover { border-color: var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .details-kpi strong { color: var(--ms-text-heading) !important; }
+:root[data-theme='dark'] .erp-content .details-stock-list { border: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .details-timeline-wrap { border: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .details-stock-row { border-bottom: 1px solid var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .details-timeline-table th { border-bottom: 1px solid var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .details-timeline-table td { border-bottom: 1px solid var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .details-timeline-table th { background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .details-timeline-table tbody tr:hover { background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .details-pagination button { border: 1px solid var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .details-modal-footer { border-top: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .details-modal-footer > span { border: 1px solid var(--ms-border) !important; background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .adjustment-summary { border: 1px solid var(--border-color, var(--ms-border)) !important; }
+:root[data-theme='dark'] .erp-content .adjustment-details { border: 1px solid var(--border-color, var(--ms-border)) !important; }
+:root[data-theme='dark'] .erp-content .adjustment-details > div + div { border-top: 1px solid var(--border-color, var(--ms-border)) !important; }
+:root[data-theme='dark'] .erp-content .adjustment-details dd { color: var(--text-primary-color, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .operation-tab:hover { background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .field input:disabled { background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .field select:disabled { background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .notice.success { border: 1px solid var(--ms-border) !important; background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .restock-count { border: 1px solid color-mix(in srgb, var(--ms-success) 28%, var(--ms-border)) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .restock-product-card:hover:not(:disabled) { border-color: color-mix(in srgb, var(--ms-success) 28%, var(--ms-border)) !important; }
+:root[data-theme='dark'] .erp-content .restock-product-card.selected { background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .restock-product-icon { border: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .restock-detail-panel { border: 1px solid color-mix(in srgb, var(--ms-success) 28%, var(--ms-border)) !important; }
+:root[data-theme='dark'] .erp-content .restock-detail-icon { border: 1px solid color-mix(in srgb, var(--ms-success) 28%, var(--ms-border)) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .restock-location-card.destination { border-color: color-mix(in srgb, var(--ms-info) 28%, var(--ms-border)) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .restock-location-card.source { background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .restock-validation-note { border: 1px solid color-mix(in srgb, var(--ms-success) 28%, var(--ms-border)) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .restock-validation-note.warning { border-color: color-mix(in srgb, var(--ms-danger) 28%, var(--ms-border)) !important; background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .restock-validation-note.error { border-color: color-mix(in srgb, var(--ms-danger) 28%, var(--ms-border)) !important; background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .transfer-product-icon { background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .transfer-status { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .transfer-status.status-received { background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .transfer-status.status-discrepancy { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .transfer-status.status-partially_received { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .transfer-dialog { border: 1px solid color-mix(in srgb, var(--border-color, var(--ms-border)) 70%, #a8baff) !important; background: var(--surface-color, var(--ms-surface)) !important; color: var(--text-primary-color, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .transfer-dialog-header { border-bottom: 1px solid var(--border-color, var(--ms-border)) !important; }
+:root[data-theme='dark'] .erp-content .transfer-dialog-icon { border: 1px solid var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .transfer-dialog-icon.is-issue { border-color: color-mix(in srgb, var(--ms-danger) 28%, var(--ms-border)) !important; }
+:root[data-theme='dark'] .erp-content .transfer-dialog-heading h2 { color: var(--text-primary-color, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .transfer-dialog-close { border: 1px solid var(--border-color, var(--ms-border)) !important; background: var(--surface-color, var(--ms-surface)) !important; }
+:root[data-theme='dark'] .erp-content .transfer-dialog-close:hover { background: var(--page-bg, var(--ms-surface)) !important; }
+:root[data-theme='dark'] .erp-content .transfer-dialog-product { border: 1px solid var(--border-color, var(--ms-border)) !important; background: var(--page-bg, var(--ms-surface)) !important; }
+:root[data-theme='dark'] .erp-content .transfer-dialog-product-icon { background: var(--surface-color, var(--ms-surface)) !important; }
+:root[data-theme='dark'] .erp-content .transfer-dialog-product-copy strong { color: var(--text-primary-color, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .transfer-dialog-quantity { border: 1px solid var(--border-color, var(--ms-border)) !important; background: var(--surface-color, var(--ms-surface)) !important; color: var(--text-primary-color, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .transfer-dialog-route strong { color: var(--text-primary-color, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .transfer-dialog-notice { border: 1px solid color-mix(in srgb, var(--ms-danger) 28%, var(--ms-border)) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .transfer-dialog-notice.is-danger { border-color: color-mix(in srgb, var(--ms-danger) 28%, var(--ms-border)) !important; background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .transfer-dialog-receipt { border: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .transfer-dialog-reason-label { color: var(--text-primary-color, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .transfer-dialog-reason-label span { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .transfer-dialog textarea { border: 1px solid var(--border-color, var(--ms-border)) !important; background: var(--surface-color, var(--ms-surface)) !important; color: var(--text-primary-color, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .transfer-dialog textarea::placeholder { color: var(--text-secondary-color, var(--ms-text-body)) !important; }
+:root[data-theme='dark'] .erp-content .transfer-dialog-footer { border-top: 1px solid var(--border-color, var(--ms-border)) !important; background: var(--surface-color, var(--ms-surface)) !important; }
+:root[data-theme='dark'] .erp-content .reservation-notice { border: 1px solid color-mix(in srgb, var(--ms-success) 28%, var(--ms-border)) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .reservation-count { background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .reservation-table-wrap thead { background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .reservation-table-wrap td { border-bottom: 1px solid var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .purpose-pill { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .status-active { border-color: color-mix(in srgb, var(--ms-danger) 28%, var(--ms-border)) !important; background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .status-fulfilled { border-color: color-mix(in srgb, var(--ms-success) 28%, var(--ms-border)) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .status-released { border-color: var(--ms-border) !important; background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .status-cancelled { border-color: var(--ms-border) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .status-expired { border-color: color-mix(in srgb, var(--ms-danger) 28%, var(--ms-border)) !important; background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .reservation-row-actions .action-fulfill { border-color: color-mix(in srgb, var(--ms-success) 28%, var(--ms-border)) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .reservation-readonly-note { color: var(--text-tertiary-color, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .reservation-confirm-dialog { border: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; color: var(--ms-text-heading) !important; }
+:root[data-theme='dark'] .erp-content .reservation-confirm-dialog h2 { color: var(--ms-text-heading) !important; }
+:root[data-theme='dark'] .erp-content .reservation-confirm-summary { background: var(--ms-surface) !important; border-color: var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .reservation-confirm-summary strong { color: var(--ms-text-heading) !important; }
+:root[data-theme='dark'] .erp-content .reservation-confirm-actions .reservation-btn { border-color: var(--ms-border) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .reservation-confirm-actions .reservation-btn:hover:not(:disabled) { background: var(--ms-surface) !important; color: var(--ms-text-heading) !important; }
+:root[data-theme='dark'] .erp-content .confirm-fulfill { border-color: color-mix(in srgb, var(--ms-success) 28%, var(--ms-border)) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .confirm-release { border-color: color-mix(in srgb, var(--ms-info) 28%, var(--ms-border)) !important; background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .confirm-cancel { border-color: color-mix(in srgb, var(--ms-danger) 28%, var(--ms-border)) !important; background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .button-spinner { border-top-color: var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .switch span { background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .hours-row.disabled .switch { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .access-header h2 { color: var(--ms-text-heading) !important; }
+:root[data-theme='dark'] .erp-content .access-count { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .assignment-list { border: 1px solid var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .assignment-row { border-bottom: 1px solid var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .assignment-avatar { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .assignment-user-copy strong { color: var(--ms-text-heading) !important; }
+:root[data-theme='dark'] .erp-content .assignment-controls select { border: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .assignment-add { border: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .assignment-remove { border: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .assignment-add { border-color: color-mix(in srgb, var(--ms-info) 28%, var(--ms-border)) !important; background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .assignment-alert.error { background: var(--ms-surface-muted) !important; border: 1px solid color-mix(in srgb, var(--ms-danger) 28%, var(--ms-border)) !important; }
+:root[data-theme='dark'] .erp-content .assignment-alert.success { background: var(--ms-surface) !important; border: 1px solid color-mix(in srgb, var(--ms-success) 28%, var(--ms-border)) !important; }
+:root[data-theme='dark'] .erp-content .orders-page { color: var(--foreground, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .orders-secondary { background: var(--card, var(--ms-surface)) !important; border-color: var(--border, var(--ms-border)) !important; color: var(--foreground, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .orders-notice { background: var(--ms-surface) !important; border: 1px solid color-mix(in srgb, var(--ms-success) 28%, var(--ms-border)) !important; }
+:root[data-theme='dark'] .erp-content .orders-error { background: var(--ms-surface-muted) !important; border: 1px solid color-mix(in srgb, var(--ms-danger) 28%, var(--ms-border)) !important; }
+:root[data-theme='dark'] .erp-content .orders-metrics article { border: 1px solid var(--border, var(--ms-border)) !important; background: var(--card, var(--ms-surface)) !important; }
+:root[data-theme='dark'] .erp-content .orders-panel { border: 1px solid var(--border, var(--ms-border)) !important; background: var(--card, var(--ms-surface)) !important; }
+:root[data-theme='dark'] .erp-content .orders-panel-head { border-bottom: 1px solid var(--border, var(--ms-border)) !important; }
+:root[data-theme='dark'] .erp-content .orders-count { background: var(--muted, var(--ms-surface-muted)) !important; }
+:root[data-theme='dark'] .erp-content .orders-toolbar { border-bottom: 1px solid var(--border, var(--ms-border)) !important; }
+:root[data-theme='dark'] .erp-content .orders-search { border: 1px solid var(--border, var(--ms-border)) !important; }
+:root[data-theme='dark'] .erp-content .orders-search input { color: var(--foreground, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .orders-filter select { border: 1px solid var(--border, var(--ms-border)) !important; background: var(--background, var(--ms-surface)) !important; color: var(--foreground, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .orders-form-grid input { border: 1px solid var(--border, var(--ms-border)) !important; background: var(--background, var(--ms-surface)) !important; color: var(--foreground, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .orders-form-grid select { border: 1px solid var(--border, var(--ms-border)) !important; background: var(--background, var(--ms-surface)) !important; color: var(--foreground, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .orders-form-grid textarea { border: 1px solid var(--border, var(--ms-border)) !important; background: var(--background, var(--ms-surface)) !important; color: var(--foreground, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .orders-add-line select { border: 1px solid var(--border, var(--ms-border)) !important; background: var(--background, var(--ms-surface)) !important; color: var(--foreground, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .orders-add-line input { border: 1px solid var(--border, var(--ms-border)) !important; background: var(--background, var(--ms-surface)) !important; color: var(--foreground, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .orders-dialog-body textarea { border: 1px solid var(--border, var(--ms-border)) !important; background: var(--background, var(--ms-surface)) !important; color: var(--foreground, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .orders-table th { background: var(--muted, var(--ms-surface)) !important; }
+:root[data-theme='dark'] .erp-content .orders-table td { border-top: 1px solid var(--border, var(--ms-border)) !important; }
+:root[data-theme='dark'] .erp-content .orders-table tbody tr:hover { background: color-mix(in srgb, var(--muted, var(--ms-surface)) 65%, transparent) !important; }
+:root[data-theme='dark'] .erp-content .status-pending { background: var(--ms-warning-bg) !important; }
+:root[data-theme='dark'] .erp-content .status-confirmed { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .status-processing { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .status-partially_fulfilled { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .status-cancelled { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .orders-row-actions button { border: 1px solid var(--border, var(--ms-border)) !important; background: var(--card, var(--ms-surface)) !important; }
+:root[data-theme='dark'] .erp-content .orders-row-actions button:hover { border-color: color-mix(in srgb, var(--ms-info) 28%, var(--ms-border)) !important; }
+:root[data-theme='dark'] .erp-content .orders-pagination { border-top: 1px solid var(--border, var(--ms-border)) !important; }
+:root[data-theme='dark'] .erp-content .orders-pagination button { border: 1px solid var(--border, var(--ms-border)) !important; background: var(--card, var(--ms-surface)) !important; color: var(--foreground, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .orders-dialog { border: 1px solid var(--border, var(--ms-border)) !important; background: var(--card, var(--ms-surface)) !important; }
+:root[data-theme='dark'] .erp-content .orders-dialog-head { border-bottom: 1px solid var(--border, var(--ms-border)) !important; }
+:root[data-theme='dark'] .erp-content .orders-close { border: 1px solid var(--border, var(--ms-border)) !important; background: var(--card, var(--ms-surface)) !important; }
+:root[data-theme='dark'] .erp-content .orders-add-line { border-top: 1px solid var(--border, var(--ms-border)) !important; }
+:root[data-theme='dark'] .erp-content .orders-cart { border: 1px solid var(--border, var(--ms-border)) !important; }
+:root[data-theme='dark'] .erp-content .orders-cart-line { border-bottom: 1px solid var(--border, var(--ms-border)) !important; }
+:root[data-theme='dark'] .erp-content .orders-dialog-footer { border-top: 1px solid var(--border, var(--ms-border)) !important; background: color-mix(in srgb, var(--card, var(--ms-surface)) 94%, transparent) !important; }
+:root[data-theme='dark'] .erp-content .orders-fulfillment { border: 1px solid var(--border, var(--ms-border)) !important; background: var(--muted, var(--ms-surface)) !important; }
+:root[data-theme='dark'] .erp-content .orders-fulfillment-line { border-top: 1px solid var(--border, var(--ms-border)) !important; }
+:root[data-theme='dark'] .erp-content .orders-fulfillment input { border: 1px solid var(--border, var(--ms-border)) !important; background: var(--background, var(--ms-surface)) !important; color: var(--foreground, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .orders-fulfillment textarea { border: 1px solid var(--border, var(--ms-border)) !important; background: var(--background, var(--ms-surface)) !important; color: var(--foreground, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .orders-risk-card { border: 1px solid var(--border, var(--ms-border)) !important; background: var(--card, var(--ms-surface)) !important; }
+:root[data-theme='dark'] .erp-content .orders-shipment-card { border: 1px solid var(--border, var(--ms-border)) !important; background: var(--card, var(--ms-surface)) !important; }
+:root[data-theme='dark'] .erp-content .orders-fulfillment select { border: 1px solid var(--border, var(--ms-border)) !important; background: var(--background, var(--ms-surface)) !important; color: var(--foreground, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .orders-count { background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .orders-table thead { background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .orders-table th { background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .orders-table td { border-bottom: 1px solid var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .orders-table tbody tr:hover { background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .status-pending { border-color: color-mix(in srgb, var(--ms-warning) 28%, var(--ms-border)) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .status-confirmed { border-color: color-mix(in srgb, var(--ms-info) 28%, var(--ms-border)) !important; background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .status-processing { border-color: color-mix(in srgb, var(--ms-info) 28%, var(--ms-border)) !important; background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .status-cancelled { border-color: color-mix(in srgb, var(--ms-danger) 28%, var(--ms-border)) !important; background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .orders-form-grid input { border-color: var(--input, var(--ms-border)) !important; background: var(--background, var(--ms-surface)) !important; color: var(--foreground, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .orders-form-grid select { border-color: var(--input, var(--ms-border)) !important; background: var(--background, var(--ms-surface)) !important; color: var(--foreground, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .orders-form-grid textarea { border-color: var(--input, var(--ms-border)) !important; background: var(--background, var(--ms-surface)) !important; color: var(--foreground, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .orders-add-line select { border-color: var(--input, var(--ms-border)) !important; background: var(--background, var(--ms-surface)) !important; color: var(--foreground, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .orders-add-line input { border-color: var(--input, var(--ms-border)) !important; background: var(--background, var(--ms-surface)) !important; color: var(--foreground, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .orders-dialog-body textarea { border-color: var(--input, var(--ms-border)) !important; background: var(--background, var(--ms-surface)) !important; color: var(--foreground, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .orders-fulfillment select { border-color: var(--input, var(--ms-border)) !important; background: var(--background, var(--ms-surface)) !important; color: var(--foreground, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .orders-fulfillment input { border-color: var(--input, var(--ms-border)) !important; background: var(--background, var(--ms-surface)) !important; color: var(--foreground, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .orders-fulfillment textarea { border-color: var(--input, var(--ms-border)) !important; background: var(--background, var(--ms-surface)) !important; color: var(--foreground, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .orders-cart-line { border-color: var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .orders-dialog-footer { background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .orders-fulfillment { background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .orders-fulfillment-line { border-color: var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .orders-clickable-row:hover td { background: color-mix(
+    in srgb,
+    var(--orders-primary-color, #059669) 4%,
+    var(--orders-surface, var(--ms-surface))
+  ) !important; }
+:root[data-theme='dark'] .erp-content .orders-note-danger { border-color: color-mix(in srgb, var(--ms-danger) 28%, var(--ms-border)) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .metric-total .metric-icon { background: var(--ms-surface-muted) !important; border-color: var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .metric-active .metric-icon { background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .metric-pending .metric-icon { background: var(--ms-surface) !important; border-color: color-mix(in srgb, var(--ms-warning) 28%, var(--ms-border)) !important; }
+:root[data-theme='dark'] .erp-content .metric-fulfilled .metric-icon { background: var(--ms-surface) !important; border-color: var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .orders-detail-body { background: color-mix(
+    in srgb,
+    var(--orders-page-bg, var(--ms-surface)) 52%,
+    var(--orders-surface, var(--ms-surface))
+  ) !important; }
+:root[data-theme='dark'] .erp-content .orders-lifecycle-steps.is-cancelled .orders-lifecycle-marker { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .orders-lifecycle-alert { border: 1px solid color-mix(in srgb, var(--ms-danger) 28%, var(--ms-border)) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .orders-lifecycle-alert.is-info { border-color: color-mix(in srgb, var(--ms-info) 28%, var(--ms-border)) !important; background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .orders-insight-icon { background: var(--ms-warning-bg) !important; }
+:root[data-theme='dark'] .erp-content .orders-insight-icon.is-violet { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .orders-overlay.orders-detail-overlay > .orders-dialog.orders-detail-dialog { background: var(--ms-surface) !important; background-color: var(--ms-surface) !important; color: var(--ms-text-heading) !important; }
+:root[data-theme='dark'] .erp-content .orders-overlay.orders-detail-overlay .orders-detail-dialog { background-color: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .orders-overlay.orders-detail-overlay .orders-detail-head { background-color: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .orders-overlay.orders-detail-overlay .orders-detail-footer { background-color: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .orders-overlay.orders-detail-overlay .orders-detail-body { background-color: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .orders-overlay.orders-detail-overlay .orders-detail-card { background-color: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .orders-overlay.orders-detail-overlay .orders-detail-total { background-color: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .orders-overlay.orders-detail-overlay .orders-summary-stat { background-color: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .orders-overlay.orders-detail-overlay .orders-lifecycle-card { background-color: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .orders-overlay.orders-detail-overlay .orders-operations-insights article { background-color: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .orders-overlay.orders-detail-overlay .orders-record-list article { background-color: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .orders-overlay.orders-detail-overlay .orders-record-grid article { background-color: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .orders-overlay.orders-detail-overlay > .orders-dialog.orders-detail-dialog { background: var(--ms-surface) !important; background-color: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .orders-overlay.orders-detail-overlay
+  > .orders-dialog.orders-detail-dialog
+  > .orders-detail-head { background: var(--ms-surface) !important; background-color: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .orders-overlay.orders-detail-overlay
+  > .orders-dialog.orders-detail-dialog
+  > .orders-detail-footer { background: var(--ms-surface) !important; background-color: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .orders-overlay.orders-detail-overlay
+  > .orders-dialog.orders-detail-dialog
+  > .orders-detail-body { background: var(--ms-surface) !important; background-color: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .orders-overlay.orders-detail-overlay .orders-detail-card { background: var(--ms-surface) !important; background-color: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .orders-overlay.orders-detail-overlay .orders-detail-total { background: var(--ms-surface) !important; background-color: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .orders-overlay.orders-detail-overlay .orders-summary-stat { background: var(--ms-surface) !important; background-color: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .orders-overlay.orders-detail-overlay .orders-lifecycle-card { background: var(--ms-surface) !important; background-color: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .orders-overlay.orders-detail-overlay .orders-operations-insights article { background: var(--ms-surface) !important; background-color: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .orders-overlay.orders-detail-overlay .orders-record-list article { background: var(--ms-surface) !important; background-color: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .orders-overlay.orders-detail-overlay .orders-record-grid article { background: var(--ms-surface) !important; background-color: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .orders-overlay.orders-detail-overlay .orders-detail-total { border: 1px solid var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .orders-overlay.orders-detail-overlay .orders-summary-stat { border: 1px solid var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .orders-overlay.orders-detail-overlay .orders-detail-total { border-color: color-mix(in srgb, var(--ms-success) 28%, var(--ms-border)) !important; }
+:root[data-theme='dark'] .erp-content .orders-overlay.orders-detail-overlay .orders-detail-card { border-color: var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .orders-stage-badge { border: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .orders-stage-badge.is-reached { border-color: color-mix(in srgb, var(--ms-success) 28%, var(--ms-border)) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .orders-lifecycle-steps.is-cancelled .orders-stage-badge { border-color: color-mix(in srgb, var(--ms-danger) 28%, var(--ms-border)) !important; background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .orders-lifecycle-alert.is-success { border-color: color-mix(in srgb, var(--ms-success) 28%, var(--ms-border)) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .orders-customer-info-grid > div { border: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .orders-field-missing { color: var(--ms-text-body) !important; }
+:root[data-theme='dark'] .erp-content .orders-channel-chip { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .orders-sms-composer { border: 1px solid var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .orders-sms-recipient strong { color: var(--ms-text-heading) !important; }
+:root[data-theme='dark'] .erp-content .orders-sms-provider { background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .orders-sms-compose-fields select { border: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; color: var(--ms-text-heading) !important; }
+:root[data-theme='dark'] .erp-content .orders-sms-compose-fields textarea { border: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; color: var(--ms-text-heading) !important; }
+:root[data-theme='dark'] .erp-content .orders-sms-preview-note { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .orders-sms-compose-actions { border-top: 1px solid var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .orders-sms-history-head > span { color: var(--ms-text-body) !important; }
+:root[data-theme='dark'] .erp-content .orders-sms-log-card { border: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .orders-sms-log-icon { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .orders-sms-log-icon.is-success { background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .orders-sms-log-icon.is-error { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .orders-sms-log-meta { color: var(--ms-text-body) !important; }
+:root[data-theme='dark'] .erp-content .orders-detail-empty { color: var(--ms-text-body) !important; }
+:root[data-theme='dark'] .erp-content .orders-courier-checklist span { border: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .orders-create-dialog .orders-dialog-body { background: var(--background, var(--ms-surface)) !important; }
+:root[data-theme='dark'] .erp-content .orders-create-dialog .orders-form-grid input { border-color: var(--border, var(--ms-border)) !important; background: var(--card, var(--ms-surface)) !important; }
+:root[data-theme='dark'] .erp-content .orders-create-dialog .orders-form-grid select { border-color: var(--border, var(--ms-border)) !important; background: var(--card, var(--ms-surface)) !important; }
+:root[data-theme='dark'] .erp-content .orders-create-dialog .orders-form-grid textarea { border-color: var(--border, var(--ms-border)) !important; background: var(--card, var(--ms-surface)) !important; }
+:root[data-theme='dark'] .erp-content .orders-create-dialog .orders-add-line select { border-color: var(--border, var(--ms-border)) !important; background: var(--card, var(--ms-surface)) !important; }
+:root[data-theme='dark'] .erp-content .orders-create-dialog .orders-add-line input { border-color: var(--border, var(--ms-border)) !important; background: var(--card, var(--ms-surface)) !important; }
+:root[data-theme='dark'] .erp-content .orders-create-dialog .orders-add-line { border-top: 1px solid var(--border, var(--ms-border)) !important; }
+:root[data-theme='dark'] .erp-content .orders-create-dialog .orders-cart { border-color: var(--border, var(--ms-border)) !important; background: var(--card, var(--ms-surface)) !important; }
+:root[data-theme='dark'] .erp-content .orders-create-dialog .orders-cart-line > button { border: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .orders-create-dialog .orders-dialog-footer { background: var(--card, var(--ms-surface)) !important; }
+:root[data-theme='dark'] .erp-content .orders-create-dialog { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .orders-create-head { background: var(--ms-surface) !important; border-bottom: 1px solid var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .orders-create-icon { border: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .orders-create-head .orders-close { border: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .orders-create-body { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .orders-create-section { border: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .orders-create-section-icon { border: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .orders-create-section-title h3 { color: var(--ms-text-heading) !important; }
+:root[data-theme='dark'] .erp-content .orders-create-count { background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .orders-form-grid input { border: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; color: var(--ms-text-heading) !important; }
+:root[data-theme='dark'] .erp-content .orders-form-grid select { border: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; color: var(--ms-text-heading) !important; }
+:root[data-theme='dark'] .erp-content .orders-form-grid textarea { border: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; color: var(--ms-text-heading) !important; }
+:root[data-theme='dark'] .erp-content .orders-add-line select { border: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; color: var(--ms-text-heading) !important; }
+:root[data-theme='dark'] .erp-content .orders-add-line input { border: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; color: var(--ms-text-heading) !important; }
+:root[data-theme='dark'] .erp-content .orders-form-grid input::placeholder { color: var(--ms-text-body) !important; }
+:root[data-theme='dark'] .erp-content .orders-form-grid textarea::placeholder { color: var(--ms-text-body) !important; }
+:root[data-theme='dark'] .erp-content .orders-form-grid input:disabled { background: var(--ms-surface-muted) !important; color: var(--ms-text-body) !important; }
+:root[data-theme='dark'] .erp-content .orders-add-line select:disabled { background: var(--ms-surface-muted) !important; color: var(--ms-text-body) !important; }
+:root[data-theme='dark'] .erp-content .orders-add-line input:disabled { background: var(--ms-surface-muted) !important; color: var(--ms-text-body) !important; }
+:root[data-theme='dark'] .erp-content .orders-add-line { border-bottom: 1px solid var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .orders-cart { border: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .orders-cart-empty-icon { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .orders-cart-line { border-bottom: 1px solid var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .orders-cart-product-icon { background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .orders-cart-product strong { color: var(--ms-text-heading) !important; }
+:root[data-theme='dark'] .erp-content .orders-cart-line-total { color: var(--ms-text-heading) !important; }
+:root[data-theme='dark'] .erp-content .orders-remove-item { border: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .orders-remove-item:hover { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .orders-total { border: 1px solid var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .orders-create-footer { border-top: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .orders-product-picker-trigger { border: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; color: var(--ms-text-heading) !important; }
+:root[data-theme='dark'] .erp-content .orders-product-picker-trigger:disabled { background: var(--ms-surface-muted) !important; color: var(--ms-text-body) !important; }
+:root[data-theme='dark'] .erp-content .orders-product-trigger-copy strong { color: var(--ms-text-heading) !important; }
+:root[data-theme='dark'] .erp-content .orders-product-option-copy strong { color: var(--ms-text-heading) !important; }
+:root[data-theme='dark'] .erp-content .orders-product-options { border: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .orders-product-option { background: var(--ms-surface) !important; color: var(--ms-text-heading) !important; }
+:root[data-theme='dark'] .erp-content .orders-product-option:hover { border-color: var(--ms-border) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .orders-product-option.is-selected { border-color: var(--ms-border) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .orders-create-footer .orders-primary:disabled { border-color: color-mix(in srgb, var(--ms-success) 28%, var(--ms-border)) !important; }
+:root[data-theme='dark'] .erp-content .customer-search-button { border: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .customer-results { border: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .customer-result:hover { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .customer-result:focus-visible { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .customer-avatar { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .customer-result strong { color: var(--ms-text-heading) !important; }
+:root[data-theme='dark'] .erp-content .customer-selected { border: 1px solid color-mix(in srgb, var(--ms-success) 28%, var(--ms-border)) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .pricing-page { color: var(--foreground,var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .pricing-title-icon { background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .btn.soft { background: var(--ms-surface) !important; border-color: color-mix(in srgb, var(--ms-success) 28%, var(--ms-border)) !important; }
+:root[data-theme='dark'] .erp-content .btn.soft:hover { background: var(--ms-success-bg) !important; border-color: color-mix(in srgb, var(--ms-success) 28%, var(--ms-border)) !important; }
+:root[data-theme='dark'] .erp-content .btn.ghost { background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .btn.ghost:hover { background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .tabs button:hover { background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .stats article { background: var(--ms-surface) !important; border: 1px solid var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .directory { background: var(--ms-surface) !important; border: 1px solid var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .directory-head { border-bottom: 1px solid var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .search { border: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .search:focus-within { border-color: color-mix(in srgb, var(--ms-success) 28%, var(--ms-border)) !important; }
+:root[data-theme='dark'] .erp-content .filters select { border: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .form-grid input { border: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .form-grid select { border: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .form-grid textarea { border: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .item-row input { border: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .item-row select { border: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .status.paused { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .status.ended { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .status.draft { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .icon-btn { border: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .icon-btn:hover { border-color: color-mix(in srgb, var(--ms-success) 28%, var(--ms-border)) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .icon-btn.danger:hover { border-color: color-mix(in srgb, var(--ms-danger) 28%, var(--ms-border)) !important; background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .empty strong { color: var(--ms-text-heading) !important; }
+:root[data-theme='dark'] .erp-content .empty-icon { background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .notice.success { background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .modal { background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .modal footer { border-top: 1px solid var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .item-row { border-bottom: 1px solid var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .gallery-upload-panel { border-top: 1px solid var(--border, var(--ms-border)) !important; }
+:root[data-theme='dark'] .erp-content .gallery-upload-heading p { color: var(--muted-foreground, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .gallery-preview-item img { border: 1px solid var(--border, var(--ms-border)) !important; }
+:root[data-theme='dark'] .erp-content .gallery-preview-item small { color: var(--muted-foreground, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .upload-zone { border: 1.5px dashed var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .image-preview-wrapper { background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .summary-image { background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .variant-builder-intro strong { color: var(--text-primary, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .add-variant-button { border: 1px solid var(--border, var(--ms-border)) !important; background: var(--surface, var(--ms-surface)) !important; }
+:root[data-theme='dark'] .erp-content .remove-variant-button { border: 1px solid var(--border, var(--ms-border)) !important; background: var(--surface, var(--ms-surface)) !important; }
+:root[data-theme='dark'] .erp-content .variant-draft-card { border: 1px solid var(--border, var(--ms-border)) !important; background: var(--surface-muted, var(--ms-surface)) !important; }
+:root[data-theme='dark'] .erp-content .variant-draft-title strong { color: var(--text-primary, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .default-variant-badge { border: 1px solid var(--border, var(--ms-border)) !important; background: var(--surface, var(--ms-surface)) !important; }
+:root[data-theme='dark'] .erp-content .price-input { border: 1px solid var(--border, var(--ms-border)) !important; background: var(--surface, var(--ms-surface)) !important; }
+:root[data-theme='dark'] .erp-content .price-summary { background: var(--surface-muted, var(--ms-surface)) !important; }
+:root[data-theme='dark'] .erp-content .product-edit-page { color: var(--text-primary, var(--ms-text-heading)) !important; background: var(--background, var(--ms-surface-muted)) !important; }
+:root[data-theme='dark'] .erp-content .product-edit-page .breadcrumb { color: var(--text-muted, var(--ms-text-body)) !important; }
+:root[data-theme='dark'] .erp-content .product-edit-page .card { border: 1px solid var(--border, var(--ms-border)) !important; background: var(--surface, var(--ms-surface)) !important; }
+:root[data-theme='dark'] .erp-content .product-edit-page .info-card { border: 1px solid var(--border, var(--ms-border)) !important; background: var(--surface, var(--ms-surface)) !important; }
+:root[data-theme='dark'] .erp-content .product-edit-page .save-card { border: 1px solid var(--border, var(--ms-border)) !important; background: var(--surface, var(--ms-surface)) !important; }
+:root[data-theme='dark'] .erp-content .product-edit-page .section-heading { border-bottom: 1px solid var(--border, var(--ms-border)) !important; }
+@media (max-width: 650px) {
+:root[data-theme='dark'] .erp-content .product-edit-page .mobile-save-bar { border: 1px solid var(--border, var(--ms-border)) !important; background: color-mix(in srgb, var(--surface, var(--ms-surface)) 94%, transparent) !important; }
+}
+:root[data-theme='dark'] .erp-content .product-edit-page .type-change-note { border: 1px solid
+        color-mix(in srgb, var(--primary, #2563eb) 16%, var(--border, var(--ms-border))) !important; background: color-mix(
+        in srgb,
+        var(--primary, #2563eb) 4%,
+        var(--surface, var(--ms-surface))
+    ) !important; }
+:root[data-theme='dark'] .erp-content .delete-button-spinner { border-top-color: var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .crm-page { color: var(--text-primary, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .crm-secondary { background: var(--ms-surface) !important; border: 1px solid var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .crm-alert.success { background: var(--ms-surface) !important; border: 1px solid color-mix(in srgb, var(--ms-success) 28%, var(--ms-border)) !important; }
+:root[data-theme='dark'] .erp-content .crm-alert.danger { background: var(--ms-surface-muted) !important; border: 1px solid color-mix(in srgb, var(--ms-danger) 28%, var(--ms-border)) !important; }
+:root[data-theme='dark'] .erp-content .crm-kpis article { border: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .crm-kpis strong { color: var(--ms-text-heading) !important; }
+:root[data-theme='dark'] .erp-content .crm-panel { background: var(--ms-surface) !important; border: 1px solid var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .crm-count { border: 1px solid var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .crm-search { border: 1px solid var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .crm-search input { color: var(--ms-text-heading) !important; }
+:root[data-theme='dark'] .erp-content .crm-filters select { border: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .crm-form-grid input { border: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .crm-form-grid select { border: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .crm-form-grid textarea { border: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .crm-table-wrap { border-top: 1px solid var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .crm-table th { background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .crm-table td { border-top: 1px solid var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .crm-status { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .crm-type { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .crm-status.new { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .crm-status.contacting { background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .crm-status.qualified { background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .crm-status.interested { background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .crm-status.follow_up { background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .crm-status.converted { background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .crm-status.lost { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .crm-type.b2b { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .crm-type.retail { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .crm-actions button { border: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .crm-actions button:hover { border-color: color-mix(in srgb, var(--ms-success) 28%, var(--ms-border)) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .crm-assignment-panel select { border: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .crm-assignment-panel input { border: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .crm-assignment-entry { border-bottom: 1px solid var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .crm-pagination { border-top: 1px solid var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .crm-pagination button { border: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .crm-modal { background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .crm-modal > header { border-bottom: 1px solid var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .crm-close { border: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .crm-modal form > footer { border-top: 1px solid var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .crm-detail-summary > div { border: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .crm-detail-summary > div:nth-child(1) { background: var(--ms-surface-muted) !important; border-color: color-mix(in srgb, var(--ms-info) 28%, var(--ms-border)) !important; }
+:root[data-theme='dark'] .erp-content .crm-detail-summary > div:nth-child(2) { background: var(--ms-surface-muted) !important; border-color: color-mix(in srgb, var(--ms-danger) 28%, var(--ms-border)) !important; }
+:root[data-theme='dark'] .erp-content .crm-detail-summary > div:nth-child(3) { background: var(--ms-surface) !important; border-color: color-mix(in srgb, var(--ms-success) 28%, var(--ms-border)) !important; }
+:root[data-theme='dark'] .erp-content .crm-detail-summary > div:nth-child(4) { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .crm-detail-summary > div:nth-child(5) { background: var(--ms-surface) !important; border-color: color-mix(in srgb, var(--ms-info) 28%, var(--ms-border)) !important; }
+:root[data-theme='dark'] .erp-content .crm-detail-summary > div:nth-child(6) { background: var(--ms-surface) !important; border-color: color-mix(in srgb, var(--ms-warning) 28%, var(--ms-border)) !important; }
+:root[data-theme='dark'] .erp-content .crm-detail-summary > div:nth-child(7) { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .crm-timeline-dot { background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .crm-linked { background: var(--ms-surface) !important; border-top: 1px solid var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .crm-lead-row:hover { background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .crm-form-section { border: 1px solid var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .crm-section-icon { border: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .crm-detail-avatar { border: 1px solid color-mix(in srgb, var(--ms-success) 28%, var(--ms-border)) !important; }
+:root[data-theme='dark'] .erp-content .crm-interest { background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .crm-interest.hot { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .crm-interest.cold { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .crm-detail-summary > div { background: var(--ms-surface) !important; border-color: var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .crm-detail-context > div { border: 1px solid var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .crm-sort { border: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .crm-filter-toggle.active { border-color: color-mix(in srgb, var(--ms-success) 28%, var(--ms-border)) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .crm-advanced-filters { border-top: 1px solid var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .crm-advanced-filters select { border: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .crm-inline-select:hover { border-color: var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .crm-inline-select:focus-visible { border-color: var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .crm-inline-type.undecided { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .crm-inline-type.retail { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .crm-inline-type.b2b { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .crm-inline-status.new { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .crm-inline-status.contacting { background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .crm-inline-status.qualified { background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .crm-inline-status.interested { background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .crm-inline-status.follow_up { background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .crm-inline-status.converted { background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .crm-inline-status.lost { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .crm-detail-inline-select { border: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .crm-detail-inline-date { border: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .crm-owner-default-note { border: 1px solid var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .crm-owner-default-icon { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .detail-modal-premium { border: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .detail-modal-premium > header { border-bottom: 1px solid var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .detail-modal-premium .crm-detail-hero { border-bottom: 1px solid var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .detail-modal-premium .crm-detail-summary > div { border: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .detail-modal-premium .crm-detail-summary > div:hover { border-color: var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .detail-modal-premium .crm-detail-summary > div strong { color: var(--ms-text-heading) !important; }
+:root[data-theme='dark'] .erp-content .detail-modal-premium .crm-assignment-panel { border-color: var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .detail-modal-premium .crm-assignment-panel select { border: 1px solid var(--ms-border) !important; background-color: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .detail-modal-premium .crm-assignment-panel input { border: 1px solid var(--ms-border) !important; background-color: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .detail-modal-premium .crm-detail-context { border: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .detail-modal-premium .crm-detail-actions { border-top: 1px solid var(--ms-border) !important; border-bottom: 1px solid var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .detail-modal-premium .crm-assignment-history { border: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .detail-modal-premium .crm-assignment-history .crm-assignment-entry { border-top: 1px solid var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .detail-modal-premium .crm-detail-summary > div:not(.crm-assignment-panel) { background: var(--ms-surface) !important; border: 1px solid var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .crm-converted-banner { border: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .crm-convert-action { border: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .crm-converted-icon { background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .crm-customer-link { border: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .crm-convert-action { border-color: var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .detail-modal-premium .crm-detail-summary > div { background: var(--ms-surface) !important; border-color: var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .detail-modal-premium .crm-assignment-panel { background: var(--ms-surface) !important; border-color: var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .crm-convert-action { border: 1px solid var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .crm-convert-mark { background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .crm-convert-confirm { background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .crm-convert-confirm-close { border: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .crm-confirm-icon { background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .crm-confirm-summary { border: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .crm-confirm-cancel { border: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .crm-order-modal { border: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .crm-order-header { border-bottom: 1px solid var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .crm-order-grid select { border: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .crm-order-grid input { border: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .crm-order-notes textarea { border: 1px solid var(--ms-border) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .crm-order-empty { border: 1px dashed var(--ms-border) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .crm-order-lines { border: 1px solid var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .crm-order-line { border-bottom: 1px solid var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .crm-order-line button { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .crm-order-total { background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .crm-order-error { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .crm-order-footer { border-top: 1px solid var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .crm-owner-badge { border: 1px solid color-mix(in srgb, var(--ms-success) 28%, var(--ms-border)) !important; background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .crm-detail-summary .is-locked { border-color: var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .crm-detail-summary .is-locked .crm-detail-inline-select { background: var(--ms-surface-muted) !important; border-color: var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .crm-detail-summary .is-locked .crm-detail-inline-date { background: var(--ms-surface-muted) !important; border-color: var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .crm-detail-summary .is-locked select { background: var(--ms-surface-muted) !important; border-color: var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .crm-detail-summary .is-locked input { background: var(--ms-surface-muted) !important; border-color: var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .crm-lock-chip { border: 1px solid var(--ms-border) !important; background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .user-create-page { color: var(--text-primary, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .page-breadcrumb { color: var(--text-tertiary, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .page-breadcrumb .is-current { color: var(--text-secondary, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .breadcrumb-icon { color: var(--border-strong, var(--ms-text-muted)) !important; }
+:root[data-theme='dark'] .erp-content .page-title-icon { border: 1px solid
+
+        color-mix(in srgb, var(--primary, #1f8f68) 22%, var(--border, var(--ms-border))) !important; background: color-mix(
+
+        in srgb,
+
+        var(--primary, #1f8f68) 10%,
+
+        var(--surface, var(--ms-surface))
+
+    ) !important; }
+:root[data-theme='dark'] .erp-content .page-title-copy h1 { color: var(--text-primary, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .page-title-copy p { color: var(--text-tertiary, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .btn-secondary { color: var(--text-primary, var(--ms-text-heading)) !important; border-color: var(--border, var(--ms-border)) !important; background: var(--surface, var(--ms-surface)) !important; }
+:root[data-theme='dark'] .erp-content .operation-message { border: 1px solid var(--border, var(--ms-border)) !important; }
+:root[data-theme='dark'] .erp-content .operation-message.error { border-color: color-mix(in srgb, var(--ms-danger) 28%, var(--ms-border)) !important; background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .panel { border: 1px solid var(--border, var(--ms-border)) !important; background: var(--surface, var(--ms-surface)) !important; }
+:root[data-theme='dark'] .erp-content .section-kicker { color: var(--text-tertiary, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .panel h2 { color: var(--text-primary, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .required-note { color: var(--text-tertiary, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .selection-count { color: var(--text-tertiary, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .panel-description { color: var(--text-tertiary, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .field > span { color: var(--text-secondary, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .field .designation-hint { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .input-action { color: var(--text-tertiary, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .role-card { border: 1px solid var(--border, var(--ms-border)) !important; background: var(--surface, var(--ms-surface)) !important; }
+:root[data-theme='dark'] .erp-content .role-card:hover { border-color: var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .role-card.selected { border-color: color-mix(
+
+        in srgb,
+
+        var(--primary, #1f8f68) 55%,
+
+        var(--border, var(--ms-border))
+
+    ) !important; background: color-mix(
+
+        in srgb,
+
+        var(--primary, #1f8f68) 4%,
+
+        var(--surface, var(--ms-surface))
+
+    ) !important; }
+:root[data-theme='dark'] .erp-content .role-check { border: 1px solid var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .role-copy small { color: var(--text-tertiary, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .loading-state { color: var(--text-tertiary, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .empty-state { color: var(--text-tertiary, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .state-icon { background: color-mix(
+
+        in srgb,
+
+        var(--primary, #1f8f68) 9%,
+
+        var(--surface, var(--ms-surface))
+
+    ) !important; }
+:root[data-theme='dark'] .erp-content .empty-state strong { color: var(--text-secondary, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .loading-state strong { color: var(--text-secondary, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .empty-state span { color: var(--text-tertiary, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .access-footer { color: var(--text-tertiary, var(--ms-text-body)) !important; }
+:root[data-theme='dark'] .erp-content .panel-role-access { border: 1px solid color-mix(in srgb, var(--border, var(--ms-border)) 58%, #10b981 42%) !important; }
+:root[data-theme='dark'] .erp-content .panel-location-scope { border: 1px solid color-mix(in srgb, var(--border, var(--ms-border)) 58%, #10b981 42%) !important; }
+:root[data-theme='dark'] .erp-content .location-scope-heading { border-bottom: 1px solid color-mix(in srgb, var(--border, var(--ms-border)) 68%, #10b981 32%) !important; }
+:root[data-theme='dark'] .erp-content .role-access-heading { border-bottom: 1px solid color-mix(in srgb, var(--border, var(--ms-border)) 68%, #10b981 32%) !important; }
+:root[data-theme='dark'] .erp-content .location-scope-heading p { color: var(--text-tertiary, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .role-access-heading p { color: var(--text-tertiary, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .location-access-field { border: 1px solid color-mix(in srgb, var(--border, var(--ms-border)) 76%, #10b981 24%) !important; }
+:root[data-theme='dark'] .erp-content .location-access-field .location-label strong { color: var(--text-primary, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .location-access-field .location-label small { color: var(--text-secondary, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .user-edit-page { color: var(--text-primary, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .breadcrumb { color: var(--text-tertiary, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .breadcrumb-link { color: var(--text-secondary, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .breadcrumb-separator { color: var(--ms-text-body) !important; }
+:root[data-theme='dark'] .erp-content .breadcrumb-current { color: var(--text-tertiary, var(--ms-text-body)) !important; }
+:root[data-theme='dark'] .erp-content .page-title-icon { border: 1px solid var(--border, var(--ms-border)) !important; background: color-mix(
+        in srgb,
+        var(--primary, #1f8f68) 8%,
+        var(--surface, var(--ms-surface))
+    ) !important; }
+:root[data-theme='dark'] .erp-content .eyebrow { color: var(--ms-text-heading) !important; }
+:root[data-theme='dark'] .erp-content .section-kicker { color: var(--ms-text-heading) !important; }
+:root[data-theme='dark'] .erp-content .title-copy p { color: var(--text-secondary, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .btn { border: 1px solid var(--border, var(--ms-border)) !important; }
+:root[data-theme='dark'] .erp-content .btn-secondary { color: var(--ms-text-heading) !important; background: var(--surface, var(--ms-surface)) !important; }
+:root[data-theme='dark'] .erp-content .operation-message.success { border-color: var(--ms-border) !important; background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .operation-message.error { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .summary-card { border: 1px solid var(--border, var(--border, var(--ms-border))) !important; background: var(--surface, var(--ms-surface)) !important; }
+:root[data-theme='dark'] .erp-content .summary-icon { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .summary-icon.warning { background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .summary-card span { color: var(--text-tertiary, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .summary-card strong { color: var(--text-primary, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .panel { border: 1px solid var(--border, var(--border, var(--ms-border))) !important; background: var(--surface, var(--ms-surface)) !important; }
+:root[data-theme='dark'] .erp-content .panel-heading { border-bottom: 1px solid var(--border, var(--border, var(--ms-border))) !important; }
+:root[data-theme='dark'] .erp-content .panel-heading h2 { color: var(--text-primary, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .panel-heading p { color: var(--text-secondary, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .panel-icon { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .field > span { color: var(--ms-text-heading) !important; }
+:root[data-theme='dark'] .erp-content .field input { border: 1px solid var(--ms-border) !important; color: var(--ms-text-heading) !important; background: var(--surface, var(--ms-surface)) !important; }
+:root[data-theme='dark'] .erp-content .field select { border: 1px solid var(--ms-border) !important; color: var(--ms-text-heading) !important; background: var(--surface, var(--ms-surface)) !important; }
+:root[data-theme='dark'] .erp-content .readonly-value { border: 1px solid var(--border, var(--ms-border)) !important; background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .security-grid { background: var(--border, var(--ms-surface-muted)) !important; }
+:root[data-theme='dark'] .erp-content .security-item { background: var(--surface, var(--ms-surface)) !important; }
+:root[data-theme='dark'] .erp-content .security-item span { color: var(--text-tertiary, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .security-item strong { color: var(--ms-text-heading) !important; }
+:root[data-theme='dark'] .erp-content .selection-count { color: var(--ms-text-body) !important; }
+:root[data-theme='dark'] .erp-content .role-row { border-bottom: 1px solid var(--border, var(--ms-border)) !important; background: var(--surface, var(--ms-surface)) !important; }
+:root[data-theme='dark'] .erp-content .role-row:hover { background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .role-row.selected { background: var(--ms-surface) !important; }
+:root[data-theme='dark'] .erp-content .role-icon { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .role-copy strong { color: var(--ms-text-heading) !important; }
+:root[data-theme='dark'] .erp-content .role-copy small { color: var(--ms-text-body) !important; }
+:root[data-theme='dark'] .erp-content .role-check { border: 1px solid var(--ms-border) !important; background: var(--surface, var(--ms-surface)) !important; }
+:root[data-theme='dark'] .erp-content .system-role-note { border: 1px solid var(--ms-border) !important; background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .empty-icon { color: var(--ms-text-heading) !important; background: var(--surface-muted, var(--surface, var(--ms-surface-muted))) !important; }
+:root[data-theme='dark'] .erp-content .empty-state strong { color: var(--ms-text-heading) !important; }
+:root[data-theme='dark'] .erp-content .empty-state span { color: var(--ms-text-body) !important; }
+:root[data-theme='dark'] .erp-content .metadata-card { border: 1px solid var(--border, var(--border, var(--ms-border))) !important; background: var(--surface, var(--ms-surface)) !important; }
+:root[data-theme='dark'] .erp-content .metadata-icon { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .metadata-card span { color: var(--ms-text-heading) !important; }
+:root[data-theme='dark'] .erp-content .metadata-card strong { color: var(--ms-text-heading) !important; }
+:root[data-theme='dark'] .erp-content .access-footer { color: var(--ms-text-body) !important; }
+:root[data-theme='dark'] .erp-content .state-page { color: var(--ms-text-heading) !important; }
+:root[data-theme='dark'] .erp-content .state-page strong { color: var(--ms-text-heading) !important; }
+:root[data-theme='dark'] .erp-content .state-page h2 { color: var(--ms-text-heading) !important; }
+:root[data-theme='dark'] .erp-content .state-icon { background: var(--surface-muted, var(--surface, var(--ms-surface-muted))) !important; }
+:root[data-theme='dark'] .erp-content .state-icon.error { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .panel-role-access .selection-count { border: 1px solid color-mix(in srgb, var(--border, var(--ms-border)) 65%, #10b981 35%) !important; color: var(--text-primary, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .users-page { color: var(--text-primary, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .page-title-icon { border: 1px solid
+    color-mix(in srgb, var(--primary, #1f8f68) 22%, var(--border, var(--ms-border))) !important; background: color-mix(
+    in srgb,
+    var(--primary, #1f8f68) 10%,
+    var(--surface, var(--ms-surface))
+  ) !important; }
+:root[data-theme='dark'] .erp-content .page-title-row h1 { color: var(--text-primary, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .page-title-row p { color: var(--text-secondary, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .btn-ghost { color: var(--text-primary, var(--ms-text-heading)) !important; border-color: var(--border, var(--ms-border)) !important; background: var(--surface, var(--ms-surface)) !important; }
+:root[data-theme='dark'] .erp-content .btn-secondary:hover { border-color: var(--border-strong, var(--ms-border)) !important; background: var(--surface-muted, var(--ms-surface)) !important; }
+:root[data-theme='dark'] .erp-content .btn-ghost:hover { border-color: var(--border-strong, var(--ms-border)) !important; background: var(--surface-muted, var(--ms-surface)) !important; }
+:root[data-theme='dark'] .erp-content .stat-card { border: 1px solid var(--border, var(--ms-border)) !important; background: var(--surface, var(--ms-surface)) !important; }
+:root[data-theme='dark'] .erp-content .stat-icon { color: var(--text-secondary, var(--ms-text-heading)) !important; background: var(--surface-muted, var(--ms-surface-muted)) !important; }
+:root[data-theme='dark'] .erp-content .stat-icon.active { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .stat-icon.inactive { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .stat-card span { color: var(--text-tertiary, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .stat-card strong { color: var(--text-primary, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .workspace-card { border: 1px solid var(--border, var(--ms-border)) !important; background: var(--surface, var(--ms-surface)) !important; }
+:root[data-theme='dark'] .erp-content .search-field { border: 1px solid var(--border, var(--ms-border)) !important; color: var(--text-tertiary, var(--ms-text-heading)) !important; background: var(--surface-muted, var(--ms-surface)) !important; }
+:root[data-theme='dark'] .erp-content .search-field:focus-within { border-color: color-mix(
+    in srgb,
+    var(--primary, #1f8f68) 45%,
+    var(--border, var(--ms-border))
+  ) !important; background: var(--surface, var(--ms-surface)) !important; }
+:root[data-theme='dark'] .erp-content .search-field input::placeholder { color: var(--text-tertiary, var(--ms-text-body)) !important; }
+:root[data-theme='dark'] .erp-content .toolbar select { border: 1px solid var(--border, var(--ms-border)) !important; color: var(--text-primary, var(--ms-text-heading)) !important; background: var(--surface, var(--ms-surface)) !important; }
+:root[data-theme='dark'] .erp-content .avatar { background: var(--primary-soft, var(--ms-surface-muted)) !important; }
+:root[data-theme='dark'] .erp-content .user-copy strong { color: var(--text-primary, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .user-copy small { color: var(--text-tertiary, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .status-badge.active { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .status-badge.inactive { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .role-chip { border: 1px solid var(--border, var(--ms-border)) !important; color: var(--text-secondary, var(--ms-text-heading)) !important; background: var(--surface-muted, var(--ms-surface)) !important; }
+:root[data-theme='dark'] .erp-content .role-more { border: 1px solid var(--border, var(--ms-border)) !important; color: var(--text-secondary, var(--ms-text-heading)) !important; background: var(--surface-muted, var(--ms-surface)) !important; }
+:root[data-theme='dark'] .erp-content .role-chip.system { border-color: var(--ms-border) !important; background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .role-more { color: var(--text-tertiary, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .muted { color: var(--text-tertiary, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .last-login-time { color: var(--text-secondary, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .last-login-time.never { color: var(--text-tertiary, var(--ms-text-body)) !important; }
+:root[data-theme='dark'] .erp-content .last-login-ip { color: var(--text-tertiary, var(--ms-text-body)) !important; }
+:root[data-theme='dark'] .erp-content .date-cell { color: var(--text-secondary, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .icon-btn { border: 1px solid var(--border, var(--ms-border)) !important; color: var(--text-secondary, var(--ms-text-heading)) !important; background: var(--surface, var(--ms-surface)) !important; }
+:root[data-theme='dark'] .erp-content .icon-btn:hover { border-color: color-mix(
+    in srgb,
+    var(--primary, #1f8f68) 50%,
+    var(--border, var(--ms-border))
+  ) !important; background: var(--surface-muted, var(--ms-surface)) !important; }
+:root[data-theme='dark'] .erp-content .empty-icon { color: var(--text-tertiary, var(--ms-text-heading)) !important; background: var(--surface-muted, var(--ms-surface-muted)) !important; }
+:root[data-theme='dark'] .erp-content .empty-state strong { color: var(--text-primary, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .empty-state p { color: var(--text-tertiary, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .table-footer { border-top: 1px solid var(--border, var(--ms-border)) !important; color: var(--text-tertiary, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .table-footer strong { color: var(--text-secondary, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .stat-card:hover { border-color: color-mix(in srgb, var(--primary, #1f8f68) 28%, var(--border, var(--ms-border))) !important; }
+:root[data-theme='dark'] .erp-content .status-badge.active { border-color: var(--ms-border) !important; }
+:root[data-theme='dark'] .erp-content .status-badge.inactive { border-color: color-mix(in srgb, var(--ms-danger) 28%, var(--ms-border)) !important; }
+:root[data-theme='dark'] .erp-content .table-footer { background: var(--surface-muted, var(--ms-surface)) !important; }
+:root[data-theme='dark'] .erp-content .user-show-page { color: var(--text-primary, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .page-title-icon { border: 1px solid var(--border, var(--ms-border)) !important; background: color-mix(
+
+        in srgb,
+
+        var(--primary, #1f8f68) 8%,
+
+        var(--surface, var(--ms-surface))
+
+    ) !important; }
+:root[data-theme='dark'] .erp-content .detail-grid { background: var(--border, var(--ms-surface-muted)) !important; }
+:root[data-theme='dark'] .erp-content .detail-field { background: var(--surface, var(--ms-surface)) !important; }
+:root[data-theme='dark'] .erp-content .detail-field span { color: var(--text-tertiary, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .metadata-card span { color: var(--text-tertiary, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .detail-field strong { color: var(--text-primary, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .security-item strong { color: var(--text-primary, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .metadata-card strong { color: var(--text-primary, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .role-row { border-bottom: 1px solid var(--border, var(--ms-border)) !important; }
+:root[data-theme='dark'] .erp-content .role-badge { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .role-badge.system { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .role-badge.inactive { background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .page-header { border: 1px solid color-mix(in srgb, var(--border, var(--ms-border)) 82%, transparent) !important; }
+:root[data-theme='dark'] .erp-content .summary-card { border-color: color-mix(in srgb, var(--border, var(--ms-border)) 88%, transparent) !important; }
+:root[data-theme='dark'] .erp-content .panel { border-color: color-mix(in srgb, var(--border, var(--ms-border)) 88%, transparent) !important; }
+:root[data-theme='dark'] .erp-content .metadata-card { border-color: color-mix(in srgb, var(--border, var(--ms-border)) 88%, transparent) !important; }
+:root[data-theme='dark'] .erp-content .summary-card:hover { border-color: color-mix(in srgb, var(--show-accent) 28%, var(--border, var(--ms-border))) !important; }
+:root[data-theme='dark'] .erp-content .metadata-card:hover { border-color: color-mix(in srgb, var(--show-accent) 28%, var(--border, var(--ms-border))) !important; }
+:root[data-theme='dark'] .erp-content .selection-count { background: color-mix(in srgb, var(--show-accent) 7%, var(--surface, var(--ms-surface))) !important; }
+:root[data-theme='dark'] .erp-content .role-row:hover { background: color-mix(in srgb, var(--show-accent) 3%, var(--surface, var(--ms-surface))) !important; }
+:root[data-theme='dark'] .erp-content .role-icon { border: 1px solid color-mix(in srgb, var(--border, var(--ms-border)) 72%, transparent) !important; }
+:root[data-theme='dark'] .erp-content .panel-icon { border: 1px solid color-mix(in srgb, var(--border, var(--ms-border)) 72%, transparent) !important; }
+:root[data-theme='dark'] .erp-content .metadata-icon { border: 1px solid color-mix(in srgb, var(--border, var(--ms-border)) 72%, transparent) !important; }
+:root[data-theme='dark'] .erp-content .access-footer { border: 1px solid var(--border, var(--ms-border)) !important; background: color-mix(in srgb, var(--surface, var(--ms-surface)) 94%, var(--show-accent)) !important; }
+:root[data-theme='dark'] .erp-content .state-page { border: 1px solid var(--border, var(--ms-border)) !important; background: var(--surface, var(--ms-surface)) !important; }
+:root[data-theme='dark'] .erp-content .assigned-location-card { border: 1px solid var(--border, var(--ms-border)) !important; background: var(--surface, var(--ms-surface)) !important; }
+:root[data-theme='dark'] .erp-content .assigned-location-icon { border: 1px solid var(--ms-border) !important; background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .assigned-location-details strong { color: var(--text, var(--ms-text-heading)) !important; }
+:root[data-theme='dark'] .erp-content .location-access-badge { border: 1px solid var(--ms-border) !important; background: var(--ms-surface-muted) !important; }
+:root[data-theme='dark'] .erp-content .location-scope-empty { border: 1px dashed var(--border, var(--ms-border)) !important; background: var(--surface-muted, var(--ms-surface)) !important; }
+:root[data-theme='dark'] .erp-content .location-scope-empty strong { color: var(--text, var(--ms-text-heading)) !important; }
+
+/* ========================================================================== 
+   MADINA SCALE — BACKEND UI FINAL HARMONIZATION
+   Applies the Master Page Design & UI/UX Source of Truth to all 45
+   authenticated ERP pages. Presentation only; no data or workflow changes.
+   ========================================================================== */
+
+:root {
+    /* Canonical names from page-design-layout.md, aliased to the live theme. */
+    --ms-background: var(--ms-page-bg);
+    --ms-text-primary: var(--ms-text-heading);
+    --ms-text-secondary: var(--ms-text-body);
+    --ms-text-muted: var(--text-muted);
+    --ms-success-soft: var(--ms-success-bg);
+    --ms-warning-soft: var(--ms-warning-bg);
+    --ms-danger-soft: var(--ms-danger-bg);
+    --ms-shadow: var(--ms-shadow-card);
+}
+
+:root[data-theme='dark'] {
+    --ms-background: var(--ms-page-bg);
+    --ms-text-primary: var(--ms-text-heading);
+    --ms-text-secondary: var(--ms-text-body);
+    --ms-text-muted: var(--text-muted);
+    --ms-success-soft: var(--ms-success-bg);
+    --ms-warning-soft: var(--ms-warning-bg);
+    --ms-danger-soft: var(--ms-danger-bg);
+    --ms-shadow: var(--ms-shadow-card);
+}
+
+/* The shell is the only owner of the outer page gutter. */
+.erp-content {
+    width: 100%;
+    min-width: 0;
+    padding: 16px 16px 28px;
+    color: var(--ms-text-primary);
+}
+
+.erp-page-transition,
+.erp-page-transition > :first-child {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+.erp-page-transition > :first-child {
+    padding: 0 !important;
+}
+
+/* One shared page-title and description scale. */
+.erp-content h1 {
+    color: var(--ms-text-primary);
+    font-size: 24px !important;
+    font-weight: 700 !important;
+    line-height: 1.2 !important;
+    letter-spacing: -0.025em !important;
+}
+
+.erp-content :is(.page-header, .page-heading, .orders-hero, .sr-header) {
+    min-width: 0;
+}
+
+.erp-content :is(.breadcrumb, .orders-breadcrumb, .sr-crumb, .page-breadcrumb) {
+    color: var(--ms-text-muted);
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.erp-content :is(.page-header p, .page-heading p, .title-row p, .title-copy p,
+    .page-description, .subtitle, .orders-title p, .sr-title p) {
+    color: var(--ms-text-secondary);
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+.erp-content :is(h2, .panel-heading h2, .catalog-header h2, .orders-panel-head h2) {
+    color: var(--ms-text-primary);
+    font-size: 15px;
+    font-weight: 700;
+}
+
+/* Shared surfaces: KPI, register, form, settings and detail cards. */
+.erp-content :is(
+    .stat-card,
+    .activity-stat-card,
+    .kpi,
+    .kpi-card,
+    .metric-card,
+    .summary-card,
+    .metadata-card,
+    .workspace-card,
+    .content-card,
+    .form-card,
+    .settings-card,
+    .setting-group-card,
+    .catalog-card,
+    .orders-panel,
+    .sr-card,
+    .panel,
+    .state-panel,
+    .state-card,
+    .table-panel,
+    .card
+) {
+    border-color: var(--ms-border);
+    border-radius: var(--ms-radius-panel);
+    background: var(--ms-surface);
+    box-shadow: var(--ms-shadow-card);
+}
+
+/* Tailwind-based analytics, marketing, reports, payment and shipping pages. */
+.erp-content :is(article, section, div)[class*='rounded-xl'][class*='border'][class*='bg-white'] {
+    border-color: var(--ms-border);
+    border-radius: var(--ms-radius-panel);
+    background: var(--ms-surface);
+    box-shadow: var(--ms-shadow-card);
+}
+
+.erp-content :is(div, section)[class*='overflow-x-auto'][class*='rounded-xl'][class*='border'] {
+    border-color: var(--ms-border);
+    border-radius: var(--ms-radius-panel);
+    background: var(--ms-surface);
+}
+
+/* Register/table baseline. Horizontal scrolling stays inside its own region. */
+.erp-content :is(.table-wrap, .table-container, .table-scroll, .table-responsive, .orders-table-wrap) {
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.erp-content table {
+    max-width: 100%;
+    border-collapse: collapse;
+}
+
+.erp-content :is(th, thead td) {
+    background-color: var(--ms-table-header-bg);
+    border-color: var(--ms-border);
+    color: var(--ms-text-secondary);
+    font-size: 9px;
+    font-weight: 700;
+}
+
+.erp-content :is(td, tbody th) {
+    border-color: var(--ms-border);
+}
+
+.erp-content tbody tr:hover {
+    background-color: var(--ms-table-row-hover);
+}
+
+/* Primary actions consistently use the existing Madina Scale green. */
+.erp-content button:is(
+    .primary,
+    .btn-primary,
+    .access-btn-primary,
+    .activity-btn-primary,
+    .orders-primary,
+    .crm-primary,
+    .crm-confirm-primary,
+    .sr-primary,
+    .reservation-btn-primary,
+    .action-btn-primary,
+    .button-primary,
+    .hero-primary,
+    .primary-button,
+    .btn-primary-solid,
+    .bottom-create-button,
+    .threshold-save-button,
+    .adjustment-confirm-button,
+    .restock-change-button,
+    .save-button
+),
+.erp-content button[class*='-primary'],
+.erp-content a:is(.primary, .btn-primary, .hero-primary, .cta),
+.erp-content button[class~='bg-slate-900'],
+.erp-content button[class~='bg-blue-700'],
+.erp-content button[class~='bg-blue-600'] {
+    border-color: var(--ms-primary);
+    background: var(--ms-primary);
+    color: #fff;
+    box-shadow: none;
+}
+
+.erp-content button:is(
+    .primary,
+    .btn-primary,
+    .access-btn-primary,
+    .activity-btn-primary,
+    .orders-primary,
+    .crm-primary,
+    .crm-confirm-primary,
+    .sr-primary,
+    .reservation-btn-primary,
+    .action-btn-primary,
+    .button-primary,
+    .hero-primary,
+    .primary-button,
+    .bottom-create-button,
+    .threshold-save-button,
+    .adjustment-confirm-button,
+    .restock-change-button,
+    .save-button
+):hover:not(:disabled),
+.erp-content button[class*='-primary']:hover:not(:disabled),
+.erp-content button[class~='bg-slate-900']:hover,
+.erp-content button[class~='bg-blue-700']:hover,
+.erp-content button[class~='bg-blue-600']:hover {
+    border-color: color-mix(in srgb, var(--ms-primary) 84%, #000 16%);
+    background: color-mix(in srgb, var(--ms-primary) 88%, #000 12%);
+}
+
+.erp-content :is(.btn-secondary, .btn-ghost, .orders-secondary, .sr-secondary,
+    .reservation-btn:not(.reservation-btn-primary), .action-btn:not(.action-btn-primary)) {
+    border-color: var(--ms-border);
+    background: var(--ms-surface);
+    color: var(--ms-text-primary);
+}
+
+.erp-content :is(button, a, input, select, textarea):focus-visible {
+    outline-color: var(--ms-primary);
+    outline-offset: 2px;
+}
+
+/* Form controls share a single neutral surface and control height. */
+.erp-content :is(input:not([type='checkbox']):not([type='radio']), select, textarea) {
+    border-color: var(--ms-border);
+    color: var(--ms-text-primary);
+}
+
+.erp-content :is(input:not([type='checkbox']):not([type='radio']), select) {
+    min-height: 36px;
+}
+
+.erp-content :is(input, textarea, select)::placeholder {
+    color: var(--ms-text-muted);
+}
+
+/* Status colors remain semantic and consistent between modules. */
+.erp-content :is(.status-badge, .status-pill, .sr-status, .orders-status) {
+    border-radius: 7px;
+    font-weight: 700;
+}
+
+/* Dark theme: remap legacy page-scoped surfaces without changing workflows. */
+:root[data-theme='dark'] .erp-content {
+    color: var(--ms-text-primary);
+}
+
+:root[data-theme='dark'] .erp-content > .erp-page-transition > :first-child {
+    background: transparent !important;
+}
+
+:root[data-theme='dark'] .erp-content :is(h1, h2, h3, h4, strong, b) {
+    color: var(--ms-text-primary);
+}
+
+:root[data-theme='dark'] .erp-content :is(
+    .stat-card,
+    .activity-stat-card,
+    .kpi,
+    .kpi-card,
+    .metric-card,
+    .summary-card,
+    .metadata-card,
+    .workspace-card,
+    .content-card,
+    .form-card,
+    .settings-card,
+    .setting-group-card,
+    .catalog-card,
+    .orders-panel,
+    .sr-card,
+    .panel,
+    .state-panel,
+    .state-card,
+    .table-panel,
+    .card,
+    [class$='-card'],
+    [class*='-card '],
+    [class$='-panel'],
+    [class*='-panel ']
+) {
+    border-color: var(--ms-border) !important;
+    background-color: var(--ms-surface) !important;
+    color: var(--ms-text-primary);
+    box-shadow: var(--ms-shadow-card);
+}
+
+:root[data-theme='dark'] .erp-content :is(
+    .toolbar,
+    .table-toolbar,
+    .filter-panel,
+    .search-wrap,
+    .search-field,
+    .orders-toolbar,
+    .sr-footer,
+    .table-footer,
+    .table-head,
+    .table-header
+) {
+    border-color: var(--ms-border) !important;
+    background-color: var(--ms-surface-muted) !important;
+    color: var(--ms-text-primary);
+}
+
+:root[data-theme='dark'] .erp-content :is(
+    .page-header,
+    .page-heading,
+    .title-row,
+    .title-copy,
+    .panel-heading,
+    .catalog-header,
+    .orders-panel-head,
+    .sr-card-head,
+    .modal-header,
+    .modal-head,
+    .modal-footer,
+    .modal-foot
+) {
+    border-color: var(--ms-border);
+}
+
+:root[data-theme='dark'] .erp-content :is(
+    .breadcrumb,
+    .orders-breadcrumb,
+    .sr-crumb,
+    .page-breadcrumb,
+    .subtitle,
+    .muted,
+    .stat-label,
+    .stat-caption,
+    .stat-description,
+    .stat-note,
+    .stat-top,
+    .metric-label,
+    .metric-foot,
+    .panel-heading p,
+    .catalog-header p,
+    .title-row p,
+    .title-copy p,
+    .page-header p,
+    .page-heading p,
+    .orders-title p,
+    .sr-title p,
+    .helper-text,
+    .field-hint,
+    .form-hint
+) {
+    color: var(--ms-text-secondary) !important;
+}
+
+:root[data-theme='dark'] .erp-content :is(th, thead td) {
+    border-color: var(--ms-border) !important;
+    background: var(--ms-table-header-bg) !important;
+    color: var(--ms-text-secondary) !important;
+}
+
+:root[data-theme='dark'] .erp-content :is(td, tbody th) {
+    border-color: var(--ms-border) !important;
+}
+
+:root[data-theme='dark'] .erp-content tbody tr:hover {
+    background: var(--ms-table-row-hover) !important;
+}
+
+:root[data-theme='dark'] .erp-content :is(
+    input:not([type='checkbox']):not([type='radio']),
+    select,
+    textarea
+) {
+    border-color: var(--ms-border) !important;
+    background-color: var(--ms-control-bg) !important;
+    color: var(--ms-text-primary) !important;
+    color-scheme: dark;
+}
+
+:root[data-theme='dark'] .erp-content :is(input, textarea, select)::placeholder {
+    color: var(--ms-text-muted) !important;
+}
+
+/* Theme compatibility for Tailwind-based ERP screens. */
+:root[data-theme='dark'] .erp-content .bg-white,
+:root[data-theme='dark'] .erp-content [class*='bg-white/'] {
+    background-color: var(--ms-surface) !important;
+}
+
+:root[data-theme='dark'] .erp-content :is(.bg-slate-50, .bg-slate-100, .bg-gray-50, .bg-gray-100) {
+    background-color: var(--ms-surface-muted) !important;
+}
+
+:root[data-theme='dark'] .erp-content :is(
+    .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600,
+    .text-slate-500, .text-slate-400, .text-gray-900, .text-gray-800,
+    .text-gray-700, .text-gray-600, .text-gray-500, .text-gray-400
+) {
+    color: var(--ms-text-secondary) !important;
+}
+
+:root[data-theme='dark'] .erp-content :is(
+    .border-slate-100, .border-slate-200, .border-slate-300,
+    .border-gray-100, .border-gray-200, .border-gray-300,
+    .divide-slate-100 > :not([hidden]) ~ :not([hidden]),
+    .divide-slate-200 > :not([hidden]) ~ :not([hidden])
+) {
+    border-color: var(--ms-border) !important;
+}
+
+:root[data-theme='dark'] .erp-content :is(.text-violet-600, .text-emerald-600) {
+    color: var(--ms-primary) !important;
+}
+
+/* Modal surfaces follow the same elevated surface in both themes. */
+.erp-content :is(.modal, .dialog, .orders-dialog, .crm-modal, [role='dialog']) {
+    border: 1px solid var(--ms-border);
+    border-radius: var(--ms-radius-modal-md);
+    background: var(--ms-surface);
+    color: var(--ms-text-primary);
+    box-shadow: var(--ms-shadow-modal);
+}
+
+:root[data-theme='dark'] .erp-content :is(.modal, .dialog, .orders-dialog, .crm-modal, [role='dialog']) {
+    border-color: var(--ms-border) !important;
+    background: var(--ms-surface-elevated) !important;
+    color: var(--ms-text-primary) !important;
+}
+
+/* Responsive layout guardrails for all 45 backend pages. */
+@media (max-width: 900px) {
+    .erp-content {
+        padding: 12px;
+    }
+
+    .erp-content :is(.stats-grid, .stat-grid, .kpi-grid, .sr-kpis, .orders-metrics, .metrics-grid) {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .erp-content :is(.form-grid, .form-grid-2, .orders-form-grid, .sr-form-grid) {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 760px) {
+    .erp-content h1 {
+        font-size: 21px !important;
+    }
+
+    .erp-content :is(.page-header, .page-heading, .orders-hero, .sr-header) {
+        align-items: flex-start;
+        flex-wrap: wrap;
+    }
+
+    .erp-content :is(.header-actions, .page-actions, .heading-actions, .orders-heading-actions) {
+        max-width: 100%;
+        flex-wrap: wrap;
+    }
+}
+
+@media (max-width: 560px) {
+    .erp-content {
+        padding: 10px;
+    }
+
+    .erp-content :is(.stats-grid, .stat-grid, .kpi-grid, .sr-kpis, .orders-metrics, .metrics-grid) {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .erp-content :is(.form-grid, .form-grid-2, .orders-form-grid, .sr-form-grid) {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .erp-content :is(.table-wrap, .table-container, .table-scroll, .table-responsive, .orders-table-wrap) {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .erp-content :is(.table-wrap, .table-container, .table-scroll, .table-responsive, .orders-table-wrap) table {
+        min-width: 620px;
+    }
+
+    .erp-content :is(.modal, .dialog, .orders-dialog, .crm-modal, [role='dialog']) {
+        width: min(100%, calc(100vw - 20px));
+        max-width: calc(100vw - 20px);
+        max-height: calc(100dvh - 20px);
+        overflow: auto;
+        border-radius: var(--ms-radius-modal-sm);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .erp-content *,
+    .erp-content *::before,
+    .erp-content *::after {
+        scroll-behavior: auto !important;
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}
+
+/* Final contrast and brand-accent pass for legacy text utilities. */
+.erp-content :is(a.text-blue-600, button.text-blue-600, .text-violet-600, .text-emerald-600) {
+    color: var(--ms-primary);
+}
+
+:root[data-theme='dark'] .erp-content :is(
+    p:not([class*='error']):not([class*='danger']):not([class*='success']),
+    small,
+    label,
+    td
+) {
+    color: var(--ms-text-secondary);
+}
+
+:root[data-theme='dark'] .erp-content :is(
+    .text-blue-600,
+    .text-blue-700,
+    .text-indigo-600,
+    .text-violet-600,
+    .text-emerald-600
+) {
+    color: var(--ms-primary) !important;
+}
+
+:root[data-theme='dark'] .erp-content :is(.text-red-600, .text-red-700, .text-rose-600) {
+    color: var(--ms-danger) !important;
+}
+
+:root[data-theme='dark'] .erp-content :is(.text-green-600, .text-green-700) {
+    color: var(--ms-success) !important;
+}
+
+/* Compact shared heading for the remaining utility-first ERP workspaces. */
+.erp-content :where(.erp-page-heading) {
+    display: grid;
+    min-width: 0;
+    gap: 8px;
+}
+
+.erp-content :where(.erp-page-breadcrumb) {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 7px;
+    color: var(--ms-text-muted);
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.4;
+}
+
+.erp-content :where(.erp-page-breadcrumb strong) {
+    color: var(--ms-text-secondary);
+    font-weight: 650;
+}
+
+.erp-content :where(.erp-page-title-line) {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    min-width: 0;
+}
+
+.erp-content :where(.erp-page-title-icon) {
+    display: grid;
+    place-items: center;
+    width: 42px;
+    height: 42px;
+    flex: 0 0 42px;
+    border: 1px solid color-mix(in srgb, var(--ms-primary) 18%, var(--ms-border));
+    border-radius: 12px;
+    background: var(--ms-primary-soft);
+    color: var(--ms-primary);
+}
+
+.erp-content :where(.erp-page-title-line > div:last-child) {
+    min-width: 0;
+}
+
+.erp-content :where(.erp-page-title-line h1) {
+    margin: 0;
+    color: var(--ms-text-primary);
+    font-size: 24px;
+    font-weight: 700;
+    line-height: 1.2;
+    letter-spacing: -0.025em;
+}
+
+.erp-content :where(.erp-page-title-line p:last-child) {
+    margin-top: 5px;
+    color: var(--ms-text-secondary);
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+.erp-content :where(.analytics-page, .marketing-page, .seo-page, .api-providers-page, .payments-page, .shipping-page, .warranty-page, .reports-page) {
+    display: grid;
+    min-width: 0;
+    gap: 20px;
+}
+
+.erp-content :where(.analytics-page, .marketing-page, .seo-page, .api-providers-page, .payments-page, .shipping-page, .warranty-page, .reports-page) > * {
+    min-width: 0;
+}
+
+/* KPI cards on the utility-first pages now match the Product Index baseline. */
+.erp-content :where(
+    .analytics-page > section:first-of-type > article,
+    .analytics-page > section:last-of-type > article,
+    .marketing-page > section.grid > article,
+    .payments-page > .grid > div,
+    .shipping-page > .grid > div[class*='rounded-2xl'],
+    .warranty-page > .grid > div[class*='rounded-2xl'],
+    .api-providers-page > .grid > div[class*='rounded-xl']
+) {
+    min-width: 0;
+    min-height: 78px;
+    padding: 12px 14px;
+    border: 1px solid var(--ms-border);
+    border-radius: 12px;
+    background: var(--ms-surface);
+    box-shadow: var(--ms-shadow-card);
+}
+
+.erp-content :where(.payments-page, .shipping-page, .warranty-page, .api-providers-page, .analytics-page, .marketing-page, .seo-page, .reports-page) :is(input, select, textarea) {
+    border-color: var(--ms-border);
+    background-color: var(--ms-control-bg);
+    color: var(--ms-text-primary);
+}
+
+.erp-content :where(.reports-range-button) {
+    min-height: 32px;
+    border-color: var(--ms-border);
+    background: var(--ms-surface);
+    color: var(--ms-text-secondary);
+}
+
+.erp-content :where(.reports-range-button:hover) {
+    border-color: var(--ms-primary);
+    background: var(--ms-primary-soft);
+    color: var(--ms-primary);
+}
+
+:root[data-theme='dark'] .erp-content :where(.reports-range-button) {
+    border-color: var(--ms-border);
+    background: var(--ms-surface);
+    color: var(--ms-text-secondary);
+}
+
+:root[data-theme='dark'] .erp-content :where(.reports-range-button:hover) {
+    border-color: var(--ms-primary);
+    background: var(--ms-primary-soft);
+    color: var(--ms-primary);
+}
+
+@media (max-width: 760px) {
+    .erp-content :where(.erp-page-header) {
+        align-items: flex-start;
+    }
+
+    .erp-content :where(.erp-page-title-line) {
+        align-items: flex-start;
+    }
+}
+
+@media (max-width: 560px) {
+    .erp-content :where(.erp-page-title-icon) {
+        width: 38px;
+        height: 38px;
+        flex-basis: 38px;
+    }
+
+    .erp-content :where(.erp-page-title-line h1) {
+        font-size: 20px;
+    }
+
+    .erp-content :where(.reports-range-actions) {
+        width: 100%;
+    }
 }

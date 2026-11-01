@@ -2,6 +2,7 @@
 import { computed, onMounted, reactive, ref } from 'vue';
 import { Head } from '@inertiajs/vue3';
 import ErpLayout from '@/layouts/ErpLayout.vue';
+import Icon from '@/components/dashboard/Icon.vue';
 import { useAuthorization } from '@/composables/useAuthorization';
 
 interface Props { userName?: string; userEmail?: string }
@@ -149,8 +150,8 @@ onMounted(load);
     <Head title="Accounts & Finance" />
     <ErpLayout :user-name="props.userName" :user-email="props.userEmail">
         <div class="finance-page">
-            <header class="page-heading">
-                <div><p class="eyebrow">FINANCE MANAGEMENT</p><h1>Accounts & Finance</h1><p class="subtitle">Double-entry ledger, cash and bank, income, expenses and customer receipts.</p></div>
+            <header class="page-heading erp-page-header">
+                <div class="erp-page-heading"><nav class="erp-page-breadcrumb" aria-label="Breadcrumb"><span>Workspace</span><span aria-hidden="true">›</span><span>Accounts & Finance</span></nav><div class="erp-page-title-line"><span class="erp-page-title-icon"><Icon name="wallet" :size="20" /></span><div><p class="eyebrow">FINANCE MANAGEMENT</p><h1>Accounts & Finance</h1><p class="subtitle">Double-entry ledger, cash and bank, income, expenses and customer receipts.</p></div></div></div>
                 <div class="heading-actions">
                     <button v-if="can('system.finance.transactions.create') && manageableLocations.length" class="btn btn-primary" @click="transactionModal = true">＋ Record transaction</button>
                     <button v-if="can('system.finance.journals.create') && can('system.finance.journals.post')" class="btn btn-secondary" @click="journalModal = true">＋ Journal entry</button>

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, defineComponent, h, onMounted, ref, type PropType } from "vue";
 import ErpLayout from "@/layouts/ErpLayout.vue";
+import Icon from "@/components/dashboard/Icon.vue";
 import { Head, usePage } from "@inertiajs/vue3";
 
 type LocationOption = {
@@ -341,43 +342,26 @@ onMounted(() => {
   <Head title="Reports & Analytics" />
 
   <ErpLayout :user-name="userName" :user-email="userEmail">
-    <div
-      class="min-h-screen bg-slate-50/70 px-4 py-6 dark:bg-slate-950 sm:px-6 lg:px-8"
-    >
-      <div class="mx-auto max-w-[1600px] space-y-6">
-        <!-- Header -->
-        <header
-          class="relative overflow-hidden rounded-3xl bg-slate-950 px-6 py-7 text-white shadow-xl sm:px-8"
-        >
-          <div
-            class="pointer-events-none absolute -right-16 -top-28 h-80 w-80 rounded-full bg-cyan-400/20 blur-3xl"
-          ></div>
-
-          <div
-            class="pointer-events-none absolute right-48 top-20 h-48 w-48 rounded-full bg-indigo-500/20 blur-3xl"
-          ></div>
-
-          <div
-            class="relative flex flex-col justify-between gap-5 lg:flex-row lg:items-end"
-          >
-            <div>
-              <p
-                class="text-xs font-bold uppercase tracking-[0.24em] text-cyan-300"
-              >
-                Intelligence workspace
-              </p>
-
-              <h1 class="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">
-                Reports & Analytics
-              </h1>
-
-              <p class="mt-2 max-w-2xl text-sm text-slate-300">
-                A clear view of commercial performance, financial outcomes and
-                operational health.
-              </p>
+    <div class="reports-page space-y-5">
+      <div class="reports-content mx-auto w-full max-w-[1600px] space-y-5">
+        <!-- Shared compact ERP page header -->
+        <header class="reports-header flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+          <div class="erp-page-heading">
+            <nav class="erp-page-breadcrumb" aria-label="Breadcrumb">
+              <span>Workspace</span><span aria-hidden="true">›</span>
+              <span>Analytics</span><span aria-hidden="true">›</span>
+              <strong>Reports</strong>
+            </nav>
+            <div class="erp-page-title-line">
+              <span class="erp-page-title-icon"><Icon name="reports" :size="20" /></span>
+              <div>
+                <p class="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-600">INTELLIGENCE WORKSPACE</p>
+                <h1>Reports & Analytics</h1>
+                <p class="text-sm text-slate-500">A clear view of commercial performance, financial outcomes and operational health.</p>
+              </div>
             </div>
-
-            <div class="flex flex-wrap gap-2">
+          </div>
+          <div class="reports-range-actions flex flex-wrap gap-2">
               <button
                 v-for="range in [
                   { key: '7d', label: '7 days' },
@@ -388,12 +372,11 @@ onMounted(() => {
                 :key="range.key"
                 type="button"
                 @click="setRange(range.key as '7d' | '30d' | 'month' | '90d')"
-                class="rounded-xl border border-white/15 bg-white/10 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/20"
+                class="reports-range-button rounded-lg border px-3 py-2 text-xs font-semibold transition"
               >
                 {{ range.label }}
               </button>
             </div>
-          </div>
         </header>
 
         <!-- Filters -->

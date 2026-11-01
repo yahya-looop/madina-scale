@@ -2,6 +2,7 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { Head } from '@inertiajs/vue3';
 import ErpLayout from '@/layouts/ErpLayout.vue';
+import Icon from '@/components/dashboard/Icon.vue';
 
 interface Props { userName?: string; userEmail?: string; canCreate?: boolean; canUpdate?: boolean; canProcess?: boolean }
 interface Location { id: number; name: string }
@@ -120,9 +121,9 @@ onMounted(load);
 <template>
     <Head title="Warranty & Service" />
     <ErpLayout :user-name="props.userName" :user-email="props.userEmail">
-        <div class="space-y-6 p-5 lg:p-7">
-            <div class="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-                <div><p class="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-600">After-sales operations</p><h1 class="mt-1 text-3xl font-bold text-slate-900">Warranty & Service</h1><p class="mt-2 text-sm text-slate-500">Register product warranties and manage repair/service tickets.</p></div>
+        <div class="warranty-page space-y-5">
+            <div class="erp-page-header flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+                <div class="erp-page-heading"><nav class="erp-page-breadcrumb" aria-label="Breadcrumb"><span>Workspace</span><span aria-hidden="true">›</span><span>Warranty & Service</span></nav><div class="erp-page-title-line"><span class="erp-page-title-icon"><Icon name="service" :size="20" /></span><div><p class="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-600">AFTER-SALES OPERATIONS</p><h1>Warranty & Service</h1><p class="text-sm text-slate-500">Register product warranties and manage repair/service tickets.</p></div></div></div>
                 <div class="flex flex-wrap gap-2"><button v-if="props.canCreate" class="rounded-xl border border-emerald-200 px-4 py-2.5 text-sm font-semibold text-emerald-700" @click="openWarranty">Register warranty</button><button v-if="props.canCreate" class="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white" @click="openTicket">Create service ticket</button></div>
             </div>
             <div v-if="error" class="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{{ error }}</div>

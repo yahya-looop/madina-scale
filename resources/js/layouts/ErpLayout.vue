@@ -6,11 +6,11 @@ import Topbar from '@/components/layout/Topbar.vue';
 import { useTheme } from '@/composables/useTheme';
 
 interface ErpLayoutProps {
-    userName: string;
-    userEmail: string;
+    userName?: string;
+    userEmail?: string;
 }
 
-defineProps<ErpLayoutProps>();
+const { userName = '', userEmail = '' } = defineProps<ErpLayoutProps>();
 
 const collapsed = ref(false);
 const mobileOpen = ref(false);

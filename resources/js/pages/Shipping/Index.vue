@@ -2,6 +2,7 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { Head } from '@inertiajs/vue3';
 import ErpLayout from '@/layouts/ErpLayout.vue';
+import Icon from '@/components/dashboard/Icon.vue';
 
 interface Props { userName?: string; userEmail?: string; canUpdate?: boolean }
 interface Shipment { id: number; provider: string; tracking_code?: string | null; provider_shipment_id?: string | null; status: string; recipient_name: string; recipient_phone: string; recipient_address: string; cod_amount: string; booked_at?: string | null; delivered_at?: string | null; order?: { id: number; location_id: number; order_number: string; customer_name: string; customer_phone: string; grand_total: string; status: string }; creator?: { name: string } }
@@ -44,8 +45,8 @@ onMounted(load);
 <template>
  <Head title="Shipping & Delivery" />
  <ErpLayout :user-name="props.userName" :user-email="props.userEmail">
-  <div class="space-y-6 p-5 lg:p-7">
-   <div class="flex flex-wrap items-start justify-between gap-4"><div><p class="text-xs font-semibold uppercase tracking-[.16em] text-slate-500">Logistics operations</p><h1 class="mt-1 text-2xl font-bold text-slate-900">Shipping & Delivery</h1><p class="mt-1 text-sm text-slate-500">Monitor courier shipments, delivery progress, exceptions and proof of status changes.</p></div><button class="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50" @click="load">Refresh</button></div>
+  <div class="shipping-page space-y-5">
+   <div class="erp-page-header flex flex-wrap items-end justify-between gap-4"><div class="erp-page-heading"><nav class="erp-page-breadcrumb" aria-label="Breadcrumb"><span>Workspace</span><span aria-hidden="true">›</span><span>Shipping & Delivery</span></nav><div class="erp-page-title-line"><span class="erp-page-title-icon"><Icon name="shipping" :size="20" /></span><div><p class="text-xs font-semibold uppercase tracking-[.16em] text-emerald-600">LOGISTICS OPERATIONS</p><h1>Shipping & Delivery</h1><p class="text-sm text-slate-500">Monitor courier shipments, delivery progress, exceptions and proof of status changes.</p></div></div></div><button class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50" @click="load">Refresh</button></div>
    <div v-if="error" class="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{{ error }}</div><div v-if="success" class="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">{{ success }}</div>
    <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
     <div v-for="card in [{label:'Total shipments',key:'total'},{label:'Pending / booked',key:'pending'},{label:'In transit',key:'in_transit'},{label:'Delivered',key:'delivered'},{label:'Delivery exceptions',key:'exceptions'},{label:'Returned / RTO',key:'returned'}]" :key="card.key" class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"><p class="text-sm text-slate-500">{{ card.label }}</p><p class="mt-2 text-2xl font-bold text-slate-900">{{ summary[card.key] ?? 0 }}</p></div>
