@@ -1,637 +1,1046 @@
-# Madina Scale — Page Design & Layout Standard
+# MADINA SCALE — MASTER PAGE DESIGN & UI/UX SOURCE OF TRUTH
 
-> **Purpose:** This document is the reusable UI specification for new pages and for restyling existing pages in Madina Scale. Use it as the single reference for typography, spacing, layout, color, responsive behavior, and semantic HTML.
->
-> **Reference files reviewed:** `resources/js/pages/Developer/Modules.vue` and `resources/js/pages/Settings/System.vue`.
->
-> **Important distinction:** Values below are based on the supplied Vue/CSS source where noted. Where the two pages differ, the document defines a recommended canonical standard so future pages converge on one design system. The exact global font family cannot be confirmed from these page files alone because the main content inherits typography from `ErpLayout`/global CSS.
+**Document type:** Authoritative project-wide design specification and implementation prompt  
+**Project:** Madina Scale ERP  
+**Application stack:** Laravel 13 · Vue 3 · TypeScript · Inertia  
+**Scope:** All authenticated backend pages, shared ERP shell, page layouts, forms, tables, KPI cards, buttons, icons, status indicators, dialogs, modals, popovers, drawers, feedback states, responsive behavior and accessibility.  
+**Authority:** This document supersedes the two earlier page-design standards and is the single reference for future backend UI/UX work.
 
 ---
 
-## 1. Design direction
+## 0. Authority, precedence and purpose
 
-Madina Scale uses a compact, professional ERP/admin dashboard style:
+This document consolidates two earlier design standards:
 
-- **Visual character:** clean, restrained, data-dense, card-based, operational rather than decorative.
-- **Primary structure:** page header → optional operation message → optional KPI/stat cards → main content workspace → optional note/footer → dialogs when required.
-- **Surfaces:** white/light or theme-aware panels, subtle borders, modest shadows, rounded corners.
-- **Density:** compact controls and small supporting text; maintain legibility and avoid making critical text smaller than necessary.
-- **Consistency:** use the same shared layout, heading structure, control heights, spacing scale, status badges, and focus/hover behavior on every page.
-- **Theme:** use design tokens/CSS variables instead of hard-coded colors wherever possible.
+1. **Madina Scale — Page Design & Layout Standard**, based on `resources/js/pages/Developer/Modules.vue` and `resources/js/pages/Settings/System.vue`.
+2. **Madina Scale — Master Backend UI/UX Design Source of Truth**, based on the supplied Product and Inventory pages.
 
-## 2. Typography
+The consolidated reference hierarchy is:
 
-### 2.1 Font family
+| Design concern | Primary reference / authority | Supporting reference |
+|---|---|---|
+| Page-level visual language | `resources/js/pages/Products/Index.vue` | `Developer/Modules.vue`, `Settings/System.vue` |
+| Create/edit form composition | `Products/Create.vue` and `Products/Edit.vue` for workflow/content only | `Settings/System.vue` for sidebar/content structure |
+| Detail/show composition | `Products/Show.vue` for information architecture only | Shared page and card standards in this document |
+| Small confirmation modal | `Products/Index.vue` | `Inventory/Reservations.vue` |
+| Medium operational modal | `Inventory/Operations.vue` | `Inventory/Index.vue` reservation modal |
+| Large structured modal | `Inventory/Index.vue` | This document's large-modal specification |
+| Semantic HTML and accessibility | This document's consolidated requirements | Earlier Page Design & Layout Standard |
+| Global tokens, typography and spacing | This document's canonical scales | Source-page measurements summarized below |
 
-The reviewed page components do **not** declare a base `font-family` for all page text. They inherit it from `ErpLayout` or global CSS. Therefore:
+### Binding rules
 
-1. Do not introduce a new font family inside individual page components.
-2. Keep the system-wide font stack defined in one global location.
-3. Use `font-family: inherit` for form controls and ordinary UI text.
-4. Use a monospace stack only for technical identifiers such as slugs, keys, IDs, or code-like values.
+1. `Products/Index.vue` is the primary visual reference for backend register/list pages: breadcrumb, page header, title/icon, actions, KPI cards, main content card, toolbar, filters, table, badges, row actions and data states.
+2. The Product Create/Edit/Show pages are workflow and content references, not independent visual authorities. Preserve their capabilities and normalize their presentation to this design system.
+3. `Developer/Modules.vue` and `Settings/System.vue` remain useful secondary references for semantic page composition, sidebar navigation and content organization. Their legacy CSS values do not override the canonical tokens and measurements in this document.
+4. Inventory pages define practical modal patterns as listed above. Their workflows and content are references; the standardized modal dimensions and behavior below are authoritative.
+5. Existing business logic, routes, permissions, validation, API contracts, database behavior, data transformations and user workflows must remain unchanged during UI-only work.
+6. If a future implementation conflicts with this document, this document takes precedence unless the project owner explicitly approves a documented exception.
+7. Do not copy unrelated page-scoped CSS simply because it exists. Prefer shared tokens and reusable components.
+8. This is a design contract, not permission to rewrite the application architecture or backend.
 
-Monospace stack observed in the source:
+---
+
+## 1. Audited reference pages and design decisions
+
+### 1.1 Product module
+
+| Page | Existing role | Required treatment |
+|---|---|---|
+| `Products/Index.vue` | Compact enterprise catalog/register with header, KPI row, toolbar, filters, table, badges and delete confirmation | **Primary page-level visual reference** |
+| `Products/Create.vue` | Rich form with media upload, product information, variant builder, summary and action area | Preserve fields and workflow; normalize visual structure |
+| `Products/Edit.vue` | Product editing workflow with media and variants | Preserve editing capabilities; align with Create and global controls |
+| `Products/Show.vue` | Product overview/detail information and actions | Preserve information architecture; normalize cards, typography and action placement |
+
+### 1.2 Inventory and CRM pages reviewed as supporting references
+
+- `Inventory/Index.vue`
+- `Inventory/LowStock.vue`
+- `Inventory/Movements.vue`
+- `Inventory/Operations.vue`
+- `Inventory/Reservations.vue`
+- `SalesCRM/Leads/Index.vue`
+
+These pages provide examples of operational data, modal workflows, confirmation patterns, inventory summaries, filters and CRM records. They are not separate design systems.
+
+### 1.3 Product Index measurements used as the register baseline
+
+- Page title approximately 24px; title icon tile 42×42px.
+- Breadcrumb approximately 11px; description approximately 12px.
+- Header action gap 8px; page-header bottom spacing approximately 18–20px.
+- Standard buttons approximately 38px high, 9px radius, 12px text.
+- KPI grid: 4 columns on wide desktop, 12px gap; cards approximately 78px minimum height.
+- KPI padding approximately 12px 14px; icon tile 34×34px; KPI value approximately 21px.
+- Main catalog card radius approximately 14px, with a subtle border and shadow.
+- Search/filter controls approximately 36px high.
+- Table header approximately 38px; product-like body rows approximately 62px.
+- Table header text approximately 9px; cell text approximately 10–11px.
+- Status badges approximately 23px high.
+- Row action buttons approximately 29px square.
+- Empty state is centered, icon-led and includes a useful explanation/action.
+- Product delete confirmation is a compact, record-aware destructive confirmation.
+
+The source page contains a few local inconsistencies and duplicate declarations. The canonical values in this document resolve those differences; do not reproduce accidental CSS duplication.
+
+---
+
+## 2. Design direction and non-negotiable principles
+
+**Visual direction: premium enterprise ERP — clean, compact, calm, precise and data-first.**
+
+- Use clean neutral surfaces with the existing Madina Scale primary brand color.
+- Keep information density high without sacrificing readability.
+- Use clear hierarchy, consistent alignment and predictable interactions.
+- Use color to communicate meaning, not as decoration.
+- Avoid decorative gradients, glow effects, excessive glassmorphism, oversized whitespace and unnecessary animation.
+- All pages must feel like parts of one product, not independently designed applications.
+- Prioritize operational clarity, accessibility, speed and consistency over novelty.
+
+### Non-negotiable system rules
+
+- One shared ERP shell and content gutter.
+- One page-header and breadcrumb pattern.
+- One typography scale and spacing scale.
+- One canonical theme-token namespace.
+- One button and form-control system.
+- One icon library and sizing convention.
+- One card, border, radius and shadow system.
+- One status-color map.
+- One table/register pattern.
+- One toast/alert and data-state system.
+- Three standard modal sizes: small, medium and large.
+- Light, dark and system theme compatibility wherever supported by the application.
+- Responsive behavior must be designed as part of the component, not added as a last-minute patch.
+
+---
+
+## 3. Canonical design tokens
+
+### 3.1 Token namespace
+
+Use **`--ms-*`** as the canonical token namespace for new and migrated backend UI components.
+
+The older pages use both `--ms-*` and unprefixed variables such as `--text-primary`, `--surface` and `--border`. Do not continue this split in new components. If existing application styles still depend on unprefixed variables, map them centrally as aliases to canonical tokens during a controlled migration. Do not maintain two independently configurable palettes.
+
+### 3.2 Semantic color tokens
+
+The exact brand color values must come from the existing Madina Scale theme implementation. Do not invent a new primary green or silently replace the current brand palette.
+
+| Canonical token | Role |
+|---|---|
+| `--ms-primary` | Primary actions, active navigation, links and focus accents |
+| `--ms-primary-hover` | Primary action hover |
+| `--ms-primary-soft` | Soft primary backgrounds and selected surfaces |
+| `--ms-background` | App/page background |
+| `--ms-surface` | Cards, panels, menus, inputs and dialogs |
+| `--ms-surface-muted` | Muted sections, input backgrounds and hover surfaces |
+| `--ms-border` | Standard borders and dividers |
+| `--ms-border-strong` | Emphasized and interactive borders |
+| `--ms-text-primary` | Main headings, values and primary content |
+| `--ms-text-secondary` | Supporting copy and descriptions |
+| `--ms-text-muted` | Breadcrumbs, metadata and placeholders |
+| `--ms-success`, `--ms-success-soft` | Success/completed states |
+| `--ms-warning`, `--ms-warning-soft` | Warnings and attention states |
+| `--ms-danger`, `--ms-danger-soft` | Destructive actions and errors |
+| `--ms-info`, `--ms-info-soft` | Informational and in-progress states |
+| `--ms-overlay` | Modal backdrop |
+| `--ms-focus-ring` | Visible keyboard focus indicator |
+
+Status colors must be consistent across modules. Identical status values must not change color arbitrarily between pages.
+
+### 3.3 Shape, spacing and motion tokens
+
+```css
+:root {
+  --ms-radius-control: 8px;
+  --ms-radius-button: 9px;
+  --ms-radius-card: 12px;
+  --ms-radius-panel: 14px;
+  --ms-radius-modal-sm: 18px;
+  --ms-radius-modal-md: 22px;
+  --ms-radius-modal-lg: 20px;
+
+  --ms-space-1: 4px;
+  --ms-space-2: 8px;
+  --ms-space-3: 12px;
+  --ms-space-4: 16px;
+  --ms-space-5: 20px;
+  --ms-space-6: 24px;
+  --ms-space-7: 28px;
+  --ms-space-8: 32px;
+
+  --ms-transition-fast: 150ms ease;
+  --ms-transition-standard: 180ms ease;
+}
+```
+
+These are design-token values, not a requirement to paste this block into an arbitrary file. Add or map them in the project's actual global theme layer after inspecting the existing theme architecture.
+
+### 3.4 Border and shadow
+
+- Standard border: `1px solid var(--ms-border)`.
+- Emphasized border: `1px solid var(--ms-border-strong)`.
+- Cards use a subtle shadow only; border should define the component.
+- Avoid heavy shadows on every card.
+- Focus treatment: visible approximately 2–3px primary-derived ring with adequate offset.
+- Equivalent components must use the same radius and shadow values.
+
+---
+
+## 4. Typography system
+
+### 4.1 Font family
+
+The reviewed page-level source files do not establish a trustworthy global font-family source. The actual font must be confirmed from `ErpLayout`, global CSS and the app entry stylesheet before any global font change.
+
+Rules:
+
+1. Preserve the existing application-wide font if it is already loaded and consistently used.
+2. Do not introduce a page-specific font family.
+3. Do not add a new font dependency just for visual redesign.
+4. Controls and ordinary UI text must inherit the global font.
+5. Use a monospace stack only for technical identifiers, slugs, keys and code-like values.
+6. If a future audit confirms that no global font has been established, choose and document one global stack centrally; do not make that choice separately inside pages.
+
+Recommended technical monospace stack:
 
 ```css
 font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 ```
 
-**Action to confirm later:** inspect `ErpLayout.vue`, global CSS, and the app entry stylesheet to record the exact inherited font family here. Do not guess it.
-
-### 2.2 Canonical type scale
-
-The Modules page uses a compact scale with observed sizes from about `8px` to `23px`. The table below keeps that visual language while defining a consistent recommended scale for all new pages.
-
-| UI element                |         Canonical size |                    Weight | Notes                                                      |
-| ------------------------- | ---------------------: | ------------------------: | ---------------------------------------------------------- |
-| Main page title (`h1`)    | `23px` (mobile `20px`) |                     `750` | One per page; compact enterprise heading                   |
-| Main panel heading (`h2`) |              `15–16px` |                 `700–750` | Content or workspace title                                 |
-| Subsection/card heading   |              `12–14px` |                     `700` | Avoid using heading tags just for bold styling             |
-| KPI/stat value            |              `17–21px` |                     `750` | Use tabular numerals where appropriate                     |
-| KPI/stat label            |               `9–11px` |                 `600–650` | Secondary to the value                                     |
-| Breadcrumb                |                 `11px` | `600`; current item `700` | Current page should be distinguishable                     |
-| Page description          |                 `12px` |                     `400` | Line-height around `1.5–1.55`                              |
-| Section kicker/eyebrow    |                `8–9px` |                     `800` | Uppercase, letter-spacing `0.10–0.13em`; use sparingly     |
-| Button label              |                 `11px` |                 `650–700` | Keep all primary/secondary buttons consistent              |
-| Input/select text         |              `12–13px` |                 `400–600` | Prefer `13px` for general form controls                    |
-| Field label               |              `10–11px` |                 `650–700` | Must remain readable and clearly associated with its field |
-| Field hint/description    |              `10–11px` |                     `400` | Usually line-height `1.4–1.5`                              |
-| Table header              |                `8–9px` |                 `750–800` | Uppercase, letter-spacing `0.08em`; do not overuse         |
-| Table primary cell        |              `11–12px` |                 `650–750` | Main record name/value                                     |
-| Table secondary cell      |               `9–10px` |                 `400–600` | Slug, metadata, supporting details                         |
-| Badge/chip                |                `8–9px` |                 `700–800` | Compact, short labels                                      |
-| Validation/error text     |              `10–11px` |                 `500–600` | Must remain legible; pair color with text/icon             |
-| Modal title               |              `16–18px` |                 `700–750` | Use same heading hierarchy as the page                     |
-| Modal description         |              `11–12px` |                     `400` | Supporting context                                         |
-| Technical key/slug        |               `9–10px` |                 `500–700` | Monospace stack                                            |
-| Tiny decorative metadata  |          `8px` minimum |                 `600–800` | Avoid for essential information                            |
-
-**Rules**
-
-- Use `rem` for the final shared token system where practical; the pixel sizes above document the current visual scale.
-- Avoid arbitrary one-off font sizes. Choose the closest defined role.
-- Do not use low-contrast faint text for important content.
-- Body text should not become tiny simply to fit more content; reflow or simplify instead.
-- Use `font-weight: 750` only if the chosen font supports it; otherwise the browser will synthesize the nearest available weight.
-
-## 3. Spacing system
-
-Use a predictable 4px-based spacing scale. The reference pages use values such as `4px`, `5px`, `7px`, `9px`, `10px`, `12px`, `14px`, `16px`, `18px`, and `22px`; the canonical scale below regularizes these values.
-
-| Token       |  Value | Typical use                                       |
-| ----------- | -----: | ------------------------------------------------- |
-| `--space-1` |  `4px` | Tiny icon/text separation, kicker margin          |
-| `--space-2` |  `8px` | Button groups, compact field gaps                 |
-| `--space-3` | `12px` | KPI gap, compact card padding                     |
-| `--space-4` | `16px` | Form/control groups, compact panel padding        |
-| `--space-5` | `20px` | Main content padding, larger component gaps       |
-| `--space-6` | `24px` | Page-header gap, major section separation         |
-| `--space-8` | `32px` | Separation between major page regions when needed |
-
-### Recommended spacing by component
-
-| Component                        | Standard         |
-| -------------------------------- | ---------------- |
-| Page header bottom margin        | `20–22px`        |
-| Breadcrumb-to-heading gap        | `8–9px`          |
-| Heading icon-to-copy gap         | `10–12px`        |
-| Heading title-to-description gap | `5–6px`          |
-| Header action gap                | `8px`            |
-| KPI/stat grid gap                | `12px`           |
-| KPI card padding                 | `12–14px`        |
-| Main panel toolbar padding       | `16–18px`        |
-| Panel heading-to-description gap | `5–6px`          |
-| Search/filter control gap        | `8px`            |
-| Table cell horizontal padding    | `14–17px`        |
-| Table cell vertical padding      | `10–12px`        |
-| Form grid gap                    | `14–16px`        |
-| Field label-to-control gap       | `6–8px`          |
-| Field-to-field vertical gap      | `14–16px`        |
-| Modal header padding             | `18px 18px 14px` |
-| Modal body padding               | `16–18px`        |
-| Modal footer padding             | `12–18px`        |
-| Inline icon-to-label gap         | `6–8px`          |
-
-Prefer `gap` in Flexbox/Grid over adding margins to every child. Use margins mainly for clear section-level separation.
-
-## 4. Layout and positioning
-
-### 4.1 Standard page composition
-
-```text
-ErpLayout
-└── main/page root
-    ├── header.page-header
-    │   ├── page-heading
-    │   │   ├── breadcrumb
-    │   │   └── heading-row
-    │   │       ├── heading-icon
-    │   │       └── h1 + description
-    │   └── header-actions
-    ├── operation-message (optional, role="status")
-    ├── stat-grid (optional)
-    ├── main content/workspace
-    │   ├── toolbar/filter region (optional)
-    │   ├── content / table / form / category navigation
-    │   └── loading, empty, or error state
-    ├── contextual/security note (optional)
-    └── dialog/overlay (only when needed)
-```
-
-Use the same order unless a page’s workflow clearly requires another structure. Do not add KPI cards to a page that has no useful metrics.
-
-### 4.2 Page root
-
-- Width: `100%`.
-- `min-width: 0` to prevent flex/grid children from forcing horizontal overflow.
-- `box-sizing: border-box`.
-- The reviewed pages use `padding: 0` because page spacing is managed by the layout and component structure. Confirm `ErpLayout` content padding before adding page-level padding.
-- Use a single clear page root class, e.g. `.products-page`.
-
-### 4.3 Page header
-
-- Use semantic `<header class="page-header">`.
-- Desktop: `display: flex`, `justify-content: space-between`, `align-items: flex-end`, `gap: 24px`.
-- Page heading must be allowed to shrink: `min-width: 0`.
-- Header actions use `display: flex`, `align-items: center`, `gap: 8px`, and wrap when necessary.
-- Use a breadcrumb followed by exactly one page-level `<h1>`.
-- Main title and description should form one text group; keep action buttons aligned with the heading group on wide screens.
-
-### 4.4 KPI/stat grid
-
-- Use semantic `<section aria-label="Summary">` or a similarly meaningful accessible label.
-- Use `<article>` for each independent metric card.
-- Recommended desktop layout: four equal columns when there are four useful metrics; use three columns for three metrics.
-- `display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px`.
-- Cards: padding `12–14px`; radius `10–12px`.
-- Do not force four columns when labels or values become cramped; responsive rules should reduce the column count.
-
-### 4.5 Main workspace and two-column pages
-
-The Settings page uses a sidebar/content architecture and the Modules page uses a single main panel. Pick the pattern that fits the task:
-
-- **Single workspace:** one full-width bordered panel containing toolbar and primary content.
-- **Sidebar workspace:** `grid-template-columns: 220px minmax(0, 1fr)` as the recommended baseline. The Settings source uses `190px` at a narrower breakpoint and switches to one column at `900px`.
-- Use `minmax(0, 1fr)` for flexible columns to prevent overflow.
-- Keep navigation in `<aside>` and `<nav aria-label="…">`; put the principal page content in `<main>` only when it is the primary main landmark and no competing `<main>` exists in the parent layout.
-- Do not create nested `<main>` landmarks. If `ErpLayout` already renders `<main>`, use `<section>` or `<div>` for the page content wrapper instead.
-
-### 4.6 Cards, panels, and surfaces
-
-Recommended shared values:
-
-- Standard card radius: `10–12px`.
-- Main workspace radius: `12–14px`.
-- Modal radius: `14–16px`.
-- Standard border: `1px solid var(--ms-border)`.
-- Shadow: use a shared token; keep it subtle.
-- Panel content padding: `16–18px`.
-- Avoid excessive nested cards. Use a card only when it creates a meaningful grouping.
-
-### 4.7 Tables
-
-- Use real `<table>`, `<thead>`, `<tbody>`, `<tr>`, `<th scope="col">`, and `<td>` markup.
-- Wrap wide tables in a horizontally scrollable container instead of allowing the whole page to overflow.
-- Header labels should be short and consistent.
-- Use a dedicated action column with accessible button names.
-- Use badges for status/type, not color alone.
-- Ensure empty and loading states are inside the table’s content region and are announced appropriately.
-
-### 4.8 Forms
-
-- Use a real `<form>` for submit-based workflows.
-- Use `<label for="…">` or wrap the control inside a `<label>`. Each field needs a visible label.
-- Use `fieldset` and `legend` for logically related groups where useful.
-- Desktop forms may use two columns: `grid-template-columns: repeat(2, minmax(0, 1fr))`; full-width fields span both columns.
-- Input/select recommended height: `36–38px` for compact admin controls; use at least `40px` where touch accessibility is important.
-- Textarea: min-height based on expected content; preserve visible resize behavior unless there is a strong reason not to.
-- Error text must be connected using `aria-describedby`; invalid fields should use `aria-invalid="true"`.
-- Keep helper text, errors, and character counts close to their field.
-
-### 4.9 Dialogs/modals
-
-- Use a proper dialog pattern with `role="dialog"`, `aria-modal="true"`, and `aria-labelledby`.
-- Use `<header>`, `<form>` or body region, and `<footer>` for the modal’s structure.
-- Prevent accidental close while saving if that matches the operation’s behavior.
-- Support Escape to close when safe, focus management, keyboard navigation, and focus return to the trigger.
-- Use a backdrop with restrained opacity/blur; do not rely on animation alone to communicate state.
-- Keep modal width responsive and the body scrollable when content exceeds viewport height.
-
-## 5. Color and design tokens
-
-The two source pages use different CSS variable naming conventions. Modules uses the `--ms-*` family (for example `--ms-text-body`, `--ms-text-heading`, `--ms-text-muted`, `--ms-border`, `--ms-surface-soft`, `--ms-control-bg`). Settings uses names such as `--text-primary`, `--text-secondary`, `--text-muted`, `--border`, and `--surface`.
-
-This difference should be resolved centrally rather than copied into every page. **Do not mix both token families in newly written page CSS.** Choose one canonical token API in global styles and optionally map legacy names to it.
-
-Suggested semantic token roles (the exact values should be defined in the global theme file):
-
-```css
-:root {
-    /* Brand */
-    --ms-primary: /* brand primary */;
-
-    /* Text */
-    --ms-text-heading: /* strongest text */;
-    --ms-text-body: /* normal text */;
-    --ms-text-muted: /* secondary text */;
-    --ms-text-faint: /* low-emphasis text; never for essential content */;
-
-    /* Surfaces and borders */
-    --ms-surface: /* card/page surface */;
-    --ms-surface-muted: /* muted panel surface */;
-    --ms-surface-soft: /* subtle chip/hover surface */;
-    --ms-control-bg: /* input/select background */;
-    --ms-border: /* standard border */;
-    --ms-border-subtle: /* low-emphasis divider */;
-    --ms-border-strong: /* emphasized border */;
-
-    /* Status */
-    --ms-success: /* success */;
-    --ms-warning: /* warning */;
-    --ms-danger: /* error/danger */;
-    --ms-info: /* informational */;
-    --ms-focus-ring: /* accessible focus indicator */;
-
-    /* Shape, spacing, motion */
-    --ms-radius-control: 8px;
-    --ms-radius-card: 12px;
-    --ms-radius-panel: 14px;
-    --ms-space-1: 4px;
-    --ms-space-2: 8px;
-    --ms-space-3: 12px;
-    --ms-space-4: 16px;
-    --ms-space-5: 20px;
-    --ms-space-6: 24px;
-    --ms-transition-fast: 150ms ease;
-    --ms-transition-standard: 180ms ease;
-}
-```
-
-The comments above are placeholders, not valid final CSS values. Define the actual colors and tokens in the global theme stylesheet, then consume them in components. Do not paste this block unchanged into production.
-
-### Color behavior
-
-- Primary action: brand primary token.
-- Secondary action: neutral surface with standard border.
-- Success/warning/danger: distinct semantic tokens, ideally with a small icon or text label as well as color.
-- Status badges: subtle tinted background, matching border/text, pill or compact rounded shape.
-- Hover states should preserve contrast in both light and dark themes.
-- Avoid isolated hard-coded hex values inside pages except where the color is intentionally part of a data visualization or a documented brand asset.
-
-## 6. Buttons and controls
-
-### Buttons
-
-- Compact standard height: `36px`; compact controls may be `34px` only where density requires it.
-- Horizontal padding: `12–14px`.
-- Radius: `8–9px`.
-- Label: `11px`, weight `650–700`.
-- Icon/label gap: `7–8px`.
-- Use `type="button"` for non-submit buttons and `type="submit"` only for form submission.
-- Disabled controls must be visually distinct and actually disabled.
-- Keep primary and secondary button variants consistent across all modules.
-
-### Inputs and selects
-
-- Use inherited font family.
-- Standard text size: `12–13px`.
-- Border radius: `8–10px`.
-- Use visible focus border/ring, not just a color change too subtle to notice.
-- Placeholder text must not substitute for a label.
-- Search inputs should have an accessible name, visible label, or `aria-label`.
-
-### Badges
-
-- Use concise labels.
-- Use `aria-label` only when a badge’s visible text is insufficient to communicate its meaning.
-- Avoid overusing uppercase microtext.
-- Do not use badges for decorative section headings.
-
-## 7. Semantic HTML and accessibility — required standard
-
-Use semantic elements according to the meaning of the content, not merely because their default appearance is convenient.
-
-| Purpose                               | Preferred markup                                                        |
-| ------------------------------------- | ----------------------------------------------------------------------- |
-| Page-level top region                 | `<header>`                                                              |
-| Primary page title                    | `<h1>`                                                                  |
-| Major content section                 | `<section aria-labelledby="…">`                                         |
-| Independent metric card               | `<article>`                                                             |
-| Primary page landmark                 | One `<main>` in the overall page                                        |
-| Related navigation                    | `<nav aria-label="…">`                                                  |
-| Sidebar/related complementary content | `<aside>`                                                               |
-| Data grid                             | `<table>` with proper header/body structure                             |
-| Form                                  | `<form>`                                                                |
-| Form group                            | `<fieldset>` + `<legend>` when appropriate                              |
-| Field name                            | `<label>` associated with its control                                   |
-| Operation feedback                    | `role="status"` for non-urgent status; `role="alert"` for urgent errors |
-| Dialog                                | `role="dialog"`, `aria-modal="true"`, accessible title                  |
-| Repeated independent item             | `<article>` or list markup, depending on meaning                        |
-| Generic layout wrapper                | `<div>` only when no semantic element better describes it               |
-
-### Semantic rules
-
-1. Maintain a logical heading hierarchy (`h1` → `h2` → `h3`); do not select headings based on font size.
-2. Do not use `<strong>` or `<span>` as a replacement for headings or labels.
-3. Use `<button>` for actions and `<a>`/Inertia `<Link>` for navigation.
-4. Do not nest interactive controls inside other interactive controls.
-5. Add `scope="col"` to table column headers; add row headers where appropriate.
-6. Add accessible names to icon-only buttons.
-7. Ensure keyboard focus is visible.
-8. Respect `prefers-reduced-motion`.
-9. Do not use color as the only signal for status, validation, or selection.
-10. Keep landmark usage correct when `ErpLayout` already provides the page-level header, navigation, or main landmark.
-
-## 8. Responsive behavior
-
-The source files use several breakpoints rather than one unified breakpoint system. Modules includes `1100px`, `820px`, `760px`, and `480px`; Settings includes `1100px`, `1050px`, `900px`, `760px`, and `560px`. For future pages, use a common set unless a component-specific breakpoint is needed.
-
-| Breakpoint | Recommended behavior                                                               |
-| ---------- | ---------------------------------------------------------------------------------- |
-| `1100px`   | Reduce KPI columns from 4 to 2; tighten wide workspace/sidebar layout              |
-| `900px`    | Collapse two-column sidebar/content layouts to one column when needed              |
-| `760px`    | Stack page header and action groups; allow filters/toolbars to wrap                |
-| `560px`    | Single-column forms/navigation/cards where necessary; stack modal/footer actions   |
-| `480px`    | Reduce title to around `20px`; make action controls wrap or occupy available width |
-
-Example:
-
-```css
-.stat-grid {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: var(--ms-space-3);
-}
-
-@media (max-width: 1100px) {
-    .stat-grid {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-}
-
-@media (max-width: 560px) {
-    .stat-grid {
-        grid-template-columns: 1fr;
-    }
-}
-```
-
-Responsive requirements:
-
-- Avoid fixed widths for the whole page.
-- Use `min-width: 0` on flex/grid children where content may be long.
-- Let toolbars wrap or stack on small screens.
-- Make tables scroll horizontally within their own container if required.
-- Keep all actions reachable; do not hide essential controls without an alternative.
-- Test long labels, translated text, empty states, and validation errors at narrow widths.
-
-## 9. Motion, hover, and focus
-
-- Use short transitions, typically `150–180ms`.
-- Hover elevation should be subtle; avoid moving large components enough to cause layout shift.
-- Add clear `:focus-visible` styling to buttons, links, inputs, navigation items, and custom controls.
-- Loading spinners should not be the only status indication; provide text such as “Loading products…”.
-- Disable or reduce nonessential animation under `@media (prefers-reduced-motion: reduce)`.
-- Do not make important information depend on hover.
-
-## 10. Page states every data-driven page should consider
-
-A list/detail/form page should intentionally design the following states, not only the happy path:
-
-- Initial loading state.
-- Empty state when no records exist.
-- No-results state when search/filter returns nothing.
-- Error state with a clear message and recovery action where possible.
-- Success feedback after create/update/delete.
-- Validation errors next to the relevant fields.
-- Disabled/saving state to prevent duplicate submissions.
-- Permission-restricted or protected-record state where applicable.
-- Responsive layout for all of the above.
-
-Use `role="status"` for routine feedback and reserve `role="alert"` for errors that require immediate attention.
-
-## 11. Recommended component CSS baseline
-
-Use this as a pattern, adapting class names to the page. It assumes the canonical variables are defined globally.
-
-```css
-.page-root {
-    width: 100%;
-    min-width: 0;
-    box-sizing: border-box;
-    color: var(--ms-text-body);
-}
-
-.page-header {
-    display: flex;
-    align-items: flex-end;
-    justify-content: space-between;
-    gap: var(--ms-space-6);
-    margin-bottom: 22px;
-}
-
-.page-heading {
-    min-width: 0;
-}
-
-.breadcrumb {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 7px;
-    margin-bottom: 9px;
-    color: var(--ms-text-muted);
-    font-size: 11px;
-    font-weight: 600;
-}
-
-.page-title {
-    margin: 0;
-    color: var(--ms-text-heading);
-    font-size: 23px;
-    font-weight: 750;
-    letter-spacing: -0.025em;
-}
-
-.page-description {
-    max-width: 680px;
-    margin: 5px 0 0;
-    color: var(--ms-text-muted);
-    font-size: 12px;
-    line-height: 1.55;
-}
-
-.header-actions {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: var(--ms-space-2);
-}
-
-.stat-grid {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: var(--ms-space-3);
-    margin-bottom: 14px;
-}
-
-.stat-card,
-.content-panel {
-    min-width: 0;
-    border: 1px solid var(--ms-border);
-    border-radius: var(--ms-radius-card);
-    background: var(--ms-surface);
-}
-
-.stat-card {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 12px 14px;
-}
-
-.content-panel {
-    overflow: hidden;
-}
-
-.btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 7px;
-    min-height: 36px;
-    padding: 0 13px;
-    border: 1px solid transparent;
-    border-radius: 9px;
-    font: inherit;
-    font-size: 11px;
-    font-weight: 700;
-    cursor: pointer;
-    transition:
-        border-color var(--ms-transition-fast),
-        background var(--ms-transition-fast),
-        color var(--ms-transition-fast),
-        box-shadow var(--ms-transition-fast);
-}
-
-.btn:focus-visible,
-input:focus-visible,
-select:focus-visible,
-textarea:focus-visible,
-a:focus-visible {
-    outline: 2px solid var(--ms-focus-ring);
-    outline-offset: 2px;
-}
-
-@media (max-width: 1100px) {
-    .stat-grid {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-}
-
-@media (max-width: 760px) {
-    .page-header {
-        align-items: flex-start;
-        flex-direction: column;
-    }
-
-    .header-actions {
-        width: 100%;
-    }
-}
-
-@media (max-width: 560px) {
-    .stat-grid {
-        grid-template-columns: 1fr;
-    }
-
-    .page-title {
-        font-size: 20px;
-    }
-}
-
-@media (prefers-reduced-motion: reduce) {
-    *,
-    *::before,
-    *::after {
-        scroll-behavior: auto !important;
-        animation-duration: 0.01ms !important;
-        animation-iteration-count: 1 !important;
-        transition-duration: 0.01ms !important;
-    }
-}
-```
-
-## 12. New-page implementation checklist
-
-Before marking a page complete, verify each item:
-
-### Structure
-
-- [ ] Wrapped in the existing `ErpLayout`.
-- [ ] One clear page title (`h1`) and a logical heading hierarchy.
-- [ ] Correct semantic landmarks; no nested `<main>` if the layout already provides one.
-- [ ] Breadcrumbs and action buttons follow the standard header pattern.
-- [ ] Main content uses a panel/grid pattern suited to the workflow.
-
-### Typography and spacing
-
-- [ ] Inherits the global font family; no accidental page-specific font reset.
-- [ ] Uses the canonical type scale rather than arbitrary sizes.
-- [ ] Uses spacing tokens or values from the spacing table.
-- [ ] Uses consistent button/input heights, border radii, and icon gaps.
-- [ ] Supporting text remains readable and has sufficient contrast.
-
-### Theme and components
-
-- [ ] Uses canonical theme variables; no second token naming system introduced.
-- [ ] Buttons, inputs, badges, panels, and feedback match other modules.
-- [ ] Light/dark theme behavior is checked if both are supported.
-- [ ] Focus, hover, disabled, loading, and reduced-motion states are considered.
-
-### Accessibility and responsive layout
-
-- [ ] Every form control has a label and errors are programmatically associated.
-- [ ] Icon-only actions have accessible names.
-- [ ] Table headings and navigation labels are semantic.
-- [ ] Keyboard navigation works.
-- [ ] Layout checked at desktop, tablet, and mobile breakpoints.
-- [ ] Long names, empty states, errors, and loading states do not break the layout.
-
-### Verification
-
-- [ ] Existing business logic and API behavior are preserved when restyling.
-- [ ] TypeScript check passes.
-- [ ] Production build passes.
-- [ ] Relevant create/edit/save/filter flows are tested.
+### 4.2 Canonical type scale
+
+| UI role | Canonical size | Weight | Notes |
+|---|---:|---:|---|
+| Page title (`h1`) | 24px desktop; 20px narrow mobile | 700–750 | One page-level title |
+| Page description | 12px | 400–500 | Line-height 1.5–1.55 |
+| Breadcrumb | 11px | 600; current 700 | Muted; current item distinct |
+| Main panel/section title | 14–16px | 700–750 | Use semantic heading level |
+| Subsection/card title | 12–14px | 650–700 | Consistent hierarchy |
+| KPI value | 21px | 700–750 | Tabular numerals |
+| KPI label | 10px | 500–600 | Muted |
+| Section eyebrow/kicker | 8–9px | 750–800 | Sparse use only |
+| Standard button | 12px | 650–700 | Compact button may use 11px |
+| Input/select value | 12–13px | 400–500 | Prefer 12px for dense admin controls |
+| Field label | 11px | 600–650 | Visible and associated |
+| Helper text | 10–11px | 400 | Line-height 1.4–1.5 |
+| Table header | 9px | 700–750 | Uppercase only when useful |
+| Table primary cell | 10–11px | 600–700 | Entity name/value |
+| Table secondary cell | 9–10px | 400–600 | Metadata/identifier |
+| Badge | 9–10px | 600–700 | Short labels |
+| Validation message | 10–11px | 500–600 | Clear and readable |
+| Modal title — small | 18–20px | 700–750 | Confirmation |
+| Modal title — medium | 20–21px | 750–800 | Workflow |
+| Modal title — large | 22–24px | 700–760 | Complex operation |
+| Modal body | 11–12px | 400–500 | Line-height 1.55–1.65 |
+| Technical key/slug | 9–10px | 500–700 | Monospace |
+
+Typography rules:
+
+- Use tabular numerals for quantities, prices, IDs, dates and KPI values where alignment matters.
+- Negative letter spacing is reserved for prominent headings and large values.
+- Do not use 7–8px text for essential information.
+- Do not shrink important body text merely to fit more content; reflow or simplify the layout instead.
+- Avoid arbitrary one-off font sizes.
+- Use `rem` for shared tokens where practical, while preserving the pixel values as the documented visual baseline.
 
 ---
 
-## 13. Source observations and follow-up work
+## 5. Spacing and layout rhythm
 
-The supplied pages share the same overall ERP visual direction but are **not yet a fully unified design system**:
+Use a 4px base rhythm.
 
-1. They use different CSS variable namespaces (`--ms-*` vs. plain names such as `--text-primary`).
-2. Their font-size choices overlap but differ by component.
-3. Their responsive breakpoints are not identical.
-4. The base font family is inherited and is not explicitly declared in either component’s local CSS.
-5. Many common components (header, breadcrumb, KPI card, buttons, messages, panel headings) are styled locally in each page.
+| Token | Value | Typical use |
+|---|---:|---|
+| `space-1` | 4px | Tight icon/text separation |
+| `space-2` | 8px | Button groups, compact gaps |
+| `space-3` | 12px | KPI gap, toolbar, compact padding |
+| `space-4` | 16px | Standard card/form padding |
+| `space-5` | 20px | Section separation |
+| `space-6` | 24px | Major component padding |
+| `space-7` | 28px | Large layout separation |
+| `space-8` | 32px | Major page regions |
 
-### Recommended next step
+### Component spacing
 
-After agreeing on this standard, move shared design tokens into one global theme stylesheet and, where practical, extract reusable components such as:
+| Component | Canonical spacing |
+|---|---:|
+| Page header bottom margin | 18–20px |
+| Breadcrumb-to-title gap | 8px |
+| Title icon-to-copy gap | 10–12px |
+| Title-to-description gap | 5–6px |
+| Header action gap | 8px |
+| KPI grid gap | 12px |
+| KPI-to-content gap | 14px |
+| Standard card padding | 14–16px |
+| Card header padding | approximately 16px |
+| Search/filter gap | 8px |
+| Form grid gap | 14–16px |
+| Field label-to-control gap | 5–6px |
+| Field-to-field vertical gap | 12–16px |
+| Modal body section gap | 14–18px |
+| Inline icon-to-label gap | 6–8px |
+
+Prefer `gap` in Flexbox/Grid over margins on every child. Use margins for clear section-level separation only.
+
+---
+
+## 6. Global page shell and page composition
+
+Every backend page must use the existing shared ERP shell (currently `ErpLayout` or its project equivalent). Do not add a second competing outer page gutter.
+
+### 6.1 Standard composition
+
+```text
+ErpLayout
+└── page root (section/div; do not duplicate parent landmarks)
+    ├── page header
+    │   ├── breadcrumb
+    │   ├── title row (optional icon + h1 + description)
+    │   └── page actions
+    ├── operation message (optional)
+    ├── KPI/stat grid (optional)
+    ├── main content workspace
+    │   ├── toolbar and filters (optional)
+    │   ├── table / form / chart / detail content
+    │   └── loading, empty or error state
+    ├── contextual note/footer (optional)
+    └── dialogs/overlays (only when needed)
+```
+
+Do not add KPI cards when there are no useful decision-making metrics.
+
+### 6.2 Page root
+
+- Width: 100%.
+- `min-width: 0`.
+- `box-sizing: border-box`.
+- Page-level outer padding is controlled by the shared shell unless the shell explicitly requires otherwise.
+- Use one clear root class per page.
+
+### 6.3 Page header
+
+- Use a semantic header region where the parent layout does not already provide a conflicting landmark.
+- Breadcrumb appears above the title.
+- Exactly one page-level `h1`.
+- Desktop: flex row, `justify-content: space-between`, `align-items: flex-end`, gap around 24px.
+- Heading group must be shrinkable (`min-width: 0`).
+- Optional title icon tile: 42×42px, 12px radius, soft primary surface, 20px icon.
+- Header actions: flex row, 8px gap, wrap when required.
+- On narrow screens, stack heading and actions; do not hide essential actions.
+
+### 6.4 Page type patterns
+
+**Register/list pages**
+
+`Header → optional KPI row → main register card → toolbar → filters → table → pagination`
+
+**Create/edit pages**
+
+`Header/actions → form sections → optional summary sidebar → bottom/sticky action area where useful`
+
+**Detail/show pages**
+
+`Header/actions → summary/hero region → information cards → related records/timeline → lifecycle metadata`
+
+**Analytics pages**
+
+`Header/filter row → KPI cards → chart grid → breakdown tables`
+
+Choose the structure that supports the workflow. Do not force every page into the same content layout.
+
+### 6.5 Single workspace and sidebar workspace
+
+- Single workspace: one full-width bordered panel for toolbar and primary content.
+- Sidebar workspace: recommended baseline `220px minmax(0, 1fr)`; adjust only when the content requires it.
+- Use `minmax(0, 1fr)` for flexible grid columns.
+- Put related navigation in `aside`/`nav` where semantically appropriate.
+- Do not create nested `<main>` landmarks. If `ErpLayout` already owns the main landmark, use `section` or `div` inside the page.
+
+### 6.6 Cards and panels
+
+- Standard card radius: 12–14px.
+- Main workspace radius: 14px.
+- Border: 1px canonical border.
+- Surface: canonical theme surface.
+- Padding: 14–16px; large content regions may use 18–20px.
+- Shadow: subtle.
+- Avoid unnecessary nested cards; group content only when it improves comprehension.
+
+---
+
+## 7. KPI and statistic cards
+
+Use the Product Index KPI pattern.
+
+- Desktop: 4 equal columns where four useful metrics exist.
+- Medium: 2 columns.
+- Mobile: 1 or 2 columns depending on available width; never force overflow.
+- Gap: 12px.
+- Minimum height: approximately 78px.
+- Padding: 12px 14px.
+- Radius: 12px.
+- Border: 1px canonical border.
+- Icon tile: 34×34px, 9px radius, 17px icon.
+- Label: 10px, weight 500–600.
+- Value: 21px, weight 700, tabular numerals.
+- Secondary/trend value: 9–10px.
+- Use soft semantic icon backgrounds, not saturated full-card fills.
+- Equivalent KPI cards must share height, icon size and typography.
+
+KPI cards must add decision value. Do not add them as decoration or simply to fill space.
+
+---
+
+## 8. Buttons and action hierarchy
+
+### 8.1 Sizes
+
+| Variant | Height | Horizontal padding | Font | Radius |
+|---|---:|---:|---:|---:|
+| Small | 32px | 10px | 11px | 8px |
+| Standard | 38px | 12–14px | 12px | 9px |
+| Large/modal primary | 42–44px | 16–18px | 12px | 10–11px |
+| Icon-only | 29–36px square | 0 | icon 13–16px | 8–10px |
+
+### 8.2 Variants
+
+- **Primary:** solid Madina primary, high-contrast foreground; normally one primary action per context.
+- **Secondary:** surface background, standard border and secondary text.
+- **Tertiary/Ghost:** transparent with a clear hover surface.
+- **Danger:** semantic danger treatment for destructive actions only.
+- **Link:** text action with clear affordance and accessible focus.
+- **Icon-only:** fixed square dimensions, accessible name and tooltip/title where appropriate.
+
+### 8.3 Interaction
+
+- Enabled buttons use pointer cursor.
+- Hover changes background/border; optional elevation is subtle and no more than 1px movement.
+- Active state gives a restrained pressed response.
+- `:focus-visible` must show a clear focus ring.
+- Disabled controls are actually disabled and visually distinct; use `not-allowed` cursor.
+- Loading state shows progress and a meaningful label such as `Saving…`; prevent duplicate submission.
+- Standard icon size: 14–16px; compact: 13–15px.
+- Icon/label gap: 7–8px.
+- Do not place several competing primary actions side by side without a genuine equal-priority workflow reason.
+- Use `type="button"` for non-submit buttons and `type="submit"` only for form submission.
+
+---
+
+## 9. Iconography
+
+Use the existing project icon wrapper, currently `@/components/dashboard/Icon.vue`, and its supported icon set. Confirm its current API before implementation. Do not add a second icon library.
+
+| Context | Icon size |
+|---|---:|
+| Page title | 20px |
+| Section | 18px |
+| KPI | 17px |
+| Standard button | 14–16px |
+| Table action | 13–15px |
+| Metadata | 12–13px |
+
+Rules:
+
+- Maintain one consistent outline/fill style and stroke weight.
+- Use the same semantic icon for the same action across modules.
+- Icon-only controls require accessible names and, where useful, tooltips.
+- Never use emoji as a substitute for interface icons.
+- Do not mix icon libraries or visual styles arbitrarily.
+
+---
+
+## 10. Forms and input controls
+
+All forms across Products, Customers, Orders, Inventory, CRM, Finance, CMS, Settings and other backend modules must use the same control language.
+
+### 10.1 Standard input/select
+
+- Standard height: 36px; use 40px or more when touch accessibility requires it.
+- Padding: 0 10px.
+- Border: 1px canonical border.
+- Radius: 8px.
+- Background: canonical surface.
+- Text: 12–13px.
+- Placeholder: muted token.
+- Focus: visible primary border and soft focus ring.
+- Disabled/read-only states must be visually distinct and semantically correct.
+- Placeholder is never a substitute for a label.
+
+### 10.2 Labels, helper text and errors
+
+- Label: 11px, weight 600–650.
+- Label-to-control gap: 5–6px.
+- Required marker uses semantic danger color.
+- Helper text: 10–11px, line-height 1.4–1.5.
+- Validation: 10–11px, placed directly under the relevant field.
+- Associate errors with the field using `aria-describedby`; use `aria-invalid="true"` where appropriate.
+- Error meaning must be communicated in text, not color alone.
+
+### 10.3 Textarea and grouped fields
+
+- Textarea min-height: generally 88–112px depending on expected content.
+- Padding: 10–12px.
+- Font: 12px; line-height 1.5–1.6.
+- Keep resize behavior consistent.
+- Use two-column forms on desktop only where fields benefit from it.
+- Full-width fields span both columns.
+- Collapse forms to one column when space is constrained.
+- Use `fieldset` and `legend` for logically related controls where appropriate.
+
+### 10.4 Specialized controls
+
+Selects, date pickers, checkboxes, radios, switches, file uploads and custom dropdowns must share the same border, radius, typography and focus treatment.
+
+- Date picker/calendar must use one project-wide design.
+- Dropdown menus need consistent elevation, item height, selected state and keyboard support.
+- File upload/dropzone needs a shared border, dashed/active state, icon tile and helper text.
+- Avoid browser-native `prompt()`, `alert()` and `confirm()` for core workflows; use the standardized dialog system.
+
+---
+
+## 11. Tables and register pages
+
+The Product Index table is the baseline for compact enterprise data.
+
+- Header height: approximately 38px.
+- Header text: 9px, weight 700–750; uppercase only where appropriate.
+- Standard product-like row height: approximately 62px.
+- Compact rows may be 48–54px when content permits.
+- Cell text: 10–11px, line-height 1.4.
+- Horizontal cell padding: approximately 10px.
+- Vertical cell padding: approximately 7px.
+- Dividers: 1px canonical border.
+- Row hover: subtle muted surface.
+- Row action: approximately 29px square, 8px radius.
+- Badge: approximately 23px high, 9–10px text.
+- Primary entity name: 11px, weight 600–650.
+- Secondary identifier: 9–10px, muted.
+- Numeric columns: right-aligned with tabular numerals.
+- Dates must use consistent project formatting and timezone behavior.
+
+Use real semantic table markup (`table`, `thead`, `tbody`, `tr`, `th`, `td`) with column headers and `scope="col"` as appropriate.
+
+Register features, where supported by the backend and useful to the page:
+
+- Search.
+- Advanced filters.
+- Sorting.
+- Server-side pagination and page-size selection.
+- Clear filters.
+- Empty, no-results, loading and error states.
+- Bulk selection/actions where safe and authorized.
+- Column visibility where useful.
+- Export where authorized.
+
+Do not move large datasets to client-side rendering merely for UI convenience. Preserve existing server-side filtering, sorting and pagination contracts.
+
+Wide tables must scroll within their own container or use a deliberate mobile representation. Never create page-wide horizontal overflow or clip essential row actions.
+
+---
+
+## 12. Status badges and semantic states
+
+Use one shared badge component and one centrally documented status map.
+
+| Meaning | Default semantic family |
+|---|---|
+| Active / success / completed | Green |
+| Pending / attention / draft | Amber or neutral according to business meaning |
+| Failed / cancelled / overdue | Red |
+| Processing / in transit / in progress | Blue or primary |
+| Archived / inactive | Neutral gray |
+
+Badge baseline:
+
+- Height: approximately 23px.
+- Horizontal padding: 8px.
+- Radius: pill (`999px`).
+- Font: 9–10px, weight 600–700.
+- Optional dot: 5–6px.
+- Use short, clear labels.
+- Color must never be the only signal.
+- Identical status values must map consistently throughout the ERP.
+
+---
+
+## 13. Modal, dialog and popup system
+
+All page dialogs must use a shared modal foundation with standardized size variants. Do not create bespoke modal systems for individual pages.
+
+### 13.1 General modal behavior
+
+- Fixed full-screen backdrop.
+- Centered dialog on desktop.
+- Backdrop uses a dark neutral overlay, approximately 54–64% opacity, with restrained 3–8px blur only where appropriate.
+- Dialog uses canonical surface, border, radius and shadow tokens.
+- Header, body and footer are separate structural regions.
+- Body scrolls independently when content exceeds max height.
+- Footer remains visible/sticky for long dialogs.
+- Close button is positioned consistently and has an accessible name.
+- Escape closes non-destructive dialogs unless the workflow intentionally blocks dismissal.
+- Click-outside closes only when safe and expected.
+- Focus moves into the dialog on open and returns to the trigger on close.
+- Focus remains within the modal while it is open.
+- Prevent background scrolling while modal is open.
+- Use `role="dialog"`, `aria-modal="true"` and an accessible title; prefer native `<dialog>` only if consistent with the existing implementation architecture.
+- Prevent accidental close while saving when required by the operation.
+- Respect reduced-motion and mobile safe-area insets.
+- Avoid nested modal stacks unless there is a clear workflow requirement.
+
+### 13.2 Small modal — confirmation/destructive action
+
+**Primary references:** `Products/Index.vue` delete modal and `Inventory/Reservations.vue` confirmation dialog.
+
+Use for:
+- Delete/archive/cancel confirmation.
+- Release/fulfill confirmation with a few details.
+- Simple consequential action with a short explanation and compact record summary.
+
+Specifications:
+
+| Property | Standard |
+|---|---|
+| Width | `min(460px, calc(100vw - 32px))` |
+| Desktop max-height | 85vh |
+| Padding | 18–20px, or equivalent structured header/body/footer |
+| Radius | 16–18px |
+| Title | 18–20px, weight 700–750 |
+| Description | 11–12px, line-height 1.55–1.65 |
+| Icon tile | 42–46px square, 12–13px radius |
+| Summary block | 10–14px padding, 10px radius |
+| Footer buttons | 36–40px high, 8px gap |
+
+Actions: Cancel secondary + one clearly named semantic primary/danger action. The destructive action must state the consequence; avoid vague labels such as `OK`.
+
+Mobile:
+- Full available width with approximately 16px outer gutter.
+- Buttons may stack where necessary.
+- Do not force bottom-sheet behavior for small confirmations unless adopted consistently by the product.
+
+### 13.3 Medium modal — operational form/workflow
+
+**Primary reference:** `Inventory/Operations.vue` transfer receive/issue workflow and adjustment confirmation.  
+**Supporting reference:** `Inventory/Index.vue` reservation modal.
+
+Use for:
+- Stock transfer receive/issue.
+- Adjustment confirmation with summary.
+- Simple add/edit form.
+- Workflow action with several fields and contextual information.
+
+Specifications:
+
+| Property | Standard |
+|---|---|
+| Width | `min(560px, calc(100vw - 40px))` |
+| Max-height | `min(90dvh, 820px)` |
+| Radius | 20–22px |
+| Header padding | 20–24px |
+| Body padding | 20–24px |
+| Body section gap | 14–18px |
+| Footer padding | 14–16px 20–24px |
+| Title | 20–21px, weight 750–800 |
+| Description | 12px, line-height 1.55 |
+| Icon tile | 48px square, 14–15px radius |
+| Footer buttons | 42–44px high, 11px radius |
+
+The body may contain summary cards, record/route information, form fields, notices and textareas. Footer stays visible while the body scrolls.
+
+Adjustment confirmation may expand to approximately 680px when structured details require it. Show:
+- A clear quantity/metric summary.
+- A bordered key/value record summary.
+- A semantic note explaining ledger or inventory impact.
+- Distinct cancel and confirm actions.
+
+Mobile:
+- Width 100%; max-height approximately 94dvh.
+- Bottom-sheet alignment is acceptable where it improves the workflow.
+- Radius approximately `20px 20px 14px 14px`.
+- Reduce header/body/footer padding to approximately 16px.
+- Buttons become equal-width or stack as necessary.
+- Respect `env(safe-area-inset-bottom)`.
+
+### 13.4 Large modal — complex form/multi-section operation
+
+**Primary reference:** `Inventory/Index.vue` structured stock modal.
+
+Use for:
+- Complex stock operations.
+- Multi-section create/edit forms.
+- Main record content plus summary sidebar.
+- Operations with multiple sections and contextual information.
+
+Specifications:
+
+| Property | Standard |
+|---|---|
+| Desktop width | `min(1120px, calc(100vw - 48px))` |
+| Max-height | `min(92vh, 940px)` |
+| Radius | 20px |
+| Header padding | 22–24px 26px |
+| Header icon | 58px square, 17px radius |
+| Header title | 22–24px, weight 750 |
+| Body padding | 20–24px |
+| Main/sidebar ratio | approximately 1.7fr / 0.92fr |
+| Sidebar min-width | 270px when viewport permits |
+| Main/sidebar gap | 16px |
+| Footer padding | 13–16px 24px |
+
+- Main content and summary sidebar collapse to one column when space is insufficient.
+- Footer remains visible and separated by a border.
+- Body scrolls independently.
+- Header includes a clear title, short description and close action.
+
+Mobile:
+- Near-fullscreen sheet/dialog; max-height approximately 96dvh.
+- Radius approximately `20px 20px 12px 12px`.
+- Header padding around 15–16px.
+- Body padding around 12–16px.
+- Footer padding around 10–12px plus safe-area inset.
+- Never squeeze a desktop two-column form into a narrow mobile viewport.
+
+### 13.5 Modal decision matrix
+
+| User task | Size |
+|---|---|
+| Confirm delete/archive/cancel | Small |
+| Confirm release/fulfill with a few details | Small |
+| Simple add/edit form | Medium |
+| Stock receive/issue action | Medium |
+| Adjustment confirmation with ledger details | Medium, up to ~680px |
+| Multi-section stock/product operation | Large |
+| Form with main content and summary sidebar | Large |
+
+Do not use a large modal for a one-line confirmation. Do not use a small modal for a complex multi-section form.
+
+### 13.6 Modal animation
+
+- Enter/exit: approximately 160–220ms.
+- Backdrop: opacity fade.
+- Dialog: subtle 6–10px translateY and scale 0.985→1.
+- Use ease-out; no bounce or dramatic zoom.
+- Under reduced motion, remove transform and minimize/disable transition.
+
+---
+
+## 14. Popovers, dropdowns, tooltips and drawers
+
+These are not modal dialogs and must have distinct interaction patterns.
+
+### Popover/dropdown
+
+- Surface background, canonical border, 10–12px radius, subtle shadow.
+- Menu item height: 34–38px.
+- Padding: 5–6px.
+- Text: 11–12px.
+- Clear hover and selected states.
+- Keyboard arrow navigation where it is a menu/listbox.
+- Escape dismissal.
+- Position to avoid viewport clipping.
+
+### Tooltip
+
+- Compact neutral high-contrast surface.
+- Text: 10–11px.
+- Radius: approximately 6px.
+- Short delay.
+- Never put essential instructions only in a tooltip.
+- Icon-only actions still need accessible names without relying on the tooltip.
+
+### Detail drawer
+
+- Use for quick preview/contextual details when preserving list context matters.
+- Desktop width: approximately 420–520px.
+- Full-width or near-full-width on mobile.
+- Same header/body/footer visual language as dialogs.
+- Do not use drawer and modal interchangeably without a clear UX reason.
+
+---
+
+## 15. Toasts, alerts, loading, empty and error states
+
+### Toast
+
+- One global toast system for all modules.
+- Consistent global position and stacking.
+- Maximum width: approximately 300–380px.
+- Padding: 11–14px.
+- Radius: 10–12px.
+- Text: 11–12px.
+- Semantic icon and clear message.
+- Success/info may auto-dismiss after a reasonable interval; errors remain visible long enough to read.
+- Avoid duplicate messages for the same operation.
+
+### Inline alert
+
+- Semantic soft background and border.
+- Text: approximately 11px.
+- Padding: 9px 11px.
+- Radius: 9px.
+- Dismiss action where useful.
+
+### Loading
+
+- Use consistent skeletons for cards, tables and forms.
+- Spinner-only feedback is reserved for small immediate actions.
+- Keep layout stable to prevent layout shift.
+- Never leave a blank-looking panel when a request is pending.
+- Loading state should include meaningful context where appropriate, e.g. “Loading products…”.
+
+### Empty/no-results
+
+- Centered icon treatment, approximately 44px.
+- Title: 12–14px, weight 650–700.
+- Description: 10–11px.
+- One relevant action where applicable.
+- Distinguish “no records exist” from “no results match current filters”.
+
+### Error
+
+- Human-readable explanation.
+- Retry action when safe.
+- Never expose stack traces or sensitive backend details.
+- Preserve user-entered form data where possible.
+- Use `role="alert"` for urgent errors and `role="status"` for routine status messages.
+
+### Data-driven page states
+
+Every applicable list/detail/form page must consider:
+- Initial loading.
+- Empty dataset.
+- No matching search/filter results.
+- Error and recovery.
+- Success after create/update/delete.
+- Field validation errors.
+- Disabled/saving state to prevent duplicate submission.
+- Permission-restricted/protected-record state.
+- Responsive presentation of all states.
+
+---
+
+## 16. Responsive behavior
+
+Use the shared shell breakpoints if they already exist. Do not create competing global breakpoint systems. If no shared system exists, use these recommended behavior bands:
+
+| Breakpoint | Expected behavior |
+|---|---|
+| 1100px | Reduce KPI columns from 4 to 2; tighten wide/sidebar layouts |
+| 900px | Collapse sidebar/content layouts when needed |
+| 760px | Stack page header/actions; allow toolbars and filters to wrap |
+| 560px | Single-column forms/cards where needed; stack modal actions |
+| 480px | Reduce page title to about 20px; controls wrap or fill available width |
+
+General rules:
+
+- Avoid fixed widths for the overall page.
+- Use `min-width: 0` on flex/grid children.
+- KPI layout changes 4 → 2 → 1 columns as needed.
+- Multi-column forms collapse to one column when constrained.
+- Toolbars wrap; search retains useful width.
+- Tables use controlled horizontal scroll or a deliberate mobile card representation.
+- Never clip essential actions or hide them without an alternative.
+- Touch targets should generally be at least 40–44px on mobile.
+- Modal variants follow their specific mobile rules.
+- Test at 320px viewport width and prevent page-wide horizontal overflow.
+- Test long labels, translated text, empty states and validation errors at narrow widths.
+
+---
+
+## 17. Semantic HTML and accessibility
+
+Target WCAG 2.2 AA where practical.
+
+| Purpose | Preferred semantic element |
+|---|---|
+| Page-level top region | `header` |
+| Primary page title | `h1` |
+| Major content section | `section` with accessible heading |
+| Independent metric card | `article` where appropriate |
+| Primary page landmark | One `main` in the overall page |
+| Related navigation | `nav` with `aria-label` |
+| Sidebar/complementary content | `aside` |
+| Data grid | `table` with proper header/body structure |
+| Form workflow | `form` |
+| Related form group | `fieldset` + `legend` where useful |
+| Field name | Associated `label` |
+| Routine operation feedback | `role="status"` |
+| Urgent error | `role="alert"` |
+| Dialog | `role="dialog"`, `aria-modal="true"`, labelled title |
+| Generic wrapper | `div` only when no more meaningful semantic element applies |
+
+Required rules:
+
+1. Maintain logical heading hierarchy (`h1` → `h2` → `h3`).
+2. Do not choose heading tags merely for their default font size.
+3. Use buttons for actions and links/Inertia `Link` for navigation.
+4. Do not nest interactive controls inside other interactive controls.
+5. Use `scope="col"` for table column headers and row headers where appropriate.
+6. Give icon-only buttons accessible names.
+7. Keep keyboard focus visible.
+8. Respect `prefers-reduced-motion`.
+9. Never use color as the only status, validation or selection signal.
+10. Ensure form errors are associated with controls.
+11. Ensure dialog focus is managed and returned to the invoking control.
+12. Maintain logical tab order and usable hit areas.
+13. Do not rely on hover-only functionality.
+14. Avoid nested page landmarks when the shared ERP shell already supplies them.
+15. Text contrast must meet WCAG AA requirements where practical.
+
+---
+
+## 18. Theme behavior
+
+- All shared components must consume semantic theme tokens.
+- Light, dark and system modes must use the same component structure and semantic color roles.
+- Do not hard-code white backgrounds or fixed light-only text colors in theme-aware components.
+- Hover, focus, disabled, selected and status states must remain distinguishable in all supported themes.
+- Do not infer theme colors from screenshots; inspect the existing global theme source.
+- If a theme mode is not currently supported by the application, do not claim it is implemented. Preserve the current architecture and document any limitation.
+
+---
+
+## 19. Shared component architecture
+
+Create or extend shared components rather than duplicating page-scoped markup and CSS. Adapt names to the existing codebase; do not create duplicate components if equivalent ones already exist.
+
+Suggested inventory:
 
 - `PageHeader`
 - `Breadcrumbs`
-- `StatCard` / `StatGrid`
-- `BaseButton`
+- `PageActions`
+- `KpiCard`
+- `KpiGrid`
+- `SectionCard`
+- `AppButton`
+- `IconButton`
+- `AppInput`
+- `AppSelect`
+- `AppTextarea`
+- `AppDatePicker`
+- `AppCheckbox`
+- `AppSwitch`
+- `DataTable`
+- `TableToolbar`
+- `FilterPanel`
 - `StatusBadge`
-- `OperationMessage`
+- `AppModal`
+- `ConfirmDialog`
+- `ToastHost`
+- `InlineAlert`
 - `EmptyState`
-- `LoadingState`
-- `FormField`
-- `ConfirmDialog` / `BaseModal`
+- `LoadingSkeleton`
+- `DetailDrawer`
+- `AppPopover`
+- `AppTooltip`
 
-Do this incrementally. Do not replace all local CSS at once if that risks regressions. Migrate one page at a time and verify its behavior after each change.
+Suggested modal API concept:
 
-**Source files reviewed:** `resources/js/pages/Developer/Modules.vue`, `resources/js/pages/Settings/System.vue`.
+- `size: 'sm' | 'md' | 'lg'`
+- `title`
+- `description`
+- `icon`
+- `closeable`
+- `loading`
+- `confirmLabel`
+- `cancelLabel`
+- `tone: 'default' | 'success' | 'warning' | 'danger'`
+- Body/footer slots for workflow-specific content.
+
+Use existing Vue, Inertia and state-management conventions. Do not introduce a new UI framework or state-management library solely for this redesign.
+
+---
+
+## 20. Strict implementation instructions for future AI/code work
+
+When asked to redesign any backend page:
+
+1. Read this entire document first.
+2. Inspect the current page, parent layout, relevant shared components, styles and related pages before editing.
+3. Identify the page type and select the appropriate layout pattern.
+4. Use `Products/Index.vue` as the primary page-level visual reference.
+5. Use the modal reference hierarchy and standardized sizes in this document.
+6. Preserve every existing field, filter, action, permission, route, API request, validation rule, business rule, data contract and workflow unless explicitly asked to change it.
+7. For UI-only work, do not change backend logic, database schema, routes or API behavior.
+8. Do not remove content, columns, KPIs, filters or actions merely to make the page look cleaner.
+9. Use canonical theme tokens and shared components; do not create a new page-specific design language.
+10. Do not introduce page-specific font families or arbitrary type scales.
+11. Ensure controls have real working interactions; do not leave decorative/inert buttons.
+12. Cover loading, empty, no-results, error, disabled, hover, focus and success states as applicable.
+13. Verify keyboard behavior and accessibility for menus, forms and dialogs.
+14. Check supported themes and desktop/tablet/mobile layouts.
+15. Avoid unrelated refactoring and dependency additions.
+16. Run relevant typecheck, build and tests when available.
+17. Report exactly which files changed and which checks were actually run.
+18. Never claim tests/build/runtime verification unless they were executed successfully.
+
+### Explicit prohibitions
+
+- No competing token namespace in new components.
+- No arbitrary page-specific font family.
+- No arbitrary font sizes outside the scale without documented justification.
+- No inconsistent button heights, radii or icon styles for equivalent controls.
+- No bespoke page-only modal system.
+- No native browser `alert()`, `confirm()` or `prompt()` for core workflows.
+- No hard-coded light-only surfaces/text in theme-aware components.
+- No emoji in place of interface icons.
+- No random gradients, excessive shadows, glow or glass effects.
+- No removal of business content or actions for visual simplification.
+- No backend/API/database changes during a UI-only task.
+- No claim of verification without running the relevant command/test.
+
+---
+
+## 21. Redesign acceptance checklist
+
+A page is accepted only when all relevant checks pass.
+
+### Visual consistency
+- [ ] Uses the shared ERP shell and content alignment.
+- [ ] Uses the standard breadcrumb and page-header hierarchy.
+- [ ] Uses canonical typography and spacing scales.
+- [ ] Uses canonical theme tokens.
+- [ ] Uses consistent card borders, radii and shadows.
+- [ ] Uses standard button variants and dimensions.
+- [ ] Uses the existing icon family and standard icon sizing.
+- [ ] Uses the KPI pattern where metrics add value.
+- [ ] Uses consistent table density and status badges.
+- [ ] Uses shared form-control and validation styles.
+- [ ] Uses the correct modal size and structure.
+
+### Functional preservation
+- [ ] Existing routes and permissions are preserved.
+- [ ] Existing actions and workflows still work.
+- [ ] Search, filters, sorting and pagination are preserved.
+- [ ] Forms and validation are preserved.
+- [ ] Loading, empty, no-results, error and success states work.
+- [ ] Dialog keyboard and close behavior work.
+- [ ] No dead buttons or fake interactions.
+
+### Theme, accessibility and responsive
+- [ ] Supported theme modes are checked.
+- [ ] Focus and contrast are checked.
+- [ ] Form labels and errors are programmatically associated.
+- [ ] Icon-only actions have accessible names.
+- [ ] Keyboard navigation works.
+- [ ] Desktop, tablet and mobile are checked.
+- [ ] Narrow mobile width has no page-level horizontal overflow.
+- [ ] Long labels, empty states and errors do not break the layout.
+
+### Engineering verification
+- [ ] TypeScript check passes.
+- [ ] Production build passes.
+- [ ] Relevant tests pass.
+- [ ] No new console/runtime errors.
+- [ ] No unnecessary dependency is added.
+- [ ] No unrelated backend changes are included.
+
+---
+
+## 22. Final source-of-truth statement
+
+**`Products/Index.vue` defines the primary backend page/register visual language. The Product Create/Edit/Show pages provide workflow and content references. Inventory modal implementations provide practical small, medium and large dialog examples. `Developer/Modules.vue` and `Settings/System.vue` remain secondary structural and semantic references. This document is the single consolidated contract that governs all of them.**
+
+Every future Madina Scale backend page must use this same design system. Business content and workflow may differ by module; typography, spacing, semantic color roles, controls, cards, buttons, icons, tables, KPI treatment, overlays, modal behavior, accessibility and responsive principles must remain consistent.
+
+**Do not redesign each module independently. Establish and maintain one shared design system, then apply it consistently across the entire ERP.**

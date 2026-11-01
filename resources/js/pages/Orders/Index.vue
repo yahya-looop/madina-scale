@@ -680,7 +680,7 @@ onMounted(async () => {
 <template>
   <Head title="Orders Management" />
   <ErpLayout :user-name="props.userName" :user-email="props.userEmail">
-    <main class="orders-page">
+    <section class="orders-page">
       <header class="orders-hero">
         <div>
           <div class="orders-breadcrumb">
@@ -2433,7 +2433,7 @@ onMounted(async () => {
           </footer>
         </section>
       </div>
-    </main>
+    </section>
   </ErpLayout>
 </template>
 
@@ -6510,4 +6510,90 @@ body:has(.orders-detail-overlay) {
   cursor: not-allowed;
   box-shadow: none;
 }
+
+/* Master UI source-of-truth alignment and theme-aware component surfaces. */
+.orders-page{color:var(--ms-text-heading);gap:16px;padding:clamp(14px,1.8vw,24px)}
+.orders-breadcrumb{font-size:11px;margin-bottom:9px}.orders-title{gap:11px}
+.orders-title-icon{width:42px;height:42px;flex-basis:42px;border-radius:12px;border-color:var(--ms-border);background:var(--ms-primary-soft);color:var(--ms-primary)}
+.orders-title h1{font-size:24px;letter-spacing:-.035em}.orders-title p,.orders-panel-head p{font-size:12px}
+.orders-primary{min-height:38px;border-radius:9px;padding:0 13px;font-size:12px;background:var(--ms-primary);box-shadow:none}
+.orders-primary:hover:not(:disabled){background:var(--ms-primary);filter:brightness(.94)}
+.orders-metrics{grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.orders-metrics article{min-height:78px;padding:12px 14px;border-radius:12px;border-color:var(--ms-border);background:var(--ms-surface);box-shadow:var(--ms-shadow-card)}
+.metric-label,.metric-foot{color:var(--ms-text-body)}.orders-metrics article>strong{color:var(--ms-text-heading);font-size:21px}
+.metric-icon{width:34px;height:34px;border-radius:9px}
+.orders-panel{border-color:var(--ms-border);border-radius:14px;background:var(--ms-surface);box-shadow:var(--ms-shadow-card)}
+.orders-panel-head{padding:15px 16px;border-color:var(--ms-border)}.orders-panel-head h2{color:var(--ms-text-heading);font-size:14px}
+.orders-count{background:var(--ms-surface-muted);color:var(--ms-text-body)}
+.orders-toolbar{padding:12px 16px;border-color:var(--ms-border)}
+.orders-search,.orders-filter select{height:36px;border-color:var(--ms-border);border-radius:8px;background:var(--ms-control-bg);color:var(--ms-text-heading)}
+.orders-search input{color:var(--ms-text-heading);font-size:12px}.orders-filter{color:var(--ms-text-body);font-size:11px}
+.orders-table th{height:38px;padding:0 10px;background:var(--ms-table-header-bg);color:var(--ms-text-body);font-size:9px}
+.orders-table td{padding:9px 10px;border-color:var(--ms-border);color:var(--ms-text-body);font-size:10px}
+.orders-table tbody tr:hover{background:var(--ms-table-row-hover)}
+.orders-table td strong,.orders-number{color:var(--ms-text-heading)}
+.orders-notice{background:var(--ms-success-bg);color:var(--ms-success);border-color:var(--ms-border)}
+.orders-error{background:var(--ms-danger-bg);color:var(--ms-danger);border-color:var(--ms-border)}
+.orders-primary:focus-visible,.orders-secondary:focus-visible,.orders-danger:focus-visible,.orders-row-actions button:focus-visible,.orders-pagination button:focus-visible{outline:2px solid var(--ms-primary);outline-offset:2px}
+@media(max-width:1100px){.orders-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:480px){.orders-page{padding:12px;gap:13px}.orders-title h1{font-size:20px}.orders-title-icon{width:38px;height:38px;flex-basis:38px}.orders-metrics{grid-template-columns:1fr}.orders-panel-head{align-items:flex-start;padding:13px}.orders-toolbar{align-items:stretch;flex-direction:column;padding:12px}.orders-search{min-width:0;width:100%}.orders-filter{justify-content:space-between}.orders-filter select{flex:1;min-width:0}}
+:global(html[data-theme='dark']) .orders-page .orders-panel,:global(html[data-theme='dark']) .orders-page .orders-metrics article,:global(html[data-theme='dark']) .orders-page .orders-dialog,:global(html[data-theme='dark']) .orders-page .orders-create-section{background:var(--ms-surface);border-color:var(--ms-border)}
+:global(html[data-theme='dark']) .orders-page .orders-panel-head,:global(html[data-theme='dark']) .orders-page .orders-toolbar,:global(html[data-theme='dark']) .orders-page .orders-pagination,:global(html[data-theme='dark']) .orders-page .orders-dialog-head,:global(html[data-theme='dark']) .orders-page .orders-dialog-footer,:global(html[data-theme='dark']) .orders-page .orders-create-footer{border-color:var(--ms-border)}
+:global(html[data-theme='dark']) .orders-page .orders-table th,:global(html[data-theme='dark']) .orders-page .orders-count,:global(html[data-theme='dark']) .orders-page .orders-pagination,:global(html[data-theme='dark']) .orders-page .orders-dialog-section,:global(html[data-theme='dark']) .orders-page .orders-cart-line{background:var(--ms-surface-muted);color:var(--ms-text-body)}
+:global(html[data-theme='dark']) .orders-page .orders-table td,:global(html[data-theme='dark']) .orders-page .orders-table td strong,:global(html[data-theme='dark']) .orders-page .orders-title h1,:global(html[data-theme='dark']) .orders-page .orders-panel-head h2,:global(html[data-theme='dark']) .orders-page .orders-dialog h2,:global(html[data-theme='dark']) .orders-page .orders-dialog h3,:global(html[data-theme='dark']) .orders-page .orders-cart-line strong{color:var(--ms-text-heading)}
+:global(html[data-theme='dark']) .orders-page .orders-title-icon,:global(html[data-theme='dark']) .orders-page .metric-icon,:global(html[data-theme='dark']) .orders-page .orders-create-icon,:global(html[data-theme='dark']) .orders-page .orders-create-section-icon,:global(html[data-theme='dark']) .orders-page .orders-product-thumb,:global(html[data-theme='dark']) .orders-page .customer-avatar{border-color:var(--ms-border);background:var(--ms-primary-soft);color:var(--ms-primary)}
+:global(html[data-theme='dark']) .orders-page .orders-search,:global(html[data-theme='dark']) .orders-page .orders-filter select,:global(html[data-theme='dark']) .orders-page .orders-form-grid input,:global(html[data-theme='dark']) .orders-page .orders-form-grid select,:global(html[data-theme='dark']) .orders-page .orders-form-grid textarea,:global(html[data-theme='dark']) .orders-page .orders-add-line input,:global(html[data-theme='dark']) .orders-page .orders-add-line select,:global(html[data-theme='dark']) .orders-page .orders-dialog-body textarea,:global(html[data-theme='dark']) .orders-page .orders-product-picker-trigger,:global(html[data-theme='dark']) .orders-page .customer-search-button{border-color:var(--ms-border);background:var(--ms-control-bg);color:var(--ms-text-heading)}
+:global(html[data-theme='dark']) .orders-page .orders-product-options,:global(html[data-theme='dark']) .orders-page .orders-product-option,:global(html[data-theme='dark']) .orders-page .customer-results{border-color:var(--ms-border);background:var(--ms-surface);color:var(--ms-text-heading)}
+:global(html[data-theme='dark']) .orders-page .orders-product-option:hover,:global(html[data-theme='dark']) .orders-page .orders-product-option.is-selected,:global(html[data-theme='dark']) .orders-page .customer-result:hover{border-color:var(--ms-border-strong);background:var(--ms-surface-muted)}
+:global(html[data-theme='dark']) .orders-page .orders-secondary,:global(html[data-theme='dark']) .orders-page .orders-close{border-color:var(--ms-border);background:var(--ms-surface-muted);color:var(--ms-text-heading)}
+:global(html[data-theme='dark']) .orders-page .orders-dialog p,:global(html[data-theme='dark']) .orders-page .orders-dialog small,:global(html[data-theme='dark']) .orders-page .orders-dialog label{color:var(--ms-text-body)}
+
+
+/* Dark-mode coverage for legacy order detail/create workflows. */
+:global(html[data-theme='dark']) .orders-page .orders-status,
+:global(html[data-theme='dark']) .orders-page .orders-stage-badge,
+:global(html[data-theme='dark']) .orders-page .orders-lifecycle-alert,
+:global(html[data-theme='dark']) .orders-page .orders-insight-card,
+:global(html[data-theme='dark']) .orders-page .orders-note,
+:global(html[data-theme='dark']) .orders-page .orders-sms-log,
+:global(html[data-theme='dark']) .orders-page .orders-product-trigger-copy,
+:global(html[data-theme='dark']) .orders-page .orders-cart-line,
+:global(html[data-theme='dark']) .orders-page .customer-selected {
+  border-color: var(--ms-border); background: var(--ms-surface-muted); color: var(--ms-text-body);
+}
+:global(html[data-theme='dark']) .orders-page .orders-overlay.orders-detail-overlay > .orders-dialog.orders-detail-dialog,
+:global(html[data-theme='dark']) .orders-page .orders-overlay.orders-detail-overlay .orders-detail-head,
+:global(html[data-theme='dark']) .orders-page .orders-overlay.orders-detail-overlay .orders-detail-footer,
+:global(html[data-theme='dark']) .orders-page .orders-overlay.orders-detail-overlay .orders-record-list article,
+:global(html[data-theme='dark']) .orders-page .orders-overlay.orders-detail-overlay .orders-record-grid article,
+:global(html[data-theme='dark']) .orders-page .orders-overlay.orders-detail-overlay .orders-detail-total {
+  background: var(--ms-surface) !important; background-color: var(--ms-surface) !important;
+  border-color: var(--ms-border) !important; color: var(--ms-text-heading) !important;
+}
+:global(html[data-theme='dark']) .orders-page .orders-overlay.orders-detail-overlay .orders-detail-body,
+:global(html[data-theme='dark']) .orders-page .orders-overlay.orders-detail-overlay .orders-detail-section,
+:global(html[data-theme='dark']) .orders-page .orders-overlay.orders-detail-overlay .orders-record-list,
+:global(html[data-theme='dark']) .orders-page .orders-overlay.orders-detail-overlay .orders-record-grid {
+  background: var(--ms-surface-muted) !important; background-color: var(--ms-surface-muted) !important;
+  border-color: var(--ms-border) !important; color: var(--ms-text-body) !important;
+}
+:global(html[data-theme='dark']) .orders-page .orders-dialog [style],
+:global(html[data-theme='dark']) .orders-page .orders-dialog .orders-detail-total *,
+:global(html[data-theme='dark']) .orders-page .orders-dialog .orders-detail-head *,
+:global(html[data-theme='dark']) .orders-page .orders-dialog .orders-detail-body * {
+  border-color: var(--ms-border);
+}
+:global(html[data-theme='dark']) .orders-page .orders-dialog .orders-detail-head h2,
+:global(html[data-theme='dark']) .orders-page .orders-dialog .orders-detail-body strong,
+:global(html[data-theme='dark']) .orders-page .orders-dialog .orders-detail-total strong,
+:global(html[data-theme='dark']) .orders-page .orders-dialog .orders-create-section-title h3 {
+  color: var(--ms-text-heading) !important;
+}
+:global(html[data-theme='dark']) .orders-page .orders-dialog input,
+:global(html[data-theme='dark']) .orders-page .orders-dialog select,
+:global(html[data-theme='dark']) .orders-page .orders-dialog textarea,
+:global(html[data-theme='dark']) .orders-page .orders-dialog button:not(.orders-primary):not(.orders-danger) {
+  color: var(--ms-text-heading);
+}
+
 </style>
