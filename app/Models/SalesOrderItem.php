@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -17,6 +18,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property numeric-string $line_total
  * @property array<string, mixed>|null $pricing_snapshot
  * @property-read ProductVariant|null $variant
+ * @property-read InventoryReservation|null $reservation
+ * @property-read Collection<int, SalesOrderFulfillmentItem> $fulfillmentItems
  */
 class SalesOrderItem extends Model
 {

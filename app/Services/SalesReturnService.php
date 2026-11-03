@@ -21,6 +21,17 @@ class SalesReturnService
         private readonly ActivityLogService $activityLog,
     ) {}
 
+    /**
+     * @param array{
+     *     sales_order_id: int,
+     *     idempotency_key: string,
+     *     return_date: string,
+     *     refund_method: string,
+     *     cash_account_id?: int|null,
+     *     reason?: string|null,
+     *     items: list<array{sales_order_item_id: int, quantity: string|int|float}>
+     * } $data
+     */
     public function create(array $data, User $actor): SalesReturn
     {
         return DB::transaction(function () use ($data, $actor): SalesReturn {
@@ -44,7 +55,7 @@ class SalesReturnService
                 return $existing->load(['items.orderItem', 'journalEntry']);
             }
 
-            $order = SalesOrder::query()->lockForUpdate()->with(['items.reservation'])->findOrFail($data['sales_order_id']);
+            $order = SalesOrder::query()->whereKey($data['sales_order_id'])->lockForUpdate()->with(['items.reservation'])->firstOrFail();
             $this->locationAccess->assertManage($actor, (int) $order->location_id);
             if (! in_array($order->status, ['processing', 'completed'], true)) {
                 throw ValidationException::withMessages(['sales_order_id' => 'Only processing or completed orders with fulfilled goods can be returned.']);

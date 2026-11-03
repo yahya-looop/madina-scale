@@ -4,7 +4,30 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Carbon;
 
+/**
+ * @property int|null $product_id
+ * @property int|null $product_variant_id
+ * @property int $source_location_id
+ * @property int $destination_location_id
+ * @property numeric-string $quantity_sent
+ * @property numeric-string $quantity_received
+ * @property int|null $dispatched_by
+ * @property int|null $received_by
+ * @property int|null $resolved_by
+ * @property Carbon|null $dispatched_at
+ * @property Carbon|null $received_at
+ * @property Carbon|null $resolved_at
+ * @property array<string, mixed>|null $metadata
+ * @property-read Product|null $product
+ * @property-read ProductVariant|null $variant
+ * @property-read Location|null $sourceLocation
+ * @property-read Location|null $destinationLocation
+ * @property-read User|null $dispatcher
+ * @property-read User|null $receiver
+ * @property-read User|null $resolver
+ */
 class InventoryTransfer extends Model
 {
     protected $fillable = [
@@ -31,36 +54,43 @@ class InventoryTransfer extends Model
         ];
     }
 
+    /** @return BelongsTo<Product, $this> */
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);
     }
 
+    /** @return BelongsTo<ProductVariant, $this> */
     public function variant(): BelongsTo
     {
         return $this->belongsTo(ProductVariant::class, 'product_variant_id');
     }
 
+    /** @return BelongsTo<Location, $this> */
     public function sourceLocation(): BelongsTo
     {
         return $this->belongsTo(Location::class, 'source_location_id');
     }
 
+    /** @return BelongsTo<Location, $this> */
     public function destinationLocation(): BelongsTo
     {
         return $this->belongsTo(Location::class, 'destination_location_id');
     }
 
+    /** @return BelongsTo<User, $this> */
     public function dispatcher(): BelongsTo
     {
         return $this->belongsTo(User::class, 'dispatched_by');
     }
 
+    /** @return BelongsTo<User, $this> */
     public function receiver(): BelongsTo
     {
         return $this->belongsTo(User::class, 'received_by');
     }
 
+    /** @return BelongsTo<User, $this> */
     public function resolver(): BelongsTo
     {
         return $this->belongsTo(User::class, 'resolved_by');

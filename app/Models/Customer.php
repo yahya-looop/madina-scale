@@ -14,11 +14,16 @@ class Customer extends Model
         'notes', 'status',
     ];
 
+    /** @return HasMany<SalesOrder, $this> */
     public function orders(): HasMany
     {
         return $this->hasMany(SalesOrder::class, 'customer_id');
     }
 
+    /**
+     * @param  Builder<Customer>  $query
+     * @return Builder<Customer>
+     */
     public function scopeSearch(Builder $query, ?string $term): Builder
     {
         $term = trim((string) $term);

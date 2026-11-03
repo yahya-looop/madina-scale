@@ -21,6 +21,8 @@ class InventoryService
      * - location_id
      * - exactly one of product_id or product_variant_id
      * - quantity: positive decimal with up to 4 decimal places
+     *
+     * @param  array<string, mixed>  $data
      */
     public function receive(
         array $data,
@@ -36,6 +38,8 @@ class InventoryService
 
     /**
      * Issue stock from a location.
+     *
+     * @param  array<string, mixed>  $data
      */
     public function issue(
         array $data,
@@ -54,6 +58,8 @@ class InventoryService
      *
      * Positive quantity increases stock.
      * Negative quantity decreases stock.
+     *
+     * @param  array<string, mixed>  $data
      */
     public function adjust(
         array $data,
@@ -83,6 +89,9 @@ class InventoryService
      * Transfer stock between two different locations.
      *
      * The source and destination movements are committed atomically.
+     *
+     * @param  array<string, mixed>  $data
+     * @return array{transfer_group_id: string, outgoing: StockMovement, incoming: StockMovement}
      */
     public function transfer(array $data, ?User $actor = null): array
     {
@@ -160,12 +169,12 @@ class InventoryService
                         && $incoming->product_id === $owner['product_id']
                         && $incoming->product_variant_id === $owner['variant_id']
                         && bccomp(
-                            (string) $existing->quantity_delta,
+                            $existing->quantity_delta,
                             bcsub('0', $quantity, 4),
                             4
                         ) === 0
                         && bccomp(
-                            (string) $incoming->quantity_delta,
+                            $incoming->quantity_delta,
                             $quantity,
                             4
                         ) === 0
@@ -216,16 +225,16 @@ class InventoryService
             $source = $this->getOrCreateStock($owner, $sourceId);
             $destination = $this->getOrCreateStock($owner, $destinationId);
 
-            $sourceBefore = (string) $source->quantity;
+            $sourceBefore = $source->quantity;
             $sourceAfter = bcsub($sourceBefore, $quantity, 4);
 
-            if (bccomp($sourceAfter, (string) $source->reserved_quantity, 4) < 0) {
+            if (bccomp($sourceAfter, $source->reserved_quantity, 4) < 0) {
                 throw ValidationException::withMessages([
                     'quantity' => 'Insufficient available stock at the source location.',
                 ]);
             }
 
-            $destinationBefore = (string) $destination->quantity;
+            $destinationBefore = $destination->quantity;
             $destinationAfter = bcadd($destinationBefore, $quantity, 4);
 
             $source->quantity = $sourceAfter;
@@ -281,6 +290,8 @@ class InventoryService
      *
      * Locking the parent product serializes stock-row creation for that
      * product, including when a location has no stock row yet.
+     *
+     * @param  array<string, mixed>  $data
      */
     private function move(
         array $data,
@@ -373,7 +384,7 @@ class InventoryService
                         && $existing->metadata === ($data['metadata'] ?? null)
 
                         && bccomp(
-                            (string) $existing->quantity_delta,
+                            $existing->quantity_delta,
                             $signedDelta,
                             4,
                         ) === 0;
@@ -416,13 +427,13 @@ class InventoryService
                 $locationId,
             );
 
-            $before = (string) $stock->quantity;
+            $before = $stock->quantity;
             $after = bcadd($before, $signedDelta, 4);
 
             if (
                 bccomp(
                     $after,
-                    (string) $stock->reserved_quantity,
+                    $stock->reserved_quantity,
                     4,
                 ) < 0
             ) {
@@ -460,6 +471,7 @@ class InventoryService
      * Simple products own stock directly.
      * Variable products own stock through their variants.
      *
+     * @param  array<string, mixed>  $data
      * @return array{product_id: ?int, variant_id: ?int}
      */
     private function lockOwner(array $data): array
@@ -544,6 +556,8 @@ class InventoryService
      * Retrieve the stock row or create a zero-balance row.
      *
      * The caller must already hold locks on the owner and location.
+     *
+     * @param  array{product_id: ?int, variant_id: ?int}  $owner
      */
     private function getOrCreateStock(
         array $owner,
@@ -580,6 +594,8 @@ class InventoryService
 
     /**
      * Normalize decimal input to exactly four fractional places.
+     *
+     * @return numeric-string
      */
     private function normalizeQuantity(mixed $value): string
     {
@@ -596,7 +612,22 @@ class InventoryService
             ]);
         }
 
-        return bcadd((string) $value, '0', 4);
+        $normalized = (string) $value;
+        $this->assertNumericQuantity($normalized);
+
+        return bcadd($normalized, '0', 4);
+    }
+
+    /**
+     * @phpstan-assert numeric-string $value
+     */
+    private function assertNumericQuantity(string $value): void
+    {
+        if (! preg_match('/^-?\\d{1,14}(?:\\.\\d{1,4})?$/', $value)) {
+            throw ValidationException::withMessages([
+                'quantity' => 'Quantity must be a valid decimal with up to 4 decimal places.',
+            ]);
+        }
     }
 
     private function nullableInt(mixed $value): ?int

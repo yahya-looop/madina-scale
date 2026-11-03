@@ -13,6 +13,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property numeric-string $regular_price
  * @property numeric-string $sale_price
  * @property-read FlashSale|null $sale
+ * @property-read ProductVariant|null $variant
  */
 class FlashSaleItem extends Model
 {

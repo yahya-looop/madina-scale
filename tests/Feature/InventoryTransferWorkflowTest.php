@@ -3,37 +3,9 @@
 
 use App\Models\InventoryStock;
 use App\Models\InventoryTransfer;
-use App\Models\Module;
-use App\Models\Permission;
-use App\Models\Role;
-use App\Models\User;
 use App\Services\InventoryTransferService;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Str;
-
-if (! function_exists('createTransferWorkflowUser')) {
-    function createTransferWorkflowUser(array $permissionSlugs): User
-    {
-        $user = User::factory()->create();
-        $module = Module::firstOrCreate(['slug' => 'inventory'], [
-            'name' => 'Inventory', 'description' => 'Inventory management.',
-            'sort_order' => 236, 'is_system' => true, 'is_active' => true,
-        ]);
-        $role = Role::create([
-            'name' => 'Transfer Workflow Test Role', 'slug' => 'transfer-workflow-'.uniqid(),
-            'description' => 'Temporary transfer workflow test role.', 'is_system' => false, 'is_active' => true,
-        ]);
-        foreach ($permissionSlugs as $slug) {
-            $permission = Permission::firstOrCreate(['slug' => $slug], [
-                'module_id' => $module->id, 'name' => $slug, 'description' => 'Transfer workflow test permission.',
-            ]);
-            $role->permissions()->attach($permission->id);
-        }
-        $user->roles()->attach($role->id);
-
-        return $user;
-    }
-}
 
 test('dispatch moves stock out of source but does not make it available at destination until accepted', function () {
     $sender = createTransferWorkflowUser(['system.inventory.transfer', 'system.inventory.view']);

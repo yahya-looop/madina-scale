@@ -4,7 +4,19 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Carbon;
 
+/**
+ * @property int $id
+ * @property string $type
+ * @property Carbon $transaction_date
+ * @property numeric-string $amount
+ * @property string|null $payment_method
+ * @property string|null $reference
+ * @property string|null $description
+ * @property int $location_id
+ * @property int|null $customer_id
+ */
 class FinancialTransaction extends Model
 {
     protected $fillable = [

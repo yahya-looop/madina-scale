@@ -25,46 +25,58 @@ class Lead extends Model
         return ['next_follow_up_at' => 'datetime'];
     }
 
+    /** @return HasMany<LeadAssignmentHistory, $this> */
     public function assignmentHistory(): HasMany
     {
         return $this->hasMany(LeadAssignmentHistory::class)->latest();
     }
 
+    /** @return BelongsTo<User, $this> */
     public function owner(): BelongsTo
     {
         return $this->belongsTo(User::class, 'owner_id');
     }
 
+    /** @return BelongsTo<Location, $this> */
     public function location(): BelongsTo
     {
         return $this->belongsTo(Location::class);
     }
 
+    /** @return HasMany<LeadActivity, $this> */
     public function activities(): HasMany
     {
         return $this->hasMany(LeadActivity::class)->latest('occurred_at');
     }
 
+    /** @return BelongsTo<User, $this> */
     public function assignee(): BelongsTo
     {
         return $this->belongsTo(User::class, 'assigned_to');
     }
 
+    /** @return BelongsTo<User, $this> */
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
     }
 
+    /** @return BelongsTo<Customer, $this> */
     public function customer(): BelongsTo
     {
         return $this->belongsTo(Customer::class);
     }
 
+    /** @return BelongsTo<SalesOrder, $this> */
     public function convertedOrder(): BelongsTo
     {
         return $this->belongsTo(SalesOrder::class, 'converted_order_id');
     }
 
+    /**
+     * @param  Builder<Lead>  $query
+     * @return Builder<Lead>
+     */
     public function scopeSearch(Builder $query, ?string $term): Builder
     {
         $term = trim((string) $term);

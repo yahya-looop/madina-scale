@@ -9,6 +9,7 @@ use App\Models\Location;
 use App\Models\StockMovement;
 use App\Models\User;
 use App\Notifications\InventoryTransferNotification;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Str;
@@ -18,6 +19,9 @@ class InventoryTransferService
 {
     public function __construct(private readonly AuthorizationService $authorization) {}
 
+    /**
+     * @param  array<string, mixed>  $data
+     */
     public function dispatch(array $data, User $actor, ?string $ipAddress = null): InventoryTransfer
     {
         $quantity = $this->quantity($data['quantity'] ?? null);
@@ -79,8 +83,8 @@ class InventoryTransferService
                 throw ValidationException::withMessages(['quantity' => 'No stock record exists at the source location.']);
             }
 
-            $after = bcsub((string) $stock->quantity, $quantity, 4);
-            if (bccomp($after, (string) $stock->reserved_quantity, 4) < 0) {
+            $after = bcsub($stock->quantity, $quantity, 4);
+            if (bccomp($after, $stock->reserved_quantity, 4) < 0) {
                 throw ValidationException::withMessages(['quantity' => 'Insufficient available stock. Reserved stock cannot be dispatched.']);
             }
 
@@ -103,7 +107,7 @@ class InventoryTransferService
                 'metadata' => $data['metadata'] ?? null,
             ]);
 
-            $before = (string) $stock->quantity;
+            $before = $stock->quantity;
             $stock->quantity = $after;
             $stock->save();
 
@@ -133,6 +137,9 @@ class InventoryTransferService
         return $transfer;
     }
 
+    /**
+     * @param  array<string, mixed>  $data
+     */
     public function receive(InventoryTransfer $transfer, array $data, User $actor, ?string $ipAddress = null): InventoryTransfer
     {
         $this->assertLocationAccess($actor, (int) $transfer->destination_location_id, ['receive', 'manage'], 'transfer');
@@ -144,7 +151,7 @@ class InventoryTransferService
         if (! Str::isUuid($idempotencyKey)) {
             throw ValidationException::withMessages(['idempotency_key' => 'A valid idempotency key is required for receipt.']);
         }
-        $defaultRemaining = bcsub((string) $transfer->quantity_sent, (string) $transfer->quantity_received, 4);
+        $defaultRemaining = bcsub($transfer->quantity_sent, $transfer->quantity_received, 4);
         $receiveQty = $this->quantity($data['quantity_received'] ?? $defaultRemaining);
         $recipientNote = isset($data['recipient_note']) ? trim((string) $data['recipient_note']) : null;
         $payloadHash = hash('sha256', json_encode([
@@ -170,7 +177,7 @@ class InventoryTransferService
                 throw ValidationException::withMessages(['transfer' => 'Only transfers awaiting receipt can be accepted.']);
             }
 
-            $remaining = bcsub((string) $locked->quantity_sent, (string) $locked->quantity_received, 4);
+            $remaining = bcsub($locked->quantity_sent, $locked->quantity_received, 4);
             if (bccomp($receiveQty, $remaining, 4) > 0) {
                 throw ValidationException::withMessages(['quantity_received' => 'Received quantity cannot exceed the outstanding transfer quantity.']);
             }
@@ -205,7 +212,7 @@ class InventoryTransferService
                 $stock = InventoryStock::query()->whereKey($stock->id)->lockForUpdate()->firstOrFail();
             }
 
-            $before = (string) $stock->quantity;
+            $before = $stock->quantity;
             $after = bcadd($before, $receiveQty, 4);
             $stock->quantity = $after;
             $stock->save();
@@ -227,12 +234,13 @@ class InventoryTransferService
                 'metadata' => ['transfer_uuid' => $locked->transfer_uuid, 'ip_address' => $ipAddress],
             ]);
 
-            $newReceived = bcadd((string) $locked->quantity_received, $receiveQty, 4);
+            $newReceived = bcadd($locked->quantity_received, $receiveQty, 4);
+            $isFullyReceived = bccomp($newReceived, $locked->quantity_sent, 4) === 0;
             $locked->quantity_received = $newReceived;
-            $locked->status = bccomp($newReceived, (string) $locked->quantity_sent, 4) === 0 ? 'received' : 'partially_received';
+            $locked->status = $isFullyReceived ? 'received' : 'partially_received';
             $locked->recipient_note = $recipientNote ?? $locked->recipient_note;
-            $locked->received_by = $actor->id;
-            $locked->received_at = $locked->status === 'received' ? now() : null;
+            $locked->setAttribute('received_by', $actor->getKey());
+            $locked->received_at = $isFullyReceived ? Carbon::now() : null;
             $locked->save();
 
             InventoryTransferReceipt::query()->create([
@@ -267,7 +275,7 @@ class InventoryTransferService
             }
             $locked->status = 'discrepancy';
             $locked->resolution_note = $reason;
-            $locked->metadata = array_merge($locked->metadata ?? [], [
+            $locked->metadata = array_merge((array) ($locked->metadata ?? []), [
                 'discrepancy' => [
                     'reason' => $reason,
                     'reported_by' => $actor->id,
@@ -285,6 +293,10 @@ class InventoryTransferService
         return $updated;
     }
 
+    /**
+     * @param  numeric-string  $quantity
+     * @param  array<string, mixed>  $data
+     */
     private function findIdempotentTransfer(
         string $key,
         int $sourceId,
@@ -303,7 +315,7 @@ class InventoryTransferService
             && (int) $existing->destination_location_id === $destinationId
             && (int) ($isVariant ? $existing->product_variant_id : $existing->product_id) === $ownerId
             && ($isVariant ? $existing->product_id === null : $existing->product_variant_id === null)
-            && bccomp((string) $existing->quantity_sent, $quantity, 4) === 0
+            && bccomp($existing->quantity_sent, $quantity, 4) === 0
             && $existing->reason === ($data['reason'] ?? null)
             && $existing->reference_type === ($data['reference_type'] ?? null)
             && $existing->reference_id === (isset($data['reference_id']) ? (string) $data['reference_id'] : null)
@@ -329,6 +341,9 @@ class InventoryTransferService
         Notification::send($recipients, new InventoryTransferNotification($transfer, $event));
     }
 
+    /**
+     * @param  list<string>  $allowedLevels
+     */
     private function assertLocationAccess(User $actor, int $locationId, array $allowedLevels, string $field): void
     {
         if (! $this->authorization->can($actor, 'system.inventory.transfer')) {
@@ -357,12 +372,17 @@ class InventoryTransferService
         }
     }
 
+    /**
+     * @return numeric-string
+     */
     private function quantity(mixed $value): string
     {
         if (! is_numeric($value) || ! preg_match('/^\d{1,14}(?:\.\d{1,4})?$/', (string) $value) || bccomp((string) $value, '0', 4) <= 0) {
             throw ValidationException::withMessages(['quantity' => 'Quantity must be positive with up to four decimal places.']);
         }
 
-        return bcadd((string) $value, '0', 4);
+        $normalized = (string) $value;
+
+        return bcadd($normalized, '0', 4);
     }
 }

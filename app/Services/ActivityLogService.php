@@ -107,13 +107,13 @@ class ActivityLogService
          */
         $request = Request::instance();
 
-        $requestId = $request?->attributes->get('request_id');
+        $requestId = $request->attributes->get('request_id');
 
         if (
             ! is_string($requestId)
             || trim($requestId) === ''
         ) {
-            $requestId = $request?->header('X-Request-ID');
+            $requestId = $request->header('X-Request-ID');
         }
 
         if (
@@ -141,8 +141,8 @@ class ActivityLogService
                 $newValues,
             ),
 
-            'ip_address' => $request?->ip(),
-            'user_agent' => $request?->userAgent(),
+            'ip_address' => $request->ip(),
+            'user_agent' => $request->userAgent(),
             'request_id' => $requestId,
 
             'metadata' => $this->sanitizeSnapshot(
@@ -220,7 +220,11 @@ class ActivityLogService
         );
     }
 
-    /** Create a keyed integrity digest so unauthorized database edits can be detected. */
+    /**
+     * Create a keyed integrity digest so unauthorized database edits can be detected.
+     *
+     * @param  array<string, mixed>  $payload
+     */
     private function makeIntegrityHash(array $payload): string
     {
         unset($payload['integrity_hash']);
@@ -302,10 +306,7 @@ class ActivityLogService
         $sanitized = [];
 
         foreach ($values as $key => $value) {
-            if (
-                is_string($key)
-                && $this->isSensitiveKey($key)
-            ) {
+            if ($this->isSensitiveKey($key)) {
                 $sanitized[$key] = '[REDACTED]';
 
                 continue;

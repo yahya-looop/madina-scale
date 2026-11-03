@@ -75,7 +75,11 @@ class User extends Authenticatable
         );
     }
 
-    /** Locations this user is explicitly assigned to. */
+    /**
+     * Locations this user is explicitly assigned to.
+     *
+     * @return BelongsToMany<Location, $this>
+     */
     public function locations(): BelongsToMany
     {
         return $this->belongsToMany(Location::class, 'location_user', 'user_id', 'location_id')

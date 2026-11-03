@@ -4,7 +4,9 @@ namespace App\Services;
 
 use App\Models\Location;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Builder as EloquentBuilder;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Support\Collection;
 
@@ -35,7 +37,7 @@ class LocationInventoryAccessService
      * Global location managers can see all active locations. Other users can
      * only see locations explicitly assigned to them.
      *
-     * @return Collection<int, array{id: int, name: string, code: ?string, type: string, is_active: bool, access_level: string}>
+     * @return Collection<int, array{id: int, name: string, code: string, type: string, is_active: bool, access_level: string}>
      */
     public function viewableLocations(User $user): Collection
     {
@@ -50,7 +52,7 @@ class LocationInventoryAccessService
                     'code' => $location->code,
                     'type' => $location->type,
                     'is_active' => (bool) $location->is_active,
-                    'access_level' => 'manage',
+                    'access_level' => $this->globalManagerAccessLevel(),
                 ])
                 ->values();
         }
@@ -66,12 +68,19 @@ class LocationInventoryAccessService
                 'code' => $location->code,
                 'type' => $location->type,
                 'is_active' => (bool) $location->is_active,
-                'access_level' => (string) $location->pivot->access_level,
+                'access_level' => (string) data_get($location, 'pivot.access_level'),
             ])
             ->values();
     }
 
-    /** Apply the user's viewable-location scope to a location_id query. */
+    /**
+     * Apply the user's viewable-location scope to a location_id query.
+     *
+     * @template TModel of Model = Model
+     *
+     * @param  Builder<TModel>|QueryBuilder  $query
+     * @return Builder<TModel>|QueryBuilder
+     */
     public function scopeViewable(EloquentBuilder|QueryBuilder $query, User $user, string $column = 'location_id'): EloquentBuilder|QueryBuilder
     {
         if ($this->isGlobalManager($user)) {
@@ -98,6 +107,9 @@ class LocationInventoryAccessService
         abort_unless($this->canManage($user, $locationId), 403, 'You do not have manage access to this location.');
     }
 
+    /**
+     * @param  list<string>  $levels
+     */
     private function canAccess(User $user, int $locationId, array $levels): bool
     {
         if ($this->isGlobalManager($user)) {
@@ -113,5 +125,10 @@ class LocationInventoryAccessService
     private function isGlobalManager(User $user): bool
     {
         return $this->authorization->can($user, 'system.locations.manage');
+    }
+
+    private function globalManagerAccessLevel(): string
+    {
+        return 'manage';
     }
 }

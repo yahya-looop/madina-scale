@@ -9,6 +9,10 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * @property int $id
+ * @property int $id
+ * @property string $order_number
+ * @property string $status
+ * @property string|null $customer_name
  * @property int $location_id
  * @property int|null $customer_id
  * @property int|null $b2b_account_id

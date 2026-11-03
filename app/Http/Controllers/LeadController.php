@@ -174,7 +174,7 @@ class LeadController extends Controller
             'location_id' => ['nullable', 'integer', 'exists:locations,id'],
         ]);
         $actor = $request->user();
-        $newOwner = User::query()->where('status', 'active')->findOrFail($data['assigned_to']);
+        $newOwner = User::query()->where('status', 'active')->whereKey($data['assigned_to'])->firstOrFail();
         $oldOwnerId = $lead->assigned_to;
         $isDeveloper = $authorization->isDeveloper($actor);
         $isManager = $this->isManagerOrSupervisor($actor) || $actor->can('system.crm.leads.assign');
@@ -356,6 +356,7 @@ class LeadController extends Controller
         return response()->json(['message' => 'Activity recorded successfully.', 'data' => $activity], 201);
     }
 
+    /** @return array<string, mixed> */
     private function validated(Request $request, ?Lead $lead = null): array
     {
         return $request->validate([
@@ -389,21 +390,6 @@ class LeadController extends Controller
         return $ids->count() === 1 ? (int) $ids->first() : null;
     }
 
-    private function resolveAssignmentLocation(User $actor, User $assignee, ?int $currentLocationId, AuthorizationService $authorization, bool $initial): int
-    {
-        $locationId = $currentLocationId;
-        if ($locationId && $assignee->locations()->where('locations.id', $locationId)->where('locations.is_active', true)->exists()) {
-            if ($authorization->isDeveloper($actor) || $actor->can('system.crm.leads.assign') || ($actor->locations()->where('locations.id', $locationId)->exists() && ($initial || $this->isManagerOrSupervisor($actor)))) {
-                return $locationId;
-            }
-        }
-        $shared = $actor->locations()->whereHas('users', fn ($q) => $q->where('users.id', $assignee->id))->where('locations.is_active', true)->pluck('locations.id');
-        if ($shared->count() === 1 && ($initial || $this->isManagerOrSupervisor($actor) || $actor->can('system.crm.leads.assign'))) {
-            return (int) $shared->first();
-        }
-        throw ValidationException::withMessages(['assigned_to' => 'You can assign leads only to a team member in an authorized location.']);
-    }
-
     private function isManagerOrSupervisor(User $user): bool
     {
         $designation = Str::lower(trim((string) $user->designation));
@@ -411,6 +397,7 @@ class LeadController extends Controller
         return in_array($designation, ['manager', 'supervisor', 'sales manager', 'sales supervisor', 'branch manager', 'team leader'], true);
     }
 
+    /** @return list<string> */
     private function statuses(): array
     {
         return ['new', 'contacting', 'qualified', 'interested', 'follow_up', 'converted', 'lost'];

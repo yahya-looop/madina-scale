@@ -169,10 +169,15 @@ class ActivityLogController extends Controller
 
         return response()->streamDownload(function () use ($query): void {
             $out = fopen('php://output', 'w');
+
+            if ($out === false) {
+                return;
+            }
+
             fputcsv($out, ['ID', 'Timestamp', 'Actor', 'Actor Type', 'Action', 'Module', 'Description', 'Subject Type', 'Subject ID', 'IP Address', 'Request ID', 'Integrity']);
             $query->chunk(500, function ($logs) use ($out): void {
                 foreach ($logs as $log) {
-                    $cells = [$log->id, $log->created_at?->toISOString(), $log->actor?->name ?? ($log->actor_type === 'system' ? 'System' : 'Unknown'), $log->actor_type, $log->action, $log->module, $log->description, $log->subject_type, $log->subject_id, $log->ip_address, $log->request_id, $log->hasValidIntegrityHash() ? 'valid' : 'invalid'];
+                    $cells = [$log->id, $log->created_at->toISOString(), $log->actor->name ?? ($log->actor_type === 'system' ? 'System' : 'Unknown'), $log->actor_type, $log->action, $log->module, $log->description, $log->subject_type, $log->subject_id, $log->ip_address, $log->request_id, $log->hasValidIntegrityHash() ? 'valid' : 'invalid'];
                     // Neutralize spreadsheet formula injection in all textual cells.
                     $cells = array_map(static function ($value) {
                         if (! is_string($value)) {

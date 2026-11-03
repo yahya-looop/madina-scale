@@ -21,11 +21,13 @@ class LeadActivity extends Model
         ];
     }
 
+    /** @return BelongsTo<Lead, $this> */
     public function lead(): BelongsTo
     {
         return $this->belongsTo(Lead::class);
     }
 
+    /** @return BelongsTo<User, $this> */
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');

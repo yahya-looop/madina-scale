@@ -28,11 +28,13 @@ class InventoryTransferReceipt extends Model
         ];
     }
 
+    /** @return BelongsTo<InventoryTransfer, $this> */
     public function transfer(): BelongsTo
     {
         return $this->belongsTo(InventoryTransfer::class, 'inventory_transfer_id');
     }
 
+    /** @return BelongsTo<User, $this> */
     public function receiver(): BelongsTo
     {
         return $this->belongsTo(User::class, 'received_by');

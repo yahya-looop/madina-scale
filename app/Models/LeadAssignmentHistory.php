@@ -17,21 +17,25 @@ class LeadAssignmentHistory extends Model
         'reason',
     ];
 
+    /** @return BelongsTo<Lead, $this> */
     public function lead(): BelongsTo
     {
         return $this->belongsTo(Lead::class);
     }
 
+    /** @return BelongsTo<User, $this> */
     public function fromUser(): BelongsTo
     {
         return $this->belongsTo(User::class, 'from_user_id');
     }
 
+    /** @return BelongsTo<User, $this> */
     public function toUser(): BelongsTo
     {
         return $this->belongsTo(User::class, 'to_user_id');
     }
 
+    /** @return BelongsTo<User, $this> */
     public function actor(): BelongsTo
     {
         return $this->belongsTo(User::class, 'assigned_by');

@@ -10,6 +10,15 @@ use Throwable;
 
 class CourierIntegrationService
 {
+    /**
+     * @param array{
+     *     idempotency_key?: string|null,
+     *     recipient_name?: string|null,
+     *     recipient_phone?: string|null,
+     *     recipient_address: string,
+     *     cod_amount?: numeric-string|int|float
+     * } $data
+     */
     public function book(SalesOrder $order, string $provider, array $data, int $actorId): SalesOrderShipment
     {
         $existing = SalesOrderShipment::query()->where('provider', $provider)->where('idempotency_key', $data['idempotency_key'] ?? null)->whereNotNull('idempotency_key')->first();
@@ -62,15 +71,28 @@ class CourierIntegrationService
             throw ValidationException::withMessages(['shipment' => 'The shipment retry was not claimed for processing. Reconcile its current state before retrying.']);
         }
 
-        $metadata = $shipment->metadata ?? [];
-        $attempts = $metadata['retry_attempts'] ?? [];
+        /** @var array<string, mixed> $metadata */
+        $metadata = is_array($shipment->metadata) ? $shipment->metadata : [];
+        $storedAttempts = $metadata['retry_attempts'] ?? [];
+        if (! is_array($storedAttempts)) {
+            $storedAttempts = [];
+        }
+
+        /** @var list<array<string, mixed>> $attempts */
+        $attempts = [];
+        foreach ($storedAttempts as $attempt) {
+            if (is_array($attempt)) {
+                $attempts[] = $attempt;
+            }
+        }
+
+        $attemptIndex = count($attempts);
         $attempts[] = [
             'requested_by' => $actorId,
             'reason' => $reason,
             'started_at' => now()->toISOString(),
             'outcome' => 'in_progress',
         ];
-        $attemptIndex = array_key_last($attempts);
         $metadata['retry_attempts'] = $attempts;
         $shipment->update(['metadata' => $metadata, 'last_error' => null]);
 
@@ -79,7 +101,7 @@ class CourierIntegrationService
             if (! is_array($config) || empty($config['enabled'])) {
                 throw new \RuntimeException('This courier is not enabled in configuration.');
             }
-            if (empty($shipment->order?->customer_phone)) {
+            if (empty($shipment->order->customer_phone)) {
                 throw new \RuntimeException('A customer phone is required before booking a courier.');
             }
 
@@ -106,9 +128,16 @@ class CourierIntegrationService
                 'metadata' => $metadata,
             ]);
         } catch (Throwable $exception) {
-            $freshMetadata = $shipment->fresh()->metadata ?? [];
+            $freshShipment = $shipment->fresh();
+            $freshMetadata = $freshShipment?->metadata;
+            if (! is_array($freshMetadata)) {
+                $freshMetadata = [];
+            }
             $freshAttempts = $freshMetadata['retry_attempts'] ?? [];
-            if (isset($freshAttempts[$attemptIndex])) {
+            if (! is_array($freshAttempts)) {
+                $freshAttempts = [];
+            }
+            if (isset($freshAttempts[$attemptIndex]) && is_array($freshAttempts[$attemptIndex])) {
                 $freshAttempts[$attemptIndex]['finished_at'] = now()->toISOString();
                 $freshAttempts[$attemptIndex]['outcome'] = 'failed';
                 $freshAttempts[$attemptIndex]['error'] = mb_substr($exception->getMessage(), 0, 1000);
@@ -125,6 +154,10 @@ class CourierIntegrationService
         return $shipment->refresh();
     }
 
+    /**
+     * @param  array<string, mixed>  $config
+     * @return array<string, mixed>
+     */
     private function bookSteadfast(array $config, SalesOrder $order, SalesOrderShipment $shipment): array
     {
         $response = Http::timeout((int) ($config['timeout'] ?? 15))->acceptJson()->withHeaders(['Api-Key' => $config['api_key'], 'Secret-Key' => $config['secret_key']])->post(rtrim($config['base_url'], '/').'/create_order', [
@@ -143,6 +176,10 @@ class CourierIntegrationService
         return $body;
     }
 
+    /**
+     * @param  array<string, mixed>  $config
+     * @return array<string, mixed>
+     */
     private function bookRedx(array $config, SalesOrder $order, SalesOrderShipment $shipment): array
     {
         if (empty($config['pickup_store_id'])) {
@@ -162,6 +199,10 @@ class CourierIntegrationService
         return $response->json() ?? [];
     }
 
+    /**
+     * @param  array<string, mixed>  $config
+     * @return array<string, mixed>
+     */
     private function bookPathao(array $config, SalesOrder $order, SalesOrderShipment $shipment): array
     {
         if (empty($config['base_url']) || empty($config['store_id']) || empty($config['access_token'])) {
@@ -182,6 +223,10 @@ class CourierIntegrationService
         return $response->json() ?? [];
     }
 
+    /**
+     * @param  array<string, mixed>  $config
+     * @return array<string, mixed>
+     */
     private function bookCustom(array $config, SalesOrder $order, SalesOrderShipment $shipment): array
     {
         if (empty($config['base_url'])) {

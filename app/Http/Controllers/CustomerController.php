@@ -85,6 +85,7 @@ class CustomerController extends Controller
         return response()->json(['message' => 'Customer deleted successfully.']);
     }
 
+    /** @return array<string, mixed> */
     private function validated(Request $request, ?Customer $customer = null): array
     {
         return $request->validate([

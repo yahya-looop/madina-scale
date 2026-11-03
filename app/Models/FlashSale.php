@@ -4,8 +4,23 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 
+/**
+ * @property int $id
+ * @property string $title
+ * @property string $slug
+ * @property string|null $tagline
+ * @property string|null $description
+ * @property string $status
+ * @property string|null $banner_image
+ * @property string $accent_color
+ * @property Carbon $starts_at
+ * @property Carbon $ends_at
+ * @property bool $show_on_storefront
+ * @property int $priority
+ */
 class FlashSale extends Model
 {
     protected $fillable = [
@@ -24,6 +39,7 @@ class FlashSale extends Model
         ];
     }
 
+    /** @return HasMany<FlashSaleItem, $this> */
     public function items(): HasMany
     {
         return $this->hasMany(FlashSaleItem::class)->orderBy('sort_order');

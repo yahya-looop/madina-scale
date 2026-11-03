@@ -9,6 +9,7 @@ use App\Services\FinancialLedgerService;
 use App\Services\LocationInventoryAccessService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -31,7 +32,7 @@ class PaymentController extends Controller
             ->when($request->filled('to'), fn ($q) => $q->whereDate('transaction_date', '<=', $request->date('to')))
             ->when($request->filled('payment_method'), fn ($q) => $q->where('payment_method', $request->string('payment_method')->toString()))
             ->when($request->filled('search'), function ($q) use ($request): void {
-                $term = '%'.str_replace(['%', '_'], ['\\%', '\\_'], trim($request->string('search')->toString())).'%';
+                $term = '%'.str_replace(['%', '_'], ['\%', '\_'], trim($request->string('search')->toString())).'%';
                 $q->where(function ($nested) use ($term): void {
                     $nested->where('transaction_number', 'like', $term)
                         ->orWhere('reference', 'like', $term)
@@ -45,20 +46,23 @@ class PaymentController extends Controller
                 $q->where('location_id', $id);
             }, fn ($q) => $this->locationAccess->scopeViewable($q, $request->user()));
 
+        /** @var LengthAwarePaginator<int, FinancialTransaction> $items */
         $items = $query->latest('transaction_date')->latest('id')->paginate($perPage)->withQueryString();
-        $ids = collect($items->items())->pluck('id');
+        $payments = $items->getCollection();
+        $ids = $payments->modelKeys();
         $allocated = DB::table('payment_allocations')->whereIn('financial_transaction_id', $ids)
             ->select('financial_transaction_id')->selectRaw('SUM(amount) as allocated_amount')
             ->groupBy('financial_transaction_id')->pluck('allocated_amount', 'financial_transaction_id');
 
-        $data = collect($items->items())->map(function (FinancialTransaction $payment) use ($allocated): array {
+        $data = $payments->map(function (FinancialTransaction $payment) use ($allocated): array {
             $amount = (string) $payment->amount;
-            $used = (string) ($allocated[$payment->id] ?? '0.00');
+            /** @var numeric-string $used */
+            $used = $this->decimal($allocated[$payment->id] ?? '0.00');
 
             return [
                 'id' => $payment->id,
                 'transaction_number' => $payment->transaction_number,
-                'transaction_date' => $payment->transaction_date?->toDateString(),
+                'transaction_date' => $payment->transaction_date->toDateString(),
                 'amount' => $amount,
                 'allocated_amount' => $used,
                 'unallocated_amount' => bcsub($amount, $used, 2),
@@ -104,10 +108,10 @@ class PaymentController extends Controller
                 'id' => $order->id,
                 'order_number' => $order->order_number,
                 'customer_id' => $order->customer_id,
-                'customer_name' => $order->customer?->name ?? $order->customer_name,
+                'customer_name' => $order->customer->name ?? $order->customer_name,
                 'grand_total' => (string) $order->grand_total,
-                'paid_amount' => (string) ($allocatedByOrder[$order->id] ?? '0.00'),
-                'due_amount' => bcsub((string) $order->grand_total, (string) ($allocatedByOrder[$order->id] ?? '0.00'), 2),
+                'paid_amount' => $this->decimal($allocatedByOrder[$order->id] ?? '0.00'),
+                'due_amount' => bcsub((string) $order->grand_total, $this->decimal($allocatedByOrder[$order->id] ?? '0.00'), 2),
                 'location_id' => $order->location_id,
             ]),
         ]]);
@@ -150,7 +154,7 @@ class PaymentController extends Controller
 
         return DB::transaction(function () use ($request, $payment, $data): JsonResponse {
             $lockedPayment = FinancialTransaction::query()->lockForUpdate()->findOrFail($payment->id);
-            $order = SalesOrder::query()->lockForUpdate()->findOrFail($data['sales_order_id']);
+            $order = SalesOrder::query()->whereKey($data['sales_order_id'])->lockForUpdate()->firstOrFail();
 
             $this->locationAccess->assertManage($request->user(), (int) $lockedPayment->location_id);
             $this->locationAccess->assertManage($request->user(), (int) $order->location_id);
@@ -165,9 +169,9 @@ class PaymentController extends Controller
                 throw ValidationException::withMessages(['sales_order_id' => 'Payments can only be allocated to confirmed or later-stage orders.']);
             }
 
-            $alreadyAllocated = (string) DB::table('payment_allocations')->where('financial_transaction_id', $lockedPayment->id)->sum('amount');
-            $orderPaid = (string) DB::table('payment_allocations')->where('sales_order_id', $order->id)->sum('amount');
-            $amount = bcadd((string) $data['amount'], '0', 2);
+            $alreadyAllocated = $this->decimal(DB::table('payment_allocations')->where('financial_transaction_id', $lockedPayment->id)->sum('amount'));
+            $orderPaid = $this->decimal(DB::table('payment_allocations')->where('sales_order_id', $order->id)->sum('amount'));
+            $amount = $this->decimal($data['amount']);
             $paymentRemaining = bcsub((string) $lockedPayment->amount, $alreadyAllocated, 2);
             $orderDue = bcsub((string) $order->grand_total, $orderPaid, 2);
 
@@ -208,5 +212,16 @@ class PaymentController extends Controller
             ->get(['allocations.id', 'allocations.amount', 'allocations.created_at', 'orders.id as sales_order_id', 'orders.order_number']);
 
         return response()->json(['data' => $rows]);
+    }
+
+    /**
+     * @return numeric-string
+     */
+    private function decimal(mixed $value): string
+    {
+        /** @var numeric-string $normalized */
+        $normalized = (string) ($value ?? '0.00');
+
+        return bcadd($normalized, '0', 2);
     }
 }

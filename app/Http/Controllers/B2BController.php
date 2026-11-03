@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\B2BAccount;
 use App\Models\B2BQuote;
+use App\Models\B2BQuoteItem;
 use App\Models\Customer;
 use App\Models\Lead;
 use App\Models\Location;
@@ -15,6 +16,7 @@ use App\Services\SalesOrderService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -205,7 +207,9 @@ class B2BController extends Controller
                 'under_review' => ['accepted', 'rejected', 'expired'],
             ];
 
-            if ($locked->valid_until?->isBefore(today()) && in_array($data['status'], ['sent', 'accepted'], true)) {
+            if ($locked->valid_until !== null
+                && Carbon::parse($locked->valid_until)->isBefore(today())
+                && in_array($data['status'], ['sent', 'accepted'], true)) {
                 throw ValidationException::withMessages(['status' => 'An expired quotation cannot be sent or accepted.']);
             }
 
@@ -268,11 +272,12 @@ class B2BController extends Controller
             if ($lockedQuote->status !== 'accepted') {
                 throw ValidationException::withMessages(['quote' => 'Only accepted quotations can be converted into orders.']);
             }
-            if ($lockedQuote->valid_until && $lockedQuote->valid_until->isBefore(today())) {
+            if ($lockedQuote->valid_until !== null
+                && Carbon::parse($lockedQuote->valid_until)->isBefore(today())) {
                 throw ValidationException::withMessages(['quote' => 'This quotation has expired.']);
             }
             // Keep lock order aligned with direct order creation: location, then B2B account.
-            $location = Location::query()->lockForUpdate()->findOrFail($data['location_id']);
+            $location = Location::query()->whereKey($data['location_id'])->lockForUpdate()->firstOrFail();
             if (! $location->is_active) {
                 throw ValidationException::withMessages(['location_id' => 'Choose an active location.']);
             }
@@ -294,7 +299,7 @@ class B2BController extends Controller
             $this->assertQuoteFinancialIntegrity($lockedQuote);
 
             $customer = Customer::query()->lockForUpdate()->findOrFail($account->customer_id);
-            $lines = $lockedQuote->items->map(fn ($item) => [
+            $lines = $lockedQuote->items->map(fn (B2BQuoteItem $item) => [
                 'product_variant_id' => (int) $item->product_variant_id,
                 'quantity' => (float) $item->quantity,
             ])->all();
@@ -401,7 +406,9 @@ class B2BController extends Controller
             $rawDiscount = bcdiv(bcmul($gross, $discountPercent, 4), '100', 4);
             $discount = bcdiv(bcadd($rawDiscount, '0.0050', 4), '1', 2);
             $expected = bcsub($gross, $discount, 2);
-            if (bccomp($expected, (string) $item->line_total, 2) !== 0) {
+            $savedLineTotal = (string) $item->line_total;
+            /** @var numeric-string $savedLineTotal */
+            if (bccomp($expected, $savedLineTotal, 2) !== 0) {
                 throw ValidationException::withMessages(['quote' => 'A quotation line no longer reconciles with its saved quantity, price and discount.']);
             }
             $lineSubtotal = bcadd($lineSubtotal, $expected, 2);
@@ -422,6 +429,7 @@ class B2BController extends Controller
         }
     }
 
+    /** @return array<string, mixed> */
     private function validated(Request $request, ?B2BAccount $account = null): array
     {
         return $request->validate([

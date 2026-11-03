@@ -15,11 +15,13 @@ class InventoryTransferNotification extends Notification
         private readonly string $event,
     ) {}
 
+    /** @return list<string> */
     public function via(object $notifiable): array
     {
         return ['database'];
     }
 
+    /** @return array<string, mixed> */
     public function toArray(object $notifiable): array
     {
         $this->transfer->loadMissing(['product:id,name,sku', 'variant:id,name,sku', 'sourceLocation:id,name,code', 'destinationLocation:id,name,code', 'dispatcher:id,name']);

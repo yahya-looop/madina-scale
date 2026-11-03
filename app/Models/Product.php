@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -9,9 +10,21 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
+/**
+ * @property int $id
+ * @property string $name
+ * @property string $slug
+ * @property string|null $sku
+ * @property string $product_type
+ * @property string $status
+ * @property string $visibility
+ */
 class Product extends Model
 {
-    use HasFactory, SoftDeletes;
+    /** @use HasFactory<Factory<Product>> */
+    use HasFactory;
+
+    use SoftDeletes;
 
     protected $fillable = [
         'category_id',
@@ -36,16 +49,19 @@ class Product extends Model
     |--------------------------------------------------------------------------
     */
 
+    /** @return BelongsTo<ProductCategory, $this> */
     public function category(): BelongsTo
     {
         return $this->belongsTo(ProductCategory::class);
     }
 
+    /** @return BelongsTo<Brand, $this> */
     public function brand(): BelongsTo
     {
         return $this->belongsTo(Brand::class);
     }
 
+    /** @return BelongsTo<Unit, $this> */
     public function unit(): BelongsTo
     {
         return $this->belongsTo(Unit::class);
@@ -53,6 +69,8 @@ class Product extends Model
 
     /**
      * All variants belonging to this product.
+     *
+     * @return HasMany<ProductVariant, $this>
      */
     public function variants(): HasMany
     {
@@ -61,6 +79,8 @@ class Product extends Model
 
     /**
      * Active variants belonging to this product.
+     *
+     * @return HasMany<ProductVariant, $this>
      */
     public function activeVariants(): HasMany
     {
@@ -72,6 +92,8 @@ class Product extends Model
      *
      * The database and application logic must ensure
      * that only one default variant exists per product.
+     *
+     * @return HasOne<ProductVariant, $this>
      */
     public function defaultVariant(): HasOne
     {
@@ -84,6 +106,8 @@ class Product extends Model
      *
      * Ordered by sort_order first, then id to keep
      * the result deterministic.
+     *
+     * @return HasMany<ProductMedia, $this>
      */
     public function media(): HasMany
     {
@@ -94,6 +118,8 @@ class Product extends Model
 
     /**
      * Primary image/media of the product.
+     *
+     * @return HasOne<ProductMedia, $this>
      */
     public function primaryMedia(): HasOne
     {

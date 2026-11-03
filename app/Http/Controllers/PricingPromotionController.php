@@ -159,12 +159,12 @@ class PricingPromotionController extends Controller
             ->where('starts_at', '<=', now())->where('ends_at', '>=', now())
             ->with(['items.variant.product' => fn ($q) => $q->where('status', 'active')->where('visibility', 'visible')])
             ->orderBy('priority')->orderBy('ends_at')->get()
-            ->map(fn (FlashSale $sale) => [
+            ->map(fn (FlashSale $sale): array => [
                 'id' => $sale->id, 'title' => $sale->title, 'slug' => $sale->slug,
                 'tagline' => $sale->tagline, 'description' => $sale->description,
                 'banner_image' => $sale->banner_image, 'accent_color' => $sale->accent_color,
-                'starts_at' => $sale->starts_at?->toIso8601String(), 'ends_at' => $sale->ends_at?->toIso8601String(),
-                'items' => $sale->items->filter(fn ($item) => $item->variant && $item->variant->product && ($item->quantity_limit === null || $item->quantity_sold < $item->quantity_limit))->map(fn ($item) => [
+                'starts_at' => $sale->starts_at->toIso8601String(), 'ends_at' => $sale->ends_at->toIso8601String(),
+                'items' => $sale->items->filter(fn (FlashSaleItem $item) => $item->variant !== null && $item->variant->getRelation('product') !== null && ($item->quantity_limit === null || $item->quantity_sold < $item->quantity_limit))->map(fn (FlashSaleItem $item): array => [
                     'id' => $item->id, 'product_name' => $item->variant->product->name,
                     'product_slug' => $item->variant->product->slug, 'variant_name' => $item->variant->name,
                     'sku' => $item->variant->sku, 'regular_price' => $item->regular_price,
@@ -175,6 +175,7 @@ class PricingPromotionController extends Controller
         return response()->json(['data' => $sales]);
     }
 
+    /** @return array<string, mixed> */
     private function validatePromotion(Request $request, ?PricingPromotion $promotion = null): array
     {
         // Coupon codes are stored uppercase; normalize before the unique rule so
@@ -217,6 +218,7 @@ class PricingPromotionController extends Controller
         return $data;
     }
 
+    /** @return array<string, mixed> */
     private function validateFlashSale(Request $request, ?FlashSale $sale = null): array
     {
         return $request->validate([
@@ -240,6 +242,15 @@ class PricingPromotionController extends Controller
         ]);
     }
 
+    /**
+     * @param list<array{
+     *     product_variant_id: int|string,
+     *     regular_price: int|float|string,
+     *     sale_price: int|float|string,
+     *     quantity_limit?: int|string|null,
+     *     sort_order?: int|string|null
+     * }> $items
+     */
     private function syncItems(FlashSale $sale, array $items): void
     {
         $ids = collect($items)->pluck('product_variant_id')->all();
@@ -264,7 +275,7 @@ class PricingPromotionController extends Controller
                 'regular_price' => $item['regular_price'],
                 'sale_price' => $item['sale_price'],
                 'quantity_limit' => $item['quantity_limit'] ?? null,
-                'quantity_sold' => $previous?->quantity_sold ?? 0,
+                'quantity_sold' => $previous->quantity_sold ?? 0,
                 'sort_order' => $item['sort_order'] ?? 0,
             ]);
         }

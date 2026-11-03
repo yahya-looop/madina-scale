@@ -14,6 +14,7 @@ class MarketingCampaign extends Model
         return ['budget' => 'decimal:2', 'starts_at' => 'datetime', 'ends_at' => 'datetime', 'audience_rules' => 'array', 'settings' => 'array'];
     }
 
+    /** @return HasMany<MarketingCampaignEvent, $this> */
     public function events(): HasMany
     {
         return $this->hasMany(MarketingCampaignEvent::class, 'campaign_id');

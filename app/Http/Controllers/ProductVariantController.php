@@ -241,7 +241,7 @@ class ProductVariantController extends Controller
                     ->where('status', 'active')
                     ->where('is_default', true)
                     ->where('id', '<>', $lockedVariant->id)
-                    ->exists() && $effectiveStatus === 'active') {
+                    ->exists()) {
                     $data['is_default'] = true;
                 }
 
@@ -318,6 +318,8 @@ class ProductVariantController extends Controller
 
     /**
      * Validate and normalize variant input.
+     *
+     * @return array<string, mixed>
      */
     private function validateVariant(
         Request $request,
@@ -446,6 +448,8 @@ class ProductVariantController extends Controller
      * Validate effective promotion dates.
      *
      * On update, omitted fields are taken from the existing variant.
+     *
+     * @param  array<string, mixed>  $data
      */
     private function validatePromotionDateRange(
         array $data,
@@ -497,6 +501,8 @@ class ProductVariantController extends Controller
 
     /**
      * Validate that every selected attribute and value is usable.
+     *
+     * @param  list<array{attribute_id: int|string, attribute_value_id: int|string}>  $selections
      */
     private function validateAttributeSelections(
         array $selections
@@ -544,6 +550,8 @@ class ProductVariantController extends Controller
      * Replace the variant's attribute selections.
      *
      * Call this method inside a database transaction.
+     *
+     * @param  list<array{attribute_id: int|string, attribute_value_id: int|string}>  $selections
      */
     private function syncAttributeValues(
         ProductVariant $variant,
@@ -566,6 +574,8 @@ class ProductVariantController extends Controller
     /**
      * Produce a stable signature independent of request order.
      * Empty attribute selections intentionally have no signature.
+     *
+     * @param  list<array{attribute_id: int|string, attribute_value_id: int|string}>  $selections
      */
     private function buildAttributeSignature(array $selections): ?string
     {
@@ -645,6 +655,7 @@ class ProductVariantController extends Controller
      * Database unique constraints remain the final protection
      * against concurrent duplicate writes.
      */
+    /** @param array<string, mixed> $data */
     private function assertIdentifiersAvailable(
         array $data,
         ?ProductVariant $ignoreVariant = null
@@ -696,6 +707,7 @@ class ProductVariantController extends Controller
      *
      * Unknown unique violations are deliberately rethrown.
      */
+    /** @param array<string, mixed> $data */
     private function handleIdentifierConstraint(
         QueryException $exception,
         array $data

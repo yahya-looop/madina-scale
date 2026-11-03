@@ -17,16 +17,19 @@ class PricingPromotionRedemption extends Model
         return ['discount_amount' => 'decimal:2', 'redeemed_at' => 'datetime', 'released_at' => 'datetime'];
     }
 
+    /** @return BelongsTo<PricingPromotion, $this> */
     public function promotion(): BelongsTo
     {
         return $this->belongsTo(PricingPromotion::class, 'pricing_promotion_id');
     }
 
+    /** @return BelongsTo<SalesOrder, $this> */
     public function order(): BelongsTo
     {
         return $this->belongsTo(SalesOrder::class, 'sales_order_id');
     }
 
+    /** @return BelongsTo<Customer, $this> */
     public function customer(): BelongsTo
     {
         return $this->belongsTo(Customer::class);
