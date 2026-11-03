@@ -11,7 +11,6 @@ use App\Models\Module;
 use App\Models\Permission;
 use App\Models\ProductVariant;
 use App\Models\Role;
-use App\Models\SalesOrder;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
@@ -382,4 +381,3 @@ class SalesCrmLeadManagementTest extends TestCase
         $this->actingAs($user)->get('/sales-crm/leads')->assertForbidden();
     }
 }
-

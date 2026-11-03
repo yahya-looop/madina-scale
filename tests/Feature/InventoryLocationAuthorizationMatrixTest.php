@@ -132,7 +132,6 @@ test('receive access permits receipts but denies issue adjustment and threshold 
     $this->assertDatabaseCount('stock_movements', 1);
 });
 
-
 test('inventory location options expose only active assigned locations and their access levels', function () {
     $user = createMilestone3cInventoryUser(['system.inventory.view']);
     $viewLocation = inventoryTestLocation('options-view');

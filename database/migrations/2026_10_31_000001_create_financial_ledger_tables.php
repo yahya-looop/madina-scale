@@ -83,18 +83,18 @@ return new class extends Migration
 
         $now = now();
         $accounts = [
-            ['code'=>'1000','name'=>'Cash on Hand','type'=>'asset','normal_balance'=>'debit','cash'=>true],
-            ['code'=>'1010','name'=>'Bank Account','type'=>'asset','normal_balance'=>'debit','cash'=>true],
-            ['code'=>'1020','name'=>'Mobile Banking','type'=>'asset','normal_balance'=>'debit','cash'=>true],
-            ['code'=>'1100','name'=>'Accounts Receivable','type'=>'asset','normal_balance'=>'debit','cash'=>false],
-            ['code'=>'2000','name'=>'Accounts Payable','type'=>'liability','normal_balance'=>'credit','cash'=>false],
-            ['code'=>'2100','name'=>'Customer Advances','type'=>'liability','normal_balance'=>'credit','cash'=>false],
-            ['code'=>'3000','name'=>'Owner Equity','type'=>'equity','normal_balance'=>'credit','cash'=>false],
-            ['code'=>'4000','name'=>'Sales Revenue','type'=>'income','normal_balance'=>'credit','cash'=>false],
-            ['code'=>'4100','name'=>'Other Operating Income','type'=>'income','normal_balance'=>'credit','cash'=>false],
-            ['code'=>'5000','name'=>'Cost of Goods Sold','type'=>'expense','normal_balance'=>'debit','cash'=>false],
-            ['code'=>'6000','name'=>'Operating Expenses','type'=>'expense','normal_balance'=>'debit','cash'=>false],
-            ['code'=>'6100','name'=>'Bank & Payment Charges','type'=>'expense','normal_balance'=>'debit','cash'=>false],
+            ['code' => '1000', 'name' => 'Cash on Hand', 'type' => 'asset', 'normal_balance' => 'debit', 'cash' => true],
+            ['code' => '1010', 'name' => 'Bank Account', 'type' => 'asset', 'normal_balance' => 'debit', 'cash' => true],
+            ['code' => '1020', 'name' => 'Mobile Banking', 'type' => 'asset', 'normal_balance' => 'debit', 'cash' => true],
+            ['code' => '1100', 'name' => 'Accounts Receivable', 'type' => 'asset', 'normal_balance' => 'debit', 'cash' => false],
+            ['code' => '2000', 'name' => 'Accounts Payable', 'type' => 'liability', 'normal_balance' => 'credit', 'cash' => false],
+            ['code' => '2100', 'name' => 'Customer Advances', 'type' => 'liability', 'normal_balance' => 'credit', 'cash' => false],
+            ['code' => '3000', 'name' => 'Owner Equity', 'type' => 'equity', 'normal_balance' => 'credit', 'cash' => false],
+            ['code' => '4000', 'name' => 'Sales Revenue', 'type' => 'income', 'normal_balance' => 'credit', 'cash' => false],
+            ['code' => '4100', 'name' => 'Other Operating Income', 'type' => 'income', 'normal_balance' => 'credit', 'cash' => false],
+            ['code' => '5000', 'name' => 'Cost of Goods Sold', 'type' => 'expense', 'normal_balance' => 'debit', 'cash' => false],
+            ['code' => '6000', 'name' => 'Operating Expenses', 'type' => 'expense', 'normal_balance' => 'debit', 'cash' => false],
+            ['code' => '6100', 'name' => 'Bank & Payment Charges', 'type' => 'expense', 'normal_balance' => 'debit', 'cash' => false],
         ];
         foreach ($accounts as $account) {
             DB::table('financial_accounts')->updateOrInsert(

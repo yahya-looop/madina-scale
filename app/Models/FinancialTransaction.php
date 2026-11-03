@@ -19,26 +19,31 @@ class FinancialTransaction extends Model
         return ['transaction_date' => 'date', 'amount' => 'decimal:2'];
     }
 
+    /** @return BelongsTo<FinancialAccount, $this> */
     public function cashAccount(): BelongsTo
     {
         return $this->belongsTo(FinancialAccount::class, 'cash_account_id');
     }
 
+    /** @return BelongsTo<FinancialAccount, $this> */
     public function categoryAccount(): BelongsTo
     {
         return $this->belongsTo(FinancialAccount::class, 'category_account_id');
     }
 
+    /** @return BelongsTo<Customer, $this> */
     public function customer(): BelongsTo
     {
         return $this->belongsTo(Customer::class);
     }
 
+    /** @return BelongsTo<JournalEntry, $this> */
     public function journalEntry(): BelongsTo
     {
         return $this->belongsTo(JournalEntry::class);
     }
 
+    /** @return BelongsTo<Location, $this> */
     public function location(): BelongsTo
     {
         return $this->belongsTo(Location::class);

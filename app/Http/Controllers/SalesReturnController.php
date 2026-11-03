@@ -26,6 +26,7 @@ class SalesReturnController extends Controller
                 $q->where('location_id', $id);
             })->latest('return_date')->latest('id');
         $page = $query->paginate($perPage)->withQueryString();
+
         return response()->json(['data' => $page->items(), 'meta' => ['current_page' => $page->currentPage(), 'last_page' => $page->lastPage(), 'total' => $page->total()]]);
     }
 
@@ -38,7 +39,9 @@ class SalesReturnController extends Controller
             ->whereIn('location_id', $manageableLocationIds)
             ->when(! $request->filled('location_id'), fn ($q) => $this->locationAccess->scopeViewable($q, $request->user()))
             ->when($request->filled('location_id'), function ($q) use ($request): void {
-                $id = $request->integer('location_id'); $this->locationAccess->assertManage($request->user(), $id); $q->where('location_id', $id);
+                $id = $request->integer('location_id');
+                $this->locationAccess->assertManage($request->user(), $id);
+                $q->where('location_id', $id);
             })->latest('id')->limit(100)->get();
         $orders->each(function (SalesOrder $order): void {
             $order->items->each(function ($item): void {
@@ -47,26 +50,28 @@ class SalesReturnController extends Controller
                 $item->setAttribute('returnable_quantity', max(0, $fulfilled - $returned));
             });
         });
-        return response()->json(['data' => $orders, 'cash_accounts' => FinancialAccount::query()->where('is_active', true)->where('is_cash_bank', true)->orderBy('code')->get(['id','code','name']), 'locations' => $this->locationAccess->viewableLocations($request->user())->values()]);
+
+        return response()->json(['data' => $orders, 'cash_accounts' => FinancialAccount::query()->where('is_active', true)->where('is_cash_bank', true)->orderBy('code')->get(['id', 'code', 'name']), 'locations' => $this->locationAccess->viewableLocations($request->user())->values()]);
     }
 
     public function store(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'sales_order_id' => ['required','integer','exists:sales_orders,id'],
-            'idempotency_key' => ['required','string','max:100'],
-            'return_date' => ['required','date'],
-            'refund_method' => ['required', Rule::in(['cash','bank','store_credit'])],
-            'cash_account_id' => ['nullable','integer','exists:financial_accounts,id'],
-            'reason' => ['nullable','string','max:500'],
-            'items' => ['required','array','min:1'],
-            'items.*.sales_order_item_id' => ['required','integer','distinct','exists:sales_order_items,id'],
-            'items.*.quantity' => ['required','numeric','gt:0','decimal:0,4'],
+            'sales_order_id' => ['required', 'integer', 'exists:sales_orders,id'],
+            'idempotency_key' => ['required', 'string', 'max:100'],
+            'return_date' => ['required', 'date'],
+            'refund_method' => ['required', Rule::in(['cash', 'bank', 'store_credit'])],
+            'cash_account_id' => ['nullable', 'integer', 'exists:financial_accounts,id'],
+            'reason' => ['nullable', 'string', 'max:500'],
+            'items' => ['required', 'array', 'min:1'],
+            'items.*.sales_order_item_id' => ['required', 'integer', 'distinct', 'exists:sales_order_items,id'],
+            'items.*.quantity' => ['required', 'numeric', 'gt:0', 'decimal:0,4'],
         ]);
         if ($data['refund_method'] !== 'store_credit' && empty($data['cash_account_id'])) {
             return response()->json(['message' => 'A cash or bank account is required for cash/bank refunds.'], 422);
         }
         $return = $this->returns->create($data, $request->user());
+
         return response()->json(['message' => 'Sales return completed and posted to inventory and finance.', 'data' => $return], $return->wasRecentlyCreated ? 201 : 200);
     }
 }

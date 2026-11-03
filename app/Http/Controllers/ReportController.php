@@ -37,7 +37,9 @@ class ReportController extends Controller
         abort_if(Carbon::parse($validated['from'])->diffInDays(Carbon::parse($validated['to'])) > 366, 422, 'Report range cannot exceed 367 days.');
         $user = $request->user();
         $locationId = isset($validated['location_id']) ? (int) $validated['location_id'] : null;
-        if ($locationId) $this->locations->assertView($user, $locationId);
+        if ($locationId) {
+            $this->locations->assertView($user, $locationId);
+        }
 
         return response()->json($this->buildReport($user, $validated['from'], $validated['to'], $locationId));
     }
@@ -53,7 +55,9 @@ class ReportController extends Controller
         ]);
         abort_if(Carbon::parse($validated['from'])->diffInDays(Carbon::parse($validated['to'])) > 366, 422);
         $locationId = isset($validated['location_id']) ? (int) $validated['location_id'] : null;
-        if ($locationId) $this->locations->assertView($request->user(), $locationId);
+        if ($locationId) {
+            $this->locations->assertView($request->user(), $locationId);
+        }
         $report = $this->buildReport($request->user(), $validated['from'], $validated['to'], $locationId);
         $rows = $report[$validated['dataset']] ?? [];
         $filename = 'madina-scale-'.$validated['dataset'].'-'.$validated['from'].'-'.$validated['to'].'.csv';
@@ -68,7 +72,10 @@ class ReportController extends Controller
                 foreach ($rows as $row) {
                     $values = array_values((array) $row);
                     $values = array_map(static function ($value) {
-                        if (is_string($value) && preg_match('/^[=+\\-@\\t\\r]/', $value)) return "'".$value;
+                        if (is_string($value) && preg_match('/^[=+\\-@\\t\\r]/', $value)) {
+                            return "'".$value;
+                        }
+
                         return $value;
                     }, $values);
                     fputcsv($out, $values);
@@ -155,6 +162,7 @@ class ReportController extends Controller
             ->groupBy('customer_id')->orderByDesc('sales')->limit(10)->get()
             ->map(function ($r) {
                 $customer = DB::table('customers')->where('id', $r->customer_id)->first(['name', 'customer_code']);
+
                 return ['customer' => $customer?->name ?? 'Unknown customer', 'code' => $customer?->customer_code, 'orders' => (int) $r->orders, 'sales' => (float) $r->sales];
             })->all();
 
@@ -168,7 +176,10 @@ class ReportController extends Controller
 
     private function scope(Builder $query, User $user, ?int $locationId, string $column): void
     {
-        if ($locationId) $query->where($column, $locationId);
-        else $this->locations->scopeViewable($query, $user, $column);
+        if ($locationId) {
+            $query->where($column, $locationId);
+        } else {
+            $this->locations->scopeViewable($query, $user, $column);
+        }
     }
 }

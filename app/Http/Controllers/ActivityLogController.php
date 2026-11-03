@@ -7,6 +7,8 @@ use App\Models\ActivityLog;
 use App\Services\AuthorizationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ActivityLogController extends Controller
 {
@@ -138,7 +140,7 @@ class ActivityLogController extends Controller
     }
 
     /** Export a bounded, permission-protected CSV audit extract. */
-    public function export(ActivityLogIndexRequest $request): \Symfony\Component\HttpFoundation\StreamedResponse
+    public function export(ActivityLogIndexRequest $request): StreamedResponse
     {
         $validated = $request->validated();
         $query = ActivityLog::query()
@@ -161,9 +163,10 @@ class ActivityLogController extends Controller
 
         // Prevent unbounded exports; a maximum 90-day window is mandatory.
         abort_unless(filled($validated['from'] ?? null) && filled($validated['to'] ?? null), 422, 'Select both From and To dates before exporting.');
-        abort_if(\Illuminate\Support\Carbon::parse($validated['from'])->diffInDays(\Illuminate\Support\Carbon::parse($validated['to'])) > 90, 422, 'Audit exports are limited to 90 days.');
+        abort_if(Carbon::parse($validated['from'])->diffInDays(Carbon::parse($validated['to'])) > 90, 422, 'Audit exports are limited to 90 days.');
 
-        $filename = 'madina-scale-audit-' . now()->format('Ymd-His') . '.csv';
+        $filename = 'madina-scale-audit-'.now()->format('Ymd-His').'.csv';
+
         return response()->streamDownload(function () use ($query): void {
             $out = fopen('php://output', 'w');
             fputcsv($out, ['ID', 'Timestamp', 'Actor', 'Actor Type', 'Action', 'Module', 'Description', 'Subject Type', 'Subject ID', 'IP Address', 'Request ID', 'Integrity']);
@@ -172,8 +175,11 @@ class ActivityLogController extends Controller
                     $cells = [$log->id, $log->created_at?->toISOString(), $log->actor?->name ?? ($log->actor_type === 'system' ? 'System' : 'Unknown'), $log->actor_type, $log->action, $log->module, $log->description, $log->subject_type, $log->subject_id, $log->ip_address, $log->request_id, $log->hasValidIntegrityHash() ? 'valid' : 'invalid'];
                     // Neutralize spreadsheet formula injection in all textual cells.
                     $cells = array_map(static function ($value) {
-                        if (! is_string($value)) return $value;
-                        return preg_match('/^[\s]*[=+@\-]/u', $value) ? "'" . $value : $value;
+                        if (! is_string($value)) {
+                            return $value;
+                        }
+
+                        return preg_match('/^[\s]*[=+@\-]/u', $value) ? "'".$value : $value;
                     }, $cells);
                     fputcsv($out, $cells);
                 }
@@ -186,10 +192,10 @@ class ActivityLogController extends Controller
     public function verify(Request $request, ActivityLog $activityLog): JsonResponse
     {
         abort_unless($request->user() && $this->authorization->can($request->user(), 'system.activity_logs.view'), 403);
+
         return response()->json(['data' => [
             'id' => $activityLog->id,
             'integrity' => $activityLog->hasValidIntegrityHash() ? 'valid' : 'invalid_or_legacy',
         ]]);
     }
-
 }

@@ -2,15 +2,15 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Lead;
 use App\Models\Customer;
+use App\Models\Lead;
 use App\Models\Location;
 use App\Models\User;
 use App\Services\AuthorizationService;
-use App\Services\SalesOrderService;
+use App\Services\CustomerIdentityService;
 use App\Services\LocationInventoryAccessService;
+use App\Services\SalesOrderService;
 use App\Services\SettingsService;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -41,8 +41,12 @@ class LeadController extends Controller
         ];
         $sortBy = $request->input('sort_by', 'follow_up');
         $sortDirection = $request->input('sort_direction', 'asc');
-        if (! in_array($sortBy, ['follow_up', 'created_at', 'name', 'status', 'interest_level'], true)) $sortBy = 'follow_up';
-        if (! in_array($sortDirection, ['asc', 'desc'], true)) $sortDirection = 'asc';
+        if (! in_array($sortBy, ['follow_up', 'created_at', 'name', 'status', 'interest_level'], true)) {
+            $sortBy = 'follow_up';
+        }
+        if (! in_array($sortDirection, ['asc', 'desc'], true)) {
+            $sortDirection = 'asc';
+        }
 
         if ($sortBy === 'follow_up') {
             $query->orderByRaw('CASE WHEN next_follow_up_at IS NULL THEN 1 ELSE 0 END')
@@ -104,6 +108,7 @@ class LeadController extends Controller
             'activities.creator:id,name',
             'assignmentHistory.fromUser:id,name', 'assignmentHistory.toUser:id,name', 'assignmentHistory.actor:id,name',
         ])->loadCount('activities');
+
         return response()->json(['data' => $lead]);
     }
 
@@ -135,8 +140,10 @@ class LeadController extends Controller
                 'assigned_by' => $creatorId,
                 'reason' => 'Lead owner set to creator on creation',
             ]);
+
             return $created;
         });
+
         return response()->json(['message' => 'Lead created successfully.', 'data' => $lead->load('assignee:id,name')], 201);
     }
 
@@ -152,6 +159,7 @@ class LeadController extends Controller
         unset($data['assigned_to']);
         $data['updated_by'] = $request->user()?->id;
         $lead->update($data);
+
         return response()->json(['message' => 'Lead updated successfully.', 'data' => $lead->fresh(['assignee:id,name'])]);
     }
 
@@ -181,7 +189,9 @@ class LeadController extends Controller
         $locationId = $lead->location_id ?: ($data['location_id'] ?? null);
         if (! $locationId) {
             $sharedLocationIds = $actor->locations()->whereHas('users', fn ($q) => $q->where('users.id', $newOwner->id))->pluck('locations.id');
-            if ($sharedLocationIds->count() === 1) $locationId = (int) $sharedLocationIds->first();
+            if ($sharedLocationIds->count() === 1) {
+                $locationId = (int) $sharedLocationIds->first();
+            }
         }
         if (! $locationId) {
             throw ValidationException::withMessages(['location_id' => 'Choose a team location before assigning this lead.']);
@@ -234,7 +244,7 @@ class LeadController extends Controller
         Lead $lead,
         SalesOrderService $orders,
         LocationInventoryAccessService $locationAccess,
-        \App\Services\CustomerIdentityService $identities,
+        CustomerIdentityService $identities,
     ): JsonResponse {
         $data = $request->validate([
             'location_id' => ['required', 'integer', 'exists:locations,id'],
@@ -312,6 +322,7 @@ class LeadController extends Controller
             return response()->json(['message' => 'Converted leads are retained for sales attribution; mark the lead as lost instead.'], 422);
         }
         $lead->delete();
+
         return response()->json(['message' => 'Lead archived successfully.']);
     }
 
@@ -329,12 +340,19 @@ class LeadController extends Controller
             $data['created_by'] = $request->user()?->id;
             $activity = $lead->activities()->create($data);
             $leadUpdates = ['last_contact_outcome' => $data['outcome'] ?? null, 'updated_by' => $request->user()?->id];
-            if (array_key_exists('next_follow_up_at', $data)) $leadUpdates['next_follow_up_at'] = $data['next_follow_up_at'];
-            if (($data['outcome'] ?? null) === 'not_interested') $leadUpdates['status'] = 'lost';
-            elseif (in_array(($data['outcome'] ?? null), ['answered', 'interested', 'callback_requested'], true) && $lead->status === 'new') $leadUpdates['status'] = 'contacting';
+            if (array_key_exists('next_follow_up_at', $data)) {
+                $leadUpdates['next_follow_up_at'] = $data['next_follow_up_at'];
+            }
+            if (($data['outcome'] ?? null) === 'not_interested') {
+                $leadUpdates['status'] = 'lost';
+            } elseif (in_array(($data['outcome'] ?? null), ['answered', 'interested', 'callback_requested'], true) && $lead->status === 'new') {
+                $leadUpdates['status'] = 'contacting';
+            }
             $lead->update($leadUpdates);
+
             return $activity->load('creator:id,name');
         });
+
         return response()->json(['message' => 'Activity recorded successfully.', 'data' => $activity], 201);
     }
 
@@ -353,7 +371,7 @@ class LeadController extends Controller
             'source_detail' => ['nullable', 'string', 'max:190'],
             'customer_type' => ['required', Rule::in(['retail', 'b2b', 'undecided'])],
             'interested_product' => ['nullable', 'string', 'max:190'],
-            'status' => ['required', Rule::in($lead?->status === 'converted' ? ['converted'] : array_values(array_diff($this->statuses(), ['converted'])) )],
+            'status' => ['required', Rule::in($lead?->status === 'converted' ? ['converted'] : array_values(array_diff($this->statuses(), ['converted'])))],
             'last_contact_outcome' => ['nullable', Rule::in(['answered', 'no_answer', 'busy', 'callback_requested', 'interested', 'not_interested', 'wrong_number', 'message_sent', 'other'])],
             'interest_level' => ['required', Rule::in(['hot', 'warm', 'cold'])],
             'notes' => ['nullable', 'string', 'max:10000'],
@@ -363,8 +381,11 @@ class LeadController extends Controller
 
     private function defaultLocationId(User $user, AuthorizationService $authorization): ?int
     {
-        if ($authorization->isDeveloper($user)) return null;
+        if ($authorization->isDeveloper($user)) {
+            return null;
+        }
         $ids = $user->locations()->where('locations.is_active', true)->pluck('locations.id');
+
         return $ids->count() === 1 ? (int) $ids->first() : null;
     }
 
@@ -386,6 +407,7 @@ class LeadController extends Controller
     private function isManagerOrSupervisor(User $user): bool
     {
         $designation = Str::lower(trim((string) $user->designation));
+
         return in_array($designation, ['manager', 'supervisor', 'sales manager', 'sales supervisor', 'branch manager', 'team leader'], true);
     }
 
@@ -396,8 +418,10 @@ class LeadController extends Controller
 
     private function newCode(): string
     {
-        do { $code = 'LEAD-'.now()->format('ym').'-'.Str::upper(Str::random(6)); }
-        while (Lead::where('lead_code', $code)->exists());
+        do {
+            $code = 'LEAD-'.now()->format('ym').'-'.Str::upper(Str::random(6));
+        } while (Lead::where('lead_code', $code)->exists());
+
         return $code;
     }
 }

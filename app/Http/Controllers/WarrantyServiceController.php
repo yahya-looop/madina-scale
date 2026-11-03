@@ -6,21 +6,21 @@ use App\Models\Customer;
 use App\Models\FinancialAccount;
 use App\Models\JournalEntry;
 use App\Models\Location;
-use App\Models\Product;
-use App\Models\SalesOrder;
+use App\Models\ProductVariant;
 use App\Models\SalesOrderItem;
 use App\Models\User;
-use App\Models\ProductVariant;
 use App\Services\ActivityLogService;
-use App\Services\LocationInventoryAccessService;
-use App\Services\InventoryService;
 use App\Services\FinancialLedgerService;
+use App\Services\InventoryService;
+use App\Services\LocationInventoryAccessService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
+use Inertia\Inertia;
 
 class WarrantyServiceController extends Controller
 {
@@ -36,7 +36,7 @@ class WarrantyServiceController extends Controller
         $user = $request->user();
         abort_unless($user && $user->can('system.warranty.view'), 403);
 
-        return \Inertia\Inertia::render('Warranty/Index', [
+        return Inertia::render('Warranty/Index', [
             'userName' => $user->name,
             'userEmail' => $user->email,
             'canCreate' => $user->can('system.warranty.create'),
@@ -69,7 +69,7 @@ class WarrantyServiceController extends Controller
             }))
             ->orderByDesc('w.id')
             ->select([
-                 'w.*', DB::raw("CASE WHEN w.status = 'active' AND w.warranty_end < CURRENT_DATE THEN 'expired' ELSE w.status END AS display_status"), 'c.name as customer_name', 'c.phone as customer_phone',
+                'w.*', DB::raw("CASE WHEN w.status = 'active' AND w.warranty_end < CURRENT_DATE THEN 'expired' ELSE w.status END AS display_status"), 'c.name as customer_name', 'c.phone as customer_phone',
                 'l.name as location_name', 'so.order_number', 'soi.product_name',
                 'soi.variant_name', 'soi.sku',
             ])->paginate($perPage)->withQueryString();
@@ -141,6 +141,7 @@ class WarrantyServiceController extends Controller
             ->map(fn (ProductVariant $variant): array => ['id' => $variant->id, 'label' => trim(($variant->product?->name ?? 'Product').' — '.($variant->name ?? '').' ('.$variant->sku.')')]);
         $customers = Customer::query()->whereHas('orders', fn ($q) => $this->locationAccess->scopeViewable($q, $request->user()))
             ->orderBy('name')->limit(500)->get(['id', 'name', 'phone']);
+
         return response()->json(['locations' => $locations, 'order_items' => $orderItems, 'technicians' => $technicians, 'parts' => $parts, 'customers' => $customers]);
     }
 
@@ -165,7 +166,7 @@ class WarrantyServiceController extends Controller
                 throw ValidationException::withMessages(['sales_order_item_id' => 'All units on this sales order item already have warranty registrations.']);
             }
 
-            $start = \Illuminate\Support\Carbon::parse($data['warranty_start'])->startOfDay();
+            $start = Carbon::parse($data['warranty_start'])->startOfDay();
             $end = $start->copy()->addMonthsNoOverflow((int) $data['warranty_months'])->subDay();
             $id = DB::table('product_warranties')->insertGetId([
                 'warranty_number' => 'WAR-'.now()->format('ymd').'-'.Str::upper(Str::random(6)),
@@ -184,6 +185,7 @@ class WarrantyServiceController extends Controller
             ]);
             $warranty = DB::table('product_warranties')->where('id', $id)->first();
             $this->activityLog->recordForUser($request->user(), 'registered', 'warranty', 'Registered warranty '.$warranty->warranty_number, null, null, (array) $warranty);
+
             return $warranty;
         }, 3);
 
@@ -232,6 +234,7 @@ class WarrantyServiceController extends Controller
             ]);
             $ticket = DB::table('service_tickets')->where('id', $id)->first();
             $this->activityLog->recordForUser($request->user(), 'created', 'warranty', 'Created service ticket '.$ticket->ticket_number, null, null, (array) $ticket);
+
             return $ticket;
         }, 3);
 
@@ -340,6 +343,7 @@ class WarrantyServiceController extends Controller
             ]);
             $part = DB::table('service_ticket_parts')->where('id', $id)->first();
             $this->activityLog->recordForUser($request->user(), 'issued', 'warranty', 'Issued spare part for '.$row->ticket_number, null, null, (array) $part);
+
             return $part;
         }, 3);
 
@@ -380,6 +384,7 @@ class WarrantyServiceController extends Controller
             DB::table('service_tickets')->where('id', $ticket)->update($changes);
             $new = (array) DB::table('service_tickets')->where('id', $ticket)->first();
             $this->activityLog->recordForUser($request->user(), 'updated', 'warranty', 'Updated service ticket '.$row->ticket_number, null, $old, $new);
+
             return $new;
         }, 3);
 
@@ -404,5 +409,4 @@ class WarrantyServiceController extends Controller
             'Assigned technician is not assigned to this service location.'
         );
     }
-
 }

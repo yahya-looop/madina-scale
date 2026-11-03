@@ -4,11 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\User\StoreUserRequest;
 use App\Http\Requests\User\UpdateUserRequest;
-use App\Models\User;
-use App\Services\UserService;
-use App\Services\AuthorizationService;
-use App\Services\ActivityLogService;
 use App\Models\Location;
+use App\Models\User;
+use App\Services\ActivityLogService;
+use App\Services\AuthorizationService;
+use App\Services\UserService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 
@@ -221,4 +221,3 @@ class UserController extends Controller
         ];
     }
 }
-

@@ -17,7 +17,7 @@ class FinancialLedgerService
     /**
      * Create a draft journal. Drafts never affect account balances.
      *
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      */
     public function createDraft(array $data, User $actor): JournalEntry
     {
@@ -34,7 +34,7 @@ class FinancialLedgerService
             ]);
 
             foreach ($data['lines'] as $line) {
-                $account = FinancialAccount::query()->where('is_active', true)->find($line['account_id']);
+                $account = FinancialAccount::query()->where('is_active', true)->whereKey($line['account_id'])->first();
                 if (! $account) {
                     throw ValidationException::withMessages(['lines' => 'Every journal line must use an active account.']);
                 }
@@ -115,7 +115,7 @@ class FinancialLedgerService
      * Customer receipts credit Customer Advances until invoice allocation is
      * introduced with the sales receivables workflow.
      *
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      */
     public function recordTransaction(array $data, User $actor): FinancialTransaction
     {
@@ -130,6 +130,7 @@ class FinancialLedgerService
                 if (! hash_equals($existing->payload_hash, $payloadHash)) {
                     throw ValidationException::withMessages(['idempotency_key' => 'This idempotency key was already used for a different financial transaction.']);
                 }
+
                 return $existing->load(['cashAccount', 'categoryAccount', 'customer', 'journalEntry']);
             }
 
@@ -139,7 +140,7 @@ class FinancialLedgerService
             }
 
             $cash = FinancialAccount::query()->where('is_active', true)->where('is_cash_bank', true)
-                ->lockForUpdate()->find($data['cash_account_id']);
+                ->lockForUpdate()->whereKey($data['cash_account_id'])->first();
             if (! $cash) {
                 throw ValidationException::withMessages(['cash_account_id' => 'Select an active cash, bank or mobile banking account.']);
             }
@@ -159,7 +160,7 @@ class FinancialLedgerService
                     ['account_id' => $customerAdvances->id, 'debit' => '0.00', 'credit' => $amount, 'customer_id' => $customerId],
                 ];
             } else {
-                $category = FinancialAccount::query()->where('is_active', true)->find($data['category_account_id'] ?? null);
+                $category = FinancialAccount::query()->where('is_active', true)->whereKey($data['category_account_id'] ?? null)->first();
                 $expectedType = $type === 'income' ? 'income' : 'expense';
                 if (! $category || $category->type !== $expectedType || $category->is_cash_bank) {
                     throw ValidationException::withMessages(['category_account_id' => 'Choose an active account from the matching '.$expectedType.' category.']);
@@ -227,14 +228,23 @@ class FinancialLedgerService
         }, 3);
     }
 
+    /** @return numeric-string */
     private function money(mixed $value): string
     {
         $value = trim((string) $value);
+        $this->assertValidMoneyString($value);
+
+        return bcadd($value, '0', 2);
+    }
+
+    /**
+     * @phpstan-assert numeric-string $value
+     */
+    private function assertValidMoneyString(string $value): void
+    {
         if (! preg_match('/^\d{1,14}(?:\.\d{1,2})?$/', $value)) {
             throw ValidationException::withMessages(['amount' => 'Enter a valid non-negative amount with up to two decimal places.']);
         }
-
-        return bcadd($value, '0', 2);
     }
 
     private function number(string $prefix): string

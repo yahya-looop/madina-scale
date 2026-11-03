@@ -396,7 +396,6 @@ test('discrepancy report preserves an audit record and never silently restores s
     $this->assertDatabaseCount('stock_movements', 2);
 });
 
-
 test('dispatch notification failure rolls back transfer and stock changes atomically', function () {
     $sender = createTransferWorkflowUser(['system.inventory.transfer']);
     $receiver = createTransferWorkflowUser(['system.inventory.transfer']);
@@ -426,7 +425,6 @@ test('dispatch notification failure rolls back transfer and stock changes atomic
     $this->assertDatabaseMissing('inventory_transfers', ['source_location_id' => $source->id, 'destination_location_id' => $destination->id]);
     $this->assertDatabaseMissing('stock_movements', ['location_id' => $source->id, 'movement_type' => 'transfer_out']);
 });
-
 
 test('receipt notification failure rolls back destination stock receipt ledger and transfer status atomically', function () {
     $sender = createTransferWorkflowUser(['system.inventory.transfer']);
@@ -496,8 +494,6 @@ test('discrepancy notification failure rolls back discrepancy status and audit m
     $this->assertDatabaseHas('inventory_transfers', ['id' => $transfer->id, 'status' => 'in_transit']);
     expect(InventoryTransfer::query()->findOrFail($transfer->id)->metadata['discrepancy'] ?? null)->toBeNull();
 });
-
-
 
 test('transfer counts do not reveal discrepancies to view-only location assignments', function () {
     Notification::fake();

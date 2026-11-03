@@ -1,11 +1,13 @@
 <?php
 
+use App\Models\Customer;
 use App\Models\FinancialAccount;
+use App\Models\FinancialTransaction;
 use App\Models\Location;
 use App\Models\User;
 use App\Services\FinancialLedgerService;
-use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 beforeEach(function (): void {
     $this->actor = User::factory()->create();
@@ -60,7 +62,7 @@ it('does not post an unbalanced manual journal', function (): void {
 });
 
 it('records customer receipts as customer advances rather than premature sales revenue', function (): void {
-    $customer = \App\Models\Customer::query()->create([
+    $customer = Customer::query()->create([
         'customer_code' => 'FINCUS-'.strtoupper(Str::random(6)),
         'name' => 'Finance Test Customer',
         'status' => 'active',
@@ -84,7 +86,6 @@ it('records customer receipts as customer advances rather than premature sales r
         ->and($transaction->journalEntry->lines->where('credit', '500.00'))->toHaveCount(1);
 });
 
-
 it('replays the same financial transaction idempotently and rejects key reuse with changed data', function (): void {
     $cash = FinancialAccount::query()->where('code', '1000')->firstOrFail();
     $income = FinancialAccount::query()->where('code', '4100')->firstOrFail();
@@ -105,7 +106,7 @@ it('replays the same financial transaction idempotently and rejects key reuse wi
     $replay = $service->recordTransaction($payload, $this->actor);
 
     expect($replay->id)->toBe($first->id)
-        ->and(\App\Models\FinancialTransaction::query()->where('idempotency_key', $payload['idempotency_key'])->count())->toBe(1);
+        ->and(FinancialTransaction::query()->where('idempotency_key', $payload['idempotency_key'])->count())->toBe(1);
 
     $changed = $payload;
     $changed['amount'] = '251.00';

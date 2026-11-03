@@ -5,6 +5,18 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
+/**
+ * @property int $id
+ * @property int|null $product_id
+ * @property int|null $product_variant_id
+ * @property int $location_id
+ * @property numeric-string $quantity
+ * @property numeric-string $reserved_quantity
+ * @property numeric-string|null $low_stock_threshold
+ * @property-read Product|null $product
+ * @property-read ProductVariant|null $variant
+ * @property-read Location $location
+ */
 class InventoryStock extends Model
 {
     protected $fillable = [
@@ -28,11 +40,13 @@ class InventoryStock extends Model
         ];
     }
 
+    /** @return BelongsTo<Product, $this> */
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);
     }
 
+    /** @return BelongsTo<ProductVariant, $this> */
     public function variant(): BelongsTo
     {
         return $this->belongsTo(
@@ -41,11 +55,13 @@ class InventoryStock extends Model
         );
     }
 
+    /** @return BelongsTo<Location, $this> */
     public function location(): BelongsTo
     {
         return $this->belongsTo(Location::class);
     }
 
+    /** @return numeric-string */
     public function getAvailableQuantityAttribute(): string
     {
         return bcsub(
@@ -58,13 +74,13 @@ class InventoryStock extends Model
     public function getIsLowStockAttribute(): bool
     {
         return bccomp(
-            (string) $this->low_stock_threshold,
+            (string) ($this->low_stock_threshold ?? '0'),
             '0',
             4
         ) > 0
             && bccomp(
-                $this->available_quantity,
-                (string) $this->low_stock_threshold,
+                (string) $this->available_quantity,
+                (string) ($this->low_stock_threshold ?? '0'),
                 4
             ) <= 0;
     }

@@ -17,7 +17,18 @@ class PricingPromotionRedemption extends Model
         return ['discount_amount' => 'decimal:2', 'redeemed_at' => 'datetime', 'released_at' => 'datetime'];
     }
 
-    public function promotion(): BelongsTo { return $this->belongsTo(PricingPromotion::class, 'pricing_promotion_id'); }
-    public function order(): BelongsTo { return $this->belongsTo(SalesOrder::class, 'sales_order_id'); }
-    public function customer(): BelongsTo { return $this->belongsTo(Customer::class); }
+    public function promotion(): BelongsTo
+    {
+        return $this->belongsTo(PricingPromotion::class, 'pricing_promotion_id');
+    }
+
+    public function order(): BelongsTo
+    {
+        return $this->belongsTo(SalesOrder::class, 'sales_order_id');
+    }
+
+    public function customer(): BelongsTo
+    {
+        return $this->belongsTo(Customer::class);
+    }
 }

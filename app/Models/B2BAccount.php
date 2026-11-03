@@ -25,15 +25,36 @@ class B2BAccount extends Model
         return ['credit_limit' => 'decimal:2', 'default_discount_percent' => 'integer'];
     }
 
-    public function customer(): BelongsTo { return $this->belongsTo(Customer::class); }
-    public function lead(): BelongsTo { return $this->belongsTo(Lead::class); }
-    public function quotes(): HasMany { return $this->hasMany(B2BQuote::class, 'b2b_account_id'); }
+    /** @return BelongsTo<Customer, $this> */
+    public function customer(): BelongsTo
+    {
+        return $this->belongsTo(Customer::class);
+    }
 
+    /** @return BelongsTo<Lead, $this> */
+    public function lead(): BelongsTo
+    {
+        return $this->belongsTo(Lead::class);
+    }
+
+    /** @return HasMany<B2BQuote, $this> */
+    public function quotes(): HasMany
+    {
+        return $this->hasMany(B2BQuote::class, 'b2b_account_id');
+    }
+
+    /**
+     * @param  Builder<B2BAccount>  $query
+     * @return Builder<B2BAccount>
+     */
     public function scopeSearch(Builder $query, ?string $term): Builder
     {
         $term = trim((string) $term);
-        if ($term === '') return $query;
+        if ($term === '') {
+            return $query;
+        }
         $escaped = str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $term);
+
         return $query->where(fn (Builder $q) => $q->where('account_code', 'like', "%{$escaped}%")
             ->orWhere('company_name', 'like', "%{$escaped}%")
             ->orWhere('legal_name', 'like', "%{$escaped}%")

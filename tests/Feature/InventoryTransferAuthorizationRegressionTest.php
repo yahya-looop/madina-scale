@@ -15,7 +15,6 @@ use Illuminate\Support\Str;
  * InventoryTransferWorkflowTest.php: createTransferWorkflowUser(),
  * inventoryTestProduct(), and inventoryTestLocation().
  */
-
 if (! function_exists('createPhase2BGlobalLocationManager')) {
     function createPhase2BGlobalLocationManager(): User
     {

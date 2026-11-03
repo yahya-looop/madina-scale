@@ -54,6 +54,7 @@ class PaymentController extends Controller
         $data = collect($items->items())->map(function (FinancialTransaction $payment) use ($allocated): array {
             $amount = (string) $payment->amount;
             $used = (string) ($allocated[$payment->id] ?? '0.00');
+
             return [
                 'id' => $payment->id,
                 'transaction_number' => $payment->transaction_number,

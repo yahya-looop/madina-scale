@@ -37,6 +37,7 @@ class PricingPromotionController extends Controller
             $query->where('status', $request->validate(['status' => ['required', Rule::in(['draft', 'active', 'paused', 'ended'])]])['status']);
         }
         $rows = $query->latest('id')->paginate(min(max($request->integer('per_page', 15), 1), 50))->withQueryString();
+
         return response()->json(array_merge($rows->toArray(), ['stats' => [
             'total' => PricingPromotion::count(),
             'active' => PricingPromotion::where('status', 'active')->count(),
@@ -52,6 +53,7 @@ class PricingPromotionController extends Controller
         $data['created_by'] = $request->user()->id;
         $data['updated_by'] = $request->user()->id;
         $promotion = PricingPromotion::create($data);
+
         return response()->json(['message' => 'Promotion created.', 'data' => $promotion->load(['product:id,name', 'variant:id,product_id,name,sku', 'category:id,name'])], 201);
     }
 
@@ -61,6 +63,7 @@ class PricingPromotionController extends Controller
         $data['code'] = filled($data['code'] ?? null) ? Str::upper(trim($data['code'])) : null;
         $data['updated_by'] = $request->user()->id;
         $promotion->update($data);
+
         return response()->json(['message' => 'Promotion updated.', 'data' => $promotion->fresh(['product:id,name', 'variant:id,product_id,name,sku', 'category:id,name'])]);
     }
 
@@ -70,6 +73,7 @@ class PricingPromotionController extends Controller
             throw ValidationException::withMessages(['promotion' => 'This promotion has order redemption history and cannot be deleted. Set its status to ended instead.']);
         }
         $promotion->delete();
+
         return response()->json(['message' => 'Promotion deleted.']);
     }
 
@@ -84,6 +88,7 @@ class PricingPromotionController extends Controller
             $query->where('status', $request->validate(['status' => ['required', Rule::in(['draft', 'active', 'paused', 'ended'])]])['status']);
         }
         $rows = $query->orderBy('priority')->latest('id')->paginate(min(max($request->integer('per_page', 15), 1), 50))->withQueryString();
+
         return response()->json(array_merge($rows->toArray(), ['stats' => [
             'total' => FlashSale::count(),
             'live' => FlashSale::where('status', 'active')->where('show_on_storefront', true)->where('starts_at', '<=', now())->where('ends_at', '>=', now())->count(),
@@ -104,6 +109,7 @@ class PricingPromotionController extends Controller
         $sale = DB::transaction(function () use ($data, $items) {
             $sale = FlashSale::create($data);
             $this->syncItems($sale, $items);
+
             return $sale->load(['items.variant.product:id,name,slug']);
         }, 3);
 
@@ -127,6 +133,7 @@ class PricingPromotionController extends Controller
             if ($items !== null) {
                 $this->syncItems($flashSale, $items);
             }
+
             return $flashSale->fresh(['items.variant.product:id,name,slug']);
         }, 3);
 
@@ -141,6 +148,7 @@ class PricingPromotionController extends Controller
             throw ValidationException::withMessages(['flash_sale' => 'This flash sale has order allocation history and cannot be deleted. Set its status to ended instead.']);
         }
         $flashSale->delete();
+
         return response()->json(['message' => 'Flash sale deleted.']);
     }
 
@@ -205,6 +213,7 @@ class PricingPromotionController extends Controller
         if (isset($scopeField[$data['scope']]) && empty($data[$scopeField[$data['scope']]])) {
             throw ValidationException::withMessages([$scopeField[$data['scope']] => 'Select a target for this promotion scope.']);
         }
+
         return $data;
     }
 

@@ -2,12 +2,16 @@
 
 use App\Http\Controllers\Access\RolesPermissionsController;
 use App\Http\Controllers\Auth\LoginController;
+use App\Http\Controllers\BusinessAnalyticsController;
 use App\Http\Controllers\DashboardController;
-use App\Http\Controllers\ReportController;
-use App\Http\Controllers\StorefrontController;
+use App\Http\Controllers\MarketingController;
 use App\Http\Controllers\PublicCmsPageController;
 use App\Http\Controllers\PublicSeoController;
+use App\Http\Controllers\ReportController;
+use App\Http\Controllers\ShippingDeliveryController;
+use App\Http\Controllers\StorefrontController;
 use App\Http\Controllers\UserPageController;
+use App\Http\Controllers\WarrantyServiceController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -32,7 +36,6 @@ Route::get('/pages/{slug}', [PublicCmsPageController::class, 'show'])->where('sl
 Route::get('/shop/{slug}', [StorefrontController::class, 'show'])
     ->where('slug', '[A-Za-z0-9\-]+')
     ->name('storefront.show');
-
 
 /*
 |--------------------------------------------------------------------------
@@ -85,18 +88,35 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/content/pages', function () {
         abort_unless(request()->user()?->can('system.content.view'), 403);
+
         return Inertia::render('Content/Pages');
     })->name('content.pages');
 
-    Route::get('/content/media', function () { abort_unless(request()->user()?->can('system.content.view'),403); return Inertia::render('Content/Media'); })->name('content.media');
-    Route::get('/content/banners', function () { abort_unless(request()->user()?->can('system.content.view'),403); return Inertia::render('Content/Banners'); })->name('content.banners');
-    Route::get('/content/sections', function () { abort_unless(request()->user()?->can('system.content.view'),403); return Inertia::render('Content/Sections'); })->name('content.sections');
+    Route::get('/content/media', function () {
+        abort_unless(request()->user()?->can('system.content.view'), 403);
 
-    Route::get('/seo', function () { abort_unless(request()->user()?->can('system.seo.view'),403); return Inertia::render('Content/Seo'); })->name('seo.index');
-    Route::get('/marketing', [\App\Http\Controllers\MarketingController::class, 'page'])->middleware('permission:system.marketing.view')->name('marketing.index');
-    Route::get('/marketing/{view}', [\App\Http\Controllers\MarketingController::class, 'page'])->whereIn('view',['campaigns','coupons'])->middleware('permission:system.marketing.view')->name('marketing.view');
-    Route::get('/analytics', [\App\Http\Controllers\BusinessAnalyticsController::class, 'page'])->middleware('permission:system.analytics.view')->name('analytics.index');
-    Route::get('/analytics/{view}', [\App\Http\Controllers\BusinessAnalyticsController::class, 'page'])->whereIn('view',['sales','website','marketing'])->middleware('permission:system.analytics.view')->name('analytics.view');
+        return Inertia::render('Content/Media');
+    })->name('content.media');
+    Route::get('/content/banners', function () {
+        abort_unless(request()->user()?->can('system.content.view'), 403);
+
+        return Inertia::render('Content/Banners');
+    })->name('content.banners');
+    Route::get('/content/sections', function () {
+        abort_unless(request()->user()?->can('system.content.view'), 403);
+
+        return Inertia::render('Content/Sections');
+    })->name('content.sections');
+
+    Route::get('/seo', function () {
+        abort_unless(request()->user()?->can('system.seo.view'), 403);
+
+        return Inertia::render('Content/Seo');
+    })->name('seo.index');
+    Route::get('/marketing', [MarketingController::class, 'page'])->middleware('permission:system.marketing.view')->name('marketing.index');
+    Route::get('/marketing/{view}', [MarketingController::class, 'page'])->whereIn('view', ['campaigns', 'coupons'])->middleware('permission:system.marketing.view')->name('marketing.view');
+    Route::get('/analytics', [BusinessAnalyticsController::class, 'page'])->middleware('permission:system.analytics.view')->name('analytics.index');
+    Route::get('/analytics/{view}', [BusinessAnalyticsController::class, 'page'])->whereIn('view', ['sales', 'website', 'marketing'])->middleware('permission:system.analytics.view')->name('analytics.view');
 
     Route::get('/reports', [ReportController::class, 'page'])
         ->middleware('permission:system.reports.view')
@@ -284,6 +304,7 @@ Route::middleware('auth')->group(function () {
         $user = request()->user();
         abort_unless($user !== null, 401);
         abort_unless($user->can('system.crm.leads.view'), 403);
+
         return Inertia::render('SalesCRM/Leads/Index', [
             'userName' => $user->name,
             'userEmail' => $user->email,
@@ -299,6 +320,7 @@ Route::middleware('auth')->group(function () {
         $user = request()->user();
         abort_unless($user !== null, 401);
         abort_unless($user->can('system.b2b.view'), 403);
+
         return Inertia::render('B2B/Index', [
             'userName' => $user->name,
             'userEmail' => $user->email,
@@ -314,6 +336,7 @@ Route::middleware('auth')->group(function () {
         $user = request()->user();
         abort_unless($user !== null, 401);
         abort_unless($user->can('system.pricing.view'), 403);
+
         return Inertia::render('Pricing/Index', [
             'userName' => $user->name,
             'userEmail' => $user->email,
@@ -324,6 +347,7 @@ Route::middleware('auth')->group(function () {
         $user = request()->user();
         abort_unless($user !== null, 401);
         abort_unless($user->can('system.pricing.view'), 403);
+
         return Inertia::render('Pricing/Index', [
             'userName' => $user->name,
             'userEmail' => $user->email,
@@ -363,7 +387,6 @@ Route::middleware('auth')->group(function () {
         ]);
     })->name('orders.index');
 
-
     /*
     |--------------------------------------------------------------------------
     | Accounts & Finance
@@ -372,18 +395,20 @@ Route::middleware('auth')->group(function () {
     Route::get('/sales-returns', function () {
         $user = request()->user();
         abort_unless($user !== null && $user->can('system.sales_returns.view'), 403);
+
         return Inertia::render('SalesReturns/Index', ['userName' => $user->name, 'userEmail' => $user->email]);
     })->name('sales-returns.index');
 
-    Route::get('/shipping-delivery', [\App\Http\Controllers\ShippingDeliveryController::class, 'page'])->name('shipping-delivery.index');
+    Route::get('/shipping-delivery', [ShippingDeliveryController::class, 'page'])->name('shipping-delivery.index');
 
-    Route::get('/warranty-service', [\App\Http\Controllers\WarrantyServiceController::class, 'page'])
+    Route::get('/warranty-service', [WarrantyServiceController::class, 'page'])
         ->name('warranty-service.index');
 
     Route::get('/payments', function () {
         $user = request()->user();
         abort_unless($user !== null, 401);
         abort_unless($user->can('system.payments.view'), 403);
+
         return Inertia::render('Payments/Index', [
             'userName' => $user->name,
             'userEmail' => $user->email,
@@ -560,6 +585,7 @@ Route::middleware('auth')->group(function () {
         $user = request()->user();
         abort_unless($user !== null, 401);
         abort_unless($user->can('system.api_providers.view'), 403);
+
         return Inertia::render('Developer/ApiProviders', [
             'userName' => $user->name,
             'userEmail' => $user->email,

@@ -14,9 +14,9 @@ use App\Services\OrderSmsService;
 use App\Services\SalesOrderService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
-use Illuminate\Support\Facades\Storage;
 
 class SalesOrderController extends Controller
 {
@@ -95,7 +95,7 @@ class SalesOrderController extends Controller
                 ->where('location_id', $locationId)
                 ->where(function ($q) use ($variantRecords): void {
                     $q->whereIn('product_variant_id', $variantRecords->pluck('id'))
-                      ->orWhereIn('product_id', $variantRecords->pluck('product_id')->unique());
+                        ->orWhereIn('product_id', $variantRecords->pluck('product_id')->unique());
                 })
                 ->get(['product_id', 'product_variant_id', 'quantity', 'reserved_quantity']);
             $stockByVariant = $stockRows->filter(fn ($row) => $row->product_variant_id !== null)->keyBy('product_variant_id');

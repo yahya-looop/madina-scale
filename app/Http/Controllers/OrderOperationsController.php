@@ -166,6 +166,7 @@ class OrderOperationsController extends Controller
                 ], $locked->status === 'booking' ? 202 : 422));
             }
             $locked->update(['status' => 'booking']);
+
             return $locked->fresh();
         });
 

@@ -10,12 +10,16 @@ use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Models\StockMovement;
 use App\Models\User;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class InventoryReservationService
 {
+    /**
+     * @param  array{location_id: int, quantity: numeric-string|int|float, purpose: string, product_id?: int|null, product_variant_id?: int|null, reference_type?: string|null, reference_id?: int|string|null, reason?: string|null, expires_at?: string|Carbon|null}  $data
+     */
     public function reserve(array $data, User $actor): InventoryReservation
     {
         $this->expireDue();
@@ -27,7 +31,7 @@ class InventoryReservationService
                 throw ValidationException::withMessages(['location_id' => 'Choose an existing active location.']);
             }
             $stock = $this->stockForUpdate($owner, (int) $location->id);
-            $quantity = $this->quantity($data['quantity'] ?? null);
+            $quantity = $this->quantity($data['quantity']);
             $available = bcsub((string) $stock->quantity, (string) $stock->reserved_quantity, 4);
             if (bccomp($available, $quantity, 4) < 0) {
                 throw ValidationException::withMessages(['quantity' => 'Reservation exceeds available stock.']);
@@ -128,6 +132,7 @@ class InventoryReservationService
     }
 
     /** Fulfill part of an active reservation while preserving the remaining hold. */
+    /** @param numeric-string $quantity */
     public function fulfillPartial(InventoryReservation $reservation, string $quantity, User $actor): InventoryReservation
     {
         $requested = bcadd($quantity, '0', 4);
@@ -187,6 +192,7 @@ class InventoryReservationService
     {
         $ids = InventoryReservation::query()->where('status', 'active')->whereNotNull('expires_at')->where('expires_at', '<=', now())->orderBy('id')->limit(200)->pluck('id');
         foreach ($ids as $id) {
+            $id = (int) $id;
             try {
                 DB::transaction(function () use ($id): void {
                     $r = InventoryReservation::query()->lockForUpdate()->find($id);
@@ -210,6 +216,10 @@ class InventoryReservationService
         }
     }
 
+    /**
+     * @param  array{product_id?: int|null, product_variant_id?: int|null}  $data
+     * @return array{product_id: int|null, variant_id: int|null}
+     */
     private function lockOwner(array $data): array
     {
         $productId = isset($data['product_id']) ? (int) $data['product_id'] : null;
@@ -238,6 +248,9 @@ class InventoryReservationService
         return ['product_id' => null, 'variant_id' => $variant->id];
     }
 
+    /**
+     * @param  array{product_id: int|null, variant_id: int|null}  $owner
+     */
     private function stockForUpdate(array $owner, int $locationId): InventoryStock
     {
         $query = InventoryStock::query()->where('location_id', $locationId);
@@ -250,12 +263,19 @@ class InventoryReservationService
         return InventoryStock::query()->create(['product_id' => $owner['product_id'], 'product_variant_id' => $owner['variant_id'], 'location_id' => $locationId, 'quantity' => '0.0000', 'reserved_quantity' => '0.0000']);
     }
 
+    /** @return numeric-string */
     private function quantity(mixed $value): string
     {
-        if ((! is_string($value) && ! is_int($value) && ! is_float($value)) || ! is_finite((float) $value) || ! preg_match('/^\d{1,14}(?:\.\d{1,4})?$/', (string) $value) || bccomp((string) $value, '0', 4) <= 0) {
+        if ((! is_string($value) && ! is_int($value) && ! is_float($value)) || ! is_finite((float) $value) || ! preg_match('/^\d{1,14}(?:\.\d{1,4})?$/', (string) $value)) {
             throw ValidationException::withMessages(['quantity' => 'Quantity must be positive with up to 4 decimal places.']);
         }
 
-        return bcadd((string) $value, '0', 4);
+        /** @var numeric-string&non-empty-string $normalized */
+        $normalized = (string) $value;
+        if (bccomp($normalized, '0', 4) <= 0) {
+            throw ValidationException::withMessages(['quantity' => 'Quantity must be positive with up to 4 decimal places.']);
+        }
+
+        return bcadd($normalized, '0', 4);
     }
 }

@@ -5,6 +5,16 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
+/**
+ * @property int $id
+ * @property int $flash_sale_item_id
+ * @property int $sales_order_id
+ * @property int|null $sales_order_item_id
+ * @property int $quantity
+ * @property numeric-string $regular_unit_price
+ * @property numeric-string $sale_unit_price
+ * @property array<string, mixed>|null $order_item_snapshot
+ */
 class SalesOrderFlashSaleAllocation extends Model
 {
     protected $fillable = [
@@ -20,7 +30,21 @@ class SalesOrderFlashSaleAllocation extends Model
         ];
     }
 
-    public function flashSaleItem(): BelongsTo { return $this->belongsTo(FlashSaleItem::class); }
-    public function order(): BelongsTo { return $this->belongsTo(SalesOrder::class, 'sales_order_id'); }
-    public function orderItem(): BelongsTo { return $this->belongsTo(SalesOrderItem::class, 'sales_order_item_id'); }
+    /** @return BelongsTo<FlashSaleItem, $this> */
+    public function flashSaleItem(): BelongsTo
+    {
+        return $this->belongsTo(FlashSaleItem::class);
+    }
+
+    /** @return BelongsTo<SalesOrder, $this> */
+    public function order(): BelongsTo
+    {
+        return $this->belongsTo(SalesOrder::class, 'sales_order_id');
+    }
+
+    /** @return BelongsTo<SalesOrderItem, $this> */
+    public function orderItem(): BelongsTo
+    {
+        return $this->belongsTo(SalesOrderItem::class, 'sales_order_item_id');
+    }
 }

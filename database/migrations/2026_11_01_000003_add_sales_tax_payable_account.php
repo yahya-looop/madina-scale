@@ -3,7 +3,8 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
 
-return new class extends Migration {
+return new class extends Migration
+{
     public function up(): void
     {
         DB::table('financial_accounts')->updateOrInsert(['code' => '2200'], [
@@ -19,6 +20,8 @@ return new class extends Migration {
         $used = DB::table('journal_entry_lines')->where('account_id', function ($q): void {
             $q->select('id')->from('financial_accounts')->where('code', '2200')->limit(1);
         })->exists();
-        if (! $used) DB::table('financial_accounts')->where('code', '2200')->delete();
+        if (! $used) {
+            DB::table('financial_accounts')->where('code', '2200')->delete();
+        }
     }
 };

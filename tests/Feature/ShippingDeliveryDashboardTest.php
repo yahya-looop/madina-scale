@@ -43,6 +43,7 @@ class ShippingDeliveryDashboardTest extends TestCase
             'recipient_name' => 'Shipping Customer', 'recipient_phone' => '01711111111',
             'recipient_address' => 'Dhaka', 'cod_amount' => 100, 'created_by' => $user->id,
         ]);
+
         return compact('user', 'location', 'order', 'shipment');
     }
 
@@ -65,7 +66,6 @@ class ShippingDeliveryDashboardTest extends TestCase
             'previous_status' => 'booked', 'received_status' => 'in_transit', 'outcome' => 'applied',
         ]);
     }
-
 
     public function test_view_only_location_access_cannot_manually_change_delivery_status(): void
     {

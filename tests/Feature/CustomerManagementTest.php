@@ -63,6 +63,7 @@ class CustomerManagementTest extends TestCase
         $this->actingAs($user)->postJson('/api/customers', $payload)->assertCreated();
         $this->actingAs($user)->postJson('/api/customers', ['name' => 'Buyer Two', 'phone' => '01812345678', 'status' => 'active'])->assertUnprocessable()->assertJsonValidationErrors('phone');
     }
+
     public function test_customer_duplicate_phone_is_rejected_after_normalization(): void
     {
         $user = $this->customerUser();
@@ -86,5 +87,4 @@ class CustomerManagementTest extends TestCase
             'name' => 'Buyer Two', 'email' => 'buyer@example.com', 'status' => 'active',
         ])->assertUnprocessable()->assertJsonValidationErrors('phone');
     }
-
 }

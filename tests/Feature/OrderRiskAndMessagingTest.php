@@ -2,17 +2,17 @@
 
 namespace Tests\Feature;
 
-use App\Models\SalesOrder;
 use App\Models\Module;
 use App\Models\Permission;
 use App\Models\Role;
+use App\Models\SalesOrder;
 use App\Models\SalesOrderShipment;
 use App\Models\User;
 use App\Services\OrderRiskService;
 use App\Services\OrderSmsService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class OrderRiskAndMessagingTest extends TestCase

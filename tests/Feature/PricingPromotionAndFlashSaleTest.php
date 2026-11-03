@@ -100,5 +100,4 @@ class PricingPromotionAndFlashSaleTest extends TestCase
             'name' => 'Duplicate coupon', 'code' => 'CASE10',
         ]))->assertUnprocessable()->assertJsonValidationErrors('code');
     }
-
 }

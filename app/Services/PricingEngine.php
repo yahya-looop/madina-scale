@@ -4,7 +4,6 @@ namespace App\Services;
 
 use App\Models\FlashSaleItem;
 use App\Models\PricingPromotion;
-use Illuminate\Support\Collection;
 
 /**
  * Central pricing calculations shared by storefront and commercial workflows.
@@ -35,7 +34,7 @@ class PricingEngine
      * Return an explainable discount quote. This does not consume coupon usage;
      * usage must only be incremented after a successful order transaction.
      *
-     * @param array{subtotal: int|float|string, code?: string|null, quantity?: int|float} $cart
+     * @param  array{subtotal: int|float|string, code?: string|null, quantity?: int|float}  $cart
      * @return array{subtotal: string, discount: string, total: string, promotion_id: int|null, code: string|null}
      */
     public function quoteOrderDiscount(array $cart): array

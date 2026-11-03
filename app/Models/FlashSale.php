@@ -24,7 +24,10 @@ class FlashSale extends Model
         ];
     }
 
-    public function items(): HasMany { return $this->hasMany(FlashSaleItem::class)->orderBy('sort_order'); }
+    public function items(): HasMany
+    {
+        return $this->hasMany(FlashSaleItem::class)->orderBy('sort_order');
+    }
 
     public function isLive(): bool
     {

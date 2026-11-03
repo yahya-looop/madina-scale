@@ -2,9 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\CmsBanner;
 use App\Models\Product;
 use App\Models\ProductCategory;
-use App\Models\CmsBanner;
 use App\Services\PricingEngine;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;

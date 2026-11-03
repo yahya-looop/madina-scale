@@ -34,6 +34,7 @@ class CmsPageManagementTest extends TestCase
         ]);
         $role->permissions()->attach($ids);
         $user->roles()->attach($role->id);
+
         return $user;
     }
 

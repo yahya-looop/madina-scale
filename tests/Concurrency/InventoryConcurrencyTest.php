@@ -1,18 +1,17 @@
 <?php
 
-use App\Models\InventoryStock;
 use App\Models\B2BAccount;
 use App\Models\Customer;
 use App\Models\InventoryReservationPurpose;
-use App\Models\ProductVariant;
-use App\Models\SalesOrder;
+use App\Models\InventoryStock;
 use App\Models\InventoryTransfer;
 use App\Models\Module;
 use App\Models\Permission;
 use App\Models\Role;
+use App\Models\SalesOrder;
 use App\Models\User;
-use App\Services\InventoryTransferService;
 use App\Services\B2BCreditService;
+use App\Services\InventoryTransferService;
 use Illuminate\Support\Str;
 use Symfony\Component\Process\Process;
 
@@ -264,7 +263,6 @@ test('simultaneous transfers with different idempotency keys cannot overspend on
     expect((string) InventoryStock::query()->where('product_id', $product->id)->where('location_id', $source->id)->value('quantity'))->toBe('3.0000');
     expect(DB::table('stock_movements')->where('location_id', $source->id)->where('movement_type', 'transfer_out')->count())->toBe(1);
 });
-
 
 test('simultaneous B2B orders cannot exceed one account credit limit across different locations', function () {
     $actor = User::factory()->create();

@@ -7,10 +7,13 @@ use App\Models\Customer;
 use App\Models\InventoryStock;
 use App\Models\Product;
 use App\Models\SalesOrder;
+use App\Models\User;
 use App\Services\AuthorizationService;
 use App\Services\LocationInventoryAccessService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class HeadOfficeController extends Controller
@@ -44,6 +47,7 @@ class HeadOfficeController extends Controller
         }
 
         $rows = $query->paginate($pageSize)->withQueryString();
+
         return $this->respond($request, [
             'data' => $rows->getCollection()->map(fn (Product $p) => [
                 'id' => $p->id, 'name' => $p->name, 'sku' => $p->sku,
@@ -80,6 +84,7 @@ class HeadOfficeController extends Controller
         }
 
         $rows = $query->orderBy('id')->paginate($pageSize)->withQueryString();
+
         return $this->respond($request, [
             'data' => $rows->getCollection()->map(fn (InventoryStock $s) => [
                 'id' => $s->id, 'product_id' => $s->product_id,
@@ -102,9 +107,9 @@ class HeadOfficeController extends Controller
         $pageSize = $this->pageSize($request);
         $query = SalesOrder::query()->with('location:id,name,code')
             ->select([
-                'id','order_number','status','channel','location_id','customer_id',
-                'currency','subtotal','discount_total','tax_total','grand_total',
-                'created_at','updated_at','confirmed_at','cancelled_at',
+                'id', 'order_number', 'status', 'channel', 'location_id', 'customer_id',
+                'currency', 'subtotal', 'discount_total', 'tax_total', 'grand_total',
+                'created_at', 'updated_at', 'confirmed_at', 'cancelled_at',
             ])->orderBy('id');
 
         $this->locationAccess->scopeViewable($query, $request->user(), 'location_id');
@@ -115,6 +120,7 @@ class HeadOfficeController extends Controller
             $query->where('location_id', (int) $request->input('location_id'));
         }
         $rows = $query->paginate($pageSize)->withQueryString();
+
         return $this->respond($request, [
             'data' => $rows->getCollection()->map(fn (SalesOrder $o) => [
                 'id' => $o->id, 'order_number' => $o->order_number,
@@ -138,13 +144,14 @@ class HeadOfficeController extends Controller
         $this->authorizeScope($request, 'head-office:customers:read', 'system.customers.view');
         $pageSize = $this->pageSize($request);
         $query = Customer::query()->select([
-            'id','customer_code','name','company_name','status','created_at','updated_at',
+            'id', 'customer_code', 'name', 'company_name', 'status', 'created_at', 'updated_at',
         ])->orderBy('id');
 
         if ($request->filled('updated_since')) {
             $query->where('updated_at', '>=', $this->date($request, 'updated_since'));
         }
         $rows = $query->paginate($pageSize)->withQueryString();
+
         return $this->respond($request, [
             'data' => $rows->getCollection()->map(fn (Customer $c) => [
                 'id' => $c->id, 'customer_code' => $c->customer_code,
@@ -156,12 +163,13 @@ class HeadOfficeController extends Controller
         ]);
     }
 
-    private function authorizeScope(Request $request, string $ability, string $permission): \App\Models\User
+    private function authorizeScope(Request $request, string $ability, string $permission): User
     {
         $user = $request->user();
         abort_unless($user !== null, 401);
         abort_unless($request->user()->currentAccessToken()?->can($ability), 403, 'API token scope is missing.');
         abort_unless($this->authorization->can($user, $permission), 403, 'The token owner lacks the required ERP permission.');
+
         return $user;
     }
 
@@ -171,13 +179,14 @@ class HeadOfficeController extends Controller
         if ($size === false || $size < 1 || $size > 100) {
             throw ValidationException::withMessages(['per_page' => 'per_page must be between 1 and 100.']);
         }
+
         return $size;
     }
 
     private function date(Request $request, string $key): string
     {
         try {
-            return \Illuminate\Support\Carbon::parse($request->query($key))->toDateTimeString();
+            return Carbon::parse($request->query($key))->toDateTimeString();
         } catch (\Throwable) {
             throw ValidationException::withMessages([$key => 'A valid date/time is required.']);
         }
@@ -196,7 +205,8 @@ class HeadOfficeController extends Controller
 
     private function respond(Request $request, array $payload): JsonResponse
     {
-        $requestId = (string) ($request->attributes->get('request_id') ?: \Illuminate\Support\Str::uuid());
+        $requestId = (string) ($request->attributes->get('request_id') ?: Str::uuid());
+
         return response()->json([
             'meta' => ['api_version' => 'v1', 'request_id' => $requestId, 'generated_at' => now()->toISOString()],
             ...$payload,

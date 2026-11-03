@@ -14,9 +14,7 @@ use Illuminate\Validation\Rule;
 
 class CmsPageController extends Controller
 {
-    public function __construct(private readonly ActivityLogService $activityLogs)
-    {
-    }
+    public function __construct(private readonly ActivityLogService $activityLogs) {}
 
     public function index(Request $request): JsonResponse
     {

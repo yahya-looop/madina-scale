@@ -1,5 +1,8 @@
 @import 'tailwindcss';
 
+/* Bind Tailwind dark: utilities to the ERP's explicit theme state, not OS preference. */
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
+
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
 
 @source '../../storage/framework/views/*.php';
@@ -4775,4 +4778,375 @@ td strong {
     .erp-content :where(.reports-range-actions) {
         width: 100%;
     }
+}
+
+
+/* ============================================================================
+   MADINA SCALE — PROJECT-WIDE PAGE DESIGN HARMONIZATION
+   Applies the Products Index visual language to every authenticated workspace.
+   Existing page markup, requests, actions and workflows remain page-owned.
+   ============================================================================ */
+
+.erp-content {
+    color: var(--ms-text-primary);
+    font-family: var(--font-sans);
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+.erp-content :where(
+    .access-page, .activity-page, .analytics-page, .attributes-page,
+    .b2b-page, .master-page, .cms-page, .seo-page, .customers-page,
+    .dashboard-page, .modules-page, .finance-page, .inventory-page,
+    .reservations-page, .location-edit-page, .locations-page,
+    .location-show-page, .marketing-page, .orders-page, .pricing-page,
+    .product-create-page, .product-edit-page, .products-page,
+    .product-show-page, .crm-page, .sr-page, .settings-page,
+    .user-create-page, .user-edit-page, .users-page, .user-show-page,
+    .payments-page, .shipping-page, .warranty-page, .api-providers-page,
+    .reports-page, .wrap
+) {
+    min-width: 0;
+    color: var(--ms-text-primary);
+}
+
+/* One compact title system, regardless of the page's legacy class naming. */
+.erp-content :where(
+    .erp-page-title-line h1, .page-header h1, .page-heading h1,
+    .page-head h1, .page-title-row h1, .activity-header h1,
+    .access-header h1, .reservation-page-header h1, .orders-page-header h1
+) {
+    margin: 0;
+    color: var(--ms-text-primary);
+    font-size: 24px;
+    font-weight: 700;
+    line-height: 1.2;
+    letter-spacing: -0.025em;
+}
+
+.erp-content :where(
+    .page-title-icon, .title-icon, .heading-icon, .hero-icon,
+    .reservation-page-icon, .activity-title-icon, .access-title-icon,
+    .orders-title-icon, .pricing-title-icon, .erp-page-title-icon
+) {
+    width: 42px;
+    height: 42px;
+    min-width: 42px;
+    flex: 0 0 42px;
+    display: inline-grid;
+    place-items: center;
+    border: 1px solid color-mix(in srgb, var(--ms-primary) 18%, var(--ms-border));
+    border-radius: 12px;
+    background: var(--ms-primary-soft);
+    color: var(--ms-primary);
+}
+
+/* Standard register/statistic grid and card dimensions. */
+.erp-content :where(
+    .stats-grid, .stat-grid, .kpi-grid, .sr-kpis, .orders-metrics,
+    .metrics-grid, .activity-stat-grid, .access-stat-grid, .stat-card-grid
+) {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+    min-width: 0;
+}
+
+.erp-content :where(
+    .stat-card, .kpi, .kpi-card, .metric-card, .orders-metric-card,
+    .activity-stat-card, .access-stat-card, .metric-stat-card
+) {
+    min-width: 0;
+    min-height: 78px;
+    padding: 12px 14px;
+    border: 1px solid var(--ms-border);
+    border-radius: 12px;
+    background: var(--ms-surface);
+    box-shadow: var(--ms-shadow-card);
+}
+
+.erp-content :where(
+    .stat-label, .stat-caption, .metric-label, .kpi-label,
+    .stat-card > span, .stat-card > p, .kpi > span, .kpi > small,
+    .kpi-card > p, .activity-stat-card p, .access-stat-card p
+) {
+    color: var(--ms-text-secondary);
+    font-size: 10px;
+    font-weight: 550;
+}
+
+.erp-content :where(
+    .stat-value, .metric-value, .kpi-value, .stat-card > strong,
+    .kpi > strong, .kpi-card > strong, .activity-stat-card strong,
+    .access-stat-card strong
+) {
+    color: var(--ms-text-primary);
+    font-size: 21px;
+    font-weight: 750;
+    line-height: 1.2;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Main workspaces and registers share the same neutral card treatment. */
+.erp-content :where(
+    .panel, .card, .content-card, .workspace-card, .catalog-card,
+    .table-card, .table-panel, .activity-table-card, .activity-toolbar-card,
+    .role-panel, .permission-panel, .settings-card, .overview-panel,
+    .category-panel, .form-card, .workflow-card, .info-card,
+    .summary-card, .detail-card, .description-card, .lifecycle-card,
+    .reservation-table-card, .orders-panel, .orders-detail-card,
+    .crm-panel, .sr-card, .stock-card, .form-card, .report-card
+) {
+    min-width: 0;
+    border-color: var(--ms-border);
+    border-radius: 14px;
+    background: var(--ms-surface);
+    box-shadow: var(--ms-shadow-card);
+}
+
+/* Canonical control dimensions and interaction feedback. */
+.erp-content :where(input:not([type='checkbox']):not([type='radio']), select, textarea) {
+    min-width: 0;
+    border-color: var(--ms-border);
+    border-radius: var(--ms-radius-control);
+    background-color: var(--ms-control-bg);
+    color: var(--ms-text-primary);
+    font-family: inherit;
+    font-size: 12px;
+}
+
+.erp-content :where(input:not([type='checkbox']):not([type='radio']), select) {
+    min-height: 36px;
+}
+
+.erp-content :where(input, select, textarea):focus-visible {
+    border-color: var(--ms-primary) !important;
+    outline: 2px solid var(--ms-focus-ring);
+    outline-offset: 1px;
+}
+
+.erp-content :where(button, [role='button']) {
+    cursor: pointer;
+    font-family: inherit;
+    transition: color var(--ms-transition-fast), background-color var(--ms-transition-fast), border-color var(--ms-transition-fast), box-shadow var(--ms-transition-fast), transform var(--ms-transition-fast);
+}
+
+.erp-content :where(button:disabled, [aria-disabled='true']) {
+    cursor: not-allowed;
+}
+
+.erp-content :where(button.bg-slate-900, button.bg-blue-700, button.btn-primary, button.modal-submit, button.orders-primary-action) {
+    min-height: 38px;
+    border: 1px solid var(--ms-primary);
+    border-radius: 9px;
+    background: var(--ms-primary);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.erp-content :where(button.bg-slate-900, button.bg-blue-700, button.btn-primary, button.modal-submit, button.orders-primary-action):hover:not(:disabled) {
+    border-color: var(--ms-primary-hover);
+    background: var(--ms-primary-hover);
+    box-shadow: 0 3px 10px color-mix(in srgb, var(--ms-primary) 18%, transparent);
+}
+
+/* Standardize page-level tables without changing their data contracts. */
+.erp-content :where(.table-wrap, .table-container, .table-scroll, .table-responsive, .table-card, .overflow-x-auto) {
+    min-width: 0;
+    max-width: 100%;
+}
+
+.erp-content :where(.table-wrap table, .table-container table, .table-scroll table, .table-responsive table, .table-card table) {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.erp-content :where(.table-wrap th, .table-container th, .table-scroll th, .table-responsive th, .table-card th) {
+    min-height: 38px;
+    background: var(--ms-table-header-bg);
+    color: var(--ms-text-secondary);
+    font-size: 9px;
+    font-weight: 750;
+}
+
+.erp-content :where(.table-wrap td, .table-container td, .table-scroll td, .table-responsive td, .table-card td) {
+    border-color: var(--ms-border);
+    color: var(--ms-text-primary);
+    font-size: 10.5px;
+}
+
+.erp-content :where(.table-wrap tbody tr:hover, .table-container tbody tr:hover, .table-scroll tbody tr:hover, .table-responsive tbody tr:hover, .table-card tbody tr:hover) {
+    background: var(--ms-table-row-hover);
+}
+
+/* Reports uses the same light/dark token palette and green action hierarchy. */
+.erp-content .reports-page :where(section, nav, article) {
+    border-radius: 14px;
+}
+.erp-content .reports-page :where(.reports-range-button) {
+    min-height: 32px;
+    padding: 0 12px;
+    border-radius: 8px;
+    font-size: 11px;
+    font-weight: 650;
+}
+.erp-content .reports-page :where(button.bg-blue-700) {
+    background: var(--ms-primary);
+    border-color: var(--ms-primary);
+}
+.erp-content .reports-page :where(button.bg-blue-700:hover) {
+    background: var(--ms-primary-hover);
+    border-color: var(--ms-primary-hover);
+}
+
+/* Dark mode: legacy scoped CSS and utility backgrounds must never leave white icon tiles/cards. */
+:root[data-theme='dark'] .erp-content :where(
+    .page-title-icon, .title-icon, .heading-icon, .hero-icon,
+    .reservation-page-icon, .activity-title-icon, .access-title-icon,
+    .orders-title-icon, .pricing-title-icon, .erp-page-title-icon,
+    .section-icon, .stat-icon, .metric-icon, .kpi-icon, .weather-icon,
+    .quick-icon, .channel-icon, .module-icon, .category-icon,
+    .security-section-icon, .security-control-icon, .modal-title-icon,
+    .modal-heading-icon, .modal-icon, .details-title-icon,
+    .reservation-confirm-icon, .empty-icon, .state-icon,
+    .loading-icon, .threshold-icon, .operation-link-icon,
+    .restock-product-icon, .restock-detail-icon, .transfer-product-icon,
+    .transfer-dialog-icon, .orders-section-icon, .orders-insight-icon,
+    .orders-create-icon, .orders-create-section-icon, .orders-cart-empty-icon,
+    .orders-cart-product-icon, .crm-section-icon, .crm-confirm-icon,
+    .crm-converted-icon, .profile-field-icon, .metadata-icon,
+    .summary-icon, .panel-icon, .role-icon, .delete-icon
+) {
+    border-color: var(--ms-border) !important;
+    background-color: var(--ms-surface-muted) !important;
+    color: var(--ms-primary) !important;
+    box-shadow: none;
+}
+
+:root[data-theme='dark'] .erp-content :where(
+    .stat-card, .kpi, .kpi-card, .metric-card, .orders-metric-card,
+    .activity-stat-card, .access-stat-card, .panel, .card, .content-card,
+    .workspace-card, .catalog-card, .table-card, .table-panel,
+    .activity-table-card, .activity-toolbar-card, .role-panel,
+    .permission-panel, .settings-card, .overview-panel, .category-panel,
+    .form-card, .workflow-card, .info-card, .summary-card, .detail-card,
+    .description-card, .lifecycle-card, .reservation-table-card,
+    .orders-panel, .orders-detail-card, .crm-panel, .sr-card,
+    .stock-card, .report-card
+) {
+    border-color: var(--ms-border) !important;
+    background-color: var(--ms-surface) !important;
+    color: var(--ms-text-primary);
+    box-shadow: var(--ms-shadow-card);
+}
+
+:root[data-theme='dark'] .erp-content :where(
+    .finance-page .kpi, .finance-page .panel, .finance-page .balance-item,
+    .finance-page .modal, .finance-page .close, .finance-page .system-tag,
+    .finance-page .status, .finance-page .tabs, .finance-page .table-wrap
+) {
+    border-color: var(--ms-border) !important;
+    background-color: var(--ms-surface) !important;
+    color: var(--ms-text-primary) !important;
+}
+
+:root[data-theme='dark'] .erp-content .finance-page :where(
+    .subtitle, .eyebrow, .panel-heading p, .modal-title p,
+    .kpi span, .kpi small, .balance-item span, .empty, th
+) {
+    color: var(--ms-text-secondary) !important;
+}
+
+:root[data-theme='dark'] .erp-content .finance-page :where(input, select, textarea) {
+    border-color: var(--ms-border) !important;
+    background: var(--ms-control-bg) !important;
+    color: var(--ms-text-primary) !important;
+}
+
+:root[data-theme='dark'] .erp-content .finance-page :where(.btn-secondary, .close) {
+    border-color: var(--ms-border) !important;
+    background: var(--ms-surface-muted) !important;
+    color: var(--ms-text-primary) !important;
+}
+
+:root[data-theme='dark'] .erp-content :where(
+    .bg-white, .bg-slate-50, .bg-slate-100, .bg-gray-50, .bg-gray-100
+) {
+    background-color: var(--ms-surface) !important;
+}
+
+:root[data-theme='dark'] .erp-content :where(
+    .text-slate-900, .text-slate-800, .text-gray-900, .text-gray-800
+) { color: var(--ms-text-primary) !important; }
+:root[data-theme='dark'] .erp-content :where(
+    .text-slate-700, .text-slate-600, .text-slate-500, .text-slate-400,
+    .text-gray-700, .text-gray-600, .text-gray-500, .text-gray-400
+) { color: var(--ms-text-secondary) !important; }
+:root[data-theme='dark'] .erp-content :where(
+    .border-slate-100, .border-slate-200, .border-slate-300,
+    .border-gray-100, .border-gray-200, .border-gray-300
+) { border-color: var(--ms-border) !important; }
+
+@media (max-width: 1100px) {
+    .erp-content :where(
+        .stats-grid, .stat-grid, .kpi-grid, .sr-kpis, .orders-metrics,
+        .metrics-grid, .activity-stat-grid, .access-stat-grid, .stat-card-grid
+    ) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 560px) {
+    .erp-content :where(
+        .stats-grid, .stat-grid, .kpi-grid, .sr-kpis, .orders-metrics,
+        .metrics-grid, .activity-stat-grid, .access-stat-grid, .stat-card-grid
+    ) { grid-template-columns: minmax(0, 1fr); }
+    .erp-content :where(
+        .page-header, .page-head, .erp-page-header, .activity-header,
+        .access-header, .reservation-page-header
+    ) { align-items: flex-start; }
+    .erp-content :where(.page-header h1, .page-heading h1, .page-head h1, .erp-page-title-line h1) {
+        font-size: 20px;
+    }
+    .erp-content :where(button, a[role='button']) { max-width: 100%; }
+}
+
+/* Finance workspace: retain its accounting workflow while matching the shared ERP controls. */
+.erp-content .finance-page :where(.page-heading) { align-items: flex-end; gap: 18px; }
+.erp-content .finance-page :where(.page-heading h1) { margin: 0; color: var(--ms-text-primary); font-size: 24px; font-weight: 700; letter-spacing: -0.025em; }
+.erp-content .finance-page :where(.eyebrow, .subtitle, .panel-heading p, .modal-title p) { color: var(--ms-text-secondary); }
+.erp-content .finance-page :where(.btn) { min-height: 38px; padding: 0 13px; border: 1px solid var(--ms-border); border-radius: 9px; font-size: 12px; font-weight: 650; }
+.erp-content .finance-page :where(.btn-primary) { border-color: var(--ms-primary); background: var(--ms-primary); color: #fff; }
+.erp-content .finance-page :where(.btn-primary:hover:not(:disabled)) { border-color: var(--ms-primary-hover); background: var(--ms-primary-hover); }
+.erp-content .finance-page :where(.btn-secondary) { border-color: var(--ms-border); background: var(--ms-surface); color: var(--ms-text-primary); }
+.erp-content .finance-page :where(.kpi, .panel) { border-color: var(--ms-border); border-radius: 12px; background: var(--ms-surface); box-shadow: var(--ms-shadow-card); }
+.erp-content .finance-page :where(.kpi) { min-height: 78px; padding: 12px 14px; }
+.erp-content .finance-page :where(.panel) { padding: 14px 16px; }
+.erp-content .finance-page :where(.kpi span, .kpi small, .balance-item span, .panel-heading p, .subtitle, .eyebrow) { color: var(--ms-text-secondary); }
+.erp-content .finance-page :where(.kpi strong) { color: var(--ms-text-primary); font-size: 21px; font-variant-numeric: tabular-nums; }
+.erp-content .finance-page :where(.tabs) { border-color: var(--ms-border); }
+.erp-content .finance-page :where(.tabs button.active) { border-color: var(--ms-primary); color: var(--ms-primary); }
+.erp-content .finance-page :where(.balance-item) { border-color: var(--ms-border); border-radius: 9px; background: var(--ms-surface-muted); }
+.erp-content .finance-page :where(th) { background: var(--ms-table-header-bg); color: var(--ms-text-secondary); }
+.erp-content .finance-page :where(td, th) { border-color: var(--ms-border); }
+.erp-content .finance-page :where(.table-wrap) { overflow-x: auto; }
+.erp-content .finance-page :where(.modal) { border: 1px solid var(--ms-border); border-radius: var(--ms-radius-modal-md); background: var(--ms-surface); color: var(--ms-text-primary); }
+.erp-content .finance-page :where(.modal label) { color: var(--ms-text-secondary); }
+.erp-content .finance-page :where(.text-button) { color: var(--ms-primary); }
+.erp-content .finance-page :where(.status.posted) { background: var(--ms-success-bg); color: var(--ms-success); }
+
+/* Any remaining legacy icon tile follows the active theme, including page-specific scoped styles. */
+:root[data-theme='dark'] .erp-content :where([class*='-icon']) {
+    background-color: var(--ms-surface-muted) !important;
+    border-color: var(--ms-border) !important;
+    box-shadow: none !important;
+}
+:root[data-theme='dark'] .erp-content :where(.modal, .modal-panel, .module-modal, .role-modal, .stock-modal, .location-modal, .crm-modal, .detail-modal, .activity-modal, .profile-modal, .product-details-modal, .delete-modal) {
+    border-color: var(--ms-border) !important;
+    background-color: var(--ms-surface) !important;
+    color: var(--ms-text-primary) !important;
+}
+:root[data-theme='dark'] .erp-content :where(.modal input, .modal select, .modal textarea, .modal-panel input, .modal-panel select, .modal-panel textarea) {
+    border-color: var(--ms-border) !important;
+    background-color: var(--ms-control-bg) !important;
+    color: var(--ms-text-primary) !important;
 }

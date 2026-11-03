@@ -13,12 +13,14 @@ class CustomerIdentityService
     public function normalizePhone(?string $phone): ?string
     {
         $digits = preg_replace('/\\D+/', '', (string) $phone);
+
         return $digits === '' ? null : $digits;
     }
 
     public function normalizeEmail(?string $email): ?string
     {
         $email = mb_strtolower(trim((string) $email));
+
         return $email === '' ? null : $email;
     }
 
@@ -35,12 +37,16 @@ class CustomerIdentityService
         foreach ($keys as $key) {
             DB::table('customer_identity_locks')->insertOrIgnore(['identity_key' => $key, 'created_at' => now(), 'updated_at' => now()]);
         }
-        if ($keys) DB::table('customer_identity_locks')->whereIn('identity_key', $keys)->orderBy('identity_key')->lockForUpdate()->get();
+        if ($keys) {
+            DB::table('customer_identity_locks')->whereIn('identity_key', $keys)->orderBy('identity_key')->lockForUpdate()->get();
+        }
 
         $duplicate = Customer::query()->when($ignoreCustomerId, fn ($q) => $q->whereKeyNot($ignoreCustomerId))->get()->first(function (Customer $customer) use ($phone, $email): bool {
             return (bool) (($phone && $this->normalizePhone($customer->phone) === $phone) || ($email && $this->normalizeEmail($customer->email) === $email));
         });
-        if ($duplicate) throw ValidationException::withMessages(['phone' => 'A customer with this phone number or email already exists.']);
+        if ($duplicate) {
+            throw ValidationException::withMessages(['phone' => 'A customer with this phone number or email already exists.']);
+        }
     }
 
     /** Resolve an existing customer or create one, serializing identical identities. */
@@ -70,6 +76,7 @@ class CustomerIdentityService
         $matches = Customer::query()->get()->filter(function (Customer $customer) use ($phone, $email): bool {
             $phoneMatch = $phone && $this->normalizePhone($customer->phone) === $phone;
             $emailMatch = $email && $this->normalizeEmail($customer->email) === $email;
+
             return (bool) ($phoneMatch || $emailMatch);
         })->values();
 
@@ -83,6 +90,7 @@ class CustomerIdentityService
             if ($customer->status !== 'active') {
                 throw ValidationException::withMessages(['customer' => 'The matched customer is inactive. Reactivate or review the customer before conversion.']);
             }
+
             return $customer;
         }
 

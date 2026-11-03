@@ -2,9 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Customer;
 use App\Models\FinancialAccount;
 use App\Models\FinancialTransaction;
-use App\Models\Customer;
 use App\Models\JournalEntry;
 use App\Services\FinancialLedgerService;
 use App\Services\LocationInventoryAccessService;

@@ -33,6 +33,7 @@ class B2BWholesaleManagementTest extends TestCase
         $role = Role::create(['name' => 'B2B Test Role', 'slug' => 'b2b-test-'.Str::lower(Str::random(12)), 'description' => null, 'is_system' => false, 'is_active' => true]);
         $role->permissions()->attach($permissionIds);
         $user->roles()->attach($role->id);
+
         return $user;
     }
 

@@ -7,17 +7,16 @@ use App\Models\B2BQuote;
 use App\Models\Customer;
 use App\Models\FlashSale;
 use App\Models\FlashSaleItem;
-use App\Models\PricingPromotion;
-use App\Models\PricingPromotionRedemption;
-use App\Models\SalesOrderFlashSaleAllocation;
 use App\Models\InventoryReservationPurpose;
 use App\Models\InventoryStock;
 use App\Models\Location;
 use App\Models\Module;
 use App\Models\Permission;
+use App\Models\PricingPromotion;
 use App\Models\ProductVariant;
 use App\Models\Role;
 use App\Models\SalesOrder;
+use App\Models\SalesOrderFlashSaleAllocation;
 use App\Models\User;
 use App\Services\CommercialPricingService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -585,7 +584,6 @@ class SalesOrderWorkflowTest extends TestCase
         ]);
     }
 
-
     public function test_promotion_priority_selects_the_highest_priority_non_stackable_rule_and_snapshots_it(): void
     {
         [$location, $variant] = $this->orderFixture();
@@ -722,7 +720,6 @@ class SalesOrderWorkflowTest extends TestCase
         $this->assertDatabaseHas('flash_sale_items', ['id' => $saleItem->id, 'quantity_sold' => 1]);
     }
 
-
     public function test_stackable_order_promotions_apply_in_priority_order_without_exceeding_subtotal(): void
     {
         [$location, $variant] = $this->orderFixture();
@@ -752,7 +749,6 @@ class SalesOrderWorkflowTest extends TestCase
         $this->assertSame('First stack', $order->pricing_snapshot['applied_promotions'][0]['name']);
         $this->assertSame('Second stack', $order->pricing_snapshot['applied_promotions'][1]['name']);
     }
-
 
     public function test_b2b_order_is_linked_to_account_and_credit_exposure_is_enforced_with_due_date_snapshot(): void
     {
@@ -878,5 +874,4 @@ class SalesOrderWorkflowTest extends TestCase
 
         $this->assertDatabaseHas('sales_orders', ['id' => $order->id, 'status' => 'pending']);
     }
-
 }

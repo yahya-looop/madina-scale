@@ -10,7 +10,17 @@ use Illuminate\Validation\ValidationException;
 
 class B2BCreditService
 {
-    /** Read-only credit position for account lists and detail screens. */
+    /**
+     * Read-only credit position for account lists and detail screens.
+     *
+     * @return array{
+     *     payment_terms: string,
+     *     credit_limit: numeric-string,
+     *     outstanding: numeric-string,
+     *     available_credit: numeric-string,
+     *     utilization_percent: numeric-string
+     * }
+     */
     public function summary(B2BAccount $account): array
     {
         $query = SalesOrder::query()
@@ -20,7 +30,9 @@ class B2BCreditService
                 $query->whereNull('credit_snapshot')
                     ->orWhere('credit_snapshot->credit_used', true);
             });
-        $outstanding = bcadd((string) ($query->sum('grand_total') ?? '0'), '0', 2);
+        $outstandingTotal = (string) $query->sum('grand_total');
+        /** @var numeric-string $outstandingTotal */
+        $outstanding = bcadd($outstandingTotal, '0', 2);
         $limit = bcadd((string) $account->credit_limit, '0', 2);
         $available = bccomp($limit, $outstanding, 2) > 0 ? bcsub($limit, $outstanding, 2) : '0.00';
 
@@ -44,6 +56,7 @@ class B2BCreditService
      * Fulfilled orders remain exposed until a payment/settlement workflow exists;
      * only cancelled orders release credit automatically.
      *
+     * @param  numeric-string  $orderAmount
      * @return array<string, mixed>
      */
     public function assess(B2BAccount $account, string $orderAmount, ?int $excludeOrderId = null): array
@@ -80,7 +93,9 @@ class B2BCreditService
         if ($excludeOrderId) {
             $outstandingQuery->where('id', '!=', $excludeOrderId);
         }
-        $outstanding = bcadd((string) ($outstandingQuery->sum('grand_total') ?? '0'), '0', 2);
+        $outstandingTotal = (string) $outstandingQuery->sum('grand_total');
+        /** @var numeric-string $outstandingTotal */
+        $outstanding = bcadd($outstandingTotal, '0', 2);
         $limit = bcadd((string) $locked->credit_limit, '0', 2);
         $available = bccomp($limit, $outstanding, 2) > 0 ? bcsub($limit, $outstanding, 2) : '0.00';
         $usesCredit = $locked->payment_terms !== 'prepaid';

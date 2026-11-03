@@ -96,6 +96,7 @@ class ApiProviderController extends Controller
         while (ApiProvider::query()->where('slug', $candidate)->exists()) {
             $candidate = $slug.'-'.$suffix++;
         }
+
         return $candidate;
     }
 

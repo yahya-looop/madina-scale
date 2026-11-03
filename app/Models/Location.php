@@ -5,7 +5,18 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\Pivot;
 
+/**
+ * @property int $id
+ * @property string $name
+ * @property string $code
+ * @property string $type
+ * @property bool $is_active
+ * @property bool $is_primary
+ * @property array<string, mixed>|null $business_hours
+ * @property array<string, mixed>|null $metadata
+ */
 class Location extends Model
 {
     /**
@@ -46,6 +57,7 @@ class Location extends Model
     }
 
     /** Users explicitly assigned to this location. */
+    /** @return BelongsToMany<User, $this, Pivot, 'pivot'> */
     public function users(): BelongsToMany
     {
         return $this->belongsToMany(User::class, 'location_user', 'location_id', 'user_id')
@@ -56,6 +68,10 @@ class Location extends Model
     /**
      * Scope active locations.
      */
+    /**
+     * @param  Builder<Location>  $query
+     * @return Builder<Location>
+     */
     public function scopeActive(Builder $query): Builder
     {
         return $query->where('is_active', true);
@@ -64,6 +80,10 @@ class Location extends Model
     /**
      * Scope primary locations.
      */
+    /**
+     * @param  Builder<Location>  $query
+     * @return Builder<Location>
+     */
     public function scopePrimary(Builder $query): Builder
     {
         return $query->where('is_primary', true);
@@ -71,6 +91,10 @@ class Location extends Model
 
     /**
      * Scope locations by type.
+     */
+    /**
+     * @param  Builder<Location>  $query
+     * @return Builder<Location>
      */
     public function scopeType(Builder $query, string $type): Builder
     {

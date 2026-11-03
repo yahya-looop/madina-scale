@@ -68,8 +68,11 @@ class Lead extends Model
     public function scopeSearch(Builder $query, ?string $term): Builder
     {
         $term = trim((string) $term);
-        if ($term === '') return $query;
+        if ($term === '') {
+            return $query;
+        }
         $escaped = str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $term);
+
         return $query->where(function (Builder $q) use ($escaped): void {
             $q->where('lead_code', 'like', "%{$escaped}%")
                 ->orWhere('name', 'like', "%{$escaped}%")

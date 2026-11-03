@@ -220,7 +220,6 @@ class ActivityLogService
         );
     }
 
-
     /** Create a keyed integrity digest so unauthorized database edits can be detected. */
     private function makeIntegrityHash(array $payload): string
     {

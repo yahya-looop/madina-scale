@@ -1,36 +1,39 @@
 <?php
 
 use App\Http\Controllers\ActivityLogController;
-use App\Http\Controllers\ApiProviderController;
-use App\Http\Controllers\CmsPageController;
-use App\Http\Controllers\CmsContentController;
 use App\Http\Controllers\Api\V1\HeadOfficeController;
-use App\Http\Controllers\FinanceController;
-use App\Http\Controllers\PaymentController;
-use App\Http\Controllers\ReportController;
+use App\Http\Controllers\ApiProviderController;
 use App\Http\Controllers\AttributeController;
 use App\Http\Controllers\AttributeValueController;
-use App\Http\Controllers\BrandController;
 use App\Http\Controllers\B2BController;
+use App\Http\Controllers\BrandController;
+use App\Http\Controllers\BusinessAnalyticsController;
+use App\Http\Controllers\CmsContentController;
+use App\Http\Controllers\CmsPageController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\CustomerLocationSuggestionController;
+use App\Http\Controllers\FinanceController;
 use App\Http\Controllers\InventoryController;
-use App\Http\Controllers\LeadController;
 use App\Http\Controllers\InventoryReservationController;
 use App\Http\Controllers\InventoryTransferController;
+use App\Http\Controllers\LeadController;
 use App\Http\Controllers\LocationAssignmentController;
 use App\Http\Controllers\LocationController;
+use App\Http\Controllers\MarketingController;
 use App\Http\Controllers\ModuleController;
 use App\Http\Controllers\OrderOperationsController;
+use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\PermissionController;
+use App\Http\Controllers\PricingPromotionController;
 use App\Http\Controllers\ProductCategoryController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProductVariantController;
-use App\Http\Controllers\PricingPromotionController;
+use App\Http\Controllers\ReportController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\SalesOrderController;
-use App\Http\Controllers\ShippingDeliveryController;
+use App\Http\Controllers\SalesReturnController;
 use App\Http\Controllers\SettingsController;
+use App\Http\Controllers\ShippingDeliveryController;
 use App\Http\Controllers\UnitController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\WarrantyServiceController;
@@ -188,9 +191,9 @@ Route::middleware(['web', 'auth'])->group(function () {
     Route::get('/shipping/shipments/{shipment}/events', [ShippingDeliveryController::class, 'events'])->middleware('permission:system.shipping.view');
     Route::patch('/shipping/shipments/{shipment}/status', [ShippingDeliveryController::class, 'updateStatus'])->middleware('permission:system.shipping.delivery.manage');
 
-    Route::get('/sales-returns', [\App\Http\Controllers\SalesReturnController::class, 'index'])->middleware('permission:system.sales_returns.view');
-    Route::get('/sales-returns/options', [\App\Http\Controllers\SalesReturnController::class, 'options'])->middleware('permission:system.sales_returns.create');
-    Route::post('/sales-returns', [\App\Http\Controllers\SalesReturnController::class, 'store'])->middleware('permission:system.sales_returns.create');
+    Route::get('/sales-returns', [SalesReturnController::class, 'index'])->middleware('permission:system.sales_returns.view');
+    Route::get('/sales-returns/options', [SalesReturnController::class, 'options'])->middleware('permission:system.sales_returns.create');
+    Route::post('/sales-returns', [SalesReturnController::class, 'store'])->middleware('permission:system.sales_returns.create');
 
     /*
     |--------------------------------------------------------------------------
@@ -289,17 +292,17 @@ Route::middleware(['web', 'auth'])->group(function () {
         ->middleware('permission:system.settings.update');
 
     /* Marketing */
-    Route::get('/marketing/campaigns', [\App\Http\Controllers\MarketingController::class, 'campaigns'])->middleware('permission:system.marketing.view');
-    Route::post('/marketing/campaigns', [\App\Http\Controllers\MarketingController::class, 'storeCampaign'])->middleware('permission:system.marketing.create');
-    Route::put('/marketing/campaigns/{campaign}', [\App\Http\Controllers\MarketingController::class, 'updateCampaign'])->middleware('permission:system.marketing.update');
-    Route::delete('/marketing/campaigns/{campaign}', [\App\Http\Controllers\MarketingController::class, 'deleteCampaign'])->middleware('permission:system.marketing.delete');
-    Route::get('/marketing/coupons', [\App\Http\Controllers\MarketingController::class, 'coupons'])->middleware('permission:system.marketing.view');
-    Route::post('/marketing/coupons', [\App\Http\Controllers\MarketingController::class, 'storeCoupon'])->middleware('permission:system.marketing.create');
-    Route::put('/marketing/coupons/{coupon}', [\App\Http\Controllers\MarketingController::class, 'updateCoupon'])->middleware('permission:system.marketing.update');
-    Route::delete('/marketing/coupons/{coupon}', [\App\Http\Controllers\MarketingController::class, 'deleteCoupon'])->middleware('permission:system.marketing.delete');
-    Route::get('/marketing/analytics', [\App\Http\Controllers\MarketingController::class, 'analytics'])->middleware('permission:system.marketing.view');
-    Route::post('/marketing/campaigns/{campaign}/events', [\App\Http\Controllers\MarketingController::class, 'track'])->middleware('throttle:120,1');
-    Route::get('/analytics/overview', [\App\Http\Controllers\BusinessAnalyticsController::class, 'data'])->middleware('permission:system.analytics.view');
+    Route::get('/marketing/campaigns', [MarketingController::class, 'campaigns'])->middleware('permission:system.marketing.view');
+    Route::post('/marketing/campaigns', [MarketingController::class, 'storeCampaign'])->middleware('permission:system.marketing.create');
+    Route::put('/marketing/campaigns/{campaign}', [MarketingController::class, 'updateCampaign'])->middleware('permission:system.marketing.update');
+    Route::delete('/marketing/campaigns/{campaign}', [MarketingController::class, 'deleteCampaign'])->middleware('permission:system.marketing.delete');
+    Route::get('/marketing/coupons', [MarketingController::class, 'coupons'])->middleware('permission:system.marketing.view');
+    Route::post('/marketing/coupons', [MarketingController::class, 'storeCoupon'])->middleware('permission:system.marketing.create');
+    Route::put('/marketing/coupons/{coupon}', [MarketingController::class, 'updateCoupon'])->middleware('permission:system.marketing.update');
+    Route::delete('/marketing/coupons/{coupon}', [MarketingController::class, 'deleteCoupon'])->middleware('permission:system.marketing.delete');
+    Route::get('/marketing/analytics', [MarketingController::class, 'analytics'])->middleware('permission:system.marketing.view');
+    Route::post('/marketing/campaigns/{campaign}/events', [MarketingController::class, 'track'])->middleware('throttle:120,1');
+    Route::get('/analytics/overview', [BusinessAnalyticsController::class, 'data'])->middleware('permission:system.analytics.view');
 
     /* CMS */
     Route::get('/cms/pages', [CmsPageController::class, 'index'])->middleware('permission:system.content.view');
@@ -322,7 +325,6 @@ Route::middleware(['web', 'auth'])->group(function () {
     Route::delete('/cms/sections/{cmsContentSection}', [CmsContentController::class, 'deleteSection'])->middleware('permission:system.content.delete');
     Route::get('/cms/pages/{cmsPage}/revisions', [CmsContentController::class, 'revisions'])->middleware('permission:system.content.view');
     Route::post('/cms/pages/{cmsPage}/revisions/{revision}/restore', [CmsContentController::class, 'restore'])->middleware('permission:system.content.update');
-
 
     /*
     |--------------------------------------------------------------------------
@@ -610,7 +612,6 @@ Route::middleware(['web', 'auth'])->group(function () {
 
 // Provider callbacks authenticate with a dedicated bearer secret and must not require a staff session.
 Route::post('/webhooks/couriers/{provider}', [OrderOperationsController::class, 'courierWebhook']);
-
 
 /*
 |--------------------------------------------------------------------------

@@ -36,6 +36,7 @@ function salesReturnFixture(): array
     ]);
     SalesOrderFulfillmentItem::query()->create(['sales_order_fulfillment_id' => $fulfillment->id, 'sales_order_item_id' => $item->id, 'quantity' => '10.0000']);
     InventoryStock::query()->create(['product_variant_id' => $variant->id, 'location_id' => $location->id, 'quantity' => '0.0000', 'reserved_quantity' => '0.0000']);
+
     return compact('user', 'location', 'product', 'variant', 'order', 'item');
 }
 

@@ -22,16 +22,19 @@ class FinancialAccount extends Model
         ];
     }
 
+    /** @return BelongsTo<FinancialAccount, $this> */
     public function parent(): BelongsTo
     {
         return $this->belongsTo(self::class, 'parent_id');
     }
 
+    /** @return HasMany<FinancialAccount, $this> */
     public function children(): HasMany
     {
         return $this->hasMany(self::class, 'parent_id');
     }
 
+    /** @return HasMany<JournalEntryLine, $this> */
     public function journalLines(): HasMany
     {
         return $this->hasMany(JournalEntryLine::class, 'account_id');

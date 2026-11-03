@@ -126,6 +126,7 @@ class InventoryTransferService
 
             $transfer = $transfer->load(['product', 'variant', 'sourceLocation', 'destinationLocation', 'dispatcher']);
             $this->notifyTransferRecipients($transfer, 'dispatched');
+
             return $transfer;
         }, 3);
 
@@ -246,6 +247,7 @@ class InventoryTransferService
             ]);
             $locked = $locked->load(['product', 'variant', 'sourceLocation', 'destinationLocation', 'dispatcher', 'receiver']);
             $this->notifyDispatcher($locked, 'received');
+
             return $locked;
         }, 3);
 

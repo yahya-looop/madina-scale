@@ -40,7 +40,7 @@ class InventoryTransferController extends Controller
         }
 
         if (! $isLocationManager) {
-            $query->where(function ($scope) use ($assignedLocationIds, $manageableLocationIds, $receivableLocationIds, $direction): void {
+            $query->where(function ($scope) use ($manageableLocationIds, $receivableLocationIds, $direction): void {
                 if ($direction === 'incoming') {
                     $scope->whereIn('destination_location_id', $receivableLocationIds);
                 } elseif ($direction === 'outgoing') {
@@ -163,4 +163,3 @@ class InventoryTransferController extends Controller
         return response()->json(['message' => 'Transfer flagged for discrepancy resolution. Stock was not silently returned to the source.', 'data' => $updated]);
     }
 }
-

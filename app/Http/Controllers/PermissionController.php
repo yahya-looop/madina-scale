@@ -5,8 +5,8 @@ namespace App\Http\Controllers;
 use App\Http\Requests\Permission\StorePermissionRequest;
 use App\Http\Requests\Permission\UpdatePermissionRequest;
 use App\Models\Permission;
-use App\Services\PermissionService;
 use App\Services\ActivityLogService;
+use App\Services\PermissionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Response;
 

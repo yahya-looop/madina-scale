@@ -3,7 +3,6 @@
 namespace App\Services;
 
 use App\Models\B2BAccount;
-use App\Models\FlashSale;
 use App\Models\FlashSaleItem;
 use App\Models\PricingPromotion;
 use App\Models\PricingPromotionRedemption;
@@ -19,6 +18,16 @@ class CommercialPricingService
     /**
      * Resolve a catalogue line inside the caller's transaction. Flash-sale quota is
      * reserved atomically by incrementing quantity_sold while the item row is locked.
+     */
+    /**
+     * @param  numeric-string  $quantity
+     * @return array{
+     *   unit_price: numeric-string,
+     *   catalogue_price: numeric-string,
+     *   price_source: string,
+     *   flash_sale_item: FlashSaleItem|null,
+     *   flash_sale_regular_price: numeric-string|null
+     * }
      */
     public function priceLine(ProductVariant $variant, string $quantity, ?B2BAccount $account): array
     {
@@ -77,8 +86,8 @@ class CommercialPricingService
      * are explicit; publicly-visible promotions are automatic. Promotion rows are
      * locked before limits are checked so concurrent orders cannot oversubscribe them.
      *
-     * @param array<int, array{item: SalesOrderItem, variant: ProductVariant, gross: string, snapshot: array}> $lines
-     * @return array{discount_total:string, order_discount:string, promotion_id:?int, promotion_code:?string}
+     * @param  list<array{item: SalesOrderItem, variant: ProductVariant, gross: numeric-string, snapshot: array<string, mixed>}>  $lines
+     * @return array{discount_total:numeric-string, order_discount:numeric-string, promotion_id:?int, promotion_code:?string, applied_promotions:list<array{promotion_id:int, name:string, code:string|null, scope:string, discount:numeric-string, priority:int, stackable:bool}>}
      */
     public function applyPromotions(SalesOrder $order, array $lines, ?int $customerId, ?string $code): array
     {
@@ -91,8 +100,11 @@ class CommercialPricingService
         $promotions = PricingPromotion::query()
             ->where('status', 'active')
             ->where(fn ($q) => $q->where(function ($q) use ($normalizedCode) {
-                if ($normalizedCode !== null) $q->where('code', $normalizedCode);
-                else $q->whereRaw('1 = 0');
+                if ($normalizedCode !== null) {
+                    $q->where('code', $normalizedCode);
+                } else {
+                    $q->whereRaw('1 = 0');
+                }
             })->orWhere(fn ($q) => $q->whereNull('code')->where('publicly_visible', true)))
             ->orderBy('priority')->orderBy('id')->lockForUpdate()->get()
             ->filter(fn (PricingPromotion $p) => $p->isCurrentlyActive())
@@ -104,24 +116,32 @@ class CommercialPricingService
             throw ValidationException::withMessages(['promotion_code' => 'This promotion code is invalid, expired, exhausted, or unavailable.']);
         }
 
+        /** @var array<int, array{promotion: PricingPromotion, discount: numeric-string}> $used */
         $used = [];
+        /** @var numeric-string $lineDiscountTotal */
         $lineDiscountTotal = '0.00';
         foreach ($lines as &$line) {
             $eligible = $promotions->filter(function (PricingPromotion $p) use ($line, $subtotal, $customerId): bool {
-                if ($p->scope === 'order') return false;
+                if ($p->scope === 'order') {
+                    return false;
+                }
                 if (bccomp($subtotal, (string) $p->minimum_order_amount, 2) < 0
-                    || bccomp((string) $line['item']->quantity, (string) $p->minimum_quantity, 3) < 0) return false;
+                    || bccomp((string) $line['item']->quantity, (string) $p->minimum_quantity, 3) < 0) {
+                    return false;
+                }
                 $variant = $line['variant'];
                 $matches = match ($p->scope) {
                     'product' => (int) $p->product_id === (int) $variant->product_id,
                     'variant' => (int) $p->product_variant_id === (int) $variant->id,
-                    'category' => (int) $p->product_category_id === (int) $variant->product?->category_id,
+                    'category' => (int) $p->product_category_id === (int) $variant->product->category_id,
                     default => false,
                 };
+
                 return $matches && $this->withinCustomerLimit($p, $customerId);
             });
 
             $chosen = $this->selectPromotions($eligible);
+            /** @var numeric-string $discount */
             $discount = '0.00';
             $linePromotions = [];
             foreach ($chosen as $promotion) {
@@ -131,7 +151,9 @@ class CommercialPricingService
                 $used[$promotion->id] = ($used[$promotion->id] ?? ['promotion' => $promotion, 'discount' => '0.00']);
                 $used[$promotion->id]['discount'] = bcadd($used[$promotion->id]['discount'], $amount, 2);
                 $linePromotions[] = ['promotion_id' => $promotion->id, 'name' => $promotion->name, 'discount' => $amount];
-                if (! $promotion->stackable) break;
+                if (! $promotion->stackable) {
+                    break;
+                }
             }
             $line['snapshot']['line_promotions'] = $linePromotions;
             $line['snapshot']['line_discount'] = $discount;
@@ -143,8 +165,11 @@ class CommercialPricingService
         unset($line);
 
         $netSubtotal = bcsub($subtotal, $lineDiscountTotal, 2);
+        /** @var numeric-string $totalQuantity */
         $totalQuantity = '0.0000';
-        foreach ($lines as $line) $totalQuantity = bcadd($totalQuantity, (string) $line['item']->quantity, 4);
+        foreach ($lines as $line) {
+            $totalQuantity = bcadd($totalQuantity, (string) $line['item']->quantity, 4);
+        }
         $linePromotionsCanStack = collect($used)->every(fn (array $entry) => $entry['promotion']->stackable);
         $orderPromotions = $promotions->filter(fn (PricingPromotion $p) => $p->scope === 'order'
             && (! $used || ($linePromotionsCanStack && $p->stackable))
@@ -152,13 +177,16 @@ class CommercialPricingService
             && bccomp($totalQuantity, (string) $p->minimum_quantity, 3) >= 0
             && $this->withinCustomerLimit($p, $customerId));
         $orderChosen = $this->selectPromotions($orderPromotions);
+        /** @var numeric-string $orderDiscount */
         $orderDiscount = '0.00';
         foreach ($orderChosen as $promotion) {
             $amount = $this->discount($promotion, bcsub($netSubtotal, $orderDiscount, 2));
             $orderDiscount = bcadd($orderDiscount, $amount, 2);
             $used[$promotion->id] = ($used[$promotion->id] ?? ['promotion' => $promotion, 'discount' => '0.00']);
             $used[$promotion->id]['discount'] = bcadd($used[$promotion->id]['discount'], $amount, 2);
-            if (! $promotion->stackable) break;
+            if (! $promotion->stackable) {
+                break;
+            }
         }
 
         if ($normalizedCode !== null && ! collect($used)->contains(
@@ -196,41 +224,56 @@ class CommercialPricingService
             $primary = $firstUsed['promotion'];
         }
 
+        /** @var list<array{promotion_id: int, name: string, code: string|null, scope: string, discount: numeric-string, priority: int, stackable: bool}> $appliedPromotions */
+        $appliedPromotions = collect($used)->map(fn (array $entry): array => [
+            'promotion_id' => $entry['promotion']->id,
+            'name' => $entry['promotion']->name,
+            'code' => $entry['promotion']->code,
+            'scope' => $entry['promotion']->scope,
+            'discount' => $entry['discount'],
+            'priority' => (int) $entry['promotion']->priority,
+            'stackable' => (bool) $entry['promotion']->stackable,
+        ])->values()->all();
+
         return [
             'discount_total' => $discountTotal,
             'order_discount' => $orderDiscount,
             'promotion_id' => $primary?->id,
             'promotion_code' => $normalizedCode,
-            'applied_promotions' => collect($used)->map(fn (array $entry): array => [
-                'promotion_id' => $entry['promotion']->id,
-                'name' => $entry['promotion']->name,
-                'code' => $entry['promotion']->code,
-                'scope' => $entry['promotion']->scope,
-                'discount' => $entry['discount'],
-                'priority' => (int) $entry['promotion']->priority,
-                'stackable' => (bool) $entry['promotion']->stackable,
-            ])->values()->all(),
+            'applied_promotions' => $appliedPromotions,
         ];
     }
 
     private function withinCustomerLimit(PricingPromotion $promotion, ?int $customerId): bool
     {
-        if (! $promotion->per_customer_limit) return true;
-        if (! $customerId) return false;
+        if (! $promotion->per_customer_limit) {
+            return true;
+        }
+        if (! $customerId) {
+            return false;
+        }
         $used = PricingPromotionRedemption::query()
             ->where('pricing_promotion_id', $promotion->id)
             ->where('customer_id', $customerId)
             ->where('status', 'applied')->count();
+
         return $used < $promotion->per_customer_limit;
     }
 
+    /**
+     * @param  Collection<int, PricingPromotion>  $promotions
+     * @return Collection<int, PricingPromotion>
+     */
     private function selectPromotions(Collection $promotions): Collection
     {
-        if ($promotions->isEmpty()) return collect();
+        if ($promotions->isEmpty()) {
+            return collect();
+        }
 
         // Rules are already sorted by priority (then ID). Apply them in that
         // order and stop at the first non-stackable rule. This preserves a
         // higher-priority stackable rule instead of incorrectly skipping it.
+        /** @var Collection<int, PricingPromotion> $selected */
         $selected = collect();
         foreach ($promotions as $promotion) {
             $selected->push($promotion);
@@ -242,9 +285,14 @@ class CommercialPricingService
         return $selected;
     }
 
+    /** @param numeric-string $base
+     * @return numeric-string
+     */
     private function discount(PricingPromotion $promotion, string $base): string
     {
-        if (bccomp($base, '0.00', 2) <= 0) return '0.00';
+        if (bccomp($base, '0.00', 2) <= 0) {
+            return '0.00';
+        }
         if ($promotion->discount_type === 'percent') {
             $raw = bcdiv(bcmul($base, (string) $promotion->discount_value, 4), '100', 4);
             // BC Math truncates at the requested scale; add half a cent at
@@ -254,6 +302,7 @@ class CommercialPricingService
         } else {
             $amount = number_format((float) $promotion->discount_value, 2, '.', '');
         }
+
         return bccomp($amount, $base, 2) > 0 ? $base : $amount;
     }
 
@@ -273,14 +322,16 @@ class CommercialPricingService
             }
             $allocation->status = 'released';
             $allocation->released_at = now();
-            if ($orderItem) $allocation->order_item_snapshot = [
-                'product_id' => $orderItem->product_id,
-                'product_variant_id' => $orderItem->product_variant_id,
-                'product_name' => $orderItem->product_name,
-                'variant_name' => $orderItem->variant_name,
-                'sku' => $orderItem->sku,
-                'quantity' => (string) $orderItem->quantity,
-            ];
+            if ($orderItem) {
+                $allocation->order_item_snapshot = [
+                    'product_id' => $orderItem->product_id,
+                    'product_variant_id' => $orderItem->product_variant_id,
+                    'product_name' => $orderItem->product_name,
+                    'variant_name' => $orderItem->variant_name,
+                    'sku' => $orderItem->sku,
+                    'quantity' => (string) $orderItem->quantity,
+                ];
+            }
             $allocation->sales_order_item_id = null;
             $allocation->save();
         }
@@ -289,7 +340,9 @@ class CommercialPricingService
             ->where('sales_order_id', $order->id)->where('status', 'applied')->lockForUpdate()->get();
         foreach ($redemptions as $redemption) {
             $promotion = PricingPromotion::query()->lockForUpdate()->find($redemption->pricing_promotion_id);
-            if ($promotion) $promotion->usage_count = max(0, $promotion->usage_count - 1);
+            if ($promotion) {
+                $promotion->usage_count = max(0, $promotion->usage_count - 1);
+            }
             $promotion?->save();
             $redemption->update(['status' => 'released', 'released_at' => now()]);
         }

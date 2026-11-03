@@ -423,7 +423,7 @@ onMounted(() => {
             type="button"
             @click="load"
             :disabled="loading || !from || !to || to < from"
-            class="rounded-xl bg-blue-700 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-blue-800 disabled:opacity-50"
+            class="rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-emerald-700 disabled:opacity-50"
           >
             {{ loading ? "Loading…" : "Apply filters" }}
           </button>
@@ -461,7 +461,7 @@ onMounted(() => {
               class="whitespace-nowrap rounded-xl px-4 py-2.5 text-sm font-semibold transition"
               :class="
                 activeTab === tab.key
-                  ? 'bg-slate-950 text-white shadow dark:bg-cyan-500 dark:text-slate-950'
+                  ? 'bg-emerald-600 text-white shadow'
                   : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'
               "
             >

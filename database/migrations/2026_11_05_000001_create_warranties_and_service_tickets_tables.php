@@ -60,7 +60,6 @@ return new class extends Migration
             $table->index(['service_ticket_id', 'created_at']);
         });
 
-
     }
 
     public function down(): void

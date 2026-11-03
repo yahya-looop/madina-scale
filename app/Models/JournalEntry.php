@@ -19,21 +19,25 @@ class JournalEntry extends Model
         return ['entry_date' => 'date', 'posted_at' => 'datetime'];
     }
 
+    /** @return HasMany<JournalEntryLine, $this> */
     public function lines(): HasMany
     {
         return $this->hasMany(JournalEntryLine::class);
     }
 
+    /** @return BelongsTo<Location, $this> */
     public function location(): BelongsTo
     {
         return $this->belongsTo(Location::class);
     }
 
+    /** @return BelongsTo<User, $this> */
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
     }
 
+    /** @return BelongsTo<User, $this> */
     public function poster(): BelongsTo
     {
         return $this->belongsTo(User::class, 'posted_by');

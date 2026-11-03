@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Location;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Collection;
@@ -237,11 +238,10 @@ class UserService
         });
     }
 
-
     /**
      * Synchronize per-location access assignments for an inventory operator.
      *
-     * @param array<int, array{location_id: int, access_level: string}> $assignments
+     * @param  array<int, array{location_id: int, access_level: string}>  $assignments
      */
     public function syncLocationAssignments(User $user, array $assignments, int $actorId): User
     {
@@ -249,7 +249,7 @@ class UserService
             $rows = collect($assignments)->keyBy(static fn (array $row): int => (int) $row['location_id']);
             $locationIds = $rows->keys()->map(static fn ($id): int => (int) $id)->all();
 
-            $activeLocationIds = \App\Models\Location::query()
+            $activeLocationIds = Location::query()
                 ->where('is_active', true)
                 ->whereIn('id', $locationIds)
                 ->pluck('id')->map(static fn ($id): int => (int) $id)->all();

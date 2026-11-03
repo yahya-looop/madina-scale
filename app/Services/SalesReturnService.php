@@ -4,7 +4,6 @@ namespace App\Services;
 
 use App\Models\FinancialAccount;
 use App\Models\InventoryStock;
-use App\Models\JournalEntry;
 use App\Models\SalesOrder;
 use App\Models\SalesOrderItem;
 use App\Models\SalesReturn;
@@ -41,6 +40,7 @@ class SalesReturnService
                 if (! $same) {
                     throw ValidationException::withMessages(['idempotency_key' => 'This key was already used for a different return request.']);
                 }
+
                 return $existing->load(['items.orderItem', 'journalEntry']);
             }
 
@@ -179,6 +179,7 @@ class SalesReturnService
                 'sales_order_id' => $order->id, 'refund_amount' => $total, 'refund_method' => $return->refund_method,
                 'journal_entry_id' => $journal->id, 'item_count' => count($returnLines),
             ]);
+
             return $return->fresh(['items.orderItem', 'journalEntry']);
         }, 3);
     }

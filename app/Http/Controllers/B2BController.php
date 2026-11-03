@@ -7,10 +7,11 @@ use App\Models\B2BQuote;
 use App\Models\Customer;
 use App\Models\Lead;
 use App\Models\Location;
-use App\Services\SalesOrderService;
+use App\Models\ProductVariant;
+use App\Models\SalesOrder;
 use App\Services\B2BCreditService;
 use App\Services\LocationInventoryAccessService;
-use App\Models\ProductVariant;
+use App\Services\SalesOrderService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -41,8 +42,10 @@ class B2BController extends Controller
         $accounts = $query->latest('id')->paginate(min(max($request->integer('per_page', 15), 1), 50))->withQueryString();
         $accounts->getCollection()->transform(function (B2BAccount $account) use ($credit): B2BAccount {
             $account->setAttribute('credit_summary', $credit->summary($account));
+
             return $account;
         });
+
         return response()->json(array_merge($accounts->toArray(), ['stats' => $stats]));
     }
 
@@ -59,22 +62,24 @@ class B2BController extends Controller
     {
         $account->setAttribute('credit_summary', $credit->summary($account));
         $account->load(['customer:id,customer_code,name,phone,email', 'lead:id,lead_code,name,status', 'quotes' => fn ($q) => $q->withCount('items')->latest()->limit(20)]);
+
         return response()->json(['data' => $account]);
     }
 
     public function store(Request $request): JsonResponse
     {
         $data = $this->validated($request);
-        if (!empty($data['customer_id']) && B2BAccount::where('customer_id', $data['customer_id'])->exists()) {
+        if (! empty($data['customer_id']) && B2BAccount::where('customer_id', $data['customer_id'])->exists()) {
             throw ValidationException::withMessages(['customer_id' => 'This customer is already linked to a B2B account.']);
         }
-        if (!empty($data['lead_id']) && B2BAccount::where('lead_id', $data['lead_id'])->exists()) {
+        if (! empty($data['lead_id']) && B2BAccount::where('lead_id', $data['lead_id'])->exists()) {
             throw ValidationException::withMessages(['lead_id' => 'This lead is already linked to a B2B account.']);
         }
         $data['account_code'] = $this->newAccountCode();
         $data['created_by'] = $request->user()->id;
         $data['updated_by'] = $request->user()->id;
         $account = B2BAccount::create($data);
+
         return response()->json(['message' => 'B2B account created successfully.', 'data' => $account], 201);
     }
 
@@ -82,12 +87,13 @@ class B2BController extends Controller
     {
         $data = $this->validated($request, $account);
         foreach (['customer_id', 'lead_id'] as $field) {
-            if (!empty($data[$field]) && B2BAccount::where($field, $data[$field])->where('id', '<>', $account->id)->exists()) {
+            if (! empty($data[$field]) && B2BAccount::where($field, $data[$field])->where('id', '<>', $account->id)->exists()) {
                 throw ValidationException::withMessages([$field => 'This record is already linked to another B2B account.']);
             }
         }
         $data['updated_by'] = $request->user()->id;
         $account->update($data);
+
         return response()->json(['message' => 'B2B account updated successfully.', 'data' => $account->fresh()]);
     }
 
@@ -97,6 +103,7 @@ class B2BController extends Controller
             throw ValidationException::withMessages(['account' => 'This account has quote history and cannot be deleted. Change its status to inactive instead.']);
         }
         $account->delete();
+
         return response()->json(['message' => 'B2B account deleted successfully.']);
     }
 
@@ -111,6 +118,7 @@ class B2BController extends Controller
         if ($request->filled('status') && $request->input('status') !== 'all') {
             $query->where('status', $request->validate(['status' => ['required', Rule::in(['draft', 'sent', 'under_review', 'accepted', 'rejected', 'expired'])]])['status']);
         }
+
         return response()->json(array_merge($query->latest('id')->paginate(15)->withQueryString()->toArray(), [
             'stats' => ['total' => B2BQuote::count(), 'draft' => B2BQuote::where('status', 'draft')->count(), 'sent' => B2BQuote::whereIn('status', ['sent', 'under_review'])->count(), 'accepted' => B2BQuote::where('status', 'accepted')->count()],
         ]));
@@ -163,11 +171,15 @@ class B2BController extends Controller
             }
             $discount = number_format((float) ($data['discount_amount'] ?? 0), 2, '.', '');
             $tax = number_format((float) ($data['tax_amount'] ?? 0), 2, '.', '');
-            if (bccomp($discount, $subtotal, 2) > 0) throw ValidationException::withMessages(['discount_amount' => 'The quote discount cannot exceed the item subtotal.']);
+            if (bccomp($discount, $subtotal, 2) > 0) {
+                throw ValidationException::withMessages(['discount_amount' => 'The quote discount cannot exceed the item subtotal.']);
+            }
             $total = bcadd(bcsub($subtotal, $discount, 2), $tax, 2);
             $quote->update(['subtotal' => $subtotal, 'discount_amount' => $discount, 'tax_amount' => $tax, 'total' => $total]);
+
             return $quote->load(['account:id,account_code,company_name', 'items']);
         });
+
         return response()->json(['message' => 'Quotation draft created successfully.', 'data' => $quote], 201);
     }
 
@@ -231,10 +243,10 @@ class B2BController extends Controller
         ]);
         $locationAccess->assertManage($request->user(), (int) $data['location_id']);
 
-        $order = DB::transaction(function () use ($request, $quote, $orders, $data, $credit): \App\Models\SalesOrder {
+        $order = DB::transaction(function () use ($request, $quote, $orders, $data, $credit): SalesOrder {
             $lockedQuote = B2BQuote::query()->with(['account', 'items' => fn ($query) => $query->orderBy('id')])->lockForUpdate()->findOrFail($quote->id);
 
-            $keyedOrder = \App\Models\SalesOrder::query()
+            $keyedOrder = SalesOrder::query()
                 ->where('idempotency_key', $data['idempotency_key'])
                 ->lockForUpdate()
                 ->first();
@@ -245,7 +257,7 @@ class B2BController extends Controller
             }
 
             if ($lockedQuote->converted_order_id) {
-                $existingOrder = \App\Models\SalesOrder::query()->with(['items', 'customer'])->findOrFail($lockedQuote->converted_order_id);
+                $existingOrder = SalesOrder::query()->with(['items', 'customer'])->findOrFail($lockedQuote->converted_order_id);
                 if ((int) $existingOrder->b2b_quote_id !== (int) $lockedQuote->id
                     || (int) $existingOrder->b2b_account_id !== (int) $lockedQuote->b2b_account_id) {
                     throw ValidationException::withMessages(['quote' => 'The linked order does not match this quotation. Contact an administrator.']);
@@ -371,6 +383,7 @@ class B2BController extends Controller
                     'updated_by' => $request->user()->id,
                 ]);
             }
+
             return $order->fresh(['items', 'customer', 'b2bAccount', 'b2bQuote']);
         }, 3);
 
@@ -432,15 +445,19 @@ class B2BController extends Controller
 
     private function newAccountCode(): string
     {
-        do { $code = 'B2B-'.now()->format('ym').'-'.Str::upper(Str::random(6)); }
-        while (B2BAccount::where('account_code', $code)->exists());
+        do {
+            $code = 'B2B-'.now()->format('ym').'-'.Str::upper(Str::random(6));
+        } while (B2BAccount::where('account_code', $code)->exists());
+
         return $code;
     }
 
     private function newQuoteNumber(): string
     {
-        do { $number = 'QT-'.now()->format('ymd').'-'.Str::upper(Str::random(5)); }
-        while (B2BQuote::where('quote_number', $number)->exists());
+        do {
+            $number = 'QT-'.now()->format('ymd').'-'.Str::upper(Str::random(5));
+        } while (B2BQuote::where('quote_number', $number)->exists());
+
         return $number;
     }
 }

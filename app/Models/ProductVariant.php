@@ -2,14 +2,34 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Carbon;
 
+/**
+ * @property int $id
+ * @property int $product_id
+ * @property string $name
+ * @property string $sku
+ * @property string|null $barcode
+ * @property numeric-string $cost_price
+ * @property numeric-string $selling_price
+ * @property numeric-string|null $wholesale_price
+ * @property numeric-string|null $promotional_price
+ * @property Carbon|null $promotion_starts_at
+ * @property Carbon|null $promotion_ends_at
+ * @property bool $is_default
+ * @property string $status
+ * @property int $sort_order
+ * @property-read Product $product
+ */
 class ProductVariant extends Model
 {
+    /** @use HasFactory<Factory<ProductVariant>> */
     use HasFactory, SoftDeletes;
 
     protected $hidden = [
@@ -47,6 +67,7 @@ class ProductVariant extends Model
         ];
     }
 
+    /** @return BelongsTo<Product, $this> */
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);
@@ -55,6 +76,7 @@ class ProductVariant extends Model
     /**
      * Attribute/value mapping records for this variant.
      */
+    /** @return HasMany<ProductVariantAttributeValue, $this> */
     public function attributeValues(): HasMany
     {
         return $this->hasMany(
@@ -71,6 +93,7 @@ class ProductVariant extends Model
     /**
      * Returns the effective selling price as a decimal string.
      */
+    /** @return numeric-string */
     public function effectiveSellingPrice(): string
     {
         $now = now();

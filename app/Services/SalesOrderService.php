@@ -3,13 +3,13 @@
 namespace App\Services;
 
 use App\Models\B2BAccount;
-use App\Models\SalesOrderFlashSaleAllocation;
 use App\Models\InventoryReservation;
 use App\Models\InventoryReservationPurpose;
 use App\Models\InventoryStock;
 use App\Models\Location;
 use App\Models\ProductVariant;
 use App\Models\SalesOrder;
+use App\Models\SalesOrderFlashSaleAllocation;
 use App\Models\SalesOrderFulfillment;
 use App\Models\SalesOrderFulfillmentItem;
 use App\Models\SalesOrderItem;
@@ -29,13 +29,14 @@ class SalesOrderService
     ) {}
 
     /** Resolve the actual inventory owner used by this location for an order line. */
+    /** @return array{product_variant_id?: int, product_id?: int} */
     private function reservationOwner(ProductVariant $variant, int $locationId): array
     {
         $variantStockExists = InventoryStock::query()
             ->where('location_id', $locationId)
             ->where('product_variant_id', $variant->id)
             ->exists();
-        if ($variantStockExists || $variant->product?->product_type !== 'simple') {
+        if ($variantStockExists || $variant->product->product_type !== 'simple') {
             return ['product_variant_id' => $variant->id];
         }
 
@@ -50,6 +51,7 @@ class SalesOrderService
             : ['product_variant_id' => $variant->id];
     }
 
+    /** @param array<string, mixed> $data */
     public function create(array $data, User $actor): SalesOrder
     {
         return DB::transaction(function () use ($data, $actor): SalesOrder {
@@ -76,7 +78,7 @@ class SalesOrderService
                 }
             }
 
-            $location = Location::query()->lockForUpdate()->find($data['location_id']);
+            $location = Location::query()->lockForUpdate()->find((int) $data['location_id']);
             if (! $location || ! $location->is_active) {
                 throw ValidationException::withMessages(['location_id' => 'Choose an active location.']);
             }
@@ -118,8 +120,8 @@ class SalesOrderService
             $subtotal = '0.00';
             foreach ($data['items'] as $line) {
                 // Price is always sourced from the active catalog, never trusted from the client.
-                $variant = ProductVariant::query()->with('product')->lockForUpdate()->find($line['product_variant_id']);
-                if (! $variant || $variant->status !== 'active' || ! $variant->product || $variant->product->status !== 'active') {
+                $variant = ProductVariant::query()->whereHas('product')->with('product')->lockForUpdate()->find((int) $line['product_variant_id']);
+                if (! $variant || $variant->status !== 'active' || $variant->product->status !== 'active') {
                     throw ValidationException::withMessages(['items' => 'One of the selected products is no longer available for sale.']);
                 }
                 $qty = number_format((float) $line['quantity'], 4, '.', '');
@@ -166,14 +168,14 @@ class SalesOrderService
 
                 $reservation = $this->reservations->reserve(array_merge(
                     $this->reservationOwner($variant, (int) $location->id), [
-                    'location_id' => $location->id,
-                    'quantity' => $qty,
-                    'purpose' => $purpose->key,
-                    'reference_type' => 'sales_order',
-                    'reference_id' => (string) $order->id,
-                    'reason' => 'Sales order '.$order->order_number,
-                    'expires_at' => now()->addHours(72),
-                ]), $actor);
+                        'location_id' => $location->id,
+                        'quantity' => $qty,
+                        'purpose' => $purpose->key,
+                        'reference_type' => 'sales_order',
+                        'reference_id' => (string) $order->id,
+                        'reason' => 'Sales order '.$order->order_number,
+                        'expires_at' => now()->addHours(72),
+                    ]), $actor);
                 $item->reservation_id = $reservation->id;
                 $item->save();
             }
@@ -208,7 +210,7 @@ class SalesOrderService
                 'engine' => 'commercial_pricing_v1',
                 'price_basis' => $preserveQuotePricing ? 'b2b_quote' : 'catalogue_and_commercial_rules',
                 'promotion_code' => $promotionResult['promotion_code'],
-                'applied_promotions' => $promotionResult['applied_promotions'] ?? [],
+                'applied_promotions' => $promotionResult['applied_promotions'],
                 'promotion_discount' => $promotionResult['discount_total'],
                 'manual_discount' => $manualDiscount,
                 'total_discount' => $discountTotal,
@@ -240,6 +242,7 @@ class SalesOrderService
      * old order for a changed cart/customer/location silently hides client bugs
      * and can make a retry appear to have succeeded with different data.
      */
+    /** @param array<string, mixed> $data */
     private function assertIdempotentReplayMatches(SalesOrder $existing, array $data): void
     {
         $normalizeText = static function ($value): ?string {
@@ -248,7 +251,9 @@ class SalesOrderService
             return $value === '' ? null : $value;
         };
 
-        $requestedItems = collect($data['items'] ?? [])
+        /** @var list<array{product_variant_id: int|string, quantity: int|float|string}> $requestedItemInput */
+        $requestedItemInput = $data['items'] ?? [];
+        $requestedItems = collect($requestedItemInput)
             ->map(fn (array $item): array => [
                 'variant_id' => (int) $item['product_variant_id'],
                 'quantity' => number_format((float) $item['quantity'], 4, '.', ''),
@@ -294,6 +299,7 @@ class SalesOrderService
      * Update a pending order while preserving atomic stock reservation semantics.
      * Confirmed or partially fulfilled orders are immutable through this endpoint.
      */
+    /** @param array<string, mixed> $data */
     public function updatePending(SalesOrder $order, array $data, User $actor): SalesOrder
     {
         return DB::transaction(function () use ($order, $data, $actor): SalesOrder {
@@ -352,11 +358,12 @@ class SalesOrderService
             $subtotal = '0.00';
             foreach ($data['items'] as $line) {
                 $variant = ProductVariant::query()
+                    ->whereHas('product')
                     ->with('product')
                     ->lockForUpdate()
-                    ->find($line['product_variant_id']);
+                    ->find((int) $line['product_variant_id']);
 
-                if (! $variant || $variant->status !== 'active' || ! $variant->product || $variant->product->status !== 'active') {
+                if (! $variant || $variant->status !== 'active' || $variant->product->status !== 'active') {
                     throw ValidationException::withMessages(['items' => 'One of the selected products is no longer available for sale.']);
                 }
 
@@ -404,14 +411,14 @@ class SalesOrderService
 
                 $reservation = $this->reservations->reserve(array_merge(
                     $this->reservationOwner($variant, (int) $location->id), [
-                    'location_id' => $location->id,
-                    'quantity' => $qty,
-                    'purpose' => $purpose->key,
-                    'reference_type' => 'sales_order',
-                    'reference_id' => (string) $locked->id,
-                    'reason' => 'Sales order '.$locked->order_number.' (edited)',
-                    'expires_at' => now()->addHours(72),
-                ]), $actor);
+                        'location_id' => $location->id,
+                        'quantity' => $qty,
+                        'purpose' => $purpose->key,
+                        'reference_type' => 'sales_order',
+                        'reference_id' => (string) $locked->id,
+                        'reason' => 'Sales order '.$locked->order_number.' (edited)',
+                        'expires_at' => now()->addHours(72),
+                    ]), $actor);
 
                 $item->reservation_id = $reservation->id;
                 $item->save();
@@ -462,7 +469,7 @@ class SalesOrderService
                 'engine' => 'commercial_pricing_v1',
                 'price_basis' => 'catalogue_and_commercial_rules',
                 'promotion_code' => $promotionResult['promotion_code'],
-                'applied_promotions' => $promotionResult['applied_promotions'] ?? [],
+                'applied_promotions' => $promotionResult['applied_promotions'],
                 'promotion_discount' => $promotionResult['discount_total'],
                 'manual_discount' => $manualDiscount,
                 'total_discount' => $discountTotal,
@@ -571,6 +578,7 @@ class SalesOrderService
         }, 3);
     }
 
+    /** @param array<string, mixed> $data */
     public function fulfill(SalesOrder $order, array $data, User $actor): SalesOrder
     {
         return DB::transaction(function () use ($order, $data, $actor): SalesOrder {
@@ -591,7 +599,9 @@ class SalesOrderService
             }
 
             $items = SalesOrderItem::query()->where('sales_order_id', $locked->id)->lockForUpdate()->get()->keyBy('id');
-            $requested = collect($data['items'])->keyBy(fn (array $line): int => (int) $line['sales_order_item_id']);
+            /** @var list<array{sales_order_item_id: int|string, quantity: int|float|string}> $requestedItemInput */
+            $requestedItemInput = $data['items'];
+            $requested = collect($requestedItemInput)->keyBy(fn (array $line): int => (int) $line['sales_order_item_id']);
             $fulfillment = SalesOrderFulfillment::query()->create([
                 'fulfillment_number' => 'FUL-'.now()->format('ymd').'-'.Str::upper(Str::random(8)),
                 'sales_order_id' => $locked->id,

@@ -3,11 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Models\Customer;
+use App\Services\CustomerIdentityService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
-use App\Services\CustomerIdentityService;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
@@ -57,6 +57,7 @@ class CustomerController extends Controller
         $customer = DB::transaction(function () use ($data, $identities): Customer {
             $identities->assertAvailable($data['phone'] ?? null, $data['email'] ?? null);
             $data['customer_code'] = $this->newCode();
+
             return Customer::create($data);
         });
 
