@@ -415,6 +415,17 @@ Route::middleware('auth')->group(function () {
         ]);
     })->name('payments.index');
 
+    Route::get('/procurement', function () {
+        $user = request()->user();
+        abort_unless($user !== null, 401);
+        abort_unless($user->can('system.procurement.view'), 403);
+
+        return Inertia::render('Procurement/Index', [
+            'userName' => $user->name,
+            'userEmail' => $user->email,
+        ]);
+    })->name('procurement.index');
+
     Route::get('/finance', function () {
         $user = request()->user();
         abort_unless($user !== null, 401);

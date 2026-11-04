@@ -983,7 +983,26 @@ class SystemAuthorizationSeeder extends Seeder
             ],
 
             [
+                'name' => 'Procurement & Suppliers',
+                'slug' => 'procurement',
+                'description' => 'Supplier records, purchase requisitions, purchase orders, receiving, invoices and supplier payments.',
+                'icon' => 'shopping-cart',
+                'sort_order' => 75,
+                'permissions' => [
+                    ['name' => 'View Procurement', 'slug' => 'system.procurement.view', 'description' => 'View suppliers and procurement documents within assigned locations.'],
+                    ['name' => 'Manage Suppliers', 'slug' => 'system.procurement.suppliers.manage', 'description' => 'Create and update supplier records.'],
+                    ['name' => 'Create Purchase Requisitions', 'slug' => 'system.procurement.requisitions.create', 'description' => 'Create purchase requisitions.'],
+                    ['name' => 'Approve Purchase Requisitions', 'slug' => 'system.procurement.requisitions.approve', 'description' => 'Approve purchase requisitions.'],
+                    ['name' => 'Create Purchase Orders', 'slug' => 'system.procurement.orders.create', 'description' => 'Create purchase orders.'],
+                    ['name' => 'Approve Purchase Orders', 'slug' => 'system.procurement.orders.approve', 'description' => 'Approve purchase orders.'],
+                    ['name' => 'Receive Purchase Orders', 'slug' => 'system.procurement.receiving.manage', 'description' => 'Receive goods and post goods receipt notes.'],
+                    ['name' => 'Manage Supplier Invoices', 'slug' => 'system.procurement.invoices.manage', 'description' => 'Record and post supplier invoices.'],
+                    ['name' => 'Manage Supplier Payments', 'slug' => 'system.procurement.payments.manage', 'description' => 'Record supplier payments.'],
+                    ['name' => 'Manage Supplier Returns', 'slug' => 'system.procurement.returns.manage', 'description' => 'Return received goods to suppliers and post credit adjustments.'],
+                ],
+            ],
 
+            [
                 'name' => 'Shipping & Delivery',
 
                 'slug' => 'shipping',

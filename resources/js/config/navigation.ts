@@ -183,6 +183,16 @@ export const primaryNavigation: NavigationItem[] = [
     },
 
     {
+        label: 'Procurement & Suppliers',
+        icon: 'shopping-cart',
+        expandable: true,
+        permission: 'system.procurement.view',
+        children: [
+            { label: 'Procurement Overview', href: '/procurement', icon: 'layout-dashboard', permission: 'system.procurement.view' },
+        ],
+    },
+
+    {
         label: 'Shipping & Delivery',
         icon: 'shipping',
         expandable: true,

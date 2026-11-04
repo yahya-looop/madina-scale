@@ -25,6 +25,7 @@ use App\Http\Controllers\OrderOperationsController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\PricingPromotionController;
+use App\Http\Controllers\ProcurementController;
 use App\Http\Controllers\ProductCategoryController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProductVariantController;
@@ -149,6 +150,24 @@ Route::middleware(['web', 'auth'])->group(function () {
         ->middleware('permission:system.orders.shipment.manage');
     Route::post('/orders/{order}/shipments/{shipment}/retry', [OrderOperationsController::class, 'retryShipment'])
         ->middleware('permission:system.orders.shipment.manage');
+
+    /*
+    |--------------------------------------------------------------------------
+    | Procurement & Suppliers — purchase-to-pay operations
+    |--------------------------------------------------------------------------
+    */
+    Route::get('/procurement/overview', [ProcurementController::class, 'overview'])->middleware('permission:system.procurement.view');
+    Route::post('/procurement/suppliers', [ProcurementController::class, 'storeSupplier'])->middleware('permission:system.procurement.suppliers.manage');
+    Route::put('/procurement/suppliers/{supplier}', [ProcurementController::class, 'updateSupplier'])->middleware('permission:system.procurement.suppliers.manage');
+    Route::post('/procurement/requisitions', [ProcurementController::class, 'storeRequisition'])->middleware('permission:system.procurement.requisitions.create');
+    Route::post('/procurement/requisitions/{requisition}/approve', [ProcurementController::class, 'approveRequisition'])->middleware('permission:system.procurement.requisitions.approve');
+    Route::post('/procurement/orders', [ProcurementController::class, 'storePurchaseOrder'])->middleware('permission:system.procurement.orders.create');
+    Route::post('/procurement/orders/{purchaseOrder}/approve', [ProcurementController::class, 'approvePurchaseOrder'])->middleware('permission:system.procurement.orders.approve');
+    Route::post('/procurement/orders/{purchaseOrder}/receive', [ProcurementController::class, 'receiveGoods'])->middleware('permission:system.procurement.receiving.manage');
+    Route::post('/procurement/orders/{purchaseOrder}/invoices', [ProcurementController::class, 'storeInvoice'])->middleware('permission:system.procurement.invoices.manage');
+    Route::post('/procurement/invoices/{invoice}/post', [ProcurementController::class, 'postInvoice'])->middleware('permission:system.procurement.invoices.manage');
+    Route::post('/procurement/invoices/{invoice}/payments', [ProcurementController::class, 'payInvoice'])->middleware('permission:system.procurement.payments.manage');
+    Route::post('/procurement/invoices/{invoice}/returns', [ProcurementController::class, 'returnToSupplier'])->middleware('permission:system.procurement.returns.manage');
 
     /*
     |--------------------------------------------------------------------------

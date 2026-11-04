@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class JournalEntryLine extends Model
 {
     protected $fillable = [
-        'journal_entry_id', 'account_id', 'location_id', 'customer_id',
+        'journal_entry_id', 'account_id', 'location_id', 'customer_id', 'supplier_id',
         'description', 'debit', 'credit',
     ];
 
@@ -33,6 +33,12 @@ class JournalEntryLine extends Model
     public function customer(): BelongsTo
     {
         return $this->belongsTo(Customer::class);
+    }
+
+    /** @return BelongsTo<Supplier, $this> */
+    public function supplier(): BelongsTo
+    {
+        return $this->belongsTo(Supplier::class);
     }
 
     /** @return BelongsTo<Location, $this> */

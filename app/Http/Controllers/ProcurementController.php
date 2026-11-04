@@ -1,0 +1,260 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\FinancialAccount;
+use App\Models\GoodsReceipt;
+use App\Models\Product;
+use App\Models\ProductVariant;
+use App\Models\PurchaseOrder;
+use App\Models\PurchaseRequisition;
+use App\Models\Supplier;
+use App\Models\SupplierInvoice;
+use App\Models\SupplierPayment;
+use App\Models\SupplierReturn;
+use App\Services\ActivityLogService;
+use App\Services\LocationInventoryAccessService;
+use App\Services\ProcurementService;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
+
+class ProcurementController extends Controller
+{
+    public function __construct(
+        private readonly ProcurementService $procurement,
+        private readonly LocationInventoryAccessService $locationAccess,
+        private readonly ActivityLogService $activityLog,
+    ) {}
+
+    public function overview(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $locations = $this->locationAccess->viewableLocations($user);
+        $locationIds = $locations->pluck('id')->all();
+        $payableAccountId = FinancialAccount::query()->where('code', '2000')->value('id');
+        $supplierBalances = $payableAccountId
+            ? DB::table('journal_entry_lines')
+                ->join('journal_entries', 'journal_entries.id', '=', 'journal_entry_lines.journal_entry_id')
+                ->where('journal_entries.status', 'posted')
+                ->where('journal_entry_lines.account_id', $payableAccountId)
+                ->whereNotNull('journal_entry_lines.supplier_id')
+                ->whereIn('journal_entry_lines.location_id', $locationIds)
+                ->groupBy('journal_entry_lines.supplier_id')
+                ->selectRaw('journal_entry_lines.supplier_id, SUM(journal_entry_lines.credit - journal_entry_lines.debit) AS balance')
+                ->get()
+            : collect();
+        $outstandingPayable = (string) DB::table('journal_entry_lines')
+            ->join('journal_entries', 'journal_entries.id', '=', 'journal_entry_lines.journal_entry_id')
+            ->where('journal_entries.status', 'posted')
+            ->where('journal_entry_lines.account_id', $payableAccountId)
+            ->whereNotNull('journal_entry_lines.supplier_id')
+            ->whereIn('journal_entry_lines.location_id', $locationIds)
+            ->selectRaw('COALESCE(SUM(journal_entry_lines.credit - journal_entry_lines.debit), 0) AS balance')
+            ->value('balance');
+
+        return response()->json([
+            'suppliers' => Supplier::query()->withCount('purchaseOrders')->orderBy('name')->get(),
+            'requisitions' => PurchaseRequisition::query()->with(['location', 'items'])->whereIn('location_id', $locationIds)->latest()->limit(100)->get(),
+            'purchase_orders' => PurchaseOrder::query()->with(['supplier', 'location', 'items.product:id,name,sku', 'items.variant:id,product_id,name,sku', 'items.variant.product:id,name'])->whereIn('location_id', $locationIds)->latest()->limit(100)->get(),
+            'goods_receipts' => GoodsReceipt::query()->with(['items'])->whereIn('location_id', $locationIds)->latest()->limit(100)->get(),
+            'invoices' => SupplierInvoice::query()->with(['supplier', 'purchaseOrder', 'items'])->whereHas('purchaseOrder', fn ($query) => $query->whereIn('location_id', $locationIds))->latest()->limit(100)->get(),
+            'payments' => SupplierPayment::query()->with(['supplierInvoice'])->whereIn('location_id', $locationIds)->latest()->limit(100)->get(),
+            'returns' => SupplierReturn::query()->with(['items'])->whereIn('location_id', $locationIds)->latest()->limit(100)->get(),
+            'locations' => $locations,
+            'products' => Product::query()->where('status', 'active')->where('product_type', 'simple')->orderBy('name')->get(['id', 'name', 'sku']),
+            'variants' => ProductVariant::query()->where('status', 'active')->with('product:id,name')->orderBy('sku')->get(['id', 'product_id', 'name', 'sku']),
+            'cash_accounts' => FinancialAccount::query()->where('is_active', true)->where('is_cash_bank', true)->orderBy('code')->get(['id', 'code', 'name']),
+            'supplier_balances' => $supplierBalances,
+            'summary' => [
+                'active_suppliers' => Supplier::query()->where('status', 'active')->count(),
+                'open_purchase_orders' => PurchaseOrder::query()->whereIn('location_id', $locationIds)->whereIn('status', ['approved', 'partially_received'])->count(),
+                'unpaid_invoices' => SupplierInvoice::query()->whereHas('purchaseOrder', fn ($query) => $query->whereIn('location_id', $locationIds))->whereIn('status', ['posted', 'partially_paid'])->count(),
+                'outstanding_payable' => $outstandingPayable,
+            ],
+        ]);
+    }
+
+    public function storeSupplier(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'supplier_code' => ['nullable', 'string', 'max:40', 'unique:suppliers,supplier_code'],
+            'name' => ['required', 'string', 'max:180'],
+            'legal_name' => ['nullable', 'string', 'max:180'],
+            'email' => ['nullable', 'email', 'max:180'],
+            'phone' => ['nullable', 'string', 'max:40'],
+            'tax_number' => ['nullable', 'string', 'max:80'],
+            'contact_person' => ['nullable', 'string', 'max:120'],
+            'address' => ['nullable', 'string', 'max:5000'],
+            'city' => ['nullable', 'string', 'max:100'],
+            'country' => ['nullable', 'string', 'max:100'],
+            'payment_terms' => ['nullable', 'string', 'max:120'],
+            'credit_days' => ['nullable', 'integer', 'min:0', 'max:3650'],
+            'notes' => ['nullable', 'string', 'max:5000'],
+        ]);
+        $data['supplier_code'] = $data['supplier_code'] ?: 'SUP-'.strtoupper(Str::random(8));
+        $data['created_by'] = $request->user()->id;
+        $supplier = Supplier::query()->create($data);
+        $this->activityLog->recordForUser($request->user(), 'created', 'procurement', 'Created supplier '.$supplier->supplier_code, $supplier);
+
+        return response()->json(['supplier' => $supplier], 201);
+    }
+
+    public function updateSupplier(Request $request, Supplier $supplier): JsonResponse
+    {
+        $data = $request->validate([
+            'name' => ['sometimes', 'required', 'string', 'max:180'],
+            'legal_name' => ['nullable', 'string', 'max:180'],
+            'email' => ['nullable', 'email', 'max:180'],
+            'phone' => ['nullable', 'string', 'max:40'],
+            'tax_number' => ['nullable', 'string', 'max:80'],
+            'contact_person' => ['nullable', 'string', 'max:120'],
+            'address' => ['nullable', 'string', 'max:5000'],
+            'city' => ['nullable', 'string', 'max:100'],
+            'country' => ['nullable', 'string', 'max:100'],
+            'payment_terms' => ['nullable', 'string', 'max:120'],
+            'credit_days' => ['nullable', 'integer', 'min:0', 'max:3650'],
+            'status' => ['sometimes', Rule::in(['active', 'inactive', 'blocked'])],
+            'notes' => ['nullable', 'string', 'max:5000'],
+        ]);
+        $oldValues = $supplier->only(array_keys($data));
+        $supplier->update($data);
+        $this->activityLog->recordForUser($request->user(), 'updated', 'procurement', 'Updated supplier '.$supplier->supplier_code, $supplier, $oldValues, $supplier->only(array_keys($data)));
+
+        return response()->json(['supplier' => $supplier->fresh()]);
+    }
+
+    public function storeRequisition(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'location_id' => ['required', 'integer', 'exists:locations,id'],
+            'purpose' => ['nullable', 'string', 'max:5000'],
+            'required_by' => ['nullable', 'date'],
+            'items' => ['required', 'array', 'min:1'],
+            'items.*.product_id' => ['nullable', 'integer', 'exists:products,id'],
+            'items.*.product_variant_id' => ['nullable', 'integer', 'exists:product_variants,id'],
+            'items.*.quantity' => ['required', 'regex:/^\d{1,14}(?:\.\d{1,4})?$/'],
+            'items.*.notes' => ['nullable', 'string', 'max:1000'],
+        ]);
+        $this->locationAccess->assertManage($request->user(), (int) $data['location_id']);
+        $requisition = $this->procurement->createRequisition($data, $request->user());
+
+        return response()->json(['requisition' => $requisition], 201);
+    }
+
+    public function approveRequisition(Request $request, PurchaseRequisition $requisition): JsonResponse
+    {
+        $this->locationAccess->assertManage($request->user(), (int) $requisition->location_id);
+
+        return response()->json(['requisition' => $this->procurement->approveRequisition($requisition, $request->user())]);
+    }
+
+    public function storePurchaseOrder(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'supplier_id' => ['required', 'integer', 'exists:suppliers,id'],
+            'location_id' => ['required', 'integer', 'exists:locations,id'],
+            'purchase_requisition_id' => ['nullable', 'integer', 'exists:purchase_requisitions,id'],
+            'order_date' => ['nullable', 'date'],
+            'expected_at' => ['nullable', 'date', 'after_or_equal:order_date'],
+            'currency' => ['nullable', 'string', 'size:3'],
+            'notes' => ['nullable', 'string', 'max:5000'],
+            'items' => ['required', 'array', 'min:1'],
+            'items.*.product_id' => ['nullable', 'integer', 'exists:products,id'],
+            'items.*.product_variant_id' => ['nullable', 'integer', 'exists:product_variants,id'],
+            'items.*.description' => ['nullable', 'string', 'max:255'],
+            'items.*.quantity' => ['required', 'regex:/^\d{1,14}(?:\.\d{1,4})?$/'],
+            'items.*.unit_cost' => ['required', 'regex:/^\d{1,14}(?:\.\d{1,2})?$/'],
+            'items.*.discount_amount' => ['nullable', 'regex:/^\d{1,14}(?:\.\d{1,2})?$/'],
+            'items.*.tax_amount' => ['nullable', 'regex:/^\d{1,14}(?:\.\d{1,2})?$/'],
+        ]);
+        $this->locationAccess->assertManage($request->user(), (int) $data['location_id']);
+        $po = $this->procurement->createPurchaseOrder($data, $request->user());
+
+        return response()->json(['purchase_order' => $po], 201);
+    }
+
+    public function approvePurchaseOrder(Request $request, PurchaseOrder $purchaseOrder): JsonResponse
+    {
+        $this->locationAccess->assertManage($request->user(), (int) $purchaseOrder->location_id);
+
+        return response()->json(['purchase_order' => $this->procurement->approvePurchaseOrder($purchaseOrder, $request->user())]);
+    }
+
+    public function receiveGoods(Request $request, PurchaseOrder $purchaseOrder): JsonResponse
+    {
+        $this->locationAccess->assertReceive($request->user(), (int) $purchaseOrder->location_id);
+        $data = $request->validate([
+            'received_date' => ['nullable', 'date'],
+            'delivery_note' => ['nullable', 'string', 'max:120'],
+            'notes' => ['nullable', 'string', 'max:5000'],
+            'idempotency_key' => ['required', 'uuid'],
+            'items' => ['required', 'array', 'min:1'],
+            'items.*.purchase_order_item_id' => ['required', 'integer', 'exists:purchase_order_items,id'],
+            'items.*.received_quantity' => ['required', 'regex:/^\d{1,14}(?:\.\d{1,4})?$/'],
+            'items.*.accepted_quantity' => ['required', 'regex:/^\d{1,14}(?:\.\d{1,4})?$/'],
+            'items.*.rejected_quantity' => ['nullable', 'regex:/^\d{1,14}(?:\.\d{1,4})?$/'],
+            'items.*.rejection_reason' => ['nullable', 'string', 'max:255'],
+        ]);
+        $receipt = $this->procurement->receiveGoods($purchaseOrder, $data, $request->user());
+
+        return response()->json(['goods_receipt' => $receipt], 201);
+    }
+
+    public function storeInvoice(Request $request, PurchaseOrder $purchaseOrder): JsonResponse
+    {
+        $this->locationAccess->assertManage($request->user(), (int) $purchaseOrder->location_id);
+        $data = $request->validate([
+            'invoice_number' => ['required', 'string', 'max:100', Rule::unique('supplier_invoices', 'invoice_number')->where('supplier_id', $purchaseOrder->supplier_id)],
+            'invoice_date' => ['required', 'date'],
+            'due_date' => ['nullable', 'date', 'after_or_equal:invoice_date'],
+            'items' => ['required', 'array', 'min:1'],
+            'items.*.purchase_order_item_id' => ['required', 'integer', 'exists:purchase_order_items,id'],
+            'items.*.quantity' => ['required', 'regex:/^\d{1,14}(?:\.\d{1,4})?$/'],
+            'items.*.unit_cost' => ['required', 'regex:/^\d{1,14}(?:\.\d{1,2})?$/'],
+            'tax_total' => ['nullable', 'regex:/^\d{1,14}(?:\.\d{1,2})?$/'],
+            'discount_total' => ['nullable', 'regex:/^\d{1,14}(?:\.\d{1,2})?$/'],
+        ]);
+
+        return response()->json(['invoice' => $this->procurement->createSupplierInvoice($purchaseOrder, $data, $request->user())], 201);
+    }
+
+    public function postInvoice(Request $request, SupplierInvoice $invoice): JsonResponse
+    {
+        $this->locationAccess->assertManage($request->user(), (int) $invoice->purchaseOrder()->value('location_id'));
+
+        return response()->json(['invoice' => $this->procurement->postSupplierInvoice($invoice, $request->user())]);
+    }
+
+    public function payInvoice(Request $request, SupplierInvoice $invoice): JsonResponse
+    {
+        $this->locationAccess->assertManage($request->user(), (int) $invoice->purchaseOrder()->value('location_id'));
+        $data = $request->validate([
+            'payment_date' => ['required', 'date'],
+            'amount' => ['required', 'regex:/^\d{1,14}(?:\.\d{1,2})?$/'],
+            'payment_method' => ['required', Rule::in(['cash', 'bank', 'mobile_banking', 'card', 'other'])],
+            'cash_account_id' => ['required', 'integer', 'exists:financial_accounts,id'],
+            'reference' => ['nullable', 'string', 'max:120'],
+            'idempotency_key' => ['required', 'uuid'],
+        ]);
+
+        return response()->json(['payment' => $this->procurement->paySupplierInvoice($invoice, $data, $request->user())], 201);
+    }
+
+    public function returnToSupplier(Request $request, SupplierInvoice $invoice): JsonResponse
+    {
+        $this->locationAccess->assertManage($request->user(), (int) $invoice->purchaseOrder()->value('location_id'));
+        $data = $request->validate([
+            'return_date' => ['nullable', 'date'],
+            'reason' => ['required', 'string', 'max:2000'],
+            'idempotency_key' => ['required', 'uuid'],
+            'items' => ['required', 'array', 'min:1'],
+            'items.*.purchase_order_item_id' => ['required', 'integer', 'exists:purchase_order_items,id'],
+            'items.*.quantity' => ['required', 'regex:/^\d{1,14}(?:\.\d{1,4})?$/'],
+        ]);
+
+        return response()->json(['supplier_return' => $this->procurement->returnToSupplier($invoice, $data, $request->user())], 201);
+    }
+}
