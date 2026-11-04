@@ -56,7 +56,10 @@ class ProcurementController extends Controller
             ->value('balance');
 
         return response()->json([
-            'suppliers' => Supplier::query()->withCount('purchaseOrders')->orderBy('name')->get(),
+            'suppliers' => Supplier::query()
+                ->withCount(['purchaseOrders' => fn ($query) => $query->whereIn('location_id', $locationIds)])
+                ->orderBy('name')
+                ->get(),
             'requisitions' => PurchaseRequisition::query()->with(['location', 'items'])->whereIn('location_id', $locationIds)->latest()->limit(100)->get(),
             'purchase_orders' => PurchaseOrder::query()->with(['supplier', 'location', 'items.product:id,name,sku', 'items.variant:id,product_id,name,sku', 'items.variant.product:id,name'])->whereIn('location_id', $locationIds)->latest()->limit(100)->get(),
             'goods_receipts' => GoodsReceipt::query()->with(['items'])->whereIn('location_id', $locationIds)->latest()->limit(100)->get(),

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import { Head, Link } from '@inertiajs/vue3';
+import { Head, Link, router } from '@inertiajs/vue3';
 import Icon from '@/components/dashboard/Icon.vue';
 
 interface StoreVariant {
@@ -69,6 +69,11 @@ const selectedVariant = computed(
 const displayedPrice = computed(
     () => selectedVariant.value?.price ?? props.product.price,
 );
+
+function addToCart(): void {
+    if (!selectedVariant.value) return;
+    router.post('/cart/items', { product_variant_id: selectedVariant.value.id, quantity: 1 }, { preserveScroll: true });
+}
 
 function formatPrice(value: string | null): string {
     if (value === null)
@@ -237,6 +242,12 @@ function formatPrice(value: string | null): string {
                             </option>
                         </select>
                     </div>
+                    <div class="mt-7 flex flex-wrap gap-3">
+                        <button type="button" :disabled="!selectedVariant" @click="addToCart" class="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-emerald-700 px-6 py-3.5 text-sm font-bold text-white shadow-lg shadow-emerald-900/10 transition hover:bg-emerald-800 disabled:opacity-50">
+                            <Icon name="shopping-cart" :size="18" /> {{ language === 'bn' ? 'কার্টে যোগ করুন' : 'Add to cart' }}
+                        </button>
+                        <Link href="/cart" class="inline-flex items-center justify-center rounded-xl border border-slate-200 px-5 py-3.5 text-sm font-bold text-slate-700 hover:bg-slate-50">{{ language === 'bn' ? 'কার্ট দেখুন' : 'View cart' }}</Link>
+                    </div>
                     <div v-if="product.description" class="mt-7">
                         <h2 class="text-base font-bold text-slate-900">
                             {{ copy.details }}
@@ -247,15 +258,6 @@ function formatPrice(value: string | null): string {
                             {{ product.description }}
                         </div>
                     </div>
-                    <p
-                        class="mt-7 rounded-xl bg-slate-50 p-4 text-sm leading-6 text-slate-600"
-                    >
-                        {{
-                            language === 'bn'
-                                ? 'অনলাইন অর্ডার ফর্ম শিগগিরই যুক্ত হবে। আপাতত এই পৃষ্ঠায় পণ্যের তথ্য ও মূল্য দেখা যাবে।'
-                                : 'Online ordering will be added in the next phase. This page currently provides product information and pricing.'
-                        }}
-                    </p>
                 </section>
             </div>
         </main>

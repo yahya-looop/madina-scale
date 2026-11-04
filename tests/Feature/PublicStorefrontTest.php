@@ -3,6 +3,8 @@
 use App\Models\Product;
 use App\Models\ProductCategory;
 use App\Models\ProductVariant;
+use App\Models\Location;
+use App\Models\SalesOrder;
 use App\Models\Unit;
 use Inertia\Testing\AssertableInertia as Assert;
 
@@ -120,4 +122,66 @@ it('shows public product details by slug and does not expose hidden products', f
         );
 
     $this->get('/shop/hidden-scale')->assertNotFound();
+});
+
+it('allows guests to add a public product to a session cart without signing in', function (): void {
+    $product = createStorefrontProduct();
+    $variant = $product->activeVariants()->firstOrFail();
+
+    $this->post(route('storefront.cart.add'), [
+        'product_variant_id' => $variant->id,
+        'quantity' => 2,
+    ])->assertRedirect();
+
+    $this->get(route('storefront.cart'))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('Storefront/Cart')
+            ->has('items', 1)
+            ->where('items.0.variant_id', $variant->id)
+            ->where('items.0.quantity', 2)
+        );
+});
+
+it('validates Bangladesh mobile numbers before accepting a storefront order', function (): void {
+    $this->from(route('storefront.cart'))
+        ->post(route('storefront.checkout'), [
+            'customer_name' => 'Test Customer',
+            'customer_phone' => '12345',
+            'district' => 'Dhaka',
+            'address_line' => 'Test address',
+            'idempotency_key' => 'test-storefront-invalid-phone',
+        ])
+        ->assertSessionHasErrors('customer_phone');
+});
+
+
+it('places a guest storefront order using only a Bangladesh mobile number and defers stock reservation', function (): void {
+    $product = createStorefrontProduct();
+    $variant = $product->activeVariants()->firstOrFail();
+    Location::create([
+        'name' => 'Main Branch',
+        'code' => 'MAIN-STORE',
+        'type' => 'branch',
+        'is_active' => true,
+        'is_primary' => true,
+        'country_code' => 'BD',
+    ]);
+
+    $this->post(route('storefront.cart.add'), [
+        'product_variant_id' => $variant->id,
+        'quantity' => 1,
+    ])->assertRedirect();
+
+    $this->post(route('storefront.checkout'), [
+        'customer_phone' => '০১৭১২৩৪৫৬৭৮',
+        'idempotency_key' => 'storefront-phone-only-checkout-001',
+    ])->assertRedirect(route('storefront.order-success'));
+
+    $order = SalesOrder::query()->where('channel', 'storefront')->latest('id')->firstOrFail();
+    expect($order->status)->toBe('pending')
+        ->and($order->customer_phone)->toBe('01712345678')
+        ->and($order->created_by)->toBeNull()
+        ->and($order->items()->count())->toBe(1)
+        ->and($order->items()->first()?->reservation_id)->toBeNull();
 });

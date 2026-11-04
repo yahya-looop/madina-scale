@@ -169,6 +169,7 @@ class StorefrontController extends Controller
                 fn ($variant): bool => $variant->wholesale_price !== null
             ),
             'variant_count' => $variants->count(),
+            'default_variant_id' => $defaultVariant?->id,
         ];
     }
 

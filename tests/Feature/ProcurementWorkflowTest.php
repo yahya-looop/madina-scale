@@ -1,10 +1,12 @@
 <?php
 
 use App\Models\FinancialAccount;
+use App\Models\GoodsReceipt;
 use App\Models\InventoryStock;
 use App\Models\JournalEntryLine;
 use App\Models\PurchaseOrder;
 use App\Models\Supplier;
+use App\Models\SupplierPayment;
 use App\Models\User;
 use App\Services\ProcurementService;
 use Illuminate\Support\Str;
@@ -75,6 +77,15 @@ it('completes requisition, purchase order, partial goods receipt, invoice, payme
     expect($firstReceipt->journalEntry?->status)->toBe('posted');
     $replayedReceipt = $this->service->receiveGoods($po, $receiptPayload, $this->approver);
     expect($replayedReceipt->id)->toBe($firstReceipt->id);
+    expect(fn () => $this->service->receiveGoods($po, array_replace($receiptPayload, [
+        'items' => [[
+            'purchase_order_item_id' => $po->items->first()->id,
+            'received_quantity' => '7',
+            'accepted_quantity' => '7',
+            'rejected_quantity' => '0',
+        ]],
+    ]), $this->approver))->toThrow(ValidationException::class);
+    expect(GoodsReceipt::query()->where('idempotency_key', $receiptPayload['idempotency_key'])->count())->toBe(1);
 
     $this->service->receiveGoods($po->fresh(), [
         'idempotency_key' => (string) Str::uuid(),
@@ -138,6 +149,11 @@ it('completes requisition, purchase order, partial goods receipt, invoice, payme
     $replay = $this->service->paySupplierInvoice($invoice->fresh(), $paymentPayload, $this->approver);
     expect($replay->id)->toBe($payment->id)
         ->and($invoice->fresh()->status)->toBe('partially_paid')
+        ->and($invoice->fresh()->paid_total)->toBe('300.00');
+    expect(fn () => $this->service->paySupplierInvoice($invoice->fresh(), array_replace($paymentPayload, [
+        'amount' => '350.00',
+    ]), $this->approver))->toThrow(ValidationException::class);
+    expect(SupplierPayment::query()->where('idempotency_key', $paymentPayload['idempotency_key'])->count())->toBe(1)
         ->and($invoice->fresh()->paid_total)->toBe('300.00');
 
     $returnPayload = [
@@ -222,5 +238,18 @@ it('rejects over-receipt and supplier invoices above accepted goods value', func
             'quantity' => '4',
             'unit_cost' => '100.00',
         ]],
+    ], $this->requester))->toThrow(ValidationException::class);
+});
+
+it('rejects zero-quantity requisition and purchase order lines before database writes', function (): void {
+    expect(fn () => $this->service->createRequisition([
+        'location_id' => $this->location->id,
+        'items' => [['product_id' => $this->product->id, 'quantity' => '0']],
+    ], $this->requester))->toThrow(ValidationException::class);
+
+    expect(fn () => $this->service->createPurchaseOrder([
+        'supplier_id' => $this->supplier->id,
+        'location_id' => $this->location->id,
+        'items' => [['product_id' => $this->product->id, 'quantity' => '0', 'unit_cost' => '10.00']],
     ], $this->requester))->toThrow(ValidationException::class);
 });

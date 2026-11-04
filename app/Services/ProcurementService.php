@@ -44,10 +44,14 @@ class ProcurementService
             ]);
             foreach ($data['items'] as $item) {
                 $owner = $this->validateOwner($item);
+                $quantity = $this->quantity($item['quantity']);
+                if (bccomp($quantity, '0', 4) <= 0) {
+                    throw ValidationException::withMessages(['items' => 'Requisition quantity must be greater than zero.']);
+                }
                 $requisition->items()->create([
                     'product_id' => $owner['product_id'],
                     'product_variant_id' => $owner['variant_id'],
-                    'quantity' => $this->quantity($item['quantity']),
+                    'quantity' => $quantity,
                     'notes' => $item['notes'] ?? null,
                 ]);
             }
@@ -114,6 +118,9 @@ class ProcurementService
             foreach ($data['items'] as $item) {
                 $owner = $this->validateOwner($item);
                 $qty = $this->quantity($item['quantity']);
+                if (bccomp($qty, '0', 4) <= 0) {
+                    throw ValidationException::withMessages(['items' => 'Purchase order quantity must be greater than zero.']);
+                }
                 if ($requisition !== null) {
                     $requestedLine = $requisition->items->first(function ($requestLine) use ($owner): bool {
                         return $requestLine->product_id === $owner['product_id']

@@ -10,6 +10,7 @@ use App\Http\Controllers\PublicSeoController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\ShippingDeliveryController;
 use App\Http\Controllers\StorefrontController;
+use App\Http\Controllers\StorefrontCartController;
 use App\Http\Controllers\UserPageController;
 use App\Http\Controllers\WarrantyServiceController;
 use Illuminate\Support\Facades\Route;
@@ -20,8 +21,8 @@ use Inertia\Inertia;
 | Public Storefront
 |--------------------------------------------------------------------------
 |
-| Public, read-only product catalogue. Checkout and order processing will be
-| added in a later phase and will continue to use the ERP inventory source.
+| Public storefront catalogue, session cart and phone-first order placement.
+| Orders remain pending until an official executive confirms them.
 |
 */
 
@@ -30,6 +31,12 @@ Route::get('/sitemap.xml', [PublicSeoController::class, 'sitemap'])->name('seo.s
 
 Route::get('/', [StorefrontController::class, 'index'])->name('storefront.home');
 Route::get('/shop', [StorefrontController::class, 'index'])->name('storefront.index');
+Route::get('/cart', [StorefrontCartController::class, 'show'])->name('storefront.cart');
+Route::post('/cart/items', [StorefrontCartController::class, 'add'])->name('storefront.cart.add');
+Route::patch('/cart/items/{variant}', [StorefrontCartController::class, 'update'])->whereNumber('variant')->name('storefront.cart.update');
+Route::delete('/cart/items/{variant}', [StorefrontCartController::class, 'remove'])->whereNumber('variant')->name('storefront.cart.remove');
+Route::post('/checkout', [StorefrontCartController::class, 'checkout'])->middleware('throttle:10,1')->name('storefront.checkout');
+Route::get('/order-success', [StorefrontCartController::class, 'success'])->name('storefront.order-success');
 Route::get('/shop/flash-sales', fn () => Inertia::render('Storefront/FlashSales'))
     ->name('storefront.flash-sales');
 Route::get('/pages/{slug}', [PublicCmsPageController::class, 'show'])->where('slug', '[A-Za-z0-9\-]+')->name('storefront.pages.show');

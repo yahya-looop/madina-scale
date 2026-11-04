@@ -52,9 +52,9 @@ class SalesOrderService
     }
 
     /** @param array<string, mixed> $data */
-    public function create(array $data, User $actor): SalesOrder
+    public function create(array $data, ?User $actor, bool $deferInventoryReservation = false): SalesOrder
     {
-        return DB::transaction(function () use ($data, $actor): SalesOrder {
+        return DB::transaction(function () use ($data, $actor, $deferInventoryReservation): SalesOrder {
             if (! empty($data['idempotency_key'])) {
                 // PostgreSQL transaction-scoped advisory lock closes the race
                 // where identical keys arrive at different locations and thus
@@ -67,7 +67,7 @@ class SalesOrderService
 
                 $existing = SalesOrder::query()->where('idempotency_key', $data['idempotency_key'])->first();
                 if ($existing) {
-                    if ((int) $existing->created_by !== (int) $actor->id) {
+                    if ((int) ($existing->created_by ?? 0) !== (int) ($actor?->id ?? 0)) {
                         throw ValidationException::withMessages(['idempotency_key' => 'This request key has already been used. Start a new order request.']);
                     }
 
@@ -82,17 +82,21 @@ class SalesOrderService
             if (! $location || ! $location->is_active) {
                 throw ValidationException::withMessages(['location_id' => 'Choose an active location.']);
             }
-            $purpose = InventoryReservationPurpose::query()->where('key', 'customer_order')->where('is_active', true)->first();
-            if (! $purpose) {
+            $purpose = $deferInventoryReservation
+                ? null
+                : InventoryReservationPurpose::query()->where('key', 'customer_order')->where('is_active', true)->first();
+            if (! $deferInventoryReservation && ! $purpose) {
                 throw ValidationException::withMessages(['items' => 'The active “Customer order” reservation purpose is required before creating orders.']);
             }
 
             $preserveQuotePricing = (bool) ($data['preserve_quote_pricing'] ?? false);
-            $b2bAccount = ! empty($data['b2b_account_id'])
-                ? B2BAccount::query()->whereKey($data['b2b_account_id'])->lockForUpdate()->firstOrFail()
-                : (! empty($data['customer_id'])
-                    ? B2BAccount::query()->where('customer_id', $data['customer_id'])->lockForUpdate()->first()
-                    : null);
+            $b2bAccount = ($data['channel'] ?? 'backoffice') === 'storefront'
+                ? null
+                : (! empty($data['b2b_account_id'])
+                    ? B2BAccount::query()->whereKey($data['b2b_account_id'])->lockForUpdate()->firstOrFail()
+                    : (! empty($data['customer_id'])
+                        ? B2BAccount::query()->where('customer_id', $data['customer_id'])->lockForUpdate()->first()
+                        : null));
             if ($b2bAccount && $b2bAccount->status !== 'active') {
                 throw ValidationException::withMessages(['account' => 'The linked business account is not active and cannot place orders.']);
             }
@@ -113,7 +117,7 @@ class SalesOrderService
                 'tax_total' => 0,
                 'grand_total' => 0,
                 'notes' => $data['notes'] ?? null,
-                'created_by' => $actor->id,
+                'created_by' => $actor?->id,
                 'idempotency_key' => $data['idempotency_key'] ?? null,
             ]);
 
@@ -166,18 +170,23 @@ class SalesOrderService
                     ]);
                 }
 
-                $reservation = $this->reservations->reserve(array_merge(
-                    $this->reservationOwner($variant, (int) $location->id), [
-                        'location_id' => $location->id,
-                        'quantity' => $qty,
-                        'purpose' => $purpose->key,
-                        'reference_type' => 'sales_order',
-                        'reference_id' => (string) $order->id,
-                        'reason' => 'Sales order '.$order->order_number,
-                        'expires_at' => now()->addHours(72),
-                    ]), $actor);
-                $item->reservation_id = $reservation->id;
-                $item->save();
+                if (! $deferInventoryReservation) {
+                    if (! $actor || ! $purpose) {
+                        throw new \LogicException('An authenticated actor is required when reserving inventory during order creation.');
+                    }
+                    $reservation = $this->reservations->reserve(array_merge(
+                        $this->reservationOwner($variant, (int) $location->id), [
+                            'location_id' => $location->id,
+                            'quantity' => $qty,
+                            'purpose' => $purpose->key,
+                            'reference_type' => 'sales_order',
+                            'reference_id' => (string) $order->id,
+                            'reason' => 'Sales order '.$order->order_number,
+                            'expires_at' => now()->addHours(72),
+                        ]), $actor);
+                    $item->reservation_id = $reservation->id;
+                    $item->save();
+                }
             }
 
             $pricedLines = [];
@@ -227,8 +236,9 @@ class SalesOrderService
 
             SalesOrderStatusHistory::query()->create([
                 'sales_order_id' => $order->id, 'from_status' => null, 'to_status' => 'pending',
-                'reason' => 'Order created and inventory reserved.', 'metadata' => ['item_count' => count($data['items'])],
-                'changed_by' => $actor->id, 'created_at' => now(),
+                'reason' => $deferInventoryReservation ? 'Online order placed; awaiting executive confirmation.' : 'Order created and inventory reserved.',
+                'metadata' => ['item_count' => count($data['items']), 'inventory_reservation_deferred' => $deferInventoryReservation],
+                'changed_by' => $actor?->id, 'created_at' => now(),
             ]);
 
             $this->risk->assess($order);
@@ -761,6 +771,34 @@ class SalesOrderService
             $activeCount = InventoryReservation::query()
                 ->where('reference_type', 'sales_order')->where('reference_id', (string) $locked->id)
                 ->where('status', 'active')->count();
+            if ($activeCount === 0 && $locked->channel === 'storefront') {
+                $location = Location::query()->lockForUpdate()->findOrFail($locked->location_id);
+                $purpose = InventoryReservationPurpose::query()->where('key', 'customer_order')->where('is_active', true)->first();
+                if (! $purpose) {
+                    throw ValidationException::withMessages(['status' => 'The active customer-order reservation purpose is required.']);
+                }
+                foreach ($locked->items()->with('variant.product')->lockForUpdate()->get() as $item) {
+                    $variant = $item->variant;
+                    if (! $variant || $variant->status !== 'active' || $variant->product->status !== 'active') {
+                        throw ValidationException::withMessages(['status' => 'A product in this order is no longer available.']);
+                    }
+                    $reservation = $this->reservations->reserve(array_merge(
+                        $this->reservationOwner($variant, (int) $location->id), [
+                            'location_id' => $location->id,
+                            'quantity' => (string) $item->quantity,
+                            'purpose' => $purpose->key,
+                            'reference_type' => 'sales_order',
+                            'reference_id' => (string) $locked->id,
+                            'reason' => 'Executive-confirmed storefront order '.$locked->order_number,
+                            'expires_at' => now()->addHours(72),
+                        ]), $actor);
+                    $item->reservation_id = $reservation->id;
+                    $item->save();
+                }
+                $activeCount = InventoryReservation::query()
+                    ->where('reference_type', 'sales_order')->where('reference_id', (string) $locked->id)
+                    ->where('status', 'active')->count();
+            }
             if ($activeCount !== $locked->items()->count()) {
                 throw ValidationException::withMessages(['status' => 'One or more stock reservations have expired or been released. Recreate the order before confirming.']);
             }
