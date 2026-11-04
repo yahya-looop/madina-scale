@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -10,6 +11,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 class AttributeValue extends Model
 {
+    /** @use HasFactory<Factory<AttributeValue>> */
     use HasFactory, SoftDeletes;
 
     protected $fillable = [
@@ -30,6 +32,7 @@ class AttributeValue extends Model
         ];
     }
 
+    /** @return BelongsTo<Attribute, $this> */
     public function attribute(): BelongsTo
     {
         return $this->belongsTo(Attribute::class);
@@ -38,6 +41,7 @@ class AttributeValue extends Model
     /**
      * Variant mappings referencing this value.
      */
+    /** @return HasMany<ProductVariantAttributeValue, $this> */
     public function variantAttributeValues(): HasMany
     {
         return $this->hasMany(

@@ -108,6 +108,9 @@ class UnitController extends Controller
         ]);
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     private function validateUnit(
         Request $request,
         ?Unit $unit = null,

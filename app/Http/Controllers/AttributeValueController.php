@@ -137,6 +137,9 @@ class AttributeValueController extends Controller
         ]);
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     private function validateAttributeValue(
         Request $request,
         ?AttributeValue $attributeValue = null

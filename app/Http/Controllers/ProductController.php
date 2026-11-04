@@ -6,6 +6,7 @@ use App\Models\Product;
 use App\Models\ProductMedia;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -209,8 +210,8 @@ class ProductController extends Controller
                         'original_name' => $uploadedFile->getClientOriginalName(),
                         'mime_type' => $uploadedFile->getMimeType(),
                         'size' => $uploadedFile->getSize(),
-                        'width' => $imageSize !== false ? ($imageSize[0] ?? null) : null,
-                        'height' => $imageSize !== false ? ($imageSize[1] ?? null) : null,
+                        'width' => $imageSize !== false ? $imageSize[0] : null,
+                        'height' => $imageSize !== false ? $imageSize[1] : null,
                         'alt_text' => $product->name,
                         'sort_order' => $index,
                         'is_primary' => $index === 0,
@@ -283,7 +284,10 @@ class ProductController extends Controller
         unset($validated['image'], $validated['images']);
 
         $uploadedFile = $request->file('image');
-        $galleryFiles = array_values(array_filter($request->file('images', [])));
+        $galleryFiles = $request->file('images', []);
+        if ($galleryFiles instanceof UploadedFile) {
+            $galleryFiles = [$galleryFiles];
+        }
         $existingImageCount = $product->media()->where('collection', 'images')->count();
         if ($existingImageCount + count($galleryFiles) > 10) {
             throw ValidationException::withMessages([
@@ -388,10 +392,10 @@ class ProductController extends Controller
                         'mime_type' => $uploadedFile->getMimeType(),
                         'size' => $uploadedFile->getSize(),
                         'width' => $imageSize !== false
-                            ? ($imageSize[0] ?? null)
+                            ? $imageSize[0]
                             : null,
                         'height' => $imageSize !== false
-                            ? ($imageSize[1] ?? null)
+                            ? $imageSize[1]
                             : null,
                         'alt_text' => $product->name,
                         'sort_order' => 0,
@@ -436,8 +440,8 @@ class ProductController extends Controller
                         'original_name' => $galleryFile->getClientOriginalName(),
                         'mime_type' => $galleryFile->getMimeType(),
                         'size' => $galleryFile->getSize(),
-                        'width' => $imageSize !== false ? ($imageSize[0] ?? null) : null,
-                        'height' => $imageSize !== false ? ($imageSize[1] ?? null) : null,
+                        'width' => $imageSize !== false ? $imageSize[0] : null,
+                        'height' => $imageSize !== false ? $imageSize[1] : null,
                         'alt_text' => $product->name,
                         'sort_order' => $nextOrder + $index,
                         'is_primary' => ! $hasPrimary && $index === 0,
@@ -449,7 +453,7 @@ class ProductController extends Controller
         } catch (\Throwable $exception) {
             // The DB transaction rolls back on failure. Remove only files
             // uploaded by this request; retain previous product media.
-            if ($storedPath !== null) {
+            if (is_string($storedPath)) {
                 Storage::disk('public')->delete($storedPath);
             }
             foreach ($additionalStoredPaths as $path) {
@@ -503,6 +507,9 @@ class ProductController extends Controller
         ]);
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     private function validateProduct(
         Request $request,
         ?Product $product = null

@@ -109,6 +109,9 @@ class BrandController extends Controller
         ]);
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     private function validateBrand(
         Request $request,
         ?Brand $brand = null,

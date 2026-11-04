@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -9,6 +10,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Attribute extends Model
 {
+    /** @use HasFactory<Factory<Attribute>> */
     use HasFactory, SoftDeletes;
 
     protected $fillable = [
@@ -30,6 +32,7 @@ class Attribute extends Model
     /**
      * Values belonging to this attribute.
      */
+    /** @return HasMany<AttributeValue, $this> */
     public function values(): HasMany
     {
         return $this->hasMany(AttributeValue::class);
@@ -38,6 +41,7 @@ class Attribute extends Model
     /**
      * Variant mappings that use this attribute.
      */
+    /** @return HasMany<ProductVariantAttributeValue, $this> */
     public function variantAttributeValues(): HasMany
     {
         return $this->hasMany(

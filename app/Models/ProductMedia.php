@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -9,6 +10,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 class ProductMedia extends Model
 {
+    /** @use HasFactory<Factory<ProductMedia>> */
     use HasFactory, SoftDeletes;
 
     protected $table = 'product_media';
@@ -39,6 +41,7 @@ class ProductMedia extends Model
     /**
      * Product that owns this media item.
      */
+    /** @return BelongsTo<Product, $this> */
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);

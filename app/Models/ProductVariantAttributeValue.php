@@ -2,12 +2,14 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ProductVariantAttributeValue extends Model
 {
+    /** @use HasFactory<Factory<ProductVariantAttributeValue>> */
     use HasFactory;
 
     protected $fillable = [
@@ -25,6 +27,7 @@ class ProductVariantAttributeValue extends Model
         ];
     }
 
+    /** @return BelongsTo<ProductVariant, $this> */
     public function productVariant(): BelongsTo
     {
         return $this->belongsTo(
@@ -33,11 +36,13 @@ class ProductVariantAttributeValue extends Model
         );
     }
 
+    /** @return BelongsTo<Attribute, $this> */
     public function attribute(): BelongsTo
     {
         return $this->belongsTo(Attribute::class);
     }
 
+    /** @return BelongsTo<AttributeValue, $this> */
     public function attributeValue(): BelongsTo
     {
         return $this->belongsTo(AttributeValue::class);
