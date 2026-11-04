@@ -32,8 +32,16 @@ class StorefrontCartController extends Controller
             'product_variant_id' => ['required', 'integer', 'exists:product_variants,id'],
             'quantity' => ['nullable', 'integer', 'min:1', 'max:99'],
         ]);
-        $variant = ProductVariant::query()->with('product')->where('status', 'active')->findOrFail($data['product_variant_id']);
-        abort_unless($variant->product && $variant->product->status === 'active' && $variant->product->visibility === 'visible', 404);
+        $variant = ProductVariant::query()
+            ->where('status', 'active')
+            ->whereKey((int) $data['product_variant_id'])
+            ->whereHas('product', function ($query): void {
+                $query->where('status', 'active')
+                    ->where('visibility', 'visible');
+            })
+            ->first();
+
+        abort_unless($variant instanceof ProductVariant, 404);
 
         $cart = $request->session()->get('storefront_cart', []);
         $key = (string) $variant->id;
@@ -171,8 +179,8 @@ class StorefrontCartController extends Controller
             ->whereIn('id', array_keys($cart))->where('status', 'active')->get()->keyBy('id');
         $items = [];
         foreach ($cart as $id => $quantity) {
-            $variant = $variants->get((int) $id);
-            if (! $variant || ! $variant->product || $variant->product->status !== 'active' || $variant->product->visibility !== 'visible') {
+            $variant = $variants[(int) $id] ?? null;
+            if (! $variant || $variant->product->status !== 'active' || $variant->product->visibility !== 'visible') {
                 continue;
             }
             $items[] = [

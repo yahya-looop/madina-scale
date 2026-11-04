@@ -7,6 +7,7 @@ type CartItem = { variant_id: number; product_name: string; variant_name: string
 const props = defineProps<{ items: CartItem[]; subtotal: number }>();
 const form = useForm({ customer_name: '', customer_phone: '', division: '', district: '', area: '', address_line: '', notes: '', idempotency_key: globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}` });
 const total = computed(() => props.items.reduce((sum, item) => sum + Number(item.price) * item.quantity, 0));
+const cartError = computed(() => (form.errors as Record<string, string | undefined>).cart);
 const money = (value: number) => new Intl.NumberFormat('bn-BD', { style: 'currency', currency: 'BDT', maximumFractionDigits: 2 }).format(value);
 function checkout() { form.post('/checkout'); }
 </script>
@@ -33,7 +34,7 @@ function checkout() { form.post('/checkout'); }
                     <label class="block text-sm font-semibold">এলাকা / থানা<input v-model="form.area" class="mt-1.5 w-full rounded-xl border px-3 py-3" placeholder="এলাকা বা থানা"/></label>
                     <label class="block text-sm font-semibold">সম্পূর্ণ ডেলিভারি ঠিকানা (ঐচ্ছিক)<textarea v-model="form.address_line" rows="3" class="mt-1.5 w-full rounded-xl border px-3 py-3" placeholder="বাসা/রোড/মার্কেট, পরিচিত স্থানসহ ঠিকানা"/></label>
                     <label class="block text-sm font-semibold">অতিরিক্ত নির্দেশনা <span class="font-normal text-slate-400">(ঐচ্ছিক)</span><textarea v-model="form.notes" rows="2" class="mt-1.5 w-full rounded-xl border px-3 py-3" placeholder="ডেলিভারি সংক্রান্ত কোনো তথ্য…"/></label>
-                    <div v-if="form.errors.cart" class="rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{{ form.errors.cart }}</div>
+                    <div v-if="cartError" class="rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{{ cartError }}</div>
                     <div class="rounded-xl bg-emerald-50 p-4 text-sm leading-6 text-emerald-900">মোবাইল নম্বরটি ঠিক আছে কি না নিশ্চিত করুন। অর্ডার জমা দেওয়ার পর আমাদের টিম এই নম্বরে ফোন করবে। ফোনে নিশ্চিত হওয়ার আগে অর্ডারটি Pending থাকবে।</div>
                     <button type="submit" :disabled="form.processing || !items.length" class="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-700 px-5 py-4 font-extrabold text-white shadow-lg shadow-emerald-900/10 hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-50"><Icon name="phone-call" :size="18"/>{{ form.processing ? 'অর্ডার জমা হচ্ছে…' : `অর্ডার প্লেস করুন · ${money(total)}` }}</button>
                     <p class="text-center text-xs text-slate-400">আপনার তথ্য শুধু অর্ডার প্রসেসিং ও যোগাযোগের জন্য ব্যবহার করা হবে।</p>

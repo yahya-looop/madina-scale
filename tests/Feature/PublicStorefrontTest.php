@@ -1,9 +1,9 @@
 <?php
 
+use App\Models\Location;
 use App\Models\Product;
 use App\Models\ProductCategory;
 use App\Models\ProductVariant;
-use App\Models\Location;
 use App\Models\SalesOrder;
 use App\Models\Unit;
 use Inertia\Testing\AssertableInertia as Assert;
@@ -154,7 +154,6 @@ it('validates Bangladesh mobile numbers before accepting a storefront order', fu
         ])
         ->assertSessionHasErrors('customer_phone');
 });
-
 
 it('places a guest storefront order using only a Bangladesh mobile number and defers stock reservation', function (): void {
     $product = createStorefrontProduct();

@@ -67,7 +67,7 @@ class SalesOrderService
 
                 $existing = SalesOrder::query()->where('idempotency_key', $data['idempotency_key'])->first();
                 if ($existing) {
-                    if ((int) ($existing->created_by ?? 0) !== (int) ($actor?->id ?? 0)) {
+                    if ((int) ($existing->created_by ?? 0) !== (int) ($actor === null ? 0 : $actor->id)) {
                         throw ValidationException::withMessages(['idempotency_key' => 'This request key has already been used. Start a new order request.']);
                     }
 
@@ -171,7 +171,7 @@ class SalesOrderService
                 }
 
                 if (! $deferInventoryReservation) {
-                    if (! $actor || ! $purpose) {
+                    if ($actor === null) {
                         throw new \LogicException('An authenticated actor is required when reserving inventory during order creation.');
                     }
                     $reservation = $this->reservations->reserve(array_merge(
