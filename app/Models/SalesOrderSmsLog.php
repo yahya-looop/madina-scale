@@ -14,6 +14,7 @@ class SalesOrderSmsLog extends Model
         return ['provider_response' => 'array', 'sent_at' => 'datetime'];
     }
 
+    /** @return BelongsTo<SalesOrder, $this> */
     public function order(): BelongsTo
     {
         return $this->belongsTo(SalesOrder::class, 'sales_order_id');

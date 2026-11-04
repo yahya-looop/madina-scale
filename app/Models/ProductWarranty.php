@@ -18,21 +18,25 @@ class ProductWarranty extends Model
         return ['warranty_start' => 'date', 'warranty_end' => 'date'];
     }
 
+    /** @return BelongsTo<SalesOrder, $this> */
     public function order(): BelongsTo
     {
         return $this->belongsTo(SalesOrder::class, 'sales_order_id');
     }
 
+    /** @return BelongsTo<SalesOrderItem, $this> */
     public function orderItem(): BelongsTo
     {
         return $this->belongsTo(SalesOrderItem::class, 'sales_order_item_id');
     }
 
+    /** @return BelongsTo<Customer, $this> */
     public function customer(): BelongsTo
     {
         return $this->belongsTo(Customer::class);
     }
 
+    /** @return BelongsTo<Location, $this> */
     public function location(): BelongsTo
     {
         return $this->belongsTo(Location::class);

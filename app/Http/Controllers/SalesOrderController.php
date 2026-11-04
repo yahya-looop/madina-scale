@@ -114,7 +114,7 @@ class SalesOrderController extends Controller
             $variants = $variantRecords
                 ->map(function (ProductVariant $variant) use ($stockByVariant, $stockByProduct, $ownReservations): ?array {
                     $variantStock = $stockByVariant->get($variant->id);
-                    $productStock = $variant->product?->product_type === 'simple'
+                    $productStock = $variant->product->product_type === 'simple'
                         ? $stockByProduct->get($variant->product_id)
                         : null;
 
@@ -133,23 +133,24 @@ class SalesOrderController extends Controller
                     }
 
                     $available = bcsub((string) $stock->quantity, (string) $stock->reserved_quantity, 4);
-                    $ownReserved = (string) $ownReservations
-                        ->first(fn ($reservation) => $ownerType === 'variant'
-                            ? (int) $reservation->product_variant_id === (int) $ownerId
-                            : (int) $reservation->product_id === (int) $ownerId && $reservation->product_variant_id === null)?->reserved_for_order ?? '0.0000';
+                    $matchingReservation = $ownReservations->first(fn ($reservation) => $ownerType === 'variant'
+                        ? (int) $reservation->product_variant_id === (int) $ownerId
+                        : (int) $reservation->product_id === (int) $ownerId && $reservation->product_variant_id === null);
+                    $ownReserved = (string) ($matchingReservation->reserved_for_order ?? '0.0000');
+                    /** @var numeric-string $ownReserved */
                     $available = bcadd($available, $ownReserved, 4);
-                    $media = $variant->product?->primaryMedia;
+                    $media = $variant->product->primaryMedia;
                     $imageUrl = $media ? Storage::disk($media->disk)->url($media->path) : null;
 
                     return [
                         'id' => $variant->id,
                         'product_id' => $variant->product_id,
-                        'name' => $variant->product?->name.($variant->name ? ' · '.$variant->name : ''),
-                        'sku' => $variant->sku ?: $variant->product?->sku,
+                        'name' => $variant->product->name.($variant->name ? ' · '.$variant->name : ''),
+                        'sku' => $variant->sku ?: $variant->product->sku,
                         'price' => $variant->effectiveSellingPrice(),
                         'available' => $available,
                         'image_url' => $imageUrl,
-                        'image_alt' => $media?->alt_text ?: $variant->product?->name,
+                        'image_alt' => $media?->alt_text ?: $variant->product->name,
                         'inventory_owner' => $ownerType,
                     ];
                 })

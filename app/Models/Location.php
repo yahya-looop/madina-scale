@@ -5,10 +5,10 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
-use Illuminate\Database\Eloquent\Relations\Pivot;
 
 /**
  * @property int $id
+ * @property-read LocationUser $pivot
  * @property string $name
  * @property string $code
  * @property string $type
@@ -57,10 +57,11 @@ class Location extends Model
     }
 
     /** Users explicitly assigned to this location. */
-    /** @return BelongsToMany<User, $this, Pivot, 'pivot'> */
+    /** @return BelongsToMany<User, $this, LocationUser> */
     public function users(): BelongsToMany
     {
         return $this->belongsToMany(User::class, 'location_user', 'location_id', 'user_id')
+            ->using(LocationUser::class)
             ->withPivot(['access_level', 'assigned_by'])
             ->withTimestamps();
     }

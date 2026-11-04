@@ -16,11 +16,13 @@ class SalesOrderStatusHistory extends Model
         return ['metadata' => 'array', 'created_at' => 'datetime'];
     }
 
+    /** @return BelongsTo<SalesOrder, $this> */
     public function order(): BelongsTo
     {
         return $this->belongsTo(SalesOrder::class, 'sales_order_id');
     }
 
+    /** @return BelongsTo<User, $this> */
     public function actor(): BelongsTo
     {
         return $this->belongsTo(User::class, 'changed_by');

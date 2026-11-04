@@ -15,16 +15,19 @@ class SalesOrderFulfillment extends Model
         return ['fulfilled_at' => 'datetime'];
     }
 
+    /** @return BelongsTo<SalesOrder, $this> */
     public function order(): BelongsTo
     {
         return $this->belongsTo(SalesOrder::class, 'sales_order_id');
     }
 
+    /** @return BelongsTo<User, $this> */
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
     }
 
+    /** @return HasMany<SalesOrderFulfillmentItem, $this> */
     public function items(): HasMany
     {
         return $this->hasMany(SalesOrderFulfillmentItem::class, 'sales_order_fulfillment_id');

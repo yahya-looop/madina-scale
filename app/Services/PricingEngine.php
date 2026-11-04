@@ -39,7 +39,7 @@ class PricingEngine
      */
     public function quoteOrderDiscount(array $cart): array
     {
-        $subtotalMinor = max(0, (int) round(((float) ($cart['subtotal'] ?? 0)) * 100));
+        $subtotalMinor = max(0, (int) round(((float) $cart['subtotal']) * 100));
         $code = filled($cart['code'] ?? null) ? mb_strtoupper(trim((string) $cart['code'])) : null;
         $promotion = null;
 

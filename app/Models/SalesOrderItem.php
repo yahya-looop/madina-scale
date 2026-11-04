@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 /**
  * @property int $id
  * @property int $sales_order_id
+ * @property-read SalesOrder|null $order
  * @property int $product_id
  * @property int $product_variant_id
  * @property int|null $reservation_id

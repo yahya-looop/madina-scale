@@ -5,6 +5,7 @@ namespace App\Models;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -26,6 +27,7 @@ use Laravel\Sanctum\HasApiTokens;
  * @property int $id
  * @property string $name
  * @property string $email
+ * @property string|null $designation
  * @property Carbon|null $email_verified_at
  * @property string $password
  * @property string|null $remember_token
@@ -37,7 +39,8 @@ use Laravel\Sanctum\HasApiTokens;
  * @property Carbon|null $password_changed_at
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
- * @property-read BelongsToMany<Role, $this> $roles
+ * @property-read Collection<int, Role> $roles
+ * @property-read Collection<int, Location> $locations
  */
 #[Fillable([
     'name',
@@ -78,11 +81,12 @@ class User extends Authenticatable
     /**
      * Locations this user is explicitly assigned to.
      *
-     * @return BelongsToMany<Location, $this>
+     * @return BelongsToMany<Location, $this, LocationUser>
      */
     public function locations(): BelongsToMany
     {
         return $this->belongsToMany(Location::class, 'location_user', 'user_id', 'location_id')
+            ->using(LocationUser::class)
             ->withPivot(['access_level', 'assigned_by'])
             ->withTimestamps();
     }

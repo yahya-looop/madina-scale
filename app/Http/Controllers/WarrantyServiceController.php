@@ -21,6 +21,7 @@ use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
+use Inertia\Response;
 
 class WarrantyServiceController extends Controller
 {
@@ -31,7 +32,7 @@ class WarrantyServiceController extends Controller
         private readonly FinancialLedgerService $ledger,
     ) {}
 
-    public function page(Request $request)
+    public function page(Request $request): Response
     {
         $user = $request->user();
         abort_unless($user && $user->can('system.warranty.view'), 403);
@@ -123,11 +124,11 @@ class WarrantyServiceController extends Controller
             ->filter(fn (SalesOrderItem $item): bool => (int) $item->warranties_count < (int) floor((float) $item->quantity))
             ->map(fn (SalesOrderItem $item): array => [
                 'id' => $item->id,
-                'label' => trim(($item->order?->order_number ?? '').' — '.$item->product_name.' '.($item->variant_name ?? '').' ('.$item->sku.')'),
+                'label' => trim(($item->order->order_number ?? '').' — '.$item->product_name.' '.($item->variant_name ?? '').' ('.$item->sku.')'),
                 'sales_order_id' => $item->sales_order_id,
                 'order_number' => $item->order?->order_number,
                 'customer_id' => $item->order?->customer_id,
-                'customer_name' => $item->order?->customer?->name ?? $item->order?->customer_name,
+                'customer_name' => $item->order->customer->name ?? $item->order->customer_name,
                 'location_id' => $item->order?->location_id,
                 'quantity' => (string) $item->quantity,
             ]);
@@ -138,7 +139,7 @@ class WarrantyServiceController extends Controller
                 ->whereIn('location_user.access_level', ['view', 'receive', 'manage'])))
             ->orderBy('name')->get(['id', 'name', 'email']);
         $parts = ProductVariant::query()->with('product:id,name')->where('status', 'active')->orderBy('product_id')->orderBy('name')->limit(500)->get(['id', 'product_id', 'name', 'sku'])
-            ->map(fn (ProductVariant $variant): array => ['id' => $variant->id, 'label' => trim(($variant->product?->name ?? 'Product').' — '.($variant->name ?? '').' ('.$variant->sku.')')]);
+            ->map(fn (ProductVariant $variant): array => ['id' => $variant->id, 'label' => trim($variant->product->name.' — '.$variant->name.' ('.$variant->sku.')')]);
         $customers = Customer::query()->whereHas('orders', fn ($q) => $this->locationAccess->scopeViewable($q, $request->user()))
             ->orderBy('name')->limit(500)->get(['id', 'name', 'phone']);
 
@@ -157,6 +158,7 @@ class WarrantyServiceController extends Controller
         ]);
 
         $warranty = DB::transaction(function () use ($request, $data) {
+            /** @var SalesOrderItem $item */
             $item = SalesOrderItem::query()->with('order')->lockForUpdate()->findOrFail($data['sales_order_item_id']);
             $order = $item->order;
             abort_unless($order && in_array($order->status, ['fulfilled', 'completed'], true), 422, 'Warranty can only be registered for fulfilled or completed sales order items.');
@@ -253,7 +255,7 @@ class WarrantyServiceController extends Controller
 
         $result = DB::transaction(function () use ($request, $ticket, $data) {
             $row = DB::table('service_tickets')->where('id', $ticket)->lockForUpdate()->first();
-            abort_unless($row, 404);
+            abort_unless($row !== null, 404);
             $this->locationAccess->assertManage($request->user(), (int) $row->location_id);
             if (in_array($row->status, ['closed', 'rejected'], true)) {
                 throw ValidationException::withMessages(['ticket' => 'Parts cannot be issued to a closed or rejected ticket.']);
@@ -267,7 +269,9 @@ class WarrantyServiceController extends Controller
                     'product_variant_id' => 'This spare part has no valid cost price. Set its existing product cost before issuing it.',
                 ]);
             }
-            $quantity = bcadd((string) $data['quantity'], '0', 4);
+            /** @var numeric-string $quantityInput */
+            $quantityInput = (string) $data['quantity'];
+            $quantity = bcadd($quantityInput, '0', 4);
             $totalCost = bcadd(bcmul($unitCost, $quantity, 6), '0', 2);
             if (bccomp($totalCost, '0.00', 2) <= 0) {
                 throw ValidationException::withMessages([
@@ -363,7 +367,7 @@ class WarrantyServiceController extends Controller
 
         $updated = DB::transaction(function () use ($request, $ticket, $data) {
             $row = DB::table('service_tickets')->where('id', $ticket)->lockForUpdate()->first();
-            abort_unless($row, 404);
+            abort_unless($row !== null, 404);
             $this->locationAccess->assertManage($request->user(), (int) $row->location_id);
             $old = (array) $row;
             if (in_array($data['status'], ['resolved', 'closed'], true) && trim((string) ($data['resolution'] ?? $row->resolution ?? '')) === '') {
@@ -395,7 +399,7 @@ class WarrantyServiceController extends Controller
     private function assertTechnicianCanWorkAtLocation(int $technicianId, int $locationId): void
     {
         $technician = User::query()->whereKey($technicianId)->where('status', 'active')->first();
-        abort_unless($technician, 422, 'Assigned technician is not active.');
+        abort_unless($technician !== null, 422, 'Assigned technician is not active.');
 
         // A global location manager may work across all locations. Other users
         // must have an explicit location assignment; a view-only assignment is

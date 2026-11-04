@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Collection;
 
 /**
  * @property int $id
@@ -18,6 +19,9 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property string $product_type
  * @property string $status
  * @property string $visibility
+ * @property string|null $description
+ * @property-read Collection<int, ProductMedia> $media
+ * @property-read Collection<int, ProductVariant> $activeVariants
  */
 class Product extends Model
 {

@@ -116,6 +116,7 @@ class FinanceController extends Controller
 
         $accounts->each(function (FinancialAccount $account) use ($balances): void {
             $raw = (string) ($balances[$account->id] ?? '0.00');
+            /** @var numeric-string $raw */
             $account->setAttribute('ledger_balance', $account->normal_balance === 'credit' ? bcmul($raw, '-1', 2) : $raw);
         });
 
@@ -143,7 +144,7 @@ class FinanceController extends Controller
         }
 
         if (! empty($data['parent_id'])) {
-            $parent = FinancialAccount::query()->findOrFail($data['parent_id']);
+            $parent = FinancialAccount::query()->whereKey((int) $data['parent_id'])->firstOrFail();
             if ($parent->type !== $data['type']) {
                 return response()->json(['message' => 'A chart-of-account child must use the same account type as its parent.'], 422);
             }

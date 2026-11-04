@@ -13,6 +13,9 @@ class StoreUserRequest extends FormRequest
         return $this->user()?->can('system.users.create') ?? false;
     }
 
+    /**
+     * @return array<string, array<int, mixed>>
+     */
     public function rules(): array
     {
         return [

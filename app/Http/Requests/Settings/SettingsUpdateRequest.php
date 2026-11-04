@@ -306,6 +306,8 @@ class SettingsUpdateRequest extends FormRequest
 
     /**
      * Validate the settings payload.
+     *
+     * @return array<string, mixed>
      */
     public function rules(): array
     {
@@ -775,6 +777,8 @@ class SettingsUpdateRequest extends FormRequest
 
     /**
      * Find the submitted array index for a setting key.
+     *
+     * @param  array<array-key, mixed>  $settings
      */
     private function settingIndex(array $settings, string $key): int
     {

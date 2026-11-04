@@ -95,7 +95,9 @@ class ActivityLog extends Model
             return 'System';
         }
 
-        return $this->actor?->name ?? 'Unknown User';
+        $actor = $this->actor;
+
+        return $actor === null ? 'Unknown User' : $actor->name;
     }
 
     /**

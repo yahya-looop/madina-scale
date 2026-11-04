@@ -104,6 +104,7 @@ class StorefrontController extends Controller
         ]);
     }
 
+    /** @return Builder<Product> */
     private function publicProductsQuery(): Builder
     {
         return Product::query()

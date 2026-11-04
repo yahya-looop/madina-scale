@@ -86,8 +86,8 @@ return new class extends Migration
             $details = collect($duplicates)
                 ->map(fn (object $row): string => sprintf(
                     'product_id=%s variant_ids=%s',
-                    $row->product_id,
-                    $row->variant_ids
+                    data_get($row, 'product_id'),
+                    data_get($row, 'variant_ids')
                 ))
                 ->implode('; ');
 

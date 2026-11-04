@@ -54,6 +54,7 @@ class UserService
      *     name: string,
      *     email: string,
      *     password: string,
+     *     designation?: string|null,
      *     status?: string
      * } $attributes
      */
@@ -88,6 +89,7 @@ class UserService
      *     name: string,
      *     email: string,
      *     password?: string|null,
+     *     designation?: string|null,
      *     status?: string
      * } $attributes
      */

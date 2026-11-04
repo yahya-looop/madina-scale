@@ -92,6 +92,8 @@ class SettingsService
 
     /**
      * Get all active settings for a group.
+     *
+     * @return Collection<string, mixed>
      */
     public function getGroup(string $group): Collection
     {
@@ -113,6 +115,8 @@ class SettingsService
 
     /**
      * Get all active settings.
+     *
+     * @return Collection<string, mixed>
      */
     public function all(): Collection
     {

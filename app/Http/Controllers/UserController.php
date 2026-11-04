@@ -50,6 +50,19 @@ class UserController extends Controller
      */
     public function store(StoreUserRequest $request): JsonResponse
     {
+        /**
+         * The FormRequest validates and narrows these profile and assignment fields.
+         *
+         * @var array{
+         *     name: string,
+         *     email: string,
+         *     password: string,
+         *     designation?: string|null,
+         *     status?: string,
+         *     role_ids?: array<int, int>,
+         *     location_assignments?: array<int, array{location_id: int, access_level: string}>
+         * } $validated
+         */
         $validated = $request->validated();
 
         if (array_key_exists('location_assignments', $validated)) {
@@ -63,14 +76,14 @@ class UserController extends Controller
             if (array_key_exists('role_ids', $validated)) {
                 $user = $this->userService->syncRoles(
                     $user,
-                    $validated['role_ids'] ?? [],
+                    $validated['role_ids'],
                 );
             }
 
             if (array_key_exists('location_assignments', $validated)) {
                 $user = $this->userService->syncLocationAssignments(
                     $user,
-                    $validated['location_assignments'] ?? [],
+                    $validated['location_assignments'],
                     (int) $request->user()->id,
                 );
             }
@@ -103,6 +116,19 @@ class UserController extends Controller
         UpdateUserRequest $request,
         User $user,
     ): JsonResponse {
+        /**
+         * The FormRequest validates and narrows these profile and assignment fields.
+         *
+         * @var array{
+         *     name: string,
+         *     email: string,
+         *     password?: string|null,
+         *     designation?: string|null,
+         *     status?: string,
+         *     role_ids?: array<int, int>,
+         *     location_assignments?: array<int, array{location_id: int, access_level: string}>
+         * } $validated
+         */
         $validated = $request->validated();
 
         if (array_key_exists('location_assignments', $validated)) {
@@ -119,14 +145,14 @@ class UserController extends Controller
             if (array_key_exists('role_ids', $validated)) {
                 $user = $this->userService->syncRoles(
                     $user,
-                    $validated['role_ids'] ?? [],
+                    $validated['role_ids'],
                 );
             }
 
             if (array_key_exists('location_assignments', $validated)) {
                 $user = $this->userService->syncLocationAssignments(
                     $user,
-                    $validated['location_assignments'] ?? [],
+                    $validated['location_assignments'],
                     (int) $request->user()->id,
                 );
             }
@@ -199,7 +225,7 @@ class UserController extends Controller
             /*
              * Roles
              */
-            'locations' => $user->locations->map(static fn ($location): array => [
+            'locations' => $user->locations->map(static fn (Location $location): array => [
                 'id' => $location->id,
                 'name' => $location->name,
                 'code' => $location->code,

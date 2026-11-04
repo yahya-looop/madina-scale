@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Role;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -23,8 +24,8 @@ class UserPageController extends Controller
             'users' => $this->users(),
             'roles' => $this->roles(),
             'capabilities' => $this->capabilities($user),
-            'userName' => $user?->name ?? '',
-            'userEmail' => $user?->email ?? '',
+            'userName' => $user->name,
+            'userEmail' => $user->email,
         ]);
     }
 
@@ -40,8 +41,8 @@ class UserPageController extends Controller
         return Inertia::render('Users/Create', [
             'roles' => $this->roles(),
             'capabilities' => $this->capabilities($user),
-            'userName' => $user?->name ?? '',
-            'userEmail' => $user?->email ?? '',
+            'userName' => $user->name,
+            'userEmail' => $user->email,
         ]);
     }
 
@@ -59,8 +60,8 @@ class UserPageController extends Controller
                 'roles:id,name,slug,is_system,is_active',
             ]),
             'capabilities' => $this->capabilities($currentUser),
-            'userName' => $currentUser?->name ?? '',
-            'userEmail' => $currentUser?->email ?? '',
+            'userName' => $currentUser->name,
+            'userEmail' => $currentUser->email,
         ]);
     }
 
@@ -81,15 +82,17 @@ class UserPageController extends Controller
             ]),
             'roles' => $this->roles(),
             'capabilities' => $this->capabilities($currentUser),
-            'userName' => $currentUser?->name ?? '',
-            'userEmail' => $currentUser?->email ?? '',
+            'userName' => $currentUser->name,
+            'userEmail' => $currentUser->email,
         ]);
     }
 
     /**
      * Return active, non-system roles available to normal user management.
+     *
+     * @return Collection<int, Role>
      */
-    private function roles()
+    private function roles(): Collection
     {
         return Role::query()
             ->where('is_system', false)
@@ -107,8 +110,10 @@ class UserPageController extends Controller
 
     /**
      * Return users required by the users index page.
+     *
+     * @return Collection<int, User>
      */
-    private function users()
+    private function users(): Collection
     {
         return User::query()
             ->with([
@@ -127,6 +132,8 @@ class UserPageController extends Controller
 
     /**
      * Build the frontend capability contract.
+     *
+     * @return array{canView: bool, canCreate: bool, canUpdate: bool, isDeveloper: bool}
      */
     private function capabilities(?User $user): array
     {
