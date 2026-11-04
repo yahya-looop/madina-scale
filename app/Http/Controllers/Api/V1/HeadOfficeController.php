@@ -6,12 +6,14 @@ use App\Http\Controllers\Controller;
 use App\Models\Customer;
 use App\Models\InventoryStock;
 use App\Models\Product;
+use App\Models\ProductVariant;
 use App\Models\SalesOrder;
 use App\Models\User;
 use App\Services\AuthorizationService;
 use App\Services\LocationInventoryAccessService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -46,16 +48,17 @@ class HeadOfficeController extends Controller
             $query->where('updated_at', '>=', $this->date($request, 'updated_since'));
         }
 
+        /** @var LengthAwarePaginator<int, Product> $rows */
         $rows = $query->paginate($pageSize)->withQueryString();
 
         return $this->respond($request, [
-            'data' => $rows->getCollection()->map(fn (Product $p) => [
+            'data' => $rows->getCollection()->map(fn (Product $p): array => [
                 'id' => $p->id, 'name' => $p->name, 'sku' => $p->sku,
                 'barcode' => $p->barcode, 'model_number' => $p->model_number,
                 'product_type' => $p->product_type, 'status' => $p->status,
                 'category' => $p->category?->name, 'brand' => $p->brand?->name,
                 'unit' => $p->unit?->name,
-                'variants' => $p->activeVariants->map(fn ($v) => [
+                'variants' => $p->activeVariants->map(fn (ProductVariant $v): array => [
                     'id' => $v->id, 'sku' => $v->sku, 'barcode' => $v->barcode,
                     'selling_price' => $v->selling_price,
                 ])->values(),
@@ -83,15 +86,16 @@ class HeadOfficeController extends Controller
             $query->where('updated_at', '>=', $this->date($request, 'updated_since'));
         }
 
+        /** @var LengthAwarePaginator<int, InventoryStock> $rows */
         $rows = $query->orderBy('id')->paginate($pageSize)->withQueryString();
 
         return $this->respond($request, [
-            'data' => $rows->getCollection()->map(fn (InventoryStock $s) => [
+            'data' => $rows->getCollection()->map(fn (InventoryStock $s): array => [
                 'id' => $s->id, 'product_id' => $s->product_id,
                 'variant_id' => $s->product_variant_id,
-                'sku' => $s->variant?->sku ?? $s->product?->sku,
+                'sku' => $s->variant->sku ?? $s->product?->sku,
                 'product_name' => $s->product?->name,
-                'location' => ['id' => $s->location_id, 'name' => $s->location?->name, 'code' => $s->location?->code],
+                'location' => ['id' => $s->location_id, 'name' => $s->location->name, 'code' => $s->location->code],
                 'on_hand' => (string) $s->quantity,
                 'reserved' => (string) $s->reserved_quantity,
                 'available' => (string) $s->available_quantity,
@@ -119,10 +123,11 @@ class HeadOfficeController extends Controller
         if ($request->filled('location_id')) {
             $query->where('location_id', (int) $request->input('location_id'));
         }
+        /** @var LengthAwarePaginator<int, SalesOrder> $rows */
         $rows = $query->paginate($pageSize)->withQueryString();
 
         return $this->respond($request, [
-            'data' => $rows->getCollection()->map(fn (SalesOrder $o) => [
+            'data' => $rows->getCollection()->map(fn (SalesOrder $o): array => [
                 'id' => $o->id, 'order_number' => $o->order_number,
                 'status' => $o->status, 'channel' => $o->channel,
                 'customer_id' => $o->customer_id,
@@ -132,8 +137,8 @@ class HeadOfficeController extends Controller
                 'grand_total' => $o->grand_total,
                 'created_at' => $o->created_at?->toISOString(),
                 'updated_at' => $o->updated_at?->toISOString(),
-                'confirmed_at' => $o->confirmed_at?->toISOString(),
-                'cancelled_at' => $o->cancelled_at?->toISOString(),
+                'confirmed_at' => $o->confirmed_at ? Carbon::parse($o->confirmed_at)->toISOString() : null,
+                'cancelled_at' => $o->cancelled_at ? Carbon::parse($o->cancelled_at)->toISOString() : null,
             ])->values(),
             'meta' => $this->pagination($rows),
         ]);
@@ -167,7 +172,7 @@ class HeadOfficeController extends Controller
     {
         $user = $request->user();
         abort_unless($user !== null, 401);
-        abort_unless($request->user()->currentAccessToken()?->can($ability), 403, 'API token scope is missing.');
+        abort_unless($request->user()->currentAccessToken()->can($ability), 403, 'API token scope is missing.');
         abort_unless($this->authorization->can($user, $permission), 403, 'The token owner lacks the required ERP permission.');
 
         return $user;
@@ -192,7 +197,11 @@ class HeadOfficeController extends Controller
         }
     }
 
-    private function pagination($paginator): array
+    /**
+     * @param  LengthAwarePaginator<int, mixed>  $paginator
+     * @return array<string, mixed>
+     */
+    private function pagination(LengthAwarePaginator $paginator): array
     {
         return [
             'current_page' => $paginator->currentPage(),
@@ -203,6 +212,9 @@ class HeadOfficeController extends Controller
         ];
     }
 
+    /**
+     * @param  array<string, mixed>  $payload
+     */
     private function respond(Request $request, array $payload): JsonResponse
     {
         $requestId = (string) ($request->attributes->get('request_id') ?: Str::uuid());

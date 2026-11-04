@@ -41,9 +41,12 @@ class ApiProviderController extends Controller
         if (empty($data['credentials'] ?? [])) {
             unset($data['credentials']);
         } else {
+            $existingCredentialsValue = $apiProvider->getAttribute('credentials');
+            $existingCredentials = is_array($existingCredentialsValue) ? $existingCredentialsValue : [];
+            $submittedCredentials = $data['credentials'];
             $data['credentials'] = array_merge(
-                $apiProvider->credentials ?? [],
-                array_filter($data['credentials'], fn ($value) => $value !== null && $value !== ''),
+                $existingCredentials,
+                array_filter($submittedCredentials, fn ($value) => $value !== null && $value !== ''),
             );
         }
         $old = $this->auditPayload($apiProvider);
@@ -70,6 +73,9 @@ class ApiProviderController extends Controller
         return response()->json(['message' => 'API provider deleted.']);
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     private function validated(Request $request, ?ApiProvider $provider = null): array
     {
         return $request->validate([
@@ -100,19 +106,28 @@ class ApiProviderController extends Controller
         return $candidate;
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     private function safePayload(ApiProvider $provider): array
     {
+        $credentials = $provider->getAttribute('credentials');
+        $credentialKeys = is_array($credentials) ? array_keys($credentials) : [];
+
         return [
             'id' => $provider->id, 'name' => $provider->name, 'slug' => $provider->slug,
             'category' => $provider->category, 'base_url' => $provider->base_url,
             'auth_type' => $provider->auth_type, 'environment' => $provider->environment,
             'is_active' => $provider->is_active, 'notes' => $provider->notes,
             'has_credentials' => ! empty($provider->credentials),
-            'credential_keys' => array_keys($provider->credentials ?? []),
+            'credential_keys' => $credentialKeys,
             'updated_at' => $provider->updated_at,
         ];
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     private function auditPayload(ApiProvider $provider): array
     {
         return [

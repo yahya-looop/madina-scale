@@ -24,7 +24,7 @@ class LocationAssignmentController extends Controller
                 'name' => $user->name,
                 'email' => $user->email,
                 'status' => $user->status,
-                'access_level' => $user->pivot->access_level,
+                'access_level' => $user->getAttribute('pivot')->access_level,
             ])->values();
 
         // Only active users with the inventory-transfer permission are eligible
@@ -62,7 +62,9 @@ class LocationAssignmentController extends Controller
         $actorId = (int) $request->user()->id;
         DB::transaction(function () use ($location, $data, $actorId): void {
             if (array_key_exists('assignments', $data)) {
-                $assignmentRows = collect($data['assignments'])->keyBy(fn (array $row) => (int) $row['user_id']);
+                /** @var list<array{user_id: int|string, access_level: string}> $assignmentData */
+                $assignmentData = $data['assignments'];
+                $assignmentRows = collect($assignmentData)->keyBy(fn (array $row): int => (int) $row['user_id']);
                 $eligibleIds = User::query()->where('status', 'active')
                     ->whereHas('roles.permissions', fn ($query) => $query->where('slug', 'system.inventory.transfer'))
                     ->whereIn('id', $assignmentRows->keys())->pluck('id')->map(fn ($id) => (int) $id)->all();
@@ -110,7 +112,7 @@ class LocationAssignmentController extends Controller
                 'name' => $user->name,
                 'email' => $user->email,
                 'status' => $user->status,
-                'access_level' => $user->pivot->access_level,
+                'access_level' => $user->getAttribute('pivot')->access_level,
             ])->values();
         $candidates = User::query()->where('status', 'active')
             ->whereHas('roles.permissions', fn ($query) => $query->where('slug', 'system.inventory.transfer'))

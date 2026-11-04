@@ -14,11 +14,13 @@ class SalesOrderRiskAssessment extends Model
         return ['signals' => 'array', 'reviewed_at' => 'datetime'];
     }
 
+    /** @return BelongsTo<SalesOrder, $this> */
     public function order(): BelongsTo
     {
         return $this->belongsTo(SalesOrder::class, 'sales_order_id');
     }
 
+    /** @return BelongsTo<User, $this> */
     public function reviewer(): BelongsTo
     {
         return $this->belongsTo(User::class, 'reviewed_by');

@@ -6,18 +6,20 @@ use App\Models\User;
 use App\Services\LocationInventoryAccessService;
 use Carbon\Carbon;
 use Illuminate\Database\Query\Builder;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
+use Inertia\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ReportController extends Controller
 {
     public function __construct(private readonly LocationInventoryAccessService $locations) {}
 
-    public function page(Request $request)
+    public function page(Request $request): Response
     {
-        abort_unless($request->user()?->can('system.reports.view'), 403);
+        abort_unless($request->user()->can('system.reports.view'), 403);
 
         return Inertia::render('Reports/Index', [
             'locations' => $this->locations->viewableLocations($request->user()),
@@ -27,7 +29,7 @@ class ReportController extends Controller
         ]);
     }
 
-    public function data(Request $request)
+    public function data(Request $request): JsonResponse
     {
         $validated = $request->validate([
             'from' => ['required', 'date'],
@@ -46,7 +48,7 @@ class ReportController extends Controller
 
     public function export(Request $request): StreamedResponse
     {
-        abort_unless($request->user()?->can('system.reports.view') && $request->user()?->can('system.reports.export'), 403);
+        abort_unless($request->user()->can('system.reports.view') && $request->user()?->can('system.reports.export'), 403);
         $validated = $request->validate([
             'from' => ['required', 'date'],
             'to' => ['required', 'date', 'after_or_equal:from'],
@@ -64,6 +66,9 @@ class ReportController extends Controller
 
         return response()->streamDownload(function () use ($rows): void {
             $out = fopen('php://output', 'w');
+            if ($out === false) {
+                throw new \RuntimeException('Unable to open the CSV output stream.');
+            }
             fwrite($out, "\xEF\xBB\xBF");
             if (count($rows) === 0) {
                 fputcsv($out, ['No records for selected filters']);
@@ -85,6 +90,9 @@ class ReportController extends Controller
         }, $filename, ['Content-Type' => 'text/csv; charset=UTF-8']);
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     private function buildReport(User $user, string $from, string $to, ?int $locationId): array
     {
         $sales = DB::table('sales_orders')->whereBetween('created_at', [$from.' 00:00:00', $to.' 23:59:59']);
@@ -163,7 +171,7 @@ class ReportController extends Controller
             ->map(function ($r) {
                 $customer = DB::table('customers')->where('id', $r->customer_id)->first(['name', 'customer_code']);
 
-                return ['customer' => $customer?->name ?? 'Unknown customer', 'code' => $customer?->customer_code, 'orders' => (int) $r->orders, 'sales' => (float) $r->sales];
+                return ['customer' => $customer->name ?? 'Unknown customer', 'code' => $customer?->customer_code, 'orders' => (int) $r->orders, 'sales' => (float) $r->sales];
             })->all();
 
         return [

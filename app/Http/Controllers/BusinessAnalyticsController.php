@@ -6,9 +6,11 @@ use App\Models\User;
 use App\Services\AuthorizationService;
 use App\Services\LocationInventoryAccessService;
 use Illuminate\Database\Query\Builder;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
+use Inertia\Response as InertiaResponse;
 
 class BusinessAnalyticsController extends Controller
 {
@@ -17,14 +19,14 @@ class BusinessAnalyticsController extends Controller
         private readonly AuthorizationService $authorization,
     ) {}
 
-    public function page(Request $request, string $view = 'overview')
+    public function page(Request $request, string $view = 'overview'): InertiaResponse
     {
         abort_unless($request->user()?->can('system.analytics.view'), 403);
 
         return Inertia::render('Analytics/Index', ['view' => $view]);
     }
 
-    public function data(Request $request)
+    public function data(Request $request): JsonResponse
     {
         $validated = $request->validate([
             'from' => ['nullable', 'date'],

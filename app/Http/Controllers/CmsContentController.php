@@ -9,6 +9,7 @@ use App\Models\CmsPage;
 use App\Models\CmsPageRevision;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
@@ -27,7 +28,9 @@ class CmsContentController extends Controller
     {
         $data = $r->validate(['file' => ['required', 'image', 'mimes:jpg,jpeg,png,webp,avif,gif', 'max:10240'], 'alt_text' => ['nullable', 'string', 'max:255']]);
         $file = $r->file('file');
+        abort_unless($file instanceof UploadedFile, 422, 'A valid image file is required.');
         $path = $file->store('cms/media', 'public');
+        abort_if($path === false, 500, 'The media file could not be stored.');
         $media = CmsMedia::create(['disk' => 'public', 'path' => $path, 'original_name' => mb_substr($file->getClientOriginalName(), 0, 255), 'mime_type' => $file->getMimeType() ?? 'application/octet-stream', 'size' => $file->getSize(), 'alt_text' => $data['alt_text'] ?? null, 'uploaded_by' => $r->user()->id]);
 
         return response()->json(['data' => array_merge($media->toArray(), ['url' => Storage::disk('public')->url($path)])], 201);
@@ -90,6 +93,7 @@ class CmsContentController extends Controller
         return response()->json(['message' => 'Banner deleted.']);
     }
 
+    /** @return array<string, mixed> */
     private function bannerData(Request $r): array
     {
         return $r->validate([
@@ -126,10 +130,14 @@ class CmsContentController extends Controller
         return response()->json(['message' => 'Section deleted.']);
     }
 
+    /** @return array<string, mixed> */
     private function sectionData(Request $r): array
     {
+        $section = $r->route('cmsContentSection');
+        $sectionId = $section instanceof CmsContentSection ? $section->getKey() : null;
+
         return $r->validate([
-            'name' => ['required', 'string', 'max:180'], 'key' => ['required', 'string', 'max:190', 'alpha_dash', Rule::unique('cms_content_sections', 'key')->ignore($r->route('cmsContentSection')?->id)],
+            'name' => ['required', 'string', 'max:180'], 'key' => ['required', 'string', 'max:190', 'alpha_dash', Rule::unique('cms_content_sections', 'key')->ignore($sectionId)],
             'type' => ['required', Rule::in(['rich_text', 'hero', 'image_text', 'feature_grid', 'cta'])], 'content' => ['required', 'array', 'max:40'], 'is_active' => ['required', 'boolean'],
         ]);
     }
@@ -142,7 +150,8 @@ class CmsContentController extends Controller
     public function restore(Request $r, CmsPage $cmsPage, CmsPageRevision $revision): JsonResponse
     {
         abort_unless($revision->cms_page_id === $cmsPage->id, 404);
-        $snapshot = $revision->snapshot;
+        $snapshot = $revision->getAttribute('snapshot');
+        abort_unless(is_array($snapshot), 409, 'The selected revision snapshot is invalid.');
         $fields = ['title', 'slug', 'excerpt', 'content', 'sections', 'featured_image', 'status', 'published_at', 'meta_title', 'meta_description', 'meta_keywords', 'canonical_url', 'robots_index', 'robots_follow'];
         $old = $cmsPage->only($fields);
         $next = array_intersect_key($snapshot, array_flip($fields));

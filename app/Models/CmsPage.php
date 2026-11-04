@@ -15,16 +15,19 @@ class CmsPage extends Model
         return ['sections' => 'array', 'published_at' => 'datetime', 'robots_index' => 'boolean', 'robots_follow' => 'boolean'];
     }
 
+    /** @return HasMany<CmsPageRevision, $this> */
     public function revisions(): HasMany
     {
         return $this->hasMany(CmsPageRevision::class)->latest('version');
     }
 
+    /** @return BelongsTo<User, $this> */
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
     }
 
+    /** @return BelongsTo<User, $this> */
     public function updater(): BelongsTo
     {
         return $this->belongsTo(User::class, 'updated_by');

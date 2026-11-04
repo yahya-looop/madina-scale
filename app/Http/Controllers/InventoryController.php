@@ -7,6 +7,7 @@ use App\Models\StockMovement;
 use App\Services\InventoryService;
 use App\Services\InventoryTransferService;
 use App\Services\LocationInventoryAccessService;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -365,7 +366,10 @@ class InventoryController extends Controller
         ], 201);
     }
 
-    private function attachLatestMovementAudit($stocks): void
+    /**
+     * @param  Collection<int, InventoryStock>  $stocks
+     */
+    private function attachLatestMovementAudit(Collection $stocks): void
     {
         if ($stocks->isEmpty()) {
             return;
@@ -406,6 +410,9 @@ class InventoryController extends Controller
         }
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     private function validateMovement(
         Request $request,
         bool $allowIdempotencyKey,

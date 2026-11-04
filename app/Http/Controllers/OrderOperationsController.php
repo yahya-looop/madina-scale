@@ -287,7 +287,7 @@ class OrderOperationsController extends Controller
 
         return response()->json([
             'message' => ! empty($result['duplicate']) ? 'Duplicate courier event accepted.' : 'Webhook accepted.',
-            'data' => ['shipment_id' => $result['shipment']->id, 'status' => $result['shipment']->status, 'duplicate' => (bool) ($result['duplicate'] ?? false)],
+            'data' => ['shipment_id' => $result['shipment']->id, 'status' => $result['shipment']->status, 'duplicate' => (bool) $result['duplicate']],
         ]);
     }
 }

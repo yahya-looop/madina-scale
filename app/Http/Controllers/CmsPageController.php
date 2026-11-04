@@ -7,6 +7,7 @@ use App\Models\CmsPageRevision;
 use App\Services\ActivityLogService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -120,13 +121,17 @@ class CmsPageController extends Controller
     public function upload(Request $request): JsonResponse
     {
         $request->validate(['file' => ['required', 'file', 'image', 'mimes:jpg,jpeg,png,webp,avif', 'max:5120']]);
-        $path = $request->file('file')->store('cms/media', 'public');
+        $file = $request->file('file');
+        abort_unless($file instanceof UploadedFile, 422, 'A valid image file is required.');
+        $path = $file->store('cms/media', 'public');
+        abort_if($path === false, 500, 'The media file could not be stored.');
 
         return response()->json([
             'data' => ['path' => $path, 'url' => Storage::disk('public')->url($path)],
         ], 201);
     }
 
+    /** @return array<string, mixed> */
     private function validated(Request $request, ?CmsPage $page = null): array
     {
         return $request->validate([
@@ -161,6 +166,10 @@ class CmsPageController extends Controller
         return $candidate;
     }
 
+    /**
+     * @param  array<string, mixed>|null  $old
+     * @param  array<string, mixed>|null  $new
+     */
     private function record(Request $request, string $action, ?CmsPage $page, ?array $old, ?array $new): void
     {
         $this->activityLogs->recordForUser(
