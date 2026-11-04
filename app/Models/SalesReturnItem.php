@@ -12,10 +12,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property numeric-string $quantity
  * @property numeric-string $unit_price
  * @property numeric-string $line_refund
+ * @property string $disposition
+ * @property string|null $disposition_note
  */
 class SalesReturnItem extends Model
 {
-    protected $fillable = ['sales_return_id', 'sales_order_item_id', 'quantity', 'unit_price', 'line_refund'];
+    protected $fillable = ['sales_return_id', 'sales_order_item_id', 'quantity', 'unit_price', 'line_refund', 'disposition', 'disposition_note'];
 
     protected function casts(): array
     {

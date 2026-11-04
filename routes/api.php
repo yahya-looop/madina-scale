@@ -570,6 +570,8 @@ Route::middleware(['web', 'auth'])->group(function () {
         ->middleware('permission:system.inventory.transfer');
     Route::post('/inventory/transfers/{transfer}/reject', [InventoryTransferController::class, 'reject'])
         ->middleware('permission:system.inventory.transfer');
+    Route::post('/inventory/transfers/{transfer}/resolve-discrepancy', [InventoryTransferController::class, 'resolveDiscrepancy'])
+        ->middleware('permission:system.inventory.transfer');
 
     Route::post('/inventory/restock', [InventoryController::class, 'restock'])
         ->middleware('permission:system.inventory.transfer');

@@ -17,7 +17,7 @@ class InventoryTransferController extends Controller
     {
         $filters = $request->validate([
             'direction' => ['nullable', Rule::in(['incoming', 'outgoing', 'all'])],
-            'status' => ['nullable', Rule::in(['in_transit', 'partially_received', 'received', 'rejected', 'cancelled', 'discrepancy'])],
+            'status' => ['nullable', Rule::in(['in_transit', 'partially_received', 'received', 'rejected', 'cancelled', 'discrepancy', 'written_off'])],
             'location_id' => ['nullable', 'integer', 'min:1'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
         ]);
@@ -161,5 +161,25 @@ class InventoryTransferController extends Controller
         $updated = $this->transfers->reject($transfer, $data['reason'], $request->user());
 
         return response()->json(['message' => 'Transfer flagged for discrepancy resolution. Stock was not silently returned to the source.', 'data' => $updated]);
+    }
+
+    public function resolveDiscrepancy(Request $request, InventoryTransfer $transfer): JsonResponse
+    {
+        $data = $request->validate([
+            'resolution_action' => ['required', Rule::in(['receive_remaining', 'return_to_source', 'write_off'])],
+            'resolution_note' => ['required', 'string', 'min:3', 'max:2000'],
+        ]);
+
+        $updated = $this->transfers->resolveDiscrepancy(
+            $transfer,
+            $data['resolution_action'],
+            $data['resolution_note'],
+            $request->user(),
+        );
+
+        return response()->json([
+            'message' => 'Transfer discrepancy reconciled successfully.',
+            'data' => $updated,
+        ]);
     }
 }

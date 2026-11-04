@@ -100,7 +100,7 @@ const transferRows = ref<TransferRow[]>([]);
 const loadingTransfers = ref(false);
 const transferActionId = ref<number | null>(null);
 const transferDialogRow = ref<TransferRow | null>(null);
-const transferDialogAction = ref<"accept" | "reject" | null>(null);
+const transferDialogAction = ref<"accept" | "reject" | "resolve" | null>(null);
 let transferReceiptIdempotencyKey: string | null = null;
 const transferReceiptKeyStoragePrefix = "madina-scale:inventory-transfer-receipt:";
 
@@ -118,11 +118,13 @@ function clearTransferReceiptKey(transferId: number): void {
   window.sessionStorage.removeItem(`${transferReceiptKeyStoragePrefix}${transferId}`);
 }
 const discrepancyReason = ref("");
+const discrepancyResolution = ref<"receive_remaining" | "return_to_source" | "write_off">("receive_remaining");
 const incomingPendingCount = ref(0);
 const outgoingPendingCount = ref(0);
 const visibleTransferRows = computed(() =>
   transferRows.value.filter((row) =>
-    ["in_transit", "partially_received"].includes(row.status)
+    ["in_transit", "partially_received"].includes(row.status) ||
+    (operation.value === "transfer" && row.status === "discrepancy")
   )
 );
 const restockStockId = ref("");
@@ -388,13 +390,14 @@ async function loadTransfers(): Promise<void> {
   }
 }
 
-function openTransferDialog(row: TransferRow, action: "accept" | "reject"): void {
+function openTransferDialog(row: TransferRow, action: "accept" | "reject" | "resolve"): void {
   clearNotices();
   transferDialogRow.value = row;
   transferDialogAction.value = action;
   transferReceiptIdempotencyKey =
     action === "accept" ? getOrCreateTransferReceiptKey(row.id) : null;
   discrepancyReason.value = "";
+  discrepancyResolution.value = "receive_remaining";
 }
 
 function closeTransferDialog(): void {
@@ -405,6 +408,7 @@ function closeTransferDialog(): void {
   // this tab reuses the same idempotency key if the previous response was lost.
   transferReceiptIdempotencyKey = null;
   discrepancyReason.value = "";
+  discrepancyResolution.value = "receive_remaining";
 }
 
 async function confirmTransferAction(): Promise<void> {
@@ -413,8 +417,10 @@ async function confirmTransferAction(): Promise<void> {
   if (!row || !action || transferActionId.value !== null) return;
 
   const reasonText = discrepancyReason.value.trim();
-  if (action === "reject" && reasonText.length < 3) {
-    error.value = "Please describe the issue in at least 3 characters.";
+  if (action !== "accept" && reasonText.length < 3) {
+    error.value = action === "resolve"
+      ? "Please provide a reconciliation note of at least 3 characters."
+      : "Please describe the issue in at least 3 characters.";
     return;
   }
 
@@ -427,7 +433,8 @@ async function confirmTransferAction(): Promise<void> {
   transferActionId.value = row.id;
   clearNotices();
   try {
-    const response = await fetch(`/api/inventory/transfers/${row.id}/${action}`, {
+    const endpointAction = action === "resolve" ? "resolve-discrepancy" : action;
+    const response = await fetch(`/api/inventory/transfers/${row.id}/${endpointAction}`, {
       method: "POST",
       credentials: "same-origin",
       headers: {
@@ -444,19 +451,22 @@ async function confirmTransferAction(): Promise<void> {
               ),
               idempotency_key: transferReceiptIdempotencyKey,
             }
-          : { reason: reasonText }
+          : action === "resolve"
+            ? { resolution_action: discrepancyResolution.value, resolution_note: reasonText }
+            : { reason: reasonText }
       ),
     });
     const payload = await readApiPayload<TransferRow>(response);
     if (!response.ok) throw new Error(payload.message || `Transfer ${action} failed.`);
     success.value =
       payload.message ||
-      (action === "accept" ? "Transfer received." : "Transfer flagged for review.");
+      (action === "accept" ? "Transfer received." : action === "resolve" ? "Transfer discrepancy reconciled." : "Transfer flagged for review.");
     transferDialogRow.value = null;
     transferDialogAction.value = null;
     if (action === "accept") clearTransferReceiptKey(row.id);
     transferReceiptIdempotencyKey = null;
     discrepancyReason.value = "";
+    discrepancyResolution.value = "receive_remaining";
     await Promise.all([loadTransfers(), loadTransferCounts()]);
     window.dispatchEvent(
       new CustomEvent("inventory:operation-complete", {
@@ -1702,6 +1712,19 @@ onMounted(() => {
                 <Icon name="alert-triangle" :size="14" /> Report issue
               </button>
             </div>
+            <div
+              v-if="operation === 'transfer' && row.status === 'discrepancy'"
+              class="transfer-row-actions"
+            >
+              <button
+                type="button"
+                class="button primary transfer-accept"
+                :disabled="transferActionId === row.id"
+                @click="openTransferDialog(row, 'resolve')"
+              >
+                <Icon name="clipboard-check" :size="14" /> Reconcile
+              </button>
+            </div>
           </article>
         </div>
       </section>
@@ -1726,7 +1749,7 @@ onMounted(() => {
                 <div
                   :class="[
                     'transfer-dialog-icon',
-                    transferDialogAction === 'accept' ? 'is-accept' : 'is-issue',
+                    transferDialogAction === 'accept' || transferDialogAction === 'resolve' ? 'is-accept' : 'is-issue',
                   ]"
                 >
                   <Icon
@@ -1742,20 +1765,26 @@ onMounted(() => {
                   <span class="transfer-dialog-eyebrow">{{
                     transferDialogAction === "accept"
                       ? "RECEIVING STOCK"
-                      : "TRANSFER DISCREPANCY"
+                      : transferDialogAction === "resolve"
+                        ? "DISCREPANCY RECONCILIATION"
+                        : "TRANSFER DISCREPANCY"
                   }}</span>
                   <h2 id="transfer-dialog-title">
                     {{
                       transferDialogAction === "accept"
                         ? "Confirm goods receipt"
-                        : "Report a transfer issue"
+                        : transferDialogAction === "resolve"
+                          ? "Resolve transfer discrepancy"
+                          : "Report a transfer issue"
                     }}
                   </h2>
                   <p>
                     {{
                       transferDialogAction === "accept"
                         ? "Confirm only after physically checking the delivered goods."
-                        : "Tell the sending team what is wrong so the transfer can be investigated."
+                        : transferDialogAction === "resolve"
+                          ? "Choose what happened to the outstanding quantity. The stock ledger will record the selected outcome."
+                          : "Tell the sending team what is wrong so the transfer can be investigated."
                     }}
                   </p>
                 </div>
@@ -1827,6 +1856,39 @@ onMounted(() => {
                     }}</strong>
                   </div>
                 </template>
+                <template v-else-if="transferDialogAction === 'resolve'">
+                  <label class="transfer-dialog-reason-label" for="transfer-resolution-action">
+                    Reconciliation outcome <span>Required</span>
+                  </label>
+                  <select
+                    id="transfer-resolution-action"
+                    v-model="discrepancyResolution"
+                    :disabled="transferActionId !== null"
+                  >
+                    <option value="receive_remaining">Receive outstanding quantity at destination</option>
+                    <option value="return_to_source">Return outstanding quantity to source</option>
+                    <option value="write_off">Write off missing quantity</option>
+                  </select>
+                  <label class="transfer-dialog-reason-label" for="transfer-discrepancy-reason">
+                    Reconciliation note <span>Required</span>
+                  </label>
+                  <textarea
+                    id="transfer-discrepancy-reason"
+                    v-model="discrepancyReason"
+                    rows="4"
+                    maxlength="1000"
+                    required
+                    placeholder="Record the investigation result and physical stock outcome…"
+                    :disabled="transferActionId !== null"
+                  />
+                  <div class="transfer-dialog-notice is-warning">
+                    <Icon name="shield-check" :size="18" />
+                    <p>
+                      Receiving credits destination stock; returning credits source stock;
+                      write-off closes the loss without adding stock to either location.
+                    </p>
+                  </div>
+                </template>
                 <template v-else>
                   <label
                     class="transfer-dialog-reason-label"
@@ -1871,11 +1933,11 @@ onMounted(() => {
                   :class="[
                     'button',
                     'transfer-dialog-submit',
-                    transferDialogAction === 'accept' ? 'is-accept' : 'is-issue',
+                    transferDialogAction === 'accept' || transferDialogAction === 'resolve' ? 'is-accept' : 'is-issue',
                   ]"
                   :disabled="
                     transferActionId !== null ||
-                    (transferDialogAction === 'reject' &&
+                    (transferDialogAction !== 'accept' &&
                       discrepancyReason.trim().length < 3)
                   "
                   @click="confirmTransferAction"
@@ -1900,7 +1962,9 @@ onMounted(() => {
                       ? "Processing…"
                       : transferDialogAction === "accept"
                       ? "Confirm receipt"
-                      : "Submit issue report"
+                      : transferDialogAction === "resolve"
+                        ? "Confirm reconciliation"
+                        : "Submit issue report"
                   }}
                 </button>
               </footer>

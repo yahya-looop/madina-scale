@@ -1,10 +1,14 @@
 
 <?php
 
+use App\Jobs\ProcessInventoryTransferNotificationOutbox;
 use App\Models\InventoryStock;
 use App\Models\InventoryTransfer;
+use App\Models\InventoryTransferNotificationOutbox;
+use App\Notifications\InventoryTransferNotification;
 use App\Services\InventoryTransferService;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
 
 test('dispatch moves stock out of source but does not make it available at destination until accepted', function () {
@@ -368,7 +372,8 @@ test('discrepancy report preserves an audit record and never silently restores s
     $this->assertDatabaseCount('stock_movements', 2);
 });
 
-test('dispatch notification failure rolls back transfer and stock changes atomically', function () {
+test('dispatch notification delivery is outboxed and cannot roll back committed stock', function () {
+    Queue::fake();
     $sender = createTransferWorkflowUser(['system.inventory.transfer']);
     $receiver = createTransferWorkflowUser(['system.inventory.transfer']);
     $product = inventoryTestProduct();
@@ -381,90 +386,241 @@ test('dispatch notification failure rolls back transfer and stock changes atomic
         'quantity' => '25.0000', 'reserved_quantity' => '0.0000', 'low_stock_threshold' => '0',
     ]);
 
-    Notification::shouldReceive('send')->once()->andThrow(new RuntimeException('Simulated notification storage failure.'));
-
-    expect(fn () => app(InventoryTransferService::class)->dispatch([
+    $transfer = app(InventoryTransferService::class)->dispatch([
         'product_id' => $product->id,
         'source_location_id' => $source->id,
         'destination_location_id' => $destination->id,
         'quantity' => '10',
         'idempotency_key' => (string) Str::uuid(),
-    ], $sender))->toThrow(RuntimeException::class, 'Simulated notification storage failure.');
+    ], $sender);
 
     $this->assertDatabaseHas('inventory_stocks', [
-        'location_id' => $source->id, 'product_id' => $product->id, 'quantity' => '25.0000',
+        'location_id' => $source->id, 'product_id' => $product->id, 'quantity' => '15.0000',
     ]);
-    $this->assertDatabaseMissing('inventory_transfers', ['source_location_id' => $source->id, 'destination_location_id' => $destination->id]);
-    $this->assertDatabaseMissing('stock_movements', ['location_id' => $source->id, 'movement_type' => 'transfer_out']);
-});
-
-test('receipt notification failure rolls back destination stock receipt ledger and transfer status atomically', function () {
-    $sender = createTransferWorkflowUser(['system.inventory.transfer']);
-    $receiver = createTransferWorkflowUser(['system.inventory.transfer']);
-    $product = inventoryTestProduct();
-    $source = inventoryTestLocation();
-    $destination = inventoryTestLocation();
-    $sender->locations()->attach($source->id, ['access_level' => 'manage']);
-    $receiver->locations()->attach($destination->id, ['access_level' => 'receive']);
-    InventoryStock::query()->create([
-        'product_id' => $product->id, 'location_id' => $source->id,
-        'quantity' => '25.0000', 'reserved_quantity' => '0.0000', 'low_stock_threshold' => '0',
-    ]);
-
-    Notification::fake();
-    $transfer = app(InventoryTransferService::class)->dispatch([
-        'product_id' => $product->id,
-        'source_location_id' => $source->id,
-        'destination_location_id' => $destination->id,
-        'quantity' => '10',
-        'idempotency_key' => (string) Str::uuid(),
-    ], $sender);
-
-    Notification::shouldReceive('send')->once()->andThrow(new RuntimeException('Simulated receipt notification storage failure.'));
-
-    expect(fn () => app(InventoryTransferService::class)->receive($transfer, [
-        'quantity_received' => '10',
-        'idempotency_key' => (string) Str::uuid(),
-    ], $receiver))->toThrow(RuntimeException::class, 'Simulated receipt notification storage failure.');
-
-    $this->assertDatabaseHas('inventory_transfers', ['id' => $transfer->id, 'status' => 'in_transit', 'quantity_received' => '0.0000']);
-    $this->assertDatabaseMissing('inventory_stocks', ['location_id' => $destination->id, 'product_id' => $product->id]);
-    $this->assertDatabaseMissing('inventory_transfer_receipts', ['inventory_transfer_id' => $transfer->id]);
-    $this->assertDatabaseMissing('stock_movements', ['transfer_group_id' => $transfer->transfer_uuid, 'movement_type' => 'transfer_in']);
-});
-
-test('discrepancy notification failure rolls back discrepancy status and audit metadata atomically', function () {
-    $sender = createTransferWorkflowUser(['system.inventory.transfer']);
-    $receiver = createTransferWorkflowUser(['system.inventory.transfer']);
-    $product = inventoryTestProduct();
-    $source = inventoryTestLocation();
-    $destination = inventoryTestLocation();
-    $sender->locations()->attach($source->id, ['access_level' => 'manage']);
-    $receiver->locations()->attach($destination->id, ['access_level' => 'receive']);
-    InventoryStock::query()->create([
-        'product_id' => $product->id, 'location_id' => $source->id,
-        'quantity' => '25.0000', 'reserved_quantity' => '0.0000', 'low_stock_threshold' => '0',
-    ]);
-
-    Notification::fake();
-    $transfer = app(InventoryTransferService::class)->dispatch([
-        'product_id' => $product->id,
-        'source_location_id' => $source->id,
-        'destination_location_id' => $destination->id,
-        'quantity' => '10',
-        'idempotency_key' => (string) Str::uuid(),
-    ], $sender);
-
-    Notification::shouldReceive('send')->once()->andThrow(new RuntimeException('Simulated discrepancy notification storage failure.'));
-
-    expect(fn () => app(InventoryTransferService::class)->reject(
-        $transfer,
-        'Test discrepancy reason',
-        $receiver,
-    ))->toThrow(RuntimeException::class, 'Simulated discrepancy notification storage failure.');
-
     $this->assertDatabaseHas('inventory_transfers', ['id' => $transfer->id, 'status' => 'in_transit']);
-    expect(InventoryTransfer::query()->findOrFail($transfer->id)->metadata['discrepancy'] ?? null)->toBeNull();
+    $this->assertDatabaseHas('inventory_transfer_notification_outbox', [
+        'inventory_transfer_id' => $transfer->id, 'event' => 'dispatched', 'status' => 'pending',
+    ]);
+});
+
+test('receipt notification delivery is outboxed after stock and receipt commit', function () {
+    Queue::fake();
+    $sender = createTransferWorkflowUser(['system.inventory.transfer']);
+    $receiver = createTransferWorkflowUser(['system.inventory.transfer']);
+    $product = inventoryTestProduct();
+    $source = inventoryTestLocation();
+    $destination = inventoryTestLocation();
+    $sender->locations()->attach($source->id, ['access_level' => 'manage']);
+    $receiver->locations()->attach($destination->id, ['access_level' => 'receive']);
+    InventoryStock::query()->create([
+        'product_id' => $product->id, 'location_id' => $source->id,
+        'quantity' => '25.0000', 'reserved_quantity' => '0.0000', 'low_stock_threshold' => '0',
+    ]);
+    $transfer = app(InventoryTransferService::class)->dispatch([
+        'product_id' => $product->id, 'source_location_id' => $source->id,
+        'destination_location_id' => $destination->id, 'quantity' => '10',
+        'idempotency_key' => (string) Str::uuid(),
+    ], $sender);
+
+    $updated = app(InventoryTransferService::class)->receive($transfer, [
+        'quantity_received' => '10', 'idempotency_key' => (string) Str::uuid(),
+    ], $receiver);
+
+    expect($updated->status)->toBe('received');
+    $this->assertDatabaseHas('inventory_transfer_receipts', ['inventory_transfer_id' => $transfer->id]);
+    $this->assertDatabaseHas('inventory_stocks', [
+        'location_id' => $destination->id, 'product_id' => $product->id, 'quantity' => '10.0000',
+    ]);
+    $this->assertDatabaseHas('inventory_transfer_notification_outbox', [
+        'inventory_transfer_id' => $transfer->id, 'event' => 'received', 'status' => 'pending',
+    ]);
+});
+
+test('notification delivery failure leaves a retryable outbox record and never reverses inventory', function () {
+    Queue::fake();
+    $sender = createTransferWorkflowUser(['system.inventory.transfer']);
+    $receiver = createTransferWorkflowUser(['system.inventory.transfer']);
+    $product = inventoryTestProduct();
+    $source = inventoryTestLocation();
+    $destination = inventoryTestLocation();
+    $sender->locations()->attach($source->id, ['access_level' => 'manage']);
+    $receiver->locations()->attach($destination->id, ['access_level' => 'receive']);
+    InventoryStock::query()->create([
+        'product_id' => $product->id, 'location_id' => $source->id,
+        'quantity' => '25.0000', 'reserved_quantity' => '0.0000', 'low_stock_threshold' => '0',
+    ]);
+    $transfer = app(InventoryTransferService::class)->dispatch([
+        'product_id' => $product->id, 'source_location_id' => $source->id,
+        'destination_location_id' => $destination->id, 'quantity' => '10',
+        'idempotency_key' => (string) Str::uuid(),
+    ], $sender);
+
+    $outbox = InventoryTransferNotificationOutbox::query()
+        ->where('inventory_transfer_id', $transfer->id)->where('event', 'dispatched')->firstOrFail();
+    Notification::shouldReceive('send')->once()->andThrow(new RuntimeException('Simulated notification storage failure.'));
+
+    expect(fn () => (new ProcessInventoryTransferNotificationOutbox((int) $outbox->id))->handle())
+        ->toThrow(RuntimeException::class, 'Simulated notification storage failure.');
+
+    $this->assertDatabaseHas('inventory_transfer_notification_outbox', [
+        'id' => $outbox->id, 'status' => 'pending', 'attempts' => 1,
+    ]);
+    $this->assertDatabaseHas('inventory_stocks', [
+        'location_id' => $source->id, 'product_id' => $product->id, 'quantity' => '15.0000',
+    ]);
+    $this->assertDatabaseHas('inventory_transfers', ['id' => $transfer->id, 'status' => 'in_transit']);
+});
+
+test('discrepancy resolution can receive the outstanding quantity into destination stock', function () {
+    $sender = createTransferWorkflowUser(['system.inventory.transfer', 'system.inventory.view']);
+    $receiver = createTransferWorkflowUser(['system.inventory.transfer', 'system.inventory.view']);
+    $product = inventoryTestProduct();
+    $source = inventoryTestLocation();
+    $destination = inventoryTestLocation();
+    $sender->locations()->attach($source->id, ['access_level' => 'manage']);
+    $receiver->locations()->attach($destination->id, ['access_level' => 'receive']);
+    InventoryStock::query()->create([
+        'product_id' => $product->id, 'location_id' => $source->id,
+        'quantity' => '20.0000', 'reserved_quantity' => '0.0000', 'low_stock_threshold' => '0',
+    ]);
+    $transfer = app(InventoryTransferService::class)->dispatch([
+        'product_id' => $product->id, 'source_location_id' => $source->id,
+        'destination_location_id' => $destination->id, 'quantity' => '10',
+        'idempotency_key' => (string) Str::uuid(),
+    ], $sender);
+    app(InventoryTransferService::class)->receive($transfer, [
+        'quantity_received' => '6', 'idempotency_key' => (string) Str::uuid(),
+    ], $receiver);
+    $transfer->refresh();
+    app(InventoryTransferService::class)->reject($transfer, 'Four units were not initially found.', $receiver);
+
+    $payload = [
+        'resolution_action' => 'receive_remaining',
+        'resolution_note' => 'The missing four units were located and verified.',
+    ];
+    $this->actingAs($sender)->postJson(
+        "/api/inventory/transfers/{$transfer->id}/resolve-discrepancy",
+        $payload,
+    )->assertOk()->assertJsonPath('data.status', 'received');
+
+    $resolved = InventoryTransfer::query()->findOrFail($transfer->id);
+    expect($resolved->status)->toBe('received');
+    expect((string) $resolved->quantity_received)->toBe('10.0000');
+    expect($resolved->resolved_by)->toBe($sender->id);
+    $this->actingAs($sender)->postJson(
+        "/api/inventory/transfers/{$transfer->id}/resolve-discrepancy",
+        $payload,
+    )->assertOk()->assertJsonPath('data.status', 'received');
+    $this->assertDatabaseCount('stock_movements', 3);
+    $this->assertDatabaseHas('inventory_stocks', [
+        'product_id' => $product->id, 'location_id' => $destination->id, 'quantity' => '10.0000',
+    ]);
+    $this->assertDatabaseHas('stock_movements', [
+        'product_id' => $product->id, 'location_id' => $destination->id,
+        'movement_type' => 'transfer_in', 'quantity_delta' => '4.0000',
+    ]);
+});
+
+test('discrepancy resolution can return the outstanding quantity to source stock', function () {
+    $sender = createTransferWorkflowUser(['system.inventory.transfer', 'system.inventory.view']);
+    $receiver = createTransferWorkflowUser(['system.inventory.transfer', 'system.inventory.view']);
+    $product = inventoryTestProduct();
+    $source = inventoryTestLocation();
+    $destination = inventoryTestLocation();
+    $sender->locations()->attach($source->id, ['access_level' => 'manage']);
+    $receiver->locations()->attach($destination->id, ['access_level' => 'receive']);
+    InventoryStock::query()->create([
+        'product_id' => $product->id, 'location_id' => $source->id,
+        'quantity' => '20.0000', 'reserved_quantity' => '0.0000', 'low_stock_threshold' => '0',
+    ]);
+    $transfer = app(InventoryTransferService::class)->dispatch([
+        'product_id' => $product->id, 'source_location_id' => $source->id,
+        'destination_location_id' => $destination->id, 'quantity' => '10',
+        'idempotency_key' => (string) Str::uuid(),
+    ], $sender);
+    app(InventoryTransferService::class)->receive($transfer, [
+        'quantity_received' => '6', 'idempotency_key' => (string) Str::uuid(),
+    ], $receiver);
+    $transfer->refresh();
+    app(InventoryTransferService::class)->reject($transfer, 'Four units returned to sender.', $receiver);
+
+    $resolved = app(InventoryTransferService::class)->resolveDiscrepancy(
+        $transfer->fresh(), 'return_to_source', 'Four units were physically returned and counted.', $sender,
+    );
+
+    expect($resolved->status)->toBe('rejected');
+    $this->assertDatabaseHas('inventory_stocks', [
+        'product_id' => $product->id, 'location_id' => $source->id, 'quantity' => '14.0000',
+    ]);
+    $this->assertDatabaseHas('stock_movements', [
+        'product_id' => $product->id, 'location_id' => $source->id,
+        'movement_type' => 'reversal', 'quantity_delta' => '4.0000',
+    ]);
+});
+
+test('discrepancy resolution can explicitly write off missing goods without crediting stock', function () {
+    $sender = createTransferWorkflowUser(['system.inventory.transfer', 'system.inventory.view']);
+    $receiver = createTransferWorkflowUser(['system.inventory.transfer', 'system.inventory.view']);
+    $product = inventoryTestProduct();
+    $source = inventoryTestLocation();
+    $destination = inventoryTestLocation();
+    $sender->locations()->attach($source->id, ['access_level' => 'manage']);
+    $receiver->locations()->attach($destination->id, ['access_level' => 'receive']);
+    InventoryStock::query()->create([
+        'product_id' => $product->id, 'location_id' => $source->id,
+        'quantity' => '20.0000', 'reserved_quantity' => '0.0000', 'low_stock_threshold' => '0',
+    ]);
+    $transfer = app(InventoryTransferService::class)->dispatch([
+        'product_id' => $product->id, 'source_location_id' => $source->id,
+        'destination_location_id' => $destination->id, 'quantity' => '10',
+        'idempotency_key' => (string) Str::uuid(),
+    ], $sender);
+    $transfer->refresh();
+    app(InventoryTransferService::class)->reject($transfer, 'Package confirmed lost in transit.', $receiver);
+
+    $resolved = app(InventoryTransferService::class)->resolveDiscrepancy(
+        $transfer->fresh(), 'write_off', 'Carrier investigation confirmed total loss.', $sender,
+    );
+
+    expect($resolved->status)->toBe('written_off');
+    expect($resolved->metadata['discrepancy_resolution']['action'])->toBe('write_off');
+    $this->assertDatabaseMissing('inventory_stocks', [
+        'product_id' => $product->id, 'location_id' => $destination->id,
+    ]);
+    $this->assertDatabaseHas('inventory_stocks', [
+        'product_id' => $product->id, 'location_id' => $source->id, 'quantity' => '10.0000',
+    ]);
+});
+
+test('outbox worker delivers transfer notifications once and marks the event delivered', function () {
+    Queue::fake();
+    $sender = createTransferWorkflowUser(['system.inventory.transfer']);
+    $receiver = createTransferWorkflowUser(['system.inventory.transfer']);
+    $product = inventoryTestProduct();
+    $source = inventoryTestLocation();
+    $destination = inventoryTestLocation();
+    $sender->locations()->attach($source->id, ['access_level' => 'manage']);
+    $receiver->locations()->attach($destination->id, ['access_level' => 'receive']);
+    InventoryStock::query()->create([
+        'product_id' => $product->id, 'location_id' => $source->id,
+        'quantity' => '15.0000', 'reserved_quantity' => '0.0000', 'low_stock_threshold' => '0',
+    ]);
+    $transfer = app(InventoryTransferService::class)->dispatch([
+        'product_id' => $product->id, 'source_location_id' => $source->id,
+        'destination_location_id' => $destination->id, 'quantity' => '5',
+        'idempotency_key' => (string) Str::uuid(),
+    ], $sender);
+    $outbox = InventoryTransferNotificationOutbox::query()
+        ->where('inventory_transfer_id', $transfer->id)->where('event', 'dispatched')->firstOrFail();
+
+    Notification::fake();
+    $job = new ProcessInventoryTransferNotificationOutbox((int) $outbox->id);
+    $job->handle();
+    $job->handle();
+
+    Notification::assertSentTo($receiver, InventoryTransferNotification::class);
+    expect($outbox->fresh()->status)->toBe('delivered');
+    expect($outbox->fresh()->attempts)->toBe(1);
 });
 
 test('transfer counts do not reveal discrepancies to view-only location assignments', function () {

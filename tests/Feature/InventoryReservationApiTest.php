@@ -6,8 +6,10 @@ use App\Models\Module;
 use App\Models\Permission;
 use App\Models\Role;
 use App\Models\User;
+use App\Services\InventoryReservationService;
 use App\Services\InventoryService;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 function reservationTestUser(): User
 {
@@ -296,4 +298,54 @@ test('deleting a used reservation purpose removes it without archiving and prese
     $this->getJson('/api/inventory/reservations')
         ->assertOk()
         ->assertJsonPath('data.0.purpose_label', 'Quality Check');
+});
+
+test('partial fulfillment rejects quantities with more than four decimal places without changing the reservation', function () {
+    $user = reservationTestUser();
+    $product = inventoryTestProduct();
+    $location = inventoryTestLocation();
+    $user->locations()->attach($location->id, ['access_level' => 'manage']);
+    app(InventoryService::class)->receive([
+        'product_id' => $product->id, 'location_id' => $location->id, 'quantity' => '5',
+    ]);
+    $reservation = app(InventoryReservationService::class)->reserve([
+        'product_id' => $product->id,
+        'location_id' => $location->id,
+        'quantity' => '2',
+        'purpose' => 'internal_use',
+    ], $user);
+
+    expect(fn () => app(InventoryReservationService::class)->fulfillPartial($reservation, '0.12345', $user))
+        ->toThrow(ValidationException::class);
+
+    $reservation->refresh();
+    expect($reservation->status)->toBe('active');
+    expect((string) $reservation->quantity)->toBe('2.0000');
+    $this->assertDatabaseHas('inventory_stocks', [
+        'product_id' => $product->id,
+        'location_id' => $location->id,
+        'quantity' => '5.0000',
+        'reserved_quantity' => '2.0000',
+    ]);
+});
+
+test('reservation resolve rejects unsupported actions instead of treating them as releases', function () {
+    $user = reservationTestUser();
+    $product = inventoryTestProduct();
+    $location = inventoryTestLocation();
+    $user->locations()->attach($location->id, ['access_level' => 'manage']);
+    app(InventoryService::class)->receive([
+        'product_id' => $product->id, 'location_id' => $location->id, 'quantity' => '5',
+    ]);
+    $reservation = app(InventoryReservationService::class)->reserve([
+        'product_id' => $product->id,
+        'location_id' => $location->id,
+        'quantity' => '2',
+        'purpose' => 'internal_use',
+    ], $user);
+
+    expect(fn () => app(InventoryReservationService::class)->resolve($reservation, 'unexpected', $user))
+        ->toThrow(ValidationException::class);
+
+    expect($reservation->fresh()->status)->toBe('active');
 });

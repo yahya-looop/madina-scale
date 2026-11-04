@@ -4,6 +4,9 @@ namespace App\Services;
 
 use App\Models\FinancialAccount;
 use App\Models\InventoryStock;
+use App\Models\Location;
+use App\Models\Product;
+use App\Models\ProductVariant;
 use App\Models\SalesOrder;
 use App\Models\SalesOrderItem;
 use App\Models\SalesReturn;
@@ -29,7 +32,7 @@ class SalesReturnService
      *     refund_method: string,
      *     cash_account_id?: int|null,
      *     reason?: string|null,
-     *     items: list<array{sales_order_item_id: int, quantity: string|int|float}>
+     *     items: list<array{sales_order_item_id: int, quantity: string|int|float, disposition?: string, disposition_note?: string|null}>
      * } $data
      */
     public function create(array $data, User $actor): SalesReturn
@@ -46,8 +49,8 @@ class SalesReturnService
                     && (string) $existing->return_date->toDateString() === (string) $data['return_date']
                     && $existing->reason === ($data['reason'] ?? null)
                     && (int) ($existing->cash_account_id ?? 0) === (int) ($data['cash_account_id'] ?? 0)
-                    && collect($existing->items)->map(fn ($i) => [(int) $i->sales_order_item_id, (string) $i->quantity])->sort()->values()->all()
-                        === collect($data['items'])->map(fn ($i) => [(int) $i['sales_order_item_id'], number_format((float) $i['quantity'], 4, '.', '')])->sort()->values()->all();
+                    && collect($existing->items)->map(fn ($i) => [(int) $i->sales_order_item_id, (string) $i->quantity, $i->disposition ?? 'restock', $i->disposition_note])->sort()->values()->all()
+                        === collect($data['items'])->map(fn ($i) => [(int) $i['sales_order_item_id'], number_format((float) $i['quantity'], 4, '.', ''), $i['disposition'] ?? 'restock', $i['disposition_note'] ?? null])->sort()->values()->all();
                 if (! $same) {
                     throw ValidationException::withMessages(['idempotency_key' => 'This key was already used for a different return request.']);
                 }
@@ -89,7 +92,11 @@ class SalesReturnService
                 }
                 $lineAmount = bcadd($netAmount, $taxShare, 2);
                 $total = bcadd($total, $lineAmount, 2);
-                $returnLines[] = ['item' => $item, 'quantity' => $qty, 'unit_price' => (string) $item->unit_price, 'line_refund' => $lineAmount, 'net_amount' => $netAmount, 'tax_amount' => $taxShare];
+                $disposition = $requested['disposition'] ?? 'restock';
+                if (! in_array($disposition, ['restock', 'damaged', 'quarantine', 'rejected'], true)) {
+                    throw ValidationException::withMessages(['items' => 'Choose a valid return disposition.']);
+                }
+                $returnLines[] = ['item' => $item, 'quantity' => $qty, 'unit_price' => (string) $item->unit_price, 'line_refund' => $lineAmount, 'net_amount' => $netAmount, 'tax_amount' => $taxShare, 'disposition' => $disposition, 'disposition_note' => $requested['disposition_note'] ?? null];
             }
             if (bccomp($total, '0.00', 2) <= 0) {
                 throw ValidationException::withMessages(['items' => 'Return total must be greater than zero.']);
@@ -128,11 +135,48 @@ class SalesReturnService
                     'quantity' => $line['quantity'],
                     'unit_price' => $line['unit_price'],
                     'line_refund' => $line['line_refund'],
+                    'disposition' => $line['disposition'],
+                    'disposition_note' => $line['disposition_note'],
                 ]);
+
+                // Only inspected, saleable goods may increase sellable inventory.
+                // Damaged, quarantined and rejected quantities remain recorded on the
+                // return item but are deliberately excluded from available stock.
+                if ($line['disposition'] !== 'restock') {
+                    continue;
+                }
                 $reservation = $item->reservation;
                 $owner = $reservation && $reservation->product_id
                     ? ['product_id' => (int) $reservation->product_id, 'product_variant_id' => null]
                     : ['product_id' => null, 'product_variant_id' => (int) $item->product_variant_id];
+
+                // Match InventoryService's lock order: owner first, then location,
+                // then stock row. This also serializes creation when no stock row exists.
+                if ($owner['product_id'] !== null) {
+                    $product = Product::query()->lockForUpdate()->findOrFail($owner['product_id']);
+                    if (! $product->isSimple()) {
+                        throw ValidationException::withMessages(['items' => 'The returned product is no longer a simple stock owner.']);
+                    }
+                } else {
+                    // Lock parent before variant, matching reservation and inventory mutations.
+                    $variantReference = ProductVariant::query()
+                        ->whereKey($owner['product_variant_id'])
+                        ->first(['id', 'product_id']);
+                    if (! $variantReference) {
+                        throw ValidationException::withMessages(['items' => 'The returned variant no longer exists.']);
+                    }
+                    $product = Product::query()->lockForUpdate()->findOrFail($variantReference->product_id);
+                    $variant = ProductVariant::query()
+                        ->whereKey($owner['product_variant_id'])
+                        ->where('product_id', $product->id)
+                        ->lockForUpdate()
+                        ->first();
+                    if (! $product->isVariable() || ! $variant || $variant->trashed()) {
+                        throw ValidationException::withMessages(['items' => 'The returned variant is no longer available.']);
+                    }
+                }
+                Location::query()->lockForUpdate()->findOrFail($order->location_id);
+
                 $stockQuery = InventoryStock::query()->where('location_id', $order->location_id);
                 $owner['product_id'] !== null
                     ? $stockQuery->where('product_id', $owner['product_id'])->whereNull('product_variant_id')
@@ -189,6 +233,7 @@ class SalesReturnService
             $this->activityLog->recordForUser($actor, 'completed', 'sales_returns', 'Completed sales return '.$return->return_number, $return, null, [
                 'sales_order_id' => $order->id, 'refund_amount' => $total, 'refund_method' => $return->refund_method,
                 'journal_entry_id' => $journal->id, 'item_count' => count($returnLines),
+                'disposition_totals' => collect($returnLines)->groupBy('disposition')->map(fn ($items) => $items->sum(fn ($item) => (float) $item['quantity']))->all(),
             ]);
 
             return $return->fresh(['items.orderItem', 'journalEntry']);

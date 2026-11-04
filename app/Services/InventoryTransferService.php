@@ -2,16 +2,18 @@
 
 namespace App\Services;
 
+use App\Jobs\ProcessInventoryTransferNotificationOutbox;
 use App\Models\InventoryStock;
 use App\Models\InventoryTransfer;
+use App\Models\InventoryTransferNotificationOutbox;
 use App\Models\InventoryTransferReceipt;
 use App\Models\Location;
+use App\Models\Product;
+use App\Models\ProductVariant;
 use App\Models\StockMovement;
 use App\Models\User;
-use App\Notifications\InventoryTransferNotification;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
@@ -52,6 +54,10 @@ class InventoryTransferService
                 }
             }
 
+            // Keep a single lock order across inventory workflows: owner, locations, stock row.
+            // The parent product lock serializes first-time stock-row creation for variants too.
+            $owner = $this->lockOwner($ownerId, $isVariant);
+
             $locations = Location::query()->whereIn('id', [$sourceId, $destinationId])->orderBy('id')->lockForUpdate()->get()->keyBy('id');
             if ($locations->count() !== 2 || $locations->contains(fn (Location $location) => ! $location->is_active)) {
                 throw ValidationException::withMessages(['destination_location_id' => 'Both locations must exist and be active.']);
@@ -65,13 +71,6 @@ class InventoryTransferService
                 ->exists();
             if (! $hasReceiver) {
                 throw ValidationException::withMessages(['destination_location_id' => 'Assign at least one active inventory-transfer user with receive access to the destination before dispatch.']);
-            }
-
-            $ownerQuery = $isVariant
-                ? DB::table('product_variants')->where('id', $ownerId)
-                : DB::table('products')->where('id', $ownerId);
-            if (! $ownerQuery->exists()) {
-                throw ValidationException::withMessages([$isVariant ? 'product_variant_id' : 'product_id' => 'The selected inventory item does not exist.']);
             }
 
             $stockQuery = InventoryStock::query()->where('location_id', $sourceId);
@@ -92,8 +91,8 @@ class InventoryTransferService
             $transfer = InventoryTransfer::query()->create([
                 'transfer_uuid' => $transferUuid,
                 'idempotency_key' => $data['idempotency_key'] ?? null,
-                'product_id' => $isVariant ? null : $ownerId,
-                'product_variant_id' => $isVariant ? $ownerId : null,
+                'product_id' => $owner['product_id'],
+                'product_variant_id' => $owner['variant_id'],
                 'source_location_id' => $sourceId,
                 'destination_location_id' => $destinationId,
                 'quantity_sent' => $quantity,
@@ -113,8 +112,8 @@ class InventoryTransferService
 
             StockMovement::query()->create([
                 'transfer_group_id' => $transferUuid,
-                'product_id' => $isVariant ? null : $ownerId,
-                'product_variant_id' => $isVariant ? $ownerId : null,
+                'product_id' => $owner['product_id'],
+                'product_variant_id' => $owner['variant_id'],
                 'location_id' => $sourceId,
                 'movement_type' => 'transfer_out',
                 'quantity_delta' => bcsub('0', $quantity, 4),
@@ -129,7 +128,7 @@ class InventoryTransferService
             ]);
 
             $transfer = $transfer->load(['product', 'variant', 'sourceLocation', 'destinationLocation', 'dispatcher']);
-            $this->notifyTransferRecipients($transfer, 'dispatched');
+            $this->recordNotificationOutbox($transfer, 'dispatched', $this->destinationRecipientIds($transfer));
 
             return $transfer;
         }, 3);
@@ -183,17 +182,13 @@ class InventoryTransferService
             }
 
             $isVariant = $locked->product_variant_id !== null;
-            // Lock the stock owner before looking for a stock row. This serializes
-            // first-time stock-row creation across different transfers for the same owner.
-            if ($isVariant) {
-                $variantReference = DB::table('product_variants')->where('id', $locked->product_variant_id)->first(['product_id']);
-                if (! $variantReference) {
-                    throw ValidationException::withMessages(['transfer' => 'The transferred variant no longer exists.']);
-                }
-                DB::table('products')->where('id', $variantReference->product_id)->lockForUpdate()->first();
-            } else {
-                DB::table('products')->where('id', $locked->product_id)->lockForUpdate()->first();
-            }
+            // Revalidate and lock the owner (parent product before variant) before stock.
+            $this->lockOwner(
+                (int) ($isVariant ? $locked->product_variant_id : $locked->product_id),
+                $isVariant,
+            );
+
+            Location::query()->lockForUpdate()->findOrFail($locked->destination_location_id);
 
             $stockQuery = InventoryStock::query()->where('location_id', $locked->destination_location_id);
             $stockQuery = $isVariant
@@ -254,7 +249,7 @@ class InventoryTransferService
                 'resulting_status' => $locked->status,
             ]);
             $locked = $locked->load(['product', 'variant', 'sourceLocation', 'destinationLocation', 'dispatcher', 'receiver']);
-            $this->notifyDispatcher($locked, 'received');
+            $this->recordNotificationOutbox($locked, 'received', $this->dispatcherRecipientIds($locked));
 
             return $locked;
         }, 3);
@@ -285,12 +280,126 @@ class InventoryTransferService
             $locked->save();
 
             $locked = $locked->load(['product', 'variant', 'sourceLocation', 'destinationLocation', 'dispatcher']);
-            $this->notifyDispatcher($locked, 'discrepancy');
+            $this->recordNotificationOutbox($locked, 'discrepancy', $this->dispatcherRecipientIds($locked));
 
             return $locked;
         }, 3);
 
         return $updated;
+    }
+
+    /**
+     * Resolve an audited transfer discrepancy without silently changing either balance.
+     *
+     * @param  'receive_remaining'|'return_to_source'|'write_off'  $action
+     */
+    public function resolveDiscrepancy(InventoryTransfer $transfer, string $action, string $note, User $actor): InventoryTransfer
+    {
+        $this->assertLocationAccess($actor, (int) $transfer->source_location_id, ['manage'], 'transfer');
+
+        return DB::transaction(function () use ($transfer, $action, $note, $actor): InventoryTransfer {
+            $locked = InventoryTransfer::query()->whereKey($transfer->id)->lockForUpdate()->firstOrFail();
+            if ($locked->status !== 'discrepancy') {
+                $previousResolution = (array) (($locked->metadata ?? [])['discrepancy_resolution'] ?? []);
+                if (($previousResolution['action'] ?? null) === $action
+                    && ($previousResolution['note'] ?? null) === $note) {
+                    return $locked->load(['product', 'variant', 'sourceLocation', 'destinationLocation', 'dispatcher', 'receiver', 'resolver']);
+                }
+
+                throw ValidationException::withMessages(['transfer' => 'Only an unresolved discrepancy can be reconciled; this transfer may already have a different resolution.']);
+            }
+
+            $outstanding = bcsub((string) $locked->quantity_sent, (string) $locked->quantity_received, 4);
+            if (bccomp($outstanding, '0.0000', 4) <= 0) {
+                throw ValidationException::withMessages(['transfer' => 'This transfer has no outstanding quantity to reconcile.']);
+            }
+
+            $isVariant = $locked->product_variant_id !== null;
+            $ownerId = (int) ($isVariant ? $locked->product_variant_id : $locked->product_id);
+            $owner = $this->lockOwner($ownerId, $isVariant);
+
+            if ($action === 'receive_remaining' || $action === 'return_to_source') {
+                $locationId = $action === 'receive_remaining'
+                    ? (int) $locked->destination_location_id
+                    : (int) $locked->source_location_id;
+
+                Location::query()->lockForUpdate()->findOrFail($locationId);
+                $stockQuery = InventoryStock::query()->where('location_id', $locationId);
+                $stockQuery = $isVariant
+                    ? $stockQuery->where('product_variant_id', $owner['variant_id'])->whereNull('product_id')
+                    : $stockQuery->where('product_id', $owner['product_id'])->whereNull('product_variant_id');
+                $stock = $stockQuery->lockForUpdate()->first();
+
+                if (! $stock) {
+                    $stock = InventoryStock::query()->create([
+                        'product_id' => $owner['product_id'],
+                        'product_variant_id' => $owner['variant_id'],
+                        'location_id' => $locationId,
+                        'quantity' => '0.0000',
+                        'reserved_quantity' => '0.0000',
+                    ]);
+                }
+
+                $before = (string) $stock->quantity;
+                $after = bcadd($before, $outstanding, 4);
+                $stock->quantity = $after;
+                $stock->save();
+
+                StockMovement::query()->create([
+                    'transfer_group_id' => $locked->transfer_uuid,
+                    'product_id' => $owner['product_id'],
+                    'product_variant_id' => $owner['variant_id'],
+                    'location_id' => $locationId,
+                    'movement_type' => $action === 'receive_remaining' ? 'transfer_in' : 'reversal',
+                    'quantity_delta' => $outstanding,
+                    'balance_before' => $before,
+                    'balance_after' => $after,
+                    'reason' => 'Transfer discrepancy resolution: '.$note,
+                    'reference_type' => 'inventory_transfer',
+                    'reference_id' => (string) $locked->id,
+                    'idempotency_key' => (string) Str::uuid(),
+                    'created_by' => $actor->id,
+                    'metadata' => [
+                        'transfer_uuid' => $locked->transfer_uuid,
+                        'resolution_action' => $action,
+                        'resolution_note' => $note,
+                    ],
+                ]);
+            }
+
+            if ($action === 'receive_remaining') {
+                $locked->quantity_received = $locked->quantity_sent;
+                $locked->status = 'received';
+                $locked->received_at = Carbon::now();
+                $locked->received_by = $actor->id;
+            } elseif ($action === 'return_to_source') {
+                $locked->status = 'rejected';
+            } else {
+                $locked->status = 'written_off';
+            }
+
+            $locked->resolution_note = $note;
+            $locked->resolved_by = $actor->id;
+            $locked->resolved_at = Carbon::now();
+            $locked->metadata = array_merge((array) ($locked->metadata ?? []), [
+                'discrepancy_resolution' => [
+                    'action' => $action,
+                    'quantity' => $outstanding,
+                    'note' => $note,
+                    'resolved_by' => $actor->id,
+                    'resolved_at' => now()->toISOString(),
+                ],
+            ]);
+            $locked->save();
+
+            $recipientIds = array_values(array_unique([
+                ...$this->dispatcherRecipientIds($locked),
+                ...$this->destinationRecipientIds($locked),
+            ]));
+            $this->recordNotificationOutbox($locked, 'discrepancy_resolved', $recipientIds);
+
+            return $locked->load(['product', 'variant', 'sourceLocation', 'destinationLocation', 'dispatcher', 'receiver', 'resolver']);
+        }, 3);
     }
 
     /**
@@ -328,17 +437,86 @@ class InventoryTransferService
         return $existing;
     }
 
-    private function notifyTransferRecipients(InventoryTransfer $transfer, string $event): void
+    /**
+     * Persist notification intent in the same transaction as the inventory change.
+     * The outbox worker delivers after commit and retries without rolling back stock.
+     *
+     * @param  list<int>  $recipientIds
+     */
+    private function recordNotificationOutbox(InventoryTransfer $transfer, string $event, array $recipientIds): void
     {
-        $recipients = User::query()->where('status', 'active')
+        if ($recipientIds === []) {
+            return;
+        }
+
+        $outbox = InventoryTransferNotificationOutbox::query()->create([
+            'inventory_transfer_id' => $transfer->id,
+            'event' => $event,
+            'recipient_ids' => array_values(array_unique($recipientIds)),
+            'status' => 'pending',
+            'attempts' => 0,
+            'available_at' => now(),
+        ]);
+
+        DB::afterCommit(function () use ($outbox): void {
+            try {
+                ProcessInventoryTransferNotificationOutbox::dispatch((int) $outbox->id);
+            } catch (\Throwable $exception) {
+                // The durable pending row is picked up by inventory:dispatch-transfer-notifications.
+                report($exception);
+            }
+        });
+    }
+
+    /** @return list<int> */
+    private function destinationRecipientIds(InventoryTransfer $transfer): array
+    {
+        return array_values(User::query()->where('status', 'active')
             ->whereHas('roles.permissions', fn ($query) => $query->where('slug', 'system.inventory.transfer'))
             ->whereHas('locations', fn ($query) => $query
                 ->where('locations.id', $transfer->destination_location_id)
                 ->whereIn('location_user.access_level', ['receive', 'manage']))
             ->where('id', '<>', $transfer->dispatched_by)
-            ->get();
+            ->pluck('id')->map(fn ($id) => (int) $id)->all());
+    }
 
-        Notification::send($recipients, new InventoryTransferNotification($transfer, $event));
+    /** @return list<int> */
+    private function dispatcherRecipientIds(InventoryTransfer $transfer): array
+    {
+        return $transfer->dispatched_by ? [(int) $transfer->dispatched_by] : [];
+    }
+
+    /**
+     * @return array{product_id: int|null, variant_id: int|null}
+     */
+    private function lockOwner(int $ownerId, bool $isVariant): array
+    {
+        if (! $isVariant) {
+            $product = Product::query()->lockForUpdate()->find($ownerId);
+            if (! $product || ! $product->isSimple()) {
+                throw ValidationException::withMessages(['product_id' => 'Choose an existing simple product.']);
+            }
+
+            return ['product_id' => (int) $product->id, 'variant_id' => null];
+        }
+
+        $reference = ProductVariant::query()->whereKey($ownerId)->first(['id', 'product_id']);
+        if (! $reference) {
+            throw ValidationException::withMessages(['product_variant_id' => 'The selected variant does not exist.']);
+        }
+
+        $product = Product::query()->lockForUpdate()->find($reference->product_id);
+        $variant = ProductVariant::query()
+            ->whereKey($ownerId)
+            ->where('product_id', $product?->id)
+            ->lockForUpdate()
+            ->first();
+
+        if (! $product || ! $product->isVariable() || ! $variant || $variant->trashed()) {
+            throw ValidationException::withMessages(['product_variant_id' => 'Choose an available variant.']);
+        }
+
+        return ['product_id' => null, 'variant_id' => (int) $variant->id];
     }
 
     /**
@@ -361,14 +539,6 @@ class InventoryTransferService
 
         if (! $allowed) {
             throw ValidationException::withMessages([$field => 'You are not assigned the required access level for this location.']);
-        }
-    }
-
-    private function notifyDispatcher(InventoryTransfer $transfer, string $event): void
-    {
-        $dispatcher = User::query()->find($transfer->dispatched_by);
-        if ($dispatcher) {
-            $dispatcher->notify(new InventoryTransferNotification($transfer, $event));
         }
     }
 

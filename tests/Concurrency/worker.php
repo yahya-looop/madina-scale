@@ -58,6 +58,7 @@ try {
             $actor,
         ),
         'issue' => app(InventoryService::class)->issue($payload['data'], $actor),
+        'receive_stock' => app(InventoryService::class)->receive($payload['data'], $actor),
         'reserve' => app(InventoryReservationService::class)->reserve($payload['data'], $actor),
         'b2b_order' => app(SalesOrderService::class)->create($payload['data'], $actor),
         default => throw new InvalidArgumentException('Unsupported concurrency operation.'),

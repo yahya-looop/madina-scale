@@ -6,6 +6,7 @@ use App\Models\Customer;
 use App\Models\FinancialAccount;
 use App\Models\JournalEntry;
 use App\Models\Location;
+use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Models\SalesOrderItem;
 use App\Models\User;
@@ -208,15 +209,22 @@ class WarrantyServiceController extends Controller
         ]);
 
         $this->locationAccess->assertManage($request->user(), (int) $data['location_id']);
-        if (! empty($data['warranty_id'])) {
-            $warranty = DB::table('product_warranties')->where('id', $data['warranty_id'])->first();
-            abort_unless($warranty && (int) $warranty->customer_id === (int) $data['customer_id'] && (int) $warranty->location_id === (int) $data['location_id'], 422, 'Warranty, customer and location must match.');
-        }
         if (! empty($data['assigned_to'])) {
             $this->assertTechnicianCanWorkAtLocation((int) $data['assigned_to'], (int) $data['location_id']);
         }
 
         $ticket = DB::transaction(function () use ($request, $data) {
+            if (! empty($data['warranty_id'])) {
+                $warranty = DB::table('product_warranties')->where('id', $data['warranty_id'])->lockForUpdate()->first();
+                abort_unless(
+                    $warranty
+                        && (int) $warranty->customer_id === (int) $data['customer_id']
+                        && (int) $warranty->location_id === (int) $data['location_id'],
+                    422,
+                    'Warranty, customer and location must match.'
+                );
+            }
+
             $id = DB::table('service_tickets')->insertGetId([
                 'ticket_number' => 'SRV-'.now()->format('ymd').'-'.Str::upper(Str::random(6)),
                 'warranty_id' => $data['warranty_id'] ?? null,
@@ -257,12 +265,31 @@ class WarrantyServiceController extends Controller
             $row = DB::table('service_tickets')->where('id', $ticket)->lockForUpdate()->first();
             abort_unless($row !== null, 404);
             $this->locationAccess->assertManage($request->user(), (int) $row->location_id);
-            if (in_array($row->status, ['closed', 'rejected'], true)) {
-                throw ValidationException::withMessages(['ticket' => 'Parts cannot be issued to a closed or rejected ticket.']);
+            if (in_array($row->status, ['resolved', 'closed', 'rejected'], true)) {
+                throw ValidationException::withMessages(['ticket' => 'Parts cannot be issued to a resolved, closed or rejected ticket.']);
             }
+            // Match InventoryService's global lock order: parent product before variant.
+            // Locking the variant first here would invert that order and risk deadlocks
+            // with other stock operations on the same product.
+            $variantReference = ProductVariant::query()
+                ->whereKey((int) $data['product_variant_id'])
+                ->first(['id', 'product_id']);
+            abort_unless($variantReference !== null, 404);
+            Product::query()->lockForUpdate()->findOrFail($variantReference->product_id);
+            $variant = ProductVariant::query()
+                ->whereKey($variantReference->id)
+                ->where('product_id', $variantReference->product_id)
+                ->where('status', 'active')
+                ->lockForUpdate()
+                ->first();
+            if (! $variant) {
+                throw ValidationException::withMessages([
+                    'product_variant_id' => 'The selected spare part is not active.',
+                ]);
+            }
+
             // The project uses ProductVariant.cost_price as its existing unit-cost source.
             // Never issue inventory or post an expense when that source is missing/zero.
-            $variant = ProductVariant::query()->lockForUpdate()->findOrFail((int) $data['product_variant_id']);
             $unitCost = bcadd((string) $variant->cost_price, '0', 2);
             if (bccomp($unitCost, '0.00', 2) <= 0) {
                 throw ValidationException::withMessages([
@@ -370,6 +397,23 @@ class WarrantyServiceController extends Controller
             abort_unless($row !== null, 404);
             $this->locationAccess->assertManage($request->user(), (int) $row->location_id);
             $old = (array) $row;
+            $allowedTransitions = [
+                'open' => ['diagnosing', 'waiting_parts', 'rejected'],
+                'diagnosing' => ['waiting_parts', 'in_repair', 'resolved', 'rejected'],
+                'waiting_parts' => ['diagnosing', 'in_repair', 'rejected'],
+                'in_repair' => ['waiting_parts', 'resolved', 'rejected'],
+                'resolved' => ['closed'],
+                'closed' => [],
+                'rejected' => [],
+            ];
+            if (
+                $data['status'] !== $row->status
+                && ! in_array($data['status'], $allowedTransitions[$row->status] ?? [], true)
+            ) {
+                throw ValidationException::withMessages([
+                    'status' => 'This service ticket status transition is not allowed.',
+                ]);
+            }
             if (in_array($data['status'], ['resolved', 'closed'], true) && trim((string) ($data['resolution'] ?? $row->resolution ?? '')) === '') {
                 throw ValidationException::withMessages(['resolution' => 'A resolution note is required before resolving or closing a ticket.']);
             }
@@ -382,7 +426,9 @@ class WarrantyServiceController extends Controller
                 'assigned_to' => array_key_exists('assigned_to', $data) ? $data['assigned_to'] : $row->assigned_to,
                 'diagnosis' => $data['diagnosis'] ?? $row->diagnosis,
                 'resolution' => $data['resolution'] ?? $row->resolution,
-                'resolved_at' => in_array($data['status'], ['resolved', 'closed'], true) ? ($row->resolved_at ?? now()) : null,
+                'resolved_at' => in_array($data['status'], ['resolved', 'closed'], true)
+                    ? ($row->resolved_at ?? now())
+                    : $row->resolved_at,
                 'updated_at' => now(),
             ];
             DB::table('service_tickets')->where('id', $ticket)->update($changes);

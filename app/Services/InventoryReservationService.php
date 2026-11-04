@@ -63,6 +63,10 @@ class InventoryReservationService
 
     public function resolve(InventoryReservation $reservation, string $action, User $actor): InventoryReservation
     {
+        if (! in_array($action, ['release', 'cancel', 'fulfill'], true)) {
+            throw ValidationException::withMessages(['action' => 'Choose a valid reservation action.']);
+        }
+
         $this->expireDue();
 
         return DB::transaction(function () use ($reservation, $action, $actor): InventoryReservation {
@@ -73,7 +77,10 @@ class InventoryReservationService
             if ($locked->status !== 'active') {
                 throw ValidationException::withMessages(['reservation' => 'Only active reservations can be changed.']);
             }
-            $owner = ['product_id' => $locked->product_id, 'variant_id' => $locked->product_variant_id];
+            $owner = $this->lockOwner([
+                'product_id' => $locked->product_id,
+                'product_variant_id' => $locked->product_variant_id,
+            ]);
             $location = Location::query()->lockForUpdate()->findOrFail($locked->location_id);
             $stock = $this->stockForUpdate($owner, (int) $location->id);
             $quantity = (string) $locked->quantity;
@@ -135,7 +142,7 @@ class InventoryReservationService
     /** @param numeric-string $quantity */
     public function fulfillPartial(InventoryReservation $reservation, string $quantity, User $actor): InventoryReservation
     {
-        $requested = bcadd($quantity, '0', 4);
+        $requested = $this->quantity($quantity);
         if (bccomp($requested, '0', 4) <= 0) {
             throw ValidationException::withMessages(['quantity' => 'Fulfillment quantity must be greater than zero.']);
         }
@@ -160,7 +167,11 @@ class InventoryReservationService
                 throw ValidationException::withMessages(['quantity' => 'Reservation changed during fulfillment. Refresh and retry.']);
             }
 
-            $owner = ['product_id' => $locked->product_id, 'variant_id' => $locked->product_variant_id];
+            $owner = $this->lockOwner([
+                'product_id' => $locked->product_id,
+                'product_variant_id' => $locked->product_variant_id,
+            ]);
+            Location::query()->lockForUpdate()->findOrFail($locked->location_id);
             $stock = $this->stockForUpdate($owner, (int) $locked->location_id);
             if (bccomp((string) $stock->reserved_quantity, $requested, 4) < 0 || bccomp((string) $stock->quantity, $requested, 4) < 0) {
                 throw ValidationException::withMessages(['reservation' => 'Stock balance is inconsistent; review the stock ledger before proceeding.']);
@@ -199,7 +210,11 @@ class InventoryReservationService
                     if (! $r || $r->status !== 'active' || ! $r->expires_at || $r->expires_at->isFuture()) {
                         return;
                     }
-                    $owner = ['product_id' => $r->product_id, 'variant_id' => $r->product_variant_id];
+                    $owner = $this->lockOwner([
+                        'product_id' => $r->product_id,
+                        'product_variant_id' => $r->product_variant_id,
+                    ]);
+                    Location::query()->lockForUpdate()->findOrFail($r->location_id);
                     $stock = $this->stockForUpdate($owner, (int) $r->location_id);
                     $stock->reserved_quantity = bcsub((string) $stock->reserved_quantity, (string) $r->quantity, 4);
                     if (bccomp((string) $stock->reserved_quantity, '0', 4) < 0) {

@@ -1,11 +1,15 @@
 <?php
 
+declare(strict_types=1);
+
 use App\Models\FinancialAccount;
 use App\Models\InventoryStock;
 use App\Models\SalesOrder;
 use App\Models\SalesOrderFulfillment;
 use App\Models\SalesOrderFulfillmentItem;
 use App\Models\SalesOrderItem;
+use App\Models\SalesReturn;
+use App\Models\StockMovement;
 use App\Models\User;
 use App\Services\LocationInventoryAccessService;
 use App\Services\SalesReturnService;
@@ -77,4 +81,53 @@ test('location access scope accepts query builder used by finance aggregates', f
     $user->locations()->attach($visible->id, ['access_level' => 'view']);
     $rows = app(LocationInventoryAccessService::class)->scopeViewable(DB::table('locations'), $user, 'locations.id')->pluck('id')->all();
     expect($rows)->toContain($visible->id)->not->toContain($hidden->id);
+});
+
+test('non-restock return dispositions are recorded without increasing sellable stock', function (string $disposition) {
+    ['user' => $user, 'location' => $location, 'order' => $order, 'item' => $item, 'variant' => $variant] = salesReturnFixture();
+    $cash = FinancialAccount::query()->where('code', '1000')->firstOrFail();
+
+    $return = app(SalesReturnService::class)->create([
+        'sales_order_id' => $order->id,
+        'idempotency_key' => (string) Str::uuid(),
+        'return_date' => now()->toDateString(),
+        'refund_method' => 'cash',
+        'cash_account_id' => $cash->id,
+        'items' => [[
+            'sales_order_item_id' => $item->id,
+            'quantity' => '2.0000',
+            'disposition' => $disposition,
+            'disposition_note' => 'Checked at return counter',
+        ]],
+    ], $user);
+
+    $stock = InventoryStock::query()->where('product_variant_id', $variant->id)
+        ->where('location_id', $location->id)->firstOrFail();
+    $returnItem = $return->items()->firstOrFail();
+
+    expect((string) $stock->quantity)->toBe('0.0000')
+        ->and($returnItem->disposition)->toBe($disposition)
+        ->and($returnItem->disposition_note)->toBe('Checked at return counter')
+        ->and($return->journalEntry->status)->toBe('posted')
+        ->and(StockMovement::query()->where('reference_type', SalesReturn::class)
+            ->where('reference_id', (string) $return->id)->count())->toBe(0);
+})->with(['damaged', 'quarantine', 'rejected']);
+
+test('sales return idempotency rejects a changed disposition', function () {
+    ['user' => $user, 'order' => $order, 'item' => $item] = salesReturnFixture();
+    $cash = FinancialAccount::query()->where('code', '1000')->firstOrFail();
+    $key = (string) Str::uuid();
+    $service = app(SalesReturnService::class);
+    $payload = [
+        'sales_order_id' => $order->id,
+        'idempotency_key' => $key,
+        'return_date' => now()->toDateString(),
+        'refund_method' => 'cash',
+        'cash_account_id' => $cash->id,
+        'items' => [['sales_order_item_id' => $item->id, 'quantity' => '1.0000', 'disposition' => 'restock']],
+    ];
+    $service->create($payload, $user);
+    $payload['items'][0]['disposition'] = 'damaged';
+
+    expect(fn () => $service->create($payload, $user))->toThrow(ValidationException::class);
 });

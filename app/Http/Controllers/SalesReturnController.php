@@ -66,12 +66,14 @@ class SalesReturnController extends Controller
             'items' => ['required', 'array', 'min:1'],
             'items.*.sales_order_item_id' => ['required', 'integer', 'distinct', 'exists:sales_order_items,id'],
             'items.*.quantity' => ['required', 'numeric', 'gt:0', 'decimal:0,4'],
+            'items.*.disposition' => ['sometimes', 'string', Rule::in(['restock', 'damaged', 'quarantine', 'rejected'])],
+            'items.*.disposition_note' => ['nullable', 'string', 'max:500'],
         ]);
         if ($data['refund_method'] !== 'store_credit' && empty($data['cash_account_id'])) {
             return response()->json(['message' => 'A cash or bank account is required for cash/bank refunds.'], 422);
         }
         $return = $this->returns->create($data, $request->user());
 
-        return response()->json(['message' => 'Sales return completed and posted to inventory and finance.', 'data' => $return], $return->wasRecentlyCreated ? 201 : 200);
+        return response()->json(['message' => 'Sales return recorded and refund posted. Only restock dispositions affect sellable inventory.', 'data' => $return], $return->wasRecentlyCreated ? 201 : 200);
     }
 }

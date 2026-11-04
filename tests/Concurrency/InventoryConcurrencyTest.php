@@ -325,3 +325,62 @@ test('simultaneous B2B orders cannot exceed one account credit limit across diff
     expect((string) SalesOrder::query()->where('b2b_account_id', $account->id)->sum('grand_total'))->toBe('100.00');
     expect(app(B2BCreditService::class)->summary($account->fresh())['outstanding'])->toBe('100.00');
 });
+
+test('simultaneous first receipts create one stock row and preserve both ledger movements', function () {
+    $actor = concurrencyUser(['system.inventory.view']);
+    $product = inventoryTestProduct();
+    $location = inventoryTestLocation();
+
+    [$one, $two] = startConcurrentWorkers(
+        ['operation' => 'receive_stock', 'actor_id' => $actor->id, 'data' => [
+            'product_id' => $product->id,
+            'location_id' => $location->id,
+            'quantity' => '4',
+            'idempotency_key' => (string) Str::uuid(),
+            'reason' => 'Concurrent first receipt A',
+        ]],
+        ['operation' => 'receive_stock', 'actor_id' => $actor->id, 'data' => [
+            'product_id' => $product->id,
+            'location_id' => $location->id,
+            'quantity' => '5',
+            'idempotency_key' => (string) Str::uuid(),
+            'reason' => 'Concurrent first receipt B',
+        ]],
+    );
+
+    $results = [assertConcurrencyWorkerCompleted($one), assertConcurrencyWorkerCompleted($two)];
+    expect(collect($results)->where('ok', true)->count())->toBe(2);
+    expect(InventoryStock::query()->where('product_id', $product->id)->where('location_id', $location->id)->count())->toBe(1);
+    expect((string) InventoryStock::query()->where('product_id', $product->id)->where('location_id', $location->id)->value('quantity'))->toBe('9.0000');
+    expect(DB::table('stock_movements')->where('product_id', $product->id)->where('location_id', $location->id)->where('movement_type', 'receipt')->count())->toBe(2);
+});
+
+test('simultaneous first variant receipts serialize on the parent product and create one variant stock row', function () {
+    $actor = concurrencyUser(['system.inventory.view']);
+    $product = inventoryTestProduct('variable');
+    $variant = inventoryTestVariant($product);
+    $location = inventoryTestLocation();
+
+    [$one, $two] = startConcurrentWorkers(
+        ['operation' => 'receive_stock', 'actor_id' => $actor->id, 'data' => [
+            'product_variant_id' => $variant->id,
+            'location_id' => $location->id,
+            'quantity' => '2',
+            'idempotency_key' => (string) Str::uuid(),
+            'reason' => 'Concurrent first variant receipt A',
+        ]],
+        ['operation' => 'receive_stock', 'actor_id' => $actor->id, 'data' => [
+            'product_variant_id' => $variant->id,
+            'location_id' => $location->id,
+            'quantity' => '3',
+            'idempotency_key' => (string) Str::uuid(),
+            'reason' => 'Concurrent first variant receipt B',
+        ]],
+    );
+
+    $results = [assertConcurrencyWorkerCompleted($one), assertConcurrencyWorkerCompleted($two)];
+    expect(collect($results)->where('ok', true)->count())->toBe(2);
+    expect(InventoryStock::query()->where('product_variant_id', $variant->id)->where('location_id', $location->id)->count())->toBe(1);
+    expect((string) InventoryStock::query()->where('product_variant_id', $variant->id)->where('location_id', $location->id)->value('quantity'))->toBe('5.0000');
+    expect(DB::table('stock_movements')->where('product_variant_id', $variant->id)->where('location_id', $location->id)->where('movement_type', 'receipt')->count())->toBe(2);
+});
