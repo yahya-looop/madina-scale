@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\CmsBanner;
 use App\Models\Product;
 use App\Models\ProductCategory;
+use App\Models\User;
+use App\Services\FeatureFlagService;
 use App\Services\PricingEngine;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
@@ -14,8 +16,26 @@ use Inertia\Response;
 
 class StorefrontController extends Controller
 {
+    public function __construct(private readonly FeatureFlagService $featureFlags) {}
+
+    private function ensureStorefrontEnabled(Request $request): void
+    {
+        $user = $request->user();
+        $context = $request->hasSession() ? $request->session()->getId() : null;
+
+        abort_unless(
+            $this->featureFlags->enabled(
+                'storefront.checkout.enabled',
+                $user instanceof User ? $user : null,
+                $context,
+            ),
+            404,
+        );
+    }
+
     public function index(Request $request): Response
     {
+        $this->ensureStorefrontEnabled($request);
         $search = trim((string) $request->query('q', ''));
         $categorySlug = trim((string) $request->query('category', ''));
 
@@ -67,8 +87,9 @@ class StorefrontController extends Controller
         ]);
     }
 
-    public function show(string $slug): Response
+    public function show(string $slug, Request $request): Response
     {
+        $this->ensureStorefrontEnabled($request);
         $product = $this->publicProductsQuery()
             ->with(['media' => function ($query): void {
                 $query->where('collection', 'images')

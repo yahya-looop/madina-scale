@@ -322,6 +322,7 @@ class SettingsUpdateRequest extends FormRequest
                 'required',
                 'string',
                 'max:150',
+                'distinct',
                 Rule::in(array_keys(self::definitions())),
             ],
 
@@ -402,7 +403,7 @@ class SettingsUpdateRequest extends FormRequest
 
                     if (
                         in_array($type, ['integer', 'int'], true)
-                        && is_numeric($value)
+                        && preg_match('/^-?\d+$/D', $value) === 1
                     ) {
                         $setting['value'] = (int) $value;
 
@@ -770,6 +771,109 @@ class SettingsUpdateRequest extends FormRequest
                             }
                         }
                     }
+                }
+
+                /*
+                |--------------------------------------------------------------------------
+                | Registered setting bounds and formats
+                |--------------------------------------------------------------------------
+                */
+
+                $integerRanges = [
+                    'localization.week_starts_on' => [0, 6],
+                    'currency.decimal_places' => [0, 4],
+                    'system.items_per_page' => [10, 200],
+                    'security.login_max_attempts' => [1, 20],
+                    'security.lockout_duration_minutes' => [1, 1440],
+                    'security.session_timeout_minutes' => [5, 1440],
+                    'security.password_min_length' => [8, 128],
+                    'security.password_expiry_days' => [0, 3650],
+                    'crm.default_follow_up_hours' => [1, 720],
+                ];
+
+                foreach ($integerRanges as $key => [$minimum, $maximum]) {
+                    if (! array_key_exists($key, $submitted) || $submitted[$key] === null) {
+                        continue;
+                    }
+
+                    $value = $submitted[$key];
+                    if (is_int($value) && ($value < $minimum || $value > $maximum)) {
+                        $validator->errors()->add(
+                            'settings.'.$this->settingIndex($settings, $key).'.value',
+                            "The {$key} value must be between {$minimum} and {$maximum}.",
+                        );
+                    }
+                }
+
+                $timezone = trim((string) ($submitted['localization.timezone'] ?? ''));
+                if ($timezone !== '' && ! in_array($timezone, \DateTimeZone::listIdentifiers(), true)) {
+                    $validator->errors()->add(
+                        'settings.'.$this->settingIndex($settings, 'localization.timezone').'.value',
+                        'The selected timezone is invalid.',
+                    );
+                }
+
+                $locale = trim((string) ($submitted['localization.locale'] ?? ''));
+                if ($locale !== '' && preg_match('/^[a-z]{2}(?:[-_][A-Z]{2})?$/', $locale) !== 1) {
+                    $validator->errors()->add(
+                        'settings.'.$this->settingIndex($settings, 'localization.locale').'.value',
+                        'The locale must use a language code with an optional region code.',
+                    );
+                }
+
+                $dateFormat = $submitted['localization.date_format'] ?? null;
+                if ($dateFormat !== null && ! in_array($dateFormat, ['DD/MM/YYYY', 'MM/DD/YYYY', 'YYYY-MM-DD'], true)) {
+                    $validator->errors()->add(
+                        'settings.'.$this->settingIndex($settings, 'localization.date_format').'.value',
+                        'The selected date format is invalid.',
+                    );
+                }
+
+                $timeFormat = $submitted['localization.time_format'] ?? null;
+                if ($timeFormat !== null && ! in_array($timeFormat, ['12-hour', '24-hour'], true)) {
+                    $validator->errors()->add(
+                        'settings.'.$this->settingIndex($settings, 'localization.time_format').'.value',
+                        'The selected time format is invalid.',
+                    );
+                }
+
+                $currencyCode = trim((string) ($submitted['currency.default'] ?? ''));
+                if ($currencyCode !== '' && preg_match('/^[A-Z]{3}$/', $currencyCode) !== 1) {
+                    $validator->errors()->add(
+                        'settings.'.$this->settingIndex($settings, 'currency.default').'.value',
+                        'The currency code must contain three uppercase letters.',
+                    );
+                }
+
+                foreach (['currency.thousand_separator', 'currency.decimal_separator'] as $key) {
+                    if (! array_key_exists($key, $submitted) || $submitted[$key] === null) {
+                        continue;
+                    }
+
+                    if (! is_string($submitted[$key]) || mb_strlen($submitted[$key]) !== 1) {
+                        $validator->errors()->add(
+                            'settings.'.$this->settingIndex($settings, $key).'.value',
+                            'A currency separator must be exactly one character.',
+                        );
+                    }
+                }
+
+                if (
+                    isset($submitted['currency.thousand_separator'], $submitted['currency.decimal_separator'])
+                    && $submitted['currency.thousand_separator'] === $submitted['currency.decimal_separator']
+                ) {
+                    $validator->errors()->add(
+                        'settings.'.$this->settingIndex($settings, 'currency.decimal_separator').'.value',
+                        'The decimal and thousands separators must be different.',
+                    );
+                }
+
+                $contactEmail = trim((string) ($submitted['general.contact_email'] ?? ''));
+                if ($contactEmail !== '' && filter_var($contactEmail, FILTER_VALIDATE_EMAIL) === false) {
+                    $validator->errors()->add(
+                        'settings.'.$this->settingIndex($settings, 'general.contact_email').'.value',
+                        'The contact email address must be valid.',
+                    );
                 }
             },
         );

@@ -5,14 +5,19 @@ namespace App\Http\Controllers;
 use App\Http\Requests\Module\StoreModuleRequest;
 use App\Http\Requests\Module\UpdateModuleRequest;
 use App\Models\Module;
+use App\Models\User;
+use App\Services\AuthorizationService;
 use App\Services\ModuleService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Validation\Rule;
 
 class ModuleController extends Controller
 {
     public function __construct(
         protected ModuleService $modules,
+        private readonly AuthorizationService $authorization,
     ) {}
 
     /**
@@ -49,12 +54,14 @@ class ModuleController extends Controller
          *     description?: string|null,
          *     icon?: string|null,
          *     sort_order?: int,
-         *     is_active?: bool
          * } $attributes
          */
         $attributes = $request->validated();
 
-        $module = $this->modules->create($attributes);
+        $user = $request->user();
+        abort_unless($user instanceof User, 401);
+
+        $module = $this->modules->create($attributes, $user);
 
         return response()->json([
             'data' => $module->toArray(),
@@ -74,18 +81,37 @@ class ModuleController extends Controller
          *     description?: string|null,
          *     icon?: string|null,
          *     sort_order?: int,
-         *     is_active?: bool
          * } $attributes
          */
         $attributes = $request->validated();
 
+        $user = $request->user();
+        abort_unless($user instanceof User, 401);
+
         $module = $this->modules->update(
             $module,
             $attributes,
+            $user,
         );
 
         return response()->json([
             'data' => $module->toArray(),
+        ]);
+    }
+
+    /** Change a module lifecycle state. */
+    public function updateState(Request $request, Module $module): JsonResponse
+    {
+        $user = $request->user();
+        abort_unless($user !== null, 401);
+        abort_unless($this->authorization->isDeveloper($user), 403);
+
+        $validated = $request->validate([
+            'state' => ['required', 'string', Rule::in(['enabled', 'disabled', 'locked', 'hidden'])],
+        ]);
+
+        return response()->json([
+            'data' => $this->modules->changeState($module, $validated['state'], $user),
         ]);
     }
 }

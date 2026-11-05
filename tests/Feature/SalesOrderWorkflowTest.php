@@ -7,6 +7,7 @@ use App\Models\B2BQuote;
 use App\Models\Customer;
 use App\Models\FlashSale;
 use App\Models\FlashSaleItem;
+use App\Models\InventoryReservation;
 use App\Models\InventoryReservationPurpose;
 use App\Models\InventoryStock;
 use App\Models\Location;
@@ -19,6 +20,7 @@ use App\Models\SalesOrder;
 use App\Models\SalesOrderFlashSaleAllocation;
 use App\Models\User;
 use App\Services\CommercialPricingService;
+use App\Services\SalesOrderService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -853,6 +855,88 @@ class SalesOrderWorkflowTest extends TestCase
             'location_id' => $location->id,
             'reserved_quantity' => '1.0000',
         ]);
+    }
+
+    public function test_executive_confirmation_reserves_stock_for_a_deferred_storefront_order(): void
+    {
+        [$location, $variant] = $this->orderFixture();
+        $user = $this->orderUser($location);
+
+        $order = app(SalesOrderService::class)->create([
+            'location_id' => $location->id,
+            'customer_name' => 'Online Checkout Buyer',
+            'customer_phone' => '01712345678',
+            'channel' => 'storefront',
+            'items' => [['product_variant_id' => $variant->id, 'quantity' => 2]],
+        ], null, true);
+
+        $this->assertSame('pending', $order->status);
+        $this->assertDatabaseHas('inventory_stocks', [
+            'product_variant_id' => $variant->id,
+            'location_id' => $location->id,
+            'reserved_quantity' => '0.0000',
+        ]);
+        $this->assertSame(0, InventoryReservation::query()
+            ->where('reference_type', 'sales_order')
+            ->where('reference_id', (string) $order->id)
+            ->where('status', 'active')
+            ->count());
+
+        $confirmed = app(SalesOrderService::class)->confirm($order, $user);
+
+        $this->assertSame('confirmed', $confirmed->status);
+        $this->assertNotNull($confirmed->confirmed_at);
+        $this->assertDatabaseHas('inventory_stocks', [
+            'product_variant_id' => $variant->id,
+            'location_id' => $location->id,
+            'reserved_quantity' => '2.0000',
+        ]);
+        $this->assertDatabaseHas('inventory_reservations', [
+            'reference_type' => 'sales_order',
+            'reference_id' => (string) $order->id,
+            'status' => 'active',
+            'quantity' => '2.0000',
+        ]);
+    }
+
+    public function test_order_register_can_filter_storefront_orders_by_channel(): void
+    {
+        [$location, $variant] = $this->orderFixture();
+        $user = $this->orderUser($location);
+
+        $storefrontResponse = $this->actingAs($user)->postJson('/api/orders', [
+            'location_id' => $location->id,
+            'customer_name' => 'Online Buyer',
+            'channel' => 'storefront',
+            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1]],
+        ])->assertCreated()
+            ->assertJsonPath('data.status', 'pending')
+            ->assertJsonPath('data.channel', 'storefront');
+
+        $storefrontOrderId = (string) $storefrontResponse->json('data.id');
+        $this->assertSame(0, InventoryReservation::query()
+            ->where('reference_type', 'sales_order')
+            ->where('reference_id', $storefrontOrderId)
+            ->where('status', 'active')
+            ->count());
+        $this->assertDatabaseHas('inventory_stocks', [
+            'product_variant_id' => $variant->id,
+            'location_id' => $location->id,
+            'reserved_quantity' => '0.0000',
+        ]);
+
+        $this->actingAs($user)->postJson('/api/orders', [
+            'location_id' => $location->id,
+            'customer_name' => 'Walk-in Buyer',
+            'channel' => 'backoffice',
+            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1]],
+        ])->assertCreated();
+
+        $this->actingAs($user)->getJson('/api/orders?channel=storefront')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.channel', 'storefront')
+            ->assertJsonPath('data.0.customer_name', 'Online Buyer');
     }
 
     public function test_order_confirmation_rejects_financial_snapshot_mismatch(): void

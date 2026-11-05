@@ -58,12 +58,17 @@ function hasVisibleChildren(item: NavigationItem): boolean {
     return Boolean(item.children?.some((child) => canView(child)));
 }
 
-const items = computed<NavigationItem[]>(() =>
-    primaryNavigation.filter((item) => {
+const items = computed<NavigationItem[]>(() => {
+    const registered = page.props.navigation as NavigationItem[] | undefined;
+    if (Array.isArray(registered)) {
+        return registered;
+    }
+
+    return primaryNavigation.filter((item) => {
         if (item.developerOnly) return isDeveloper.value;
         return canView(item) || hasVisibleChildren(item);
-    }),
-);
+    });
+});
 
 /**
  * Only the most-specific matching route is active.

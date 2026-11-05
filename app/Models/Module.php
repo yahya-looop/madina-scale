@@ -17,6 +17,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property int $sort_order
  * @property bool $is_system
  * @property bool $is_active
+ * @property string $state
  */
 #[Fillable([
     'name',
@@ -26,6 +27,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'sort_order',
     'is_system',
     'is_active',
+    'state',
 ])]
 class Module extends Model
 {
@@ -53,6 +55,7 @@ class Module extends Model
             'sort_order' => 'integer',
             'is_system' => 'boolean',
             'is_active' => 'boolean',
+            'state' => 'string',
         ];
     }
 }

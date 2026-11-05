@@ -8,6 +8,7 @@ use App\Services\AuthorizationService;
 use App\Services\SettingsService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class SettingsController extends Controller
 {
@@ -83,47 +84,63 @@ class SettingsController extends Controller
 
         $validated = $request->validated();
         $definitions = SettingsUpdateRequest::definitions();
-
-        $updatedSettings = [];
-        $oldValues = [];
-        $newValues = [];
+        $hasCriticalSettings = false;
 
         foreach ($validated['settings'] as $settingData) {
-            $key = $settingData['key'];
-            $definition = $definitions[$key];
+            $key = $settingData['key'] ?? null;
 
-            $existingSetting = $this->settingsService->find($key);
-
-            $oldValues[$key] = $existingSetting === null
-                ? null
-                : $this->settingsService->valueOf($existingSetting);
-
-            $updatedSetting = $this->settingsService->set(
-                key: $key,
-                value: $settingData['value'],
-                group: $definition['group'],
-                type: $definition['type'],
-            );
-
-            $newValues[$key] = $this->settingsService->valueOf(
-                $updatedSetting,
-            );
-
-            $updatedSettings[] = $updatedSetting;
+            if (is_string($key) && (str_starts_with($key, 'security.') || $key === 'system.maintenance_mode')) {
+                $hasCriticalSettings = true;
+                break;
+            }
         }
 
-        $this->activityLogService->recordForUser(
-            user: $user,
-            action: 'settings.updated',
-            module: 'settings',
-            description: 'System settings were updated.',
-            oldValues: $oldValues,
-            newValues: $newValues,
+        abort_if(
+            $hasCriticalSettings && ! $this->authorizationService->isDeveloper($user),
+            403,
+            'Critical system and security settings are restricted to Developer.',
         );
+
+        $result = DB::transaction(function () use ($validated, $definitions, $user): array {
+            $updatedSettings = [];
+            $oldValues = [];
+            $newValues = [];
+
+            foreach ($validated['settings'] as $settingData) {
+                $key = $settingData['key'];
+                $definition = $definitions[$key];
+                $existingSetting = $this->settingsService->find($key);
+
+                $oldValues[$key] = $existingSetting === null
+                    ? null
+                    : $this->settingsService->valueOf($existingSetting);
+
+                $updatedSetting = $this->settingsService->set(
+                    key: $key,
+                    value: $settingData['value'],
+                    group: $definition['group'],
+                    type: $definition['type'],
+                );
+
+                $newValues[$key] = $this->settingsService->valueOf($updatedSetting);
+                $updatedSettings[] = $updatedSetting;
+            }
+
+            $this->activityLogService->recordForUser(
+                user: $user,
+                action: 'settings.updated',
+                module: 'settings',
+                description: 'System settings were updated.',
+                oldValues: $oldValues,
+                newValues: $newValues,
+            );
+
+            return $updatedSettings;
+        });
 
         return response()->json([
             'message' => 'Settings updated successfully.',
-            'data' => $updatedSettings,
+            'data' => $result,
         ]);
     }
 }

@@ -34,6 +34,7 @@ class ModuleFactory extends Factory
             'sort_order' => fake()->numberBetween(0, 100),
             'is_system' => false,
             'is_active' => true,
+            'state' => 'enabled',
         ];
     }
 }

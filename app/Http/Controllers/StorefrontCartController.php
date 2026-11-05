@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\Customer;
 use App\Models\Location;
 use App\Models\ProductVariant;
+use App\Models\User;
+use App\Services\FeatureFlagService;
 use App\Services\PricingEngine;
 use App\Services\SalesOrderService;
 use Illuminate\Http\RedirectResponse;
@@ -16,8 +18,26 @@ use Inertia\Response;
 
 class StorefrontCartController extends Controller
 {
+    public function __construct(private readonly FeatureFlagService $featureFlags) {}
+
+    private function ensureStorefrontEnabled(Request $request): void
+    {
+        $user = $request->user();
+        $context = $request->hasSession() ? $request->session()->getId() : null;
+
+        abort_unless(
+            $this->featureFlags->enabled(
+                'storefront.checkout.enabled',
+                $user instanceof User ? $user : null,
+                $context,
+            ),
+            404,
+        );
+    }
+
     public function show(Request $request): Response
     {
+        $this->ensureStorefrontEnabled($request);
         $cart = $this->resolvedCart($request);
 
         return Inertia::render('Storefront/Cart', [
@@ -28,6 +48,7 @@ class StorefrontCartController extends Controller
 
     public function add(Request $request): RedirectResponse
     {
+        $this->ensureStorefrontEnabled($request);
         $data = $request->validate([
             'product_variant_id' => ['required', 'integer', 'exists:product_variants,id'],
             'quantity' => ['nullable', 'integer', 'min:1', 'max:99'],
@@ -53,6 +74,7 @@ class StorefrontCartController extends Controller
 
     public function update(Request $request, int $variant): RedirectResponse
     {
+        $this->ensureStorefrontEnabled($request);
         $data = $request->validate(['quantity' => ['required', 'integer', 'min:1', 'max:99']]);
         $cart = $request->session()->get('storefront_cart', []);
         abort_unless(array_key_exists((string) $variant, $cart), 404);
@@ -64,6 +86,7 @@ class StorefrontCartController extends Controller
 
     public function remove(Request $request, int $variant): RedirectResponse
     {
+        $this->ensureStorefrontEnabled($request);
         $cart = $request->session()->get('storefront_cart', []);
         unset($cart[(string) $variant]);
         $request->session()->put('storefront_cart', $cart);
@@ -73,6 +96,7 @@ class StorefrontCartController extends Controller
 
     public function checkout(Request $request, SalesOrderService $orders): RedirectResponse
     {
+        $this->ensureStorefrontEnabled($request);
         $phoneInput = (string) $request->input('customer_phone', '');
         $phoneInput = strtr($phoneInput, ['০' => '0', '১' => '1', '২' => '2', '৩' => '3', '৪' => '4', '৫' => '5', '৬' => '6', '৭' => '7', '৮' => '8', '৯' => '9']);
         $phoneInput = preg_replace('/[\s-]+/', '', $phoneInput) ?? $phoneInput;
@@ -160,6 +184,7 @@ class StorefrontCartController extends Controller
 
     public function success(Request $request): Response|RedirectResponse
     {
+        $this->ensureStorefrontEnabled($request);
         $order = $request->session()->get('storefront_last_order');
         if (! $order) {
             return to_route('storefront.index');

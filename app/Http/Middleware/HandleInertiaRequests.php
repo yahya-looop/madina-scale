@@ -2,7 +2,10 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\Permission;
 use App\Services\AuthorizationService;
+use App\Services\MenuRegistryService;
+use App\Services\SettingsService;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -39,6 +42,8 @@ class HandleInertiaRequests extends Middleware
         $roles = [];
         $permissions = [];
         $isDeveloper = false;
+        $navigation = [];
+        $restrictedPermissions = [];
 
         if ($user) {
             $roles = $user->roles()
@@ -61,40 +66,67 @@ class HandleInertiaRequests extends Middleware
             $isDeveloper = app(AuthorizationService::class)
                 ->isDeveloper($user);
 
+            if ($isDeveloper) {
+                $restrictedPermissions = Permission::query()
+                    ->with('module:id,state,is_active')
+                    ->get(['id', 'module_id', 'slug'])
+                    ->filter(function (Permission $permission): bool {
+                        if ($permission->module === null) {
+                            return false;
+                        }
+
+                        $state = ! $permission->module->is_active || $permission->module->state === 'disabled'
+                            ? 'disabled'
+                            : ($permission->module->state ?: 'enabled');
+
+                        return $state === 'disabled'
+                            || ($state === 'locked' && preg_match('/\.(view|read)$/', $permission->slug) !== 1);
+                    })
+                    ->pluck('slug')
+                    ->values()
+                    ->all();
+            }
+
             $permissions = $user->roles()
                 ->where('roles.is_active', true)
                 ->with([
-                    'permissions' => fn ($query) => $query
-                        ->whereHas('module', function ($moduleQuery): void {
-                            $moduleQuery->where('modules.is_active', true);
-                        })
-                        ->select([
-                            'permissions.id',
-                            'permissions.module_id',
-                            'permissions.name',
-                            'permissions.slug',
-                        ]),
+                    'permissions.module:id,state,is_active',
                 ])
                 ->get()
-                ->flatMap(
-                    fn ($role) => $role->permissions
-                )
+                ->flatMap(fn ($role) => $role->permissions)
+                ->filter(function ($permission): bool {
+                    if ($permission->module === null) {
+                        return false;
+                    }
+
+                    $state = ! $permission->module->is_active || $permission->module->state === 'disabled'
+                            ? 'disabled'
+                            : ($permission->module->state ?: 'enabled');
+
+                    return $state !== 'disabled'
+                        && ($state !== 'locked' || preg_match('/\.(view|read)$/', $permission->slug) === 1);
+                })
                 ->pluck('slug')
                 ->unique()
                 ->values()
                 ->all();
+
+            $navigation = app(MenuRegistryService::class)->navigationFor($user, $permissions);
         }
 
         return [
             ...parent::share($request),
 
-            'name' => config('app.name'),
+            'name' => app(SettingsService::class)->get('general.site_name', config('app.name')),
+
+            'navigation' => $navigation,
 
             'auth' => [
                 'user' => $user,
                 'is_developer' => $isDeveloper,
                 'roles' => $roles,
                 'permissions' => $permissions,
+                'restricted_permissions' => $restrictedPermissions,
             ],
         ];
     }

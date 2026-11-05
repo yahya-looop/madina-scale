@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { Head } from '@inertiajs/vue3';
 
 import ErpLayout from '@/layouts/ErpLayout.vue';
+import { useAuthorization } from '@/composables/useAuthorization';
 import Icon from '@/components/dashboard/Icon.vue';
 import { ICON_NAMES, resolveIconName } from '@/icons';
 
@@ -20,6 +21,7 @@ interface Module {
     sort_order: number;
     is_system: boolean;
     is_active: boolean;
+    state: 'enabled' | 'disabled' | 'locked' | 'hidden';
 }
 
 interface ApiErrorResponse {
@@ -39,7 +41,6 @@ interface ModuleForm {
     description: string;
     icon: string;
     sort_order: number;
-    is_active: boolean;
 }
 
 interface IconOption {
@@ -51,6 +52,8 @@ const props = withDefaults(defineProps<Props>(), {
     userName: '',
     userEmail: '',
 });
+
+const { isDeveloper } = useAuthorization();
 
 /* -------------------------------------------------------------------------- */
 /* State                                                                      */
@@ -65,7 +68,7 @@ const showModal = ref(false);
 const editingModule = ref<Module | null>(null);
 
 const searchQuery = ref('');
-const statusFilter = ref<'all' | 'active' | 'inactive'>('all');
+const statusFilter = ref<'all' | 'enabled' | 'disabled' | 'locked' | 'hidden'>('all');
 
 const operationMessage = ref('');
 const operationMessageType = ref<'success' | 'error'>('success');
@@ -146,7 +149,6 @@ function createEmptyForm(): ModuleForm {
         description: '',
         icon: '',
         sort_order: 0,
-        is_active: true,
     };
 }
 
@@ -173,7 +175,6 @@ function openEditModal(module: Module): void {
         description: module.description ?? '',
         icon: module.icon ?? '',
         sort_order: Math.max(0, Number(module.sort_order) || 0),
-        is_active: module.is_active,
     };
 
     validationErrors.value = {};
@@ -517,6 +518,29 @@ async function fetchModules(): Promise<void> {
     }
 }
 
+async function changeModuleState(module: Module, state: Module['state']): Promise<void> {
+    clearOperationMessage();
+    try {
+        const response = await fetch(`/api/modules/${module.id}/state`, {
+            method: 'PATCH',
+            headers: buildHeaders(),
+            credentials: 'same-origin',
+            body: JSON.stringify({ state }),
+        });
+        const payload = await readJsonResponse<Module>(response);
+        if (!response.ok) {
+            throw new Error(getApiErrorMessage(payload, 'Unable to change module state.'));
+        }
+        operationMessageType.value = 'success';
+        operationMessage.value = `${module.name} state updated.`;
+        await fetchModules();
+    } catch (error) {
+        operationMessageType.value = 'error';
+        operationMessage.value = error instanceof Error ? error.message : 'Unable to change module state.';
+        await fetchModules();
+    }
+}
+
 async function saveModule(): Promise<void> {
     validationErrors.value = {};
     clearOperationMessage();
@@ -572,7 +596,6 @@ async function saveModule(): Promise<void> {
                 description: form.value.description.trim() || null,
                 icon: form.value.icon.trim() || null,
                 sort_order: Number(form.value.sort_order) || 0,
-                is_active: Boolean(form.value.is_active),
             }),
         });
 
@@ -648,19 +671,15 @@ const modalTitle = computed<string>(() =>
 const totalModules = computed<number>(() => modules.value.length);
 
 const activeModules = computed<number>(
-    () => modules.value.filter((module) => module.is_active).length,
+    () => modules.value.filter((module) => module.state === 'enabled').length,
 );
 
 const inactiveModules = computed<number>(
-    () => modules.value.filter((module) => !module.is_active).length,
+    () => modules.value.filter((module) => module.state === 'disabled').length,
 );
 
-const systemModules = computed<number>(
-    () => modules.value.filter((module) => module.is_system).length,
-);
-
-const customModules = computed<number>(
-    () => modules.value.filter((module) => !module.is_system).length,
+const restrictedModules = computed<number>(
+    () => modules.value.filter((module) => ['locked', 'hidden'].includes(module.state)).length,
 );
 
 const filteredModules = computed<Module[]>(() => {
@@ -676,8 +695,7 @@ const filteredModules = computed<Module[]>(() => {
 
             const matchesStatus =
                 statusFilter.value === 'all' ||
-                (statusFilter.value === 'active' && module.is_active) ||
-                (statusFilter.value === 'inactive' && !module.is_active);
+                module.state === statusFilter.value;
 
             return matchesSearch && matchesStatus;
         })
@@ -872,7 +890,7 @@ onBeforeUnmount(() => {
                     </div>
 
                     <div>
-                        <span>Active</span>
+                        <span>Enabled</span>
                         <strong>{{ activeModules }}</strong>
                     </div>
                 </article>
@@ -883,7 +901,7 @@ onBeforeUnmount(() => {
                     </div>
 
                     <div>
-                        <span>Inactive</span>
+                        <span>Disabled</span>
                         <strong>{{ inactiveModules }}</strong>
                     </div>
                 </article>
@@ -894,9 +912,9 @@ onBeforeUnmount(() => {
                     </div>
 
                     <div>
-                        <span>System / Custom</span>
+                        <span>Locked / Hidden</span>
                         <strong>
-                            {{ systemModules }} / {{ customModules }}
+                            {{ restrictedModules }}
                         </strong>
                     </div>
                 </article>
@@ -946,8 +964,10 @@ onBeforeUnmount(() => {
                             aria-label="Filter module status"
                         >
                             <option value="all">All Status</option>
-                            <option value="active">Active</option>
-                            <option value="inactive">Inactive</option>
+                            <option value="enabled">Enabled</option>
+                            <option value="disabled">Disabled</option>
+                            <option value="locked">Locked</option>
+                            <option value="hidden">Hidden</option>
                         </select>
                     </div>
                 </div>
@@ -1087,20 +1107,24 @@ onBeforeUnmount(() => {
                                 </td>
 
                                 <td>
-                                    <span
-                                        class="status-badge"
-                                        :class="{
-                                            active: module.is_active,
-                                            inactive: !module.is_active,
-                                        }"
+                                    <select
+                                        v-if="isDeveloper"
+                                        :value="module.state || (module.is_active ? 'enabled' : 'disabled')"
+                                        class="rounded-md border border-[var(--border)] bg-[var(--surface)] px-2 py-1 text-xs"
+                                        :disabled="['system', 'modules', 'settings', 'dashboard'].includes(module.slug)"
+                                        :aria-label="`Change ${module.name} state`"
+                                        @change="changeModuleState(module, ($event.target as HTMLSelectElement).value as Module['state'])"
                                     >
-                                        <span class="status-dot"></span>
-
-                                        {{
-                                            module.is_active
-                                                ? 'Active'
-                                                : 'Inactive'
-                                        }}
+                                        <option value="enabled">Enabled</option>
+                                        <option value="disabled">Disabled</option>
+                                        <option value="locked">Locked (read-only)</option>
+                                        <option value="hidden">Hidden from navigation</option>
+                                    </select>
+                                    <span
+                                        v-else
+                                        class="rounded-md border border-[var(--border)] px-2 py-1 text-xs text-[var(--text-secondary)]"
+                                    >
+                                        {{ module.state || (module.is_active ? 'enabled' : 'disabled') }}
                                     </span>
                                 </td>
 
@@ -1600,51 +1624,12 @@ onBeforeUnmount(() => {
                                 </small>
                             </div>
 
-                            <!-- Status -->
-
-                            <label class="form-field">
-                                <span class="field-label"> Status </span>
-
-                                <div
-                                    class="status-toggle"
-                                    :class="{
-                                        disabled: isSaving || isSystemModule,
-                                    }"
-                                >
-                                    <input
-                                        v-model="form.is_active"
-                                        type="checkbox"
-                                        :disabled="isSaving || isSystemModule"
-                                    />
-
-                                    <span class="toggle-track">
-                                        <span class="toggle-thumb"></span>
-                                    </span>
-
-                                    <div>
-                                        <strong>
-                                            {{
-                                                form.is_active
-                                                    ? 'Active'
-                                                    : 'Inactive'
-                                            }}
-                                        </strong>
-
-                                        <small>
-                                            {{
-                                                form.is_active
-                                                    ? 'Module is available'
-                                                    : 'Module is disabled'
-                                            }}
-                                        </small>
-                                    </div>
-                                </div>
-
-                                <small class="field-hint">
-                                    Inactive modules remain registered but are
-                                    disabled by authorization.
-                                </small>
-                            </label>
+                            <div class="form-field full">
+                                <span class="field-label">Lifecycle state</span>
+                                <p class="field-hint">
+                                    Change Enabled, Disabled, Locked or Hidden from the module registry table. Lifecycle controls are restricted to Developer.
+                                </p>
+                            </div>
 
                             <!-- Description -->
 

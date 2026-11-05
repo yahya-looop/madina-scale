@@ -13,6 +13,7 @@ use App\Http\Controllers\StorefrontCartController;
 use App\Http\Controllers\StorefrontController;
 use App\Http\Controllers\UserPageController;
 use App\Http\Controllers\WarrantyServiceController;
+use App\Services\AuthorizationService;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -609,6 +610,39 @@ Route::middleware('auth')->group(function () {
             'userEmail' => $user->email,
         ]);
     })->name('developer.api-providers');
+
+    Route::get('/developer/console', function () {
+        $user = request()->user();
+        abort_unless($user !== null, 401);
+        abort_unless(app(AuthorizationService::class)->isDeveloper($user), 403);
+
+        return Inertia::render('Developer/Console', [
+            'userName' => $user->name,
+            'userEmail' => $user->email,
+        ]);
+    })->name('developer.console');
+
+    Route::get('/developer/feature-flags', function () {
+        $user = request()->user();
+        abort_unless($user !== null, 401);
+        abort_unless(app(AuthorizationService::class)->isDeveloper($user), 403);
+
+        return Inertia::render('Developer/FeatureFlags', [
+            'userName' => $user->name,
+            'userEmail' => $user->email,
+        ]);
+    })->name('developer.feature-flags');
+
+    Route::get('/developer/menu-registry', function () {
+        $user = request()->user();
+        abort_unless($user !== null, 401);
+        abort_unless(app(AuthorizationService::class)->isDeveloper($user), 403);
+
+        return Inertia::render('Developer/MenuRegistry', [
+            'userName' => $user->name,
+            'userEmail' => $user->email,
+        ]);
+    })->name('developer.menu-registry');
 
     Route::get('/developer/modules', function () {
         $user = request()->user();

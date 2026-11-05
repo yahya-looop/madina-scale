@@ -45,27 +45,20 @@ class SystemAuthorizationSeeder extends Seeder
 
         foreach ($moduleDefinitions as $moduleDefinition) {
 
-            $modules[$moduleDefinition['slug']] = Module::updateOrCreate(
+            $module = Module::query()->firstOrNew([
+                'slug' => $moduleDefinition['slug'],
+            ]);
 
-                ['slug' => $moduleDefinition['slug']],
+            $module->name = $moduleDefinition['name'];
+            $module->description = $moduleDefinition['description'];
+            $module->icon = $moduleDefinition['icon'];
+            $module->sort_order = $moduleDefinition['sort_order'];
+            $module->is_system = true;
+            $module->state = $module->state ?: 'enabled';
+            $module->is_active = $module->state !== 'disabled';
+            $module->save();
 
-                [
-
-                    'name' => $moduleDefinition['name'],
-
-                    'description' => $moduleDefinition['description'],
-
-                    'icon' => $moduleDefinition['icon'],
-
-                    'sort_order' => $moduleDefinition['sort_order'],
-
-                    'is_system' => true,
-
-                    'is_active' => true,
-
-                ],
-
-            );
+            $modules[$moduleDefinition['slug']] = $module;
 
         }
 

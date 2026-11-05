@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue';
 import { Head } from '@inertiajs/vue3';
 
 import ErpLayout from '@/layouts/ErpLayout.vue';
+import { useAuthorization } from '@/composables/useAuthorization';
 import Icon from '@/components/dashboard/Icon.vue';
 
 interface Props {
@@ -55,6 +56,8 @@ interface BusinessHour {
 }
 
 type BusinessHours = Record<string, BusinessHour>;
+
+const { isDeveloper } = useAuthorization();
 
 const props = withDefaults(defineProps<Props>(), {
     userName: '',
@@ -2626,6 +2629,10 @@ onMounted(() => {
                                 v-if="activeCategory === 'security'"
                                 class="security-section"
                             >
+                                <p v-if="!isDeveloper" class="security-policy-note">
+                                    Security policy changes are restricted to the Developer role. You can review the current policy, but editing is disabled.
+                                </p>
+                                <fieldset :disabled="!isDeveloper" class="contents">
                                 <div
                                     class="settings-card setting-group-card security-policy-card"
                                 >
@@ -3249,6 +3256,7 @@ onMounted(() => {
                                         </div>
                                     </div>
                                 </div>
+                                </fieldset>
                             </div>
                             <div
                                 v-if="activeCategory === 'system'"
@@ -3296,6 +3304,7 @@ onMounted(() => {
                                                     )
                                                 "
                                                 type="checkbox"
+                                                :disabled="!isDeveloper"
                                                 aria-label="Maintenance Mode"
                                                 @change="
                                                     setValue(

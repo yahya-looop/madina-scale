@@ -10,16 +10,9 @@ class AuthorizationService
     /**
      * Determine whether a user has a specific permission.
      *
-     * Authorization rules:
-     * - the user must exist and be active
-     * - an active Developer has supreme access
-     * - otherwise, the permission must exist
-     * - the permission's module must be active
-     * - the permission must belong to an active role assigned to the user
-     *
-     * Developer access is intentionally evaluated before the permission
-     * lookup so newly-created permissions automatically become available
-     * to the Developer role without requiring a separate pivot record.
+     * Module lifecycle restrictions always apply, including to Developers.
+     * Developer access bypasses role assignments, not disabled or locked
+     * module states.
      */
     public function can(
         User $user,
@@ -27,36 +20,42 @@ class AuthorizationService
     ): bool {
         $permissionSlug = trim($permissionSlug);
 
-        if ($permissionSlug === '') {
+        if ($permissionSlug === '' || $user->status !== 'active') {
             return false;
         }
 
-        if ($user->status !== 'active') {
-            return false;
+        $permission = Permission::query()
+            ->with('module:id,state,is_active')
+            ->where('slug', $permissionSlug)
+            ->first();
+
+        if ($permission?->module !== null) {
+            $module = $permission->module;
+            $moduleState = ! $module->is_active || $module->state === 'disabled'
+                ? 'disabled'
+                : ($module->state ?: 'enabled');
+
+            if ($moduleState === 'disabled') {
+                return false;
+            }
+
+            if ($moduleState === 'locked' && preg_match('/\.(view|read)$/', $permissionSlug) !== 1) {
+                return false;
+            }
         }
 
-        /*
-         * Developer is the supreme application role.
-         *
-         * This intentionally happens before checking whether the
-         * requested permission currently exists. That means future
-         * permissions automatically become available to Developer.
-         */
         if ($this->isDeveloper($user)) {
             return true;
         }
 
-        return Permission::query()
-            ->where('permissions.slug', $permissionSlug)
-            ->whereHas('module', function ($query): void {
-                $query->where('modules.is_active', true);
-            })
-            ->whereHas('roles', function ($query) use ($user): void {
-                $query
-                    ->where('roles.is_active', true)
-                    ->whereHas('users', function ($userQuery) use ($user): void {
-                        $userQuery->where('users.id', $user->id);
-                    });
+        if ($permission === null || $permission->module === null) {
+            return false;
+        }
+
+        return $permission->roles()
+            ->where('roles.is_active', true)
+            ->whereHas('users', function ($query) use ($user): void {
+                $query->where('users.id', $user->id);
             })
             ->exists();
     }

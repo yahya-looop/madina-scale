@@ -17,6 +17,8 @@ class DatabaseSeeder extends Seeder
         $this->call([
             SystemAuthorizationSeeder::class,
             SettingsSeeder::class,
+            FeatureFlagSeeder::class,
+            MenuRegistrySeeder::class,
         ]);
     }
 }

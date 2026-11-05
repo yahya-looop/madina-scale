@@ -13,10 +13,18 @@ export function useAuthorization() {
 
     const permissions = computed<string[]>(() => auth.value.permissions);
 
+    const restrictedPermissions = computed<string[]>(
+        () => auth.value.restricted_permissions ?? [],
+    );
+
     const can = (permission: string): boolean => {
         const slug = permission.trim();
 
         if (slug === '') {
+            return false;
+        }
+
+        if (restrictedPermissions.value.includes(slug)) {
             return false;
         }
 
@@ -66,6 +74,7 @@ export function useAuthorization() {
         isDeveloper,
         roles,
         permissions,
+        restrictedPermissions,
         can,
         canAll,
         canAny,

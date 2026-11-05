@@ -45,6 +45,9 @@ class SalesOrderController extends Controller
         if ($request->filled('status') && $request->string('status')->toString() !== 'all') {
             $query->where('status', $request->validate(['status' => ['required', Rule::in(['pending', 'confirmed', 'processing', 'partially_fulfilled', 'fulfilled', 'cancelled'])]])['status']);
         }
+        if ($request->filled('channel') && $request->string('channel')->toString() !== 'all') {
+            $query->where('channel', $request->validate(['channel' => ['required', Rule::in(['backoffice', 'storefront', 'mobile_app'])]])['channel']);
+        }
         if ($request->filled('search')) {
             $term = trim((string) $request->input('search'));
             $query->where(function ($q) use ($term): void {
@@ -183,7 +186,7 @@ class SalesOrderController extends Controller
             'notes' => ['nullable', 'string', 'max:5000'],
             'discount_total' => ['nullable', 'numeric', 'min:0', 'max:1000000000'],
             'promotion_code' => ['nullable', 'string', 'max:60'],
-            'channel' => ['nullable', Rule::in(['backoffice', 'website', 'mobile_app'])],
+            'channel' => ['nullable', Rule::in(['backoffice', 'website', 'storefront', 'mobile_app'])],
             'idempotency_key' => ['nullable', 'string', 'max:100'],
             'items' => ['required', 'array', 'min:1', 'max:50'],
             'items.*.product_variant_id' => ['required', 'integer', 'distinct', 'exists:product_variants,id'],
@@ -199,11 +202,15 @@ class SalesOrderController extends Controller
             throw ValidationException::withMessages(['customer_id' => 'Choose an active customer or enter a customer name.']);
         }
         $this->locationAccess->assertManage($request->user(), (int) $data['location_id']);
-        $order = $this->orders->create($data, $request->user());
+        $deferInventoryReservation = ($data['channel'] ?? 'backoffice') === 'storefront';
+        $order = $this->orders->create($data, $request->user(), $deferInventoryReservation);
         $status = $order->wasRecentlyCreated ? 201 : 200;
+        $createdMessage = $deferInventoryReservation
+            ? 'Storefront order created and is awaiting executive confirmation. Stock has not been reserved.'
+            : 'Order created and stock reserved.';
 
         return response()->json([
-            'message' => $status === 201 ? 'Order created and stock reserved.' : 'Existing order request replayed.',
+            'message' => $status === 201 ? $createdMessage : 'Existing order request replayed.',
             'data' => $order,
         ], $status);
     }

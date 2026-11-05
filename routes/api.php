@@ -12,6 +12,7 @@ use App\Http\Controllers\CmsContentController;
 use App\Http\Controllers\CmsPageController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\CustomerLocationSuggestionController;
+use App\Http\Controllers\FeatureFlagController;
 use App\Http\Controllers\FinanceController;
 use App\Http\Controllers\InventoryController;
 use App\Http\Controllers\InventoryReservationController;
@@ -20,6 +21,7 @@ use App\Http\Controllers\LeadController;
 use App\Http\Controllers\LocationAssignmentController;
 use App\Http\Controllers\LocationController;
 use App\Http\Controllers\MarketingController;
+use App\Http\Controllers\MenuRegistryController;
 use App\Http\Controllers\ModuleController;
 use App\Http\Controllers\OrderOperationsController;
 use App\Http\Controllers\PaymentController;
@@ -372,6 +374,19 @@ Route::middleware(['web', 'auth'])->group(function () {
 
     Route::put('/modules/{module}', [ModuleController::class, 'update'])
         ->middleware('permission:system.modules.update');
+
+    Route::patch('/modules/{module}/state', [ModuleController::class, 'updateState'])
+        ->middleware('permission:system.system.manage');
+
+    Route::get('/feature-flags', [FeatureFlagController::class, 'index'])->middleware('permission:system.system.manage');
+    Route::post('/feature-flags', [FeatureFlagController::class, 'store'])->middleware('permission:system.system.manage');
+    Route::put('/feature-flags/{featureFlag}', [FeatureFlagController::class, 'update'])->middleware('permission:system.system.manage');
+    Route::delete('/feature-flags/{featureFlag}', [FeatureFlagController::class, 'destroy'])->middleware('permission:system.system.manage');
+
+    Route::get('/menu-registry', [MenuRegistryController::class, 'index'])->middleware('permission:system.system.manage');
+    Route::post('/menu-registry', [MenuRegistryController::class, 'store'])->middleware('permission:system.system.manage');
+    Route::put('/menu-registry/{menuItem}', [MenuRegistryController::class, 'update'])->middleware('permission:system.system.manage');
+    Route::delete('/menu-registry/{menuItem}', [MenuRegistryController::class, 'destroy'])->middleware('permission:system.system.manage');
     /*
     |--------------------------------------------------------------------------
     | Locations

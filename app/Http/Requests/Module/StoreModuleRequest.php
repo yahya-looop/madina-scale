@@ -57,10 +57,6 @@ class StoreModuleRequest extends FormRequest
                 'min:0',
             ],
 
-            'is_active' => [
-                'sometimes',
-                'boolean',
-            ],
         ];
     }
 }

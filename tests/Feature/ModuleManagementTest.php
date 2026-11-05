@@ -248,7 +248,7 @@ test('authenticated user without module update permission is forbidden', functio
     $response->assertForbidden();
 });
 
-test('user with module update permission can update a module', function () {
+test('module update permission cannot bypass developer-only lifecycle state controls', function () {
     $fixture = createModuleManagementUser(
         'Update Modules',
         'system.modules.update',
@@ -287,12 +287,14 @@ test('user with module update permission can update a module', function () {
         )
         ->assertJsonPath(
             'data.is_active',
-            false,
-        );
+            true,
+        )
+        ->assertJsonPath('data.state', 'enabled');
 
     expect(
         $module->refresh()->name
     )->toBe('Updated Module');
+    expect($module->fresh()->state)->toBe('enabled');
 });
 
 test('duplicate module slug is rejected when updating a module', function () {

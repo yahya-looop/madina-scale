@@ -152,12 +152,14 @@ const error = ref("");
 const notice = ref("");
 const search = ref("");
 const status = ref("all");
+const channel = ref("all");
 const page = ref(1);
 const lastPage = ref(1);
 const total = ref(0);
 const createOpen = ref(false);
 const detail = ref<Order | null>(null);
 const detailLoading = ref(false);
+const confirmingOrderId = ref<number | null>(null);
 const cancelTarget = ref<Order | null>(null);
 const cancelReason = ref("");
 const fulfillmentQuantities = ref<Record<number, string>>({});
@@ -263,6 +265,7 @@ async function load(target = page.value) {
       page: String(target),
       per_page: "15",
       status: status.value,
+      channel: channel.value,
       search: search.value.trim(),
     });
     const payload = await api(`/api/orders?${params}`);
@@ -460,7 +463,13 @@ async function openDetail(order: Order) {
   }
 }
 async function confirmOrder(order: Order) {
-  if (!window.confirm(`Confirm ${order.order_number}?`)) return;
+  if (confirmingOrderId.value !== null) return;
+  const prompt = order.channel === "storefront"
+    ? `Confirm ${order.order_number}? Make sure you have called the customer and verified the items, delivery details and total. Confirmation will reserve stock.`
+    : `Confirm ${order.order_number}? Confirmation will finalize the order and reserve stock.`;
+  if (!window.confirm(prompt)) return;
+  confirmingOrderId.value = order.id;
+  error.value = "";
   try {
     const payload = await api(`/api/orders/${order.id}/confirm`, {
       method: "POST",
@@ -471,6 +480,8 @@ async function confirmOrder(order: Order) {
     if (detail.value?.id === order.id) await openDetail(order);
   } catch (e) {
     error.value = e instanceof Error ? e.message : "Unable to confirm order.";
+  } finally {
+    confirmingOrderId.value = null;
   }
 }
 async function fulfillOrder() {
@@ -631,7 +642,7 @@ async function cancelOrder() {
     saving.value = false;
   }
 }
-watch([status, search], () => {
+watch([status, channel, search], () => {
   page.value = 1;
   void load(1);
 });
@@ -759,6 +770,14 @@ onMounted(async () => {
               placeholder="Search orders, customers or phone…"
           /></label>
           <label class="orders-filter"
+            ><span>Channel</span
+            ><select v-model="channel">
+              <option value="all">All channels</option>
+              <option value="storefront">Online storefront</option>
+              <option value="backoffice">Backoffice</option>
+              <option value="mobile_app">Mobile app</option>
+            </select></label
+          ><label class="orders-filter"
             ><span>Status</span
             ><select v-model="status">
               <option value="all">All statuses</option>
@@ -778,6 +797,7 @@ onMounted(async () => {
                 <th>Order</th>
                 <th>Customer</th>
                 <th>Location</th>
+                <th>Channel</th>
                 <th>Items</th>
                 <th>Total</th>
                 <th>Status</th>
@@ -787,10 +807,10 @@ onMounted(async () => {
             </thead>
             <tbody>
               <tr v-if="loading">
-                <td colspan="8" class="orders-empty">Loading orders…</td>
+                <td colspan="9" class="orders-empty">Loading orders…</td>
               </tr>
               <tr v-else-if="!rows.length">
-                <td colspan="8" class="orders-empty">
+                <td colspan="9" class="orders-empty">
                   <Icon name="package-open" :size="26" /><strong>No orders found</strong
                   ><span>Create your first order or change the filters.</span>
                 </td>
@@ -817,6 +837,11 @@ onMounted(async () => {
                 </td>
                 <td>{{ order.location?.name || "—" }}</td>
                 <td>
+                  <span class="orders-channel-chip">{{
+                    (order.channel || "backoffice").replaceAll("_", " ")
+                  }}</span>
+                </td>
+                <td>
                   {{ order.items?.length || 0 }}
                   {{ (order.items?.length || 0) === 1 ? "line" : "lines" }}
                 </td>
@@ -836,6 +861,7 @@ onMounted(async () => {
                     ><button
                       v-if="order.status === 'pending'"
                       title="Confirm order"
+                      :disabled="confirmingOrderId === order.id"
                       @click.stop="confirmOrder(order)"
                     >
                       <Icon name="check" :size="16" /></button
@@ -1470,6 +1496,15 @@ onMounted(async () => {
                     Cancelled
                     {{ date(detail.cancelled_at) }}</span
                   >
+                </div>
+                <div
+                  v-if="detail.channel === 'storefront' && detail.status === 'pending'"
+                  class="orders-lifecycle-alert is-info"
+                >
+                  <Icon name="phone-call" :size="15" />
+                  Online order awaiting executive confirmation. Call the customer, verify
+                  the phone number, items and delivery instructions. Stock is not reserved
+                  until this order is confirmed.
                 </div>
                 <div v-if="detail.status === 'cancelled'" class="orders-lifecycle-alert">
                   <Icon name="alert-triangle" :size="15" />
@@ -2367,10 +2402,11 @@ onMounted(async () => {
                 <button
                   v-if="detail?.status === 'pending'"
                   class="orders-primary"
-                  :disabled="saving"
+                  :disabled="saving || confirmingOrderId === detail.id"
                   @click="confirmOrder(detail)"
                 >
-                  <Icon name="check" :size="15" /> Confirm order</button
+                  <Icon name="check" :size="15" />
+                  {{ confirmingOrderId === detail.id ? "Confirming…" : "Confirm order" }}</button
                 ><button
                   v-if="detail && ['pending', 'confirmed'].includes(detail.status)"
                   class="orders-danger"

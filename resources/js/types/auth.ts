@@ -21,4 +21,5 @@ export type Auth = {
     is_developer: boolean;
     roles: AuthRole[];
     permissions: string[];
+    restricted_permissions?: string[];
 };
