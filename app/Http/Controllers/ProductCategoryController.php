@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Product;
 use App\Models\ProductCategory;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -166,9 +167,15 @@ class ProductCategoryController extends Controller
     public function destroy(
         ProductCategory $productCategory,
     ): JsonResponse {
-        if ($productCategory->children()->exists()) {
+        if (ProductCategory::withTrashed()->where('parent_id', $productCategory->id)->exists()) {
             return response()->json([
                 'message' => 'This product category cannot be deleted because it contains child categories.',
+            ], 422);
+        }
+
+        if (Product::withTrashed()->where('category_id', $productCategory->id)->exists()) {
+            return response()->json([
+                'message' => 'This product category cannot be deleted while products are assigned to it. Reassign those products first.',
             ], 422);
         }
 

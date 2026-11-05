@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Product;
 use App\Models\ProductMedia;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
@@ -37,7 +38,12 @@ class ProductController extends Controller
                     ->orWhere('slug', 'ilike', '%'.$search.'%')
                     ->orWhere('sku', 'ilike', '%'.$search.'%')
                     ->orWhere('model_number', 'ilike', '%'.$search.'%')
-                    ->orWhere('barcode', 'ilike', '%'.$search.'%');
+                    ->orWhere('barcode', 'ilike', '%'.$search.'%')
+                    ->orWhereHas('variants', function ($variantQuery) use ($search): void {
+                        $variantQuery
+                            ->where('sku', 'ilike', '%'.$search.'%')
+                            ->orWhere('barcode', 'ilike', '%'.$search.'%');
+                    });
             });
         }
 
@@ -121,6 +127,11 @@ class ProductController extends Controller
     public function store(Request $request): JsonResponse
     {
         $validated = $this->validateProduct($request);
+        $variantDrafts = $this->normalizeVariantDrafts(
+            $validated['variants'] ?? [],
+            $validated['product_type'],
+        );
+        unset($validated['variants']);
 
         $validated['slug'] = $this->resolveSlug(
             $validated['slug'] ?? null,
@@ -147,10 +158,6 @@ class ProductController extends Controller
                 unset($validated[$priceField]);
             }
         }
-        if (($request->input('product_type') ?? 'simple') === 'variable') {
-            $initialPricing['sku'] = $requestedSku;
-            $initialPricing['barcode'] = $requestedBarcode;
-        }
         // Images are media records, not columns on the products table.
         unset($validated['image'], $validated['images']);
         $uploadedFiles = array_values(array_filter(array_merge(
@@ -170,21 +177,26 @@ class ProductController extends Controller
                 $validated,
                 $uploadedFiles,
                 $initialPricing,
+                $variantDrafts,
                 &$storedPaths
             ) {
                 $product = Product::create($validated);
 
-                if (array_key_exists('selling_price', $initialPricing)) {
+                if ($product->product_type === 'simple' && array_key_exists('selling_price', $initialPricing)) {
                     $product->variants()->create(array_merge([
                         'name' => 'Standard',
-                        'sku' => $product->product_type === 'variable' ? ($initialPricing['sku'] ?? null) : null,
-                        'barcode' => $product->product_type === 'variable' ? ($initialPricing['barcode'] ?? null) : null,
+                        'sku' => null,
+                        'barcode' => null,
                         'cost_price' => 0,
                         'selling_price' => 0,
                         'is_default' => true,
                         'status' => 'active',
                         'sort_order' => 0,
                     ], array_intersect_key($initialPricing, array_flip(['cost_price', 'selling_price', 'wholesale_price', 'promotional_price']))));
+                }
+
+                foreach ($variantDrafts as $variantDraft) {
+                    $product->variants()->create($variantDraft);
                 }
 
                 foreach ($uploadedFiles as $index => $uploadedFile) {
@@ -220,6 +232,14 @@ class ProductController extends Controller
 
                 return $product;
             });
+        } catch (QueryException $exception) {
+            foreach ($storedPaths as $path) {
+                Storage::disk('public')->delete($path);
+            }
+
+            $this->handleProductCreationConstraint($exception, $variantDrafts);
+
+            throw $exception;
         } catch (\Throwable $exception) {
             foreach ($storedPaths as $path) {
                 Storage::disk('public')->delete($path);
@@ -251,25 +271,41 @@ class ProductController extends Controller
             $product
         );
 
+        if (
+            $product->product_type === 'variable'
+            && $validated['product_type'] === 'simple'
+            && $product->variants()->exists()
+        ) {
+            throw ValidationException::withMessages([
+                'product_type' => 'A variable product with existing variants cannot be changed to a simple product. Remove its active variants first.',
+            ]);
+        }
+
         $validated['slug'] = $this->resolveSlug(
             $validated['slug'] ?? null,
             $validated['name'],
             $product,
         );
 
-        $validated['sku'] = $this->resolveSku(
-            $validated['sku'] ?? null,
-            $product,
-        );
+        if ($validated['product_type'] === 'variable') {
+            // Variable products own identifiers at variant level only.
+            $validated['sku'] = null;
+            $validated['barcode'] = null;
+        } else {
+            $validated['sku'] = $this->resolveSku(
+                $validated['sku'] ?? null,
+                $product,
+            );
 
-        $validated['barcode'] = $this->normalizeNullableValue(
-            $validated['barcode'] ?? null,
-        );
+            $validated['barcode'] = $this->normalizeNullableValue(
+                $validated['barcode'] ?? null,
+            );
 
-        $this->ensureBarcodeAvailable(
-            $validated['barcode'],
-            $product,
-        );
+            $this->ensureBarcodeAvailable(
+                $validated['barcode'],
+                $product,
+            );
+        }
 
         // Prices live on the default price record, not on the products table.
         $initialPricing = [];
@@ -450,6 +486,19 @@ class ProductController extends Controller
 
                 return $product;
             });
+        } catch (QueryException $exception) {
+            // The DB transaction rolls back on failure. Remove only files
+            // uploaded by this request; retain previous product media.
+            if (is_string($storedPath)) {
+                Storage::disk('public')->delete($storedPath);
+            }
+            foreach ($additionalStoredPaths as $path) {
+                Storage::disk('public')->delete($path);
+            }
+
+            $this->handleProductCreationConstraint($exception, []);
+
+            throw $exception;
         } catch (\Throwable $exception) {
             // The DB transaction rolls back on failure. Remove only files
             // uploaded by this request; retain previous product media.
@@ -619,6 +668,20 @@ class ProductController extends Controller
                 'max:4294967295',
             ],
 
+            'variants' => $product === null && $request->input('product_type') === 'variable'
+                ? ['required', 'array', 'min:1', 'max:100']
+                : ['prohibited'],
+            'variants.*.name' => ['required', 'string', 'max:200'],
+            'variants.*.sku' => ['nullable', 'string', 'max:100'],
+            'variants.*.barcode' => ['nullable', 'string', 'max:100'],
+            'variants.*.cost_price' => ['sometimes', 'numeric', 'min:0'],
+            'variants.*.selling_price' => ['required', 'numeric', 'min:0'],
+            'variants.*.wholesale_price' => ['nullable', 'numeric', 'min:0'],
+            'variants.*.promotional_price' => ['nullable', 'numeric', 'min:0'],
+            'variants.*.is_default' => ['sometimes', 'boolean'],
+            'variants.*.status' => ['sometimes', Rule::in(['active', 'inactive', 'archived'])],
+            'variants.*.sort_order' => ['sometimes', 'integer', 'min:0', 'max:4294967295'],
+
             'image' => [
                 'nullable',
                 'file',
@@ -633,6 +696,210 @@ class ProductController extends Controller
                 'mimes:jpg,jpeg,png,webp',
                 'max:5120',
             ],
+        ]);
+    }
+
+    /**
+     * Normalize variable-product variant drafts and enforce their batch invariants.
+     *
+     * @param  array<int, array<string, mixed>>  $variants
+     * @return list<array<string, mixed>>
+     */
+    private function normalizeVariantDrafts(array $variants, string $productType): array
+    {
+        if ($productType !== 'variable') {
+            return [];
+        }
+
+        $normalized = [];
+        $defaultIndex = null;
+        $activeIndexes = [];
+        $seenIdentifiers = ['sku' => [], 'barcode' => []];
+
+        foreach ($variants as $index => $variant) {
+            $normalizedIndex = count($normalized);
+            $status = $variant['status'] ?? 'active';
+            $isDefault = filter_var(
+                $variant['is_default'] ?? false,
+                FILTER_VALIDATE_BOOLEAN,
+            );
+
+            if ($status === 'active') {
+                $activeIndexes[] = $normalizedIndex;
+            }
+
+            if ($isDefault) {
+                if ($defaultIndex !== null) {
+                    throw ValidationException::withMessages([
+                        "variants.$index.is_default" => 'Only one variant can be selected as the default.',
+                    ]);
+                }
+
+                if ($status !== 'active') {
+                    throw ValidationException::withMessages([
+                        "variants.$index.is_default" => 'Only an active variant can be selected as the default.',
+                    ]);
+                }
+
+                $defaultIndex = $normalizedIndex;
+            }
+
+            $normalizedVariant = [
+                'name' => trim((string) $variant['name']),
+                'sku' => $this->normalizeNullableValue(isset($variant['sku']) ? (string) $variant['sku'] : null),
+                'barcode' => $this->normalizeNullableValue(isset($variant['barcode']) ? (string) $variant['barcode'] : null),
+                'cost_price' => $variant['cost_price'] ?? 0,
+                'selling_price' => $variant['selling_price'],
+                'wholesale_price' => $this->normalizeNullableValue(isset($variant['wholesale_price']) ? (string) $variant['wholesale_price'] : null),
+                'promotional_price' => $this->normalizeNullableValue(isset($variant['promotional_price']) ? (string) $variant['promotional_price'] : null),
+                'is_default' => $isDefault,
+                'status' => $status,
+                'sort_order' => $variant['sort_order'] ?? $index,
+            ];
+
+            foreach (['sku', 'barcode'] as $identifierType) {
+                $identifier = $normalizedVariant[$identifierType];
+
+                if ($identifier === null) {
+                    continue;
+                }
+
+                $normalizedIdentifier = mb_strtolower($identifier);
+
+                if (isset($seenIdentifiers[$identifierType][$normalizedIdentifier])) {
+                    throw ValidationException::withMessages([
+                        "variants.$index.$identifierType" => "This $identifierType is duplicated in the submitted variants.",
+                    ]);
+                }
+
+                $seenIdentifiers[$identifierType][$normalizedIdentifier] = $index;
+            }
+
+            if ($normalizedVariant['sku'] !== null) {
+                $normalizedVariant['sku'] = mb_strtoupper($normalizedVariant['sku']);
+            }
+
+            $normalized[] = $normalizedVariant;
+        }
+
+        $submittedIdentifiers = array_filter(
+            $seenIdentifiers,
+            static fn (array $identifiers): bool => $identifiers !== [],
+        );
+
+        if ($submittedIdentifiers !== []) {
+            $existingIdentifiers = DB::table('product_identifiers')
+                ->whereNull('deleted_at')
+                ->where(function ($query) use ($submittedIdentifiers): void {
+                    foreach ($submittedIdentifiers as $identifierType => $identifiers) {
+                        $query->orWhere(function ($identifierQuery) use ($identifierType, $identifiers): void {
+                            $identifierQuery
+                                ->where('identifier_type', $identifierType)
+                                ->whereIn('normalized_value', array_keys($identifiers));
+                        });
+                    }
+                })
+                ->get(['identifier_type', 'normalized_value']);
+
+            foreach ($existingIdentifiers as $existingIdentifier) {
+                $identifierType = (string) $existingIdentifier->identifier_type;
+                $normalizedValue = (string) $existingIdentifier->normalized_value;
+                $variantIndex = $seenIdentifiers[$identifierType][$normalizedValue];
+
+                throw ValidationException::withMessages([
+                    "variants.$variantIndex.$identifierType" => "This $identifierType is already in use.",
+                ]);
+            }
+        }
+
+        if ($activeIndexes === []) {
+            throw ValidationException::withMessages([
+                'variants' => 'A variable product must have at least one active variant.',
+            ]);
+        }
+
+        if ($defaultIndex === null) {
+            $defaultIndex = $activeIndexes[0];
+            $normalized[$defaultIndex]['is_default'] = true;
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * Translate a PostgreSQL global identifier conflict into a variant field error.
+     *
+     * @param  list<array<string, mixed>>  $variants
+     */
+    private function handleProductCreationConstraint(
+        QueryException $exception,
+        array $variants,
+    ): void {
+        if (($exception->errorInfo[0] ?? null) !== '23505') {
+            return;
+        }
+
+        $message = mb_strtolower($exception->getMessage());
+
+        if (str_contains($message, 'products_slug_unique_active')) {
+            throw ValidationException::withMessages([
+                'slug' => 'The product slug is already in use.',
+            ]);
+        }
+
+        foreach (['sku', 'barcode'] as $field) {
+            if (str_contains($message, "products_{$field}_unique_active")) {
+                throw ValidationException::withMessages([
+                    $field => "This $field is already in use.",
+                ]);
+            }
+
+            if (str_contains($message, "product_variants_{$field}_unique_active")) {
+                foreach ($variants as $index => $variant) {
+                    if (! empty($variant[$field])) {
+                        throw ValidationException::withMessages([
+                            "variants.$index.$field" => "This $field is already in use.",
+                        ]);
+                    }
+                }
+
+                throw ValidationException::withMessages([
+                    'variants' => "A submitted variant contains a duplicate $field.",
+                ]);
+            }
+        }
+
+        if (! str_contains($message, 'product_identifiers_value_unique_active')) {
+            return;
+        }
+
+        if (preg_match(
+            '/key\s*\(\s*identifier_type\s*,\s*normalized_value\s*\)\s*=\s*\(\s*(sku|barcode)\s*,\s*([^\)]+)\)/i',
+            $message,
+            $matches,
+        ) !== 1) {
+            return;
+        }
+
+        $field = mb_strtolower($matches[1]);
+        $value = trim($matches[2], " \"'");
+
+        foreach ($variants as $index => $variant) {
+            if (mb_strtolower((string) ($variant[$field] ?? '')) === $value) {
+                throw ValidationException::withMessages([
+                    "variants.$index.$field" => "This $field is already in use.",
+                ]);
+            }
+        }
+
+        if ($variants === []) {
+            throw ValidationException::withMessages([
+                $field => "This $field is already in use.",
+            ]);
+        }
+
+        throw ValidationException::withMessages([
+            'variants' => "A submitted variant contains a duplicate $field.",
         ]);
     }
 
@@ -694,7 +961,21 @@ class ProductController extends Controller
             )
             ->exists();
 
-        if ($exists) {
+        $identifierExists = DB::table('product_identifiers')
+            ->where('identifier_type', 'sku')
+            ->where('normalized_value', mb_strtolower($sku))
+            ->whereNull('deleted_at')
+            ->when(
+                $product !== null,
+                fn ($query) => $query->where(function ($ownerQuery) use ($product): void {
+                    $ownerQuery
+                        ->whereNull('owner_product_id')
+                        ->orWhere('owner_product_id', '!=', $product->id);
+                }),
+            )
+            ->exists();
+
+        if ($exists || $identifierExists) {
             throw ValidationException::withMessages([
                 'sku' => 'The SKU has already been taken.',
             ]);
@@ -720,7 +1001,21 @@ class ProductController extends Controller
             )
             ->exists();
 
-        if ($exists) {
+        $identifierExists = DB::table('product_identifiers')
+            ->where('identifier_type', 'barcode')
+            ->where('normalized_value', mb_strtolower($barcode))
+            ->whereNull('deleted_at')
+            ->when(
+                $product !== null,
+                fn ($query) => $query->where(function ($ownerQuery) use ($product): void {
+                    $ownerQuery
+                        ->whereNull('owner_product_id')
+                        ->orWhere('owner_product_id', '!=', $product->id);
+                }),
+            )
+            ->exists();
+
+        if ($exists || $identifierExists) {
             throw ValidationException::withMessages([
                 'barcode' => 'The barcode has already been taken.',
             ]);

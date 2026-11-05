@@ -30,6 +30,7 @@ use App\Http\Controllers\PricingPromotionController;
 use App\Http\Controllers\ProcurementController;
 use App\Http\Controllers\ProductCategoryController;
 use App\Http\Controllers\ProductController;
+use App\Http\Controllers\ProductMediaController;
 use App\Http\Controllers\ProductVariantController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\RoleController;
@@ -535,6 +536,18 @@ Route::middleware(['web', 'auth'])->group(function () {
 
     Route::delete('/products/{product}', [ProductController::class, 'destroy'])
         ->middleware('permission:system.products.delete');
+
+    Route::patch('/products/{product}/media/reorder', [ProductMediaController::class, 'reorder'])
+        ->middleware('permission:system.products.update');
+    Route::patch('/products/{product}/media/{media}', [ProductMediaController::class, 'update'])
+        ->middleware('permission:system.products.update')
+        ->scopeBindings();
+    Route::post('/products/{product}/media/{media}/primary', [ProductMediaController::class, 'setPrimary'])
+        ->middleware('permission:system.products.update')
+        ->scopeBindings();
+    Route::delete('/products/{product}/media/{media}', [ProductMediaController::class, 'destroy'])
+        ->middleware('permission:system.products.delete')
+        ->scopeBindings();
 
     /*
     |--------------------------------------------------------------------------

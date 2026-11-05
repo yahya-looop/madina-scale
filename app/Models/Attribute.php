@@ -68,7 +68,7 @@ class Attribute extends Model
     {
         return in_array(
             $this->type,
-            ['select', 'multiselect'],
+            ['select', 'multiselect', 'boolean', 'color'],
             true
         );
     }

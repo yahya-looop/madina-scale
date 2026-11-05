@@ -31,6 +31,7 @@ class ProductMedia extends Model
     ];
 
     protected $casts = [
+        'product_id' => 'integer',
         'size' => 'integer',
         'width' => 'integer',
         'height' => 'integer',

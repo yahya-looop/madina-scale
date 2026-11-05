@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Product;
 use App\Models\Unit;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -101,6 +102,12 @@ class UnitController extends Controller
 
     public function destroy(Unit $unit): JsonResponse
     {
+        if (Product::withTrashed()->where('unit_id', $unit->id)->exists()) {
+            return response()->json([
+                'message' => 'This unit cannot be deleted while products are using it. Reassign those products first.',
+            ], 422);
+        }
+
         $unit->delete();
 
         return response()->json([

@@ -199,6 +199,53 @@ test('variant creation rejects an inactive attribute value', function () {
     $this->assertDatabaseCount('product_variants', 0);
 });
 
+test('variant creation accepts color and boolean attribute types exposed by the variant editor', function () {
+    $user = User::factory()->create();
+    variantEdgeGrantPermission($user, 'system.products.create');
+
+    $product = variantEdgeCreateProduct();
+    $color = variantEdgeCreateAttribute('Selectable Color');
+    $color->update(['type' => 'color']);
+    $colorValue = AttributeValue::create([
+        'attribute_id' => $color->id,
+        'name' => 'Midnight Blue',
+        'slug' => 'midnight-blue-'.uniqid(),
+        'value' => '#1e3a8a',
+        'color_code' => '#1e3a8a',
+        'status' => 'active',
+    ]);
+
+    $boolean = variantEdgeCreateAttribute('Selectable Boolean');
+    $boolean->update(['type' => 'boolean']);
+    $booleanValue = AttributeValue::create([
+        'attribute_id' => $boolean->id,
+        'name' => 'True',
+        'slug' => 'true-'.uniqid(),
+        'value' => 'true',
+        'status' => 'active',
+    ]);
+
+    $this->actingAs($user)
+        ->postJson(
+            "/api/products/{$product->id}/variants",
+            variantEdgePayload([
+                'attribute_values' => [
+                    [
+                        'attribute_id' => $color->id,
+                        'attribute_value_id' => $colorValue->id,
+                    ],
+                    [
+                        'attribute_id' => $boolean->id,
+                        'attribute_value_id' => $booleanValue->id,
+                    ],
+                ],
+            ])
+        )
+        ->assertCreated();
+
+    $this->assertDatabaseCount('product_variant_attribute_values', 2);
+});
+
 test('variant creation rejects a non-selectable attribute type', function () {
     $user = User::factory()->create();
     variantEdgeGrantPermission($user, 'system.products.create');

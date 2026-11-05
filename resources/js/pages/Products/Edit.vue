@@ -124,6 +124,7 @@ const selectedImage = ref<File | null>(null);
 const imagePreviewUrl = ref<string | null>(null);
 const galleryImages = ref<Array<{ file: File; preview: string }>>([]);
 const galleryInput = ref<HTMLInputElement | null>(null);
+const mediaActionId = ref<number | null>(null);
 
 const form = ref({
     category_id: '',
@@ -227,8 +228,10 @@ const primaryMedia = computed<ProductMedia | null>(() => {
 });
 
 const existingGalleryMedia = computed<ProductMedia[]>(() => {
+    const primaryId = primaryMedia.value?.id;
+
     return (product.value?.media ?? []).filter(
-        (media) => media.collection === 'images' && !media.is_primary,
+        (media) => media.collection === 'images' && media.id !== primaryId,
     );
 });
 
@@ -574,6 +577,151 @@ function onGallerySelected(event: Event): void {
 function removeGalleryImage(index: number): void {
     const [removed] = galleryImages.value.splice(index, 1);
     if (removed) URL.revokeObjectURL(removed.preview);
+}
+
+async function refreshProductMedia(): Promise<void> {
+    const refreshed = await apiRequest<Product>(
+        `/api/products/${productId.value}`,
+    );
+    product.value = refreshed;
+}
+
+async function setPrimaryMedia(media: ProductMedia): Promise<void> {
+    if (!product.value || media.is_primary || mediaActionId.value !== null) {
+        return;
+    }
+
+    mediaActionId.value = media.id;
+    clearMessages();
+
+    try {
+        await apiRequest<ProductMedia>(
+            `/api/products/${productId.value}/media/${media.id}/primary`,
+            { method: 'POST' },
+        );
+        await refreshProductMedia();
+        successMessage.value = 'Primary product image updated.';
+    } catch (error) {
+        errorMessage.value =
+            error instanceof Error
+                ? error.message
+                : 'Unable to update the primary image.';
+    } finally {
+        mediaActionId.value = null;
+    }
+}
+
+async function deleteProductMedia(media: ProductMedia): Promise<void> {
+    if (!product.value || mediaActionId.value !== null) {
+        return;
+    }
+
+    const confirmed = window.confirm(
+        `Remove ${media.original_name || 'this product image'} from the product gallery?`,
+    );
+
+    if (!confirmed) {
+        return;
+    }
+
+    mediaActionId.value = media.id;
+    clearMessages();
+
+    try {
+        await apiRequest<{ id: number }>(
+            `/api/products/${productId.value}/media/${media.id}`,
+            { method: 'DELETE' },
+        );
+        await refreshProductMedia();
+        successMessage.value = 'Product image removed.';
+    } catch (error) {
+        errorMessage.value =
+            error instanceof Error
+                ? error.message
+                : 'Unable to remove the product image.';
+    } finally {
+        mediaActionId.value = null;
+    }
+}
+
+async function saveMediaAltText(media: ProductMedia): Promise<void> {
+    if (mediaActionId.value !== null) {
+        return;
+    }
+
+    mediaActionId.value = media.id;
+
+    try {
+        const updated = await apiRequest<ProductMedia>(
+            `/api/products/${productId.value}/media/${media.id}`,
+            {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ alt_text: media.alt_text || null }),
+            },
+        );
+        const current = product.value?.media?.find(
+            (item) => item.id === updated.id,
+        );
+        if (current) current.alt_text = updated.alt_text;
+        successMessage.value = 'Image alternative text saved.';
+    } catch (error) {
+        errorMessage.value =
+            error instanceof Error
+                ? error.message
+                : 'Unable to save image alternative text.';
+    } finally {
+        mediaActionId.value = null;
+    }
+}
+
+async function moveGalleryMedia(media: ProductMedia, direction: -1 | 1): Promise<void> {
+    if (!product.value || mediaActionId.value !== null) {
+        return;
+    }
+
+    const primaryId = primaryMedia.value?.id;
+    const ordered = [...(product.value.media ?? [])]
+        .filter((item) => item.collection === 'images')
+        .sort((left, right) => {
+            if (left.id === primaryId) return -1;
+            if (right.id === primaryId) return 1;
+            return left.sort_order - right.sort_order || left.id - right.id;
+        });
+    const currentIndex = ordered.findIndex((item) => item.id === media.id);
+    const nextIndex = currentIndex + direction;
+
+    if (currentIndex < 0 || nextIndex < 0 || nextIndex >= ordered.length) {
+        return;
+    }
+
+    [ordered[currentIndex], ordered[nextIndex]] = [
+        ordered[nextIndex],
+        ordered[currentIndex],
+    ];
+
+    mediaActionId.value = media.id;
+    clearMessages();
+
+    try {
+        await apiRequest<ProductMedia[]>(
+            `/api/products/${productId.value}/media/reorder`,
+            {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ media_ids: ordered.map((item) => item.id) }),
+            },
+        );
+        await refreshProductMedia();
+        successMessage.value = 'Product gallery order updated.';
+    } catch (error) {
+        errorMessage.value =
+            error instanceof Error
+                ? error.message
+                : 'Unable to reorder product images.';
+    } finally {
+        mediaActionId.value = null;
+    }
 }
 
 /* ==========================================================================
@@ -929,10 +1077,29 @@ onBeforeUnmount(() => {
                                             </span>
                                         </div>
 
-                                        <span class="image-status">
-                                            Primary Image
-                                        </span>
+                                        <div class="primary-media-actions">
+                                            <span class="image-status">Primary Image</span>
+                                            <button
+                                                v-if="primaryMedia"
+                                                type="button"
+                                                :disabled="mediaActionId !== null"
+                                                class="remove-primary-media"
+                                                @click="deleteProductMedia(primaryMedia)"
+                                            >
+                                                Remove image
+                                            </button>
+                                        </div>
                                     </div>
+                                    <label v-if="primaryMedia" class="primary-alt-field">
+                                        Image alternative text
+                                        <input
+                                            v-model="primaryMedia.alt_text"
+                                            type="text"
+                                            maxlength="255"
+                                            placeholder="Describe the product image"
+                                            @change="saveMediaAltText(primaryMedia)"
+                                        />
+                                    </label>
                                 </div>
 
                                 <div v-else class="no-image">
@@ -963,23 +1130,61 @@ onBeforeUnmount(() => {
                                     >
                                     <div class="gallery-preview-grid">
                                         <div
-                                            v-for="media in existingGalleryMedia"
+                                            v-for="(media, index) in existingGalleryMedia"
                                             :key="media.id"
                                             class="gallery-preview-item existing-gallery-item"
                                         >
                                             <img
                                                 :src="productMediaUrl(media)"
-                                                :alt="
-                                                    media.alt_text ||
-                                                    media.original_name ||
-                                                    product.name
-                                                "
+                                                :alt="media.alt_text || media.original_name || product.name"
                                                 loading="lazy"
                                             />
-                                            <small>{{
-                                                media.original_name ||
-                                                'Product image'
-                                            }}</small>
+                                            <small>{{ media.original_name || 'Product image' }}</small>
+                                            <input
+                                                v-model="media.alt_text"
+                                                type="text"
+                                                maxlength="255"
+                                                aria-label="Image alternative text"
+                                                placeholder="Image alt text"
+                                                @change="saveMediaAltText(media)"
+                                            />
+                                            <div class="existing-media-actions">
+                                                <button
+                                                    type="button"
+                                                    :disabled="mediaActionId !== null || index === 0"
+                                                    aria-label="Move image earlier"
+                                                    title="Move earlier"
+                                                    @click="moveGalleryMedia(media, -1)"
+                                                >
+                                                    <Icon name="chevron-left" :size="13" />
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    :disabled="mediaActionId !== null"
+                                                    title="Make primary image"
+                                                    @click="setPrimaryMedia(media)"
+                                                >
+                                                    <Icon name="star" :size="13" />
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    :disabled="mediaActionId !== null || index === existingGalleryMedia.length - 1"
+                                                    aria-label="Move image later"
+                                                    title="Move later"
+                                                    @click="moveGalleryMedia(media, 1)"
+                                                >
+                                                    <Icon name="chevron-right" :size="13" />
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    :disabled="mediaActionId !== null"
+                                                    class="danger"
+                                                    title="Remove image"
+                                                    @click="deleteProductMedia(media)"
+                                                >
+                                                    <Icon name="trash" :size="13" />
+                                                </button>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -2087,6 +2292,71 @@ onBeforeUnmount(() => {
     white-space: nowrap;
     color: var(--muted-foreground, #6b7280);
     font-size: 10px;
+}
+
+.primary-media-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.remove-primary-media {
+    border: 1px solid color-mix(in srgb, var(--danger, #dc2626) 35%, transparent);
+    border-radius: 7px;
+    padding: 5px 8px;
+    background: color-mix(in srgb, var(--danger, #dc2626) 9%, transparent);
+    color: var(--danger, #dc2626);
+    font-size: 10px;
+    font-weight: 700;
+    cursor: pointer;
+}
+.primary-alt-field {
+    display: grid;
+    gap: 6px;
+    margin-top: 10px;
+    color: var(--text-secondary);
+    font-size: 11px;
+    font-weight: 700;
+}
+.primary-alt-field input,
+.existing-gallery-item input {
+    width: 100%;
+    min-width: 0;
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: 6px 8px;
+    background: var(--surface);
+    color: var(--text-primary);
+    font: inherit;
+    font-size: 10px;
+}
+.existing-media-actions {
+    display: flex;
+    gap: 4px;
+    margin-top: 6px;
+}
+.existing-media-actions button {
+    display: grid;
+    place-items: center;
+    width: 25px;
+    height: 25px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+.existing-media-actions button:hover:not(:disabled) {
+    border-color: var(--primary);
+    color: var(--primary);
+}
+.existing-media-actions button.danger {
+    margin-left: auto;
+    color: var(--danger, #dc2626);
+}
+.existing-media-actions button:disabled,
+.remove-primary-media:disabled {
+    opacity: .45;
+    cursor: not-allowed;
 }
 
 .media-note,

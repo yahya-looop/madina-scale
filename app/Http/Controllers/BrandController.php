@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Brand;
+use App\Models\Product;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -102,6 +103,12 @@ class BrandController extends Controller
 
     public function destroy(Brand $brand): JsonResponse
     {
+        if (Product::withTrashed()->where('brand_id', $brand->id)->exists()) {
+            return response()->json([
+                'message' => 'This brand cannot be deleted while products are assigned to it. Reassign those products first.',
+            ], 422);
+        }
+
         $brand->delete();
 
         return response()->json([

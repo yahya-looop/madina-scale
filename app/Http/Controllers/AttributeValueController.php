@@ -108,6 +108,15 @@ class AttributeValueController extends Controller
 
         $this->ensureAttributeExists($validated['attribute_id']);
 
+        if (
+            $attributeValue->variantAttributeValues()->exists()
+            && (int) $validated['attribute_id'] !== $attributeValue->attribute_id
+        ) {
+            throw ValidationException::withMessages([
+                'attribute_id' => 'An attribute value assigned to product variants cannot be moved to another attribute.',
+            ]);
+        }
+
         $validated['slug'] = $this->resolveSlug(
             $validated['slug'] ?? null,
             $validated['name'],
@@ -130,6 +139,12 @@ class AttributeValueController extends Controller
 
     public function destroy(AttributeValue $attributeValue): JsonResponse
     {
+        if ($attributeValue->variantAttributeValues()->exists()) {
+            return response()->json([
+                'message' => 'This attribute value cannot be deleted while it is assigned to product variants.',
+            ], 422);
+        }
+
         $attributeValue->delete();
 
         return response()->json([

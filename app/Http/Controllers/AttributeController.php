@@ -85,6 +85,17 @@ class AttributeController extends Controller
     {
         $validated = $this->validateAttribute($request, $attribute);
 
+        $nextType = $validated['type'] ?? $attribute->type;
+
+        if (
+            $attribute->variantAttributeValues()->exists()
+            && ! in_array($nextType, ['select', 'multiselect', 'boolean', 'color'], true)
+        ) {
+            throw ValidationException::withMessages([
+                'type' => 'An attribute used by product variants must remain selectable.',
+            ]);
+        }
+
         $validated['slug'] = $this->resolveSlug(
             $validated['slug'] ?? null,
             $validated['name'],
@@ -102,6 +113,12 @@ class AttributeController extends Controller
 
     public function destroy(Attribute $attribute): JsonResponse
     {
+        if ($attribute->values()->exists() || $attribute->variantAttributeValues()->exists()) {
+            return response()->json([
+                'message' => 'This attribute cannot be deleted while it has attribute values or is assigned to product variants.',
+            ], 422);
+        }
+
         $attribute->delete();
 
         return response()->json([
