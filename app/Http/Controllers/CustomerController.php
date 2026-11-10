@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Customer;
 use App\Services\CustomerIdentityService;
+use App\Services\LocationInventoryAccessService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -13,9 +14,11 @@ use Illuminate\Validation\ValidationException;
 
 class CustomerController extends Controller
 {
-    public function index(Request $request): JsonResponse
+    public function index(Request $request, LocationInventoryAccessService $locationAccess): JsonResponse
     {
-        $query = Customer::query()->withCount('orders')->search($request->string('search')->toString());
+        $query = Customer::query()->withCount([
+            'orders' => fn ($orders) => $locationAccess->scopeViewable($orders, $request->user()),
+        ])->search($request->string('search')->toString());
         if ($request->filled('status') && $request->input('status') !== 'all') {
             $query->where('status', $request->validate(['status' => ['required', Rule::in(['active', 'inactive'])]])['status']);
         }
@@ -42,11 +45,29 @@ class CustomerController extends Controller
         return response()->json(['data' => $customers]);
     }
 
-    public function show(Customer $customer): JsonResponse
-    {
-        $customer->load(['orders' => fn ($q) => $q->select('id', 'customer_id', 'order_number', 'status', 'grand_total', 'currency', 'created_at')->latest()->limit(25)]);
-        $customer->loadCount('orders');
-        $customer->setAttribute('lifetime_value', (string) $customer->orders()->whereNotIn('status', ['cancelled'])->sum('grand_total'));
+    public function show(
+        Request $request,
+        Customer $customer,
+        LocationInventoryAccessService $locationAccess,
+    ): JsonResponse {
+        $user = $request->user();
+
+        $ordersQuery = $customer->orders()->getQuery();
+        $locationAccess->scopeViewable($ordersQuery, $user);
+        $orders = $ordersQuery
+            ->select('id', 'customer_id', 'order_number', 'status', 'grand_total', 'currency', 'created_at')
+            ->latest()
+            ->limit(25)
+            ->get();
+        $customer->setRelation('orders', $orders);
+
+        $ordersCountQuery = $customer->orders()->getQuery();
+        $locationAccess->scopeViewable($ordersCountQuery, $user);
+        $customer->setAttribute('orders_count', $ordersCountQuery->count());
+
+        $lifetimeValueQuery = $customer->orders()->getQuery()->whereNotIn('status', ['cancelled']);
+        $locationAccess->scopeViewable($lifetimeValueQuery, $user);
+        $customer->setAttribute('lifetime_value', (string) $lifetimeValueQuery->sum('grand_total'));
 
         return response()->json(['data' => $customer]);
     }

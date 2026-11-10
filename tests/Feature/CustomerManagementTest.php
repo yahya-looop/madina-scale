@@ -3,9 +3,11 @@
 namespace Tests\Feature;
 
 use App\Models\Customer;
+use App\Models\Location;
 use App\Models\Module;
 use App\Models\Permission;
 use App\Models\Role;
+use App\Models\SalesOrder;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
@@ -86,5 +88,72 @@ class CustomerManagementTest extends TestCase
         $this->actingAs($user)->postJson('/api/customers', [
             'name' => 'Buyer Two', 'email' => 'buyer@example.com', 'status' => 'active',
         ])->assertUnprocessable()->assertJsonValidationErrors('phone');
+    }
+
+    public function test_customer_order_history_and_lifetime_value_are_scoped_to_assigned_locations(): void
+    {
+        $user = $this->customerUser();
+        $visibleLocation = Location::query()->create([
+            'name' => 'Visible Customer Branch',
+            'code' => 'CUS-VIS-'.Str::upper(Str::random(5)),
+            'type' => 'branch',
+            'is_active' => true,
+        ]);
+        $hiddenLocation = Location::query()->create([
+            'name' => 'Hidden Customer Branch',
+            'code' => 'CUS-HID-'.Str::upper(Str::random(5)),
+            'type' => 'branch',
+            'is_active' => true,
+        ]);
+        $user->locations()->attach($visibleLocation->id, ['access_level' => 'view']);
+
+        $customer = Customer::query()->create([
+            'customer_code' => 'CUS-'.Str::upper(Str::random(10)),
+            'name' => 'Scoped Customer',
+            'phone' => '017'.random_int(10000000, 99999999),
+            'status' => 'active',
+        ]);
+
+        $visibleOrder = SalesOrder::query()->create([
+            'order_number' => 'SO-VIS-'.Str::upper(Str::random(8)),
+            'status' => 'confirmed',
+            'channel' => 'backoffice',
+            'location_id' => $visibleLocation->id,
+            'customer_id' => $customer->id,
+            'customer_name' => $customer->name,
+            'currency' => 'BDT',
+            'subtotal' => '125.00',
+            'discount_total' => '0.00',
+            'tax_total' => '0.00',
+            'grand_total' => '125.00',
+        ]);
+        $hiddenOrder = SalesOrder::query()->create([
+            'order_number' => 'SO-HID-'.Str::upper(Str::random(8)),
+            'status' => 'confirmed',
+            'channel' => 'backoffice',
+            'location_id' => $hiddenLocation->id,
+            'customer_id' => $customer->id,
+            'customer_name' => $customer->name,
+            'currency' => 'BDT',
+            'subtotal' => '875.00',
+            'discount_total' => '0.00',
+            'tax_total' => '0.00',
+            'grand_total' => '875.00',
+        ]);
+
+        $showResponse = $this->actingAs($user)
+            ->getJson('/api/customers/'.$customer->id)
+            ->assertOk()
+            ->assertJsonPath('data.orders.0.id', $visibleOrder->id)
+            ->assertJsonPath('data.orders_count', 1)
+            ->assertJsonPath('data.lifetime_value', '125.00');
+
+        $shownOrderIds = collect($showResponse->json('data.orders'))->pluck('id')->map(fn ($id): int => (int) $id);
+        $this->assertNotContains($hiddenOrder->id, $shownOrderIds->all());
+
+        $indexResponse = $this->getJson('/api/customers?search=Scoped%20Customer')->assertOk();
+        $listedCustomer = collect($indexResponse->json('data'))->firstWhere('id', $customer->id);
+
+        $this->assertSame(1, $listedCustomer['orders_count']);
     }
 }
