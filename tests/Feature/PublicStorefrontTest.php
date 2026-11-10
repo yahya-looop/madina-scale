@@ -143,6 +143,21 @@ it('allows guests to add a public product to a session cart without signing in',
         );
 });
 
+it('rejects adding a new cart line after the 100-item session limit', function (): void {
+    $product = createStorefrontProduct();
+    $variant = $product->activeVariants()->firstOrFail();
+    $existingCart = array_fill_keys(range(900001, 900100), 1);
+
+    $this->withSession(['storefront_cart' => $existingCart])
+        ->from(route('storefront.cart'))
+        ->post(route('storefront.cart.add'), [
+            'product_variant_id' => $variant->id,
+            'quantity' => 1,
+        ])
+        ->assertRedirect(route('storefront.cart'))
+        ->assertSessionHasErrors('cart');
+});
+
 it('validates Bangladesh mobile numbers before accepting a storefront order', function (): void {
     $this->from(route('storefront.cart'))
         ->post(route('storefront.checkout'), [

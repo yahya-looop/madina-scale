@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\User;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 
 class AccountSecurityService
 {
@@ -36,9 +37,7 @@ class AccountSecurityService
     }
 
     /**
-     * Record a failed authentication attempt.
-     *
-     * The account is temporarily locked after the configured threshold.
+     * Record a failed authentication attempt without losing concurrent updates.
      */
     public function recordFailedLogin(
         User $user,
@@ -48,29 +47,42 @@ class AccountSecurityService
         $maxAttempts ??= self::DEFAULT_MAX_FAILED_ATTEMPTS;
         $lockMinutes ??= self::DEFAULT_LOCK_MINUTES;
 
-        $attempts = $user->failed_login_attempts + 1;
+        DB::transaction(function () use ($user, $maxAttempts, $lockMinutes): void {
+            $lockedUser = User::query()
+                ->lockForUpdate()
+                ->findOrFail($user->id);
 
-        $user->failed_login_attempts = $attempts;
+            $attempts = (int) $lockedUser->failed_login_attempts + 1;
+            $lockedUser->failed_login_attempts = $attempts;
 
-        if ($attempts >= $maxAttempts) {
-            $user->locked_until = Carbon::now()->addMinutes($lockMinutes);
-        }
+            if ($attempts >= $maxAttempts) {
+                $lockedUser->locked_until = Carbon::now()->addMinutes($lockMinutes);
+            }
 
-        $user->save();
+            $lockedUser->save();
+            $user->setRawAttributes($lockedUser->getAttributes(), true);
+        }, 3);
     }
 
     /**
-     * Record a successful authentication.
+     * Record a successful authentication against the latest locked row.
      */
     public function recordSuccessfulLogin(
         User $user,
         ?string $ipAddress = null,
     ): void {
-        $user->failed_login_attempts = 0;
-        $user->locked_until = null;
-        $user->last_login_at = Carbon::now();
-        $user->last_login_ip = $ipAddress;
+        DB::transaction(function () use ($user, $ipAddress): void {
+            $lockedUser = User::query()
+                ->lockForUpdate()
+                ->findOrFail($user->id);
 
-        $user->save();
+            $lockedUser->failed_login_attempts = 0;
+            $lockedUser->locked_until = null;
+            $lockedUser->last_login_at = Carbon::now();
+            $lockedUser->last_login_ip = $ipAddress;
+            $lockedUser->save();
+
+            $user->setRawAttributes($lockedUser->getAttributes(), true);
+        }, 3);
     }
 }

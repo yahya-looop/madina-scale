@@ -33,7 +33,7 @@ Route::get('/sitemap.xml', [PublicSeoController::class, 'sitemap'])->name('seo.s
 Route::get('/', [StorefrontController::class, 'index'])->name('storefront.home');
 Route::get('/shop', [StorefrontController::class, 'index'])->name('storefront.index');
 Route::get('/cart', [StorefrontCartController::class, 'show'])->name('storefront.cart');
-Route::post('/cart/items', [StorefrontCartController::class, 'add'])->name('storefront.cart.add');
+Route::post('/cart/items', [StorefrontCartController::class, 'add'])->middleware('throttle:60,1')->name('storefront.cart.add');
 Route::patch('/cart/items/{variant}', [StorefrontCartController::class, 'update'])->whereNumber('variant')->name('storefront.cart.update');
 Route::delete('/cart/items/{variant}', [StorefrontCartController::class, 'remove'])->whereNumber('variant')->name('storefront.cart.remove');
 Route::post('/checkout', [StorefrontCartController::class, 'checkout'])->middleware('throttle:10,1')->name('storefront.checkout');

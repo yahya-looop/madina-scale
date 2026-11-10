@@ -1191,9 +1191,11 @@ onMounted(() => {
 
                                 <small>
                                     {{
-                                        selectedLog.actor_user_id
-                                            ? `User #${selectedLog.actor_user_id}`
-                                            : 'No user actor'
+                                        selectedLog.actor_type === 'system'
+                                            ? 'System-generated or privacy-protected'
+                                            : selectedLog.actor_user_id
+                                              ? `User #${selectedLog.actor_user_id}`
+                                              : 'No user actor'
                                     }}
                                 </small>
                             </article>

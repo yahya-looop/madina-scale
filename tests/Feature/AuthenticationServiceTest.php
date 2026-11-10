@@ -143,3 +143,24 @@ test('logout ends the authenticated session', function () {
 
     expect(Auth::check())->toBeFalse();
 });
+
+test('serialized login attempts enforce lockout before a later correct password can authenticate', function () {
+    [$user, $service] = authenticationServiceFixture();
+
+    for ($attempt = 0; $attempt < 5; $attempt++) {
+        expect(fn () => $service->authenticate(
+            $user->email,
+            'wrong-password',
+        ))->toThrow(ValidationException::class);
+    }
+
+    expect($user->fresh()->failed_login_attempts)->toBe(5)
+        ->and($user->fresh()->locked_until)->not->toBeNull();
+
+    expect(fn () => $service->authenticate(
+        $user->email,
+        'correct-password',
+    ))->toThrow(ValidationException::class);
+
+    expect(Auth::check())->toBeFalse();
+});

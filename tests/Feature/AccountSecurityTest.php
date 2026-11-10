@@ -105,3 +105,19 @@ test('successful login resets security counters and records login metadata', fun
         ->and($user->last_login_at)->not->toBeNull()
         ->and($user->last_login_ip)->toBe('127.0.0.1');
 });
+
+test('failed login increments use the latest locked database counter instead of a stale model', function () {
+    $user = User::factory()->create([
+        'status' => 'active',
+        'failed_login_attempts' => 3,
+        'locked_until' => null,
+    ]);
+    $staleUser = $user->fresh();
+
+    $user->forceFill(['failed_login_attempts' => 4])->save();
+
+    app(AccountSecurityService::class)->recordFailedLogin($staleUser);
+
+    expect($user->fresh()->failed_login_attempts)->toBe(5)
+        ->and($user->fresh()->locked_until)->not->toBeNull();
+});

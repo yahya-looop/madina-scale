@@ -65,7 +65,15 @@ class StorefrontCartController extends Controller
         abort_unless($variant instanceof ProductVariant, 404);
 
         $cart = $request->session()->get('storefront_cart', []);
+        $cart = is_array($cart) ? $cart : [];
         $key = (string) $variant->id;
+
+        if (! array_key_exists($key, $cart) && count($cart) >= 100) {
+            throw ValidationException::withMessages([
+                'cart' => 'Your cart can contain up to 100 different items. Remove an item before adding another.',
+            ]);
+        }
+
         $cart[$key] = min(99, (int) ($cart[$key] ?? 0) + (int) ($data['quantity'] ?? 1));
         $request->session()->put('storefront_cart', $cart);
 
@@ -200,6 +208,10 @@ class StorefrontCartController extends Controller
         if (! is_array($cart) || $cart === []) {
             return [];
         }
+
+        // Bound storefront query size even for legacy sessions created before
+        // the cart-line cap was introduced.
+        $cart = array_slice($cart, 0, 100, true);
         $variants = ProductVariant::query()->with(['product.primaryMedia'])
             ->whereIn('id', array_keys($cart))->where('status', 'active')->get()->keyBy('id');
         $items = [];

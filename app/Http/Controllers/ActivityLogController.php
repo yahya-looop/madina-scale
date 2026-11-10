@@ -29,10 +29,7 @@ class ActivityLogController extends Controller
         $perPage = (int) ($validated['per_page'] ?? 25);
 
         $logs = ActivityLog::query()
-            ->with([
-                'actor:id,name,email',
-                'subject',
-            ])
+            ->with('actor:id,name,email')
             ->when(
                 filled($validated['search'] ?? null),
                 function ($query) use ($validated): void {
@@ -97,6 +94,11 @@ class ActivityLogController extends Controller
             ->paginate($perPage)
             ->withQueryString();
 
+        // Never expose the real Developer account behind a System-presented event.
+        $logs->getCollection()->each(
+            fn (ActivityLog $log) => $this->protectActorIdentity($log),
+        );
+
         return response()->json([
             'data' => $logs->items(),
             'meta' => [
@@ -129,10 +131,8 @@ class ActivityLogController extends Controller
             403,
         );
 
-        $activityLog->load([
-            'actor:id,name,email',
-            'subject',
-        ]);
+        $activityLog->load('actor:id,name,email');
+        $this->protectActorIdentity($activityLog);
 
         return response()->json([
             'data' => $activityLog,
@@ -191,6 +191,20 @@ class ActivityLogController extends Controller
             });
             fclose($out);
         }, $filename, ['Content-Type' => 'text/csv; charset=UTF-8']);
+    }
+
+    /**
+     * Keep the real Developer actor ID in storage for forensic traceability,
+     * while preventing ordinary audit viewers from resolving that identity.
+     */
+    private function protectActorIdentity(ActivityLog $activityLog): void
+    {
+        if ($activityLog->actor_type !== 'system') {
+            return;
+        }
+
+        $activityLog->setAttribute('actor_user_id', null);
+        $activityLog->setRelation('actor', null);
     }
 
     /** Return integrity status for a single immutable audit entry. */

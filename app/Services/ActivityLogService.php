@@ -7,7 +7,6 @@ use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Request;
-use Illuminate\Support\Str;
 
 class ActivityLogService
 {
@@ -17,25 +16,29 @@ class ActivityLogService
      * Activity logs are intended for traceability, not for storing
      * authentication secrets.
      */
-    private const SENSITIVE_KEYS = [
+    private const SENSITIVE_KEY_SEGMENTS = [
         'password',
-        'password_confirmation',
-        'current_password',
-        'new_password',
-        'newPassword',
-        'currentPassword',
-        'passwordConfirmation',
-        'remember_token',
-        'rememberToken',
-        'access_token',
-        'accessToken',
-        'refresh_token',
-        'refreshToken',
-        'api_token',
-        'apiToken',
-        'client_secret',
-        'clientSecret',
+        'passwd',
         'secret',
+        'token',
+        'authorization',
+        'cookie',
+        'otp',
+        'totp',
+        'mfa',
+        'pin',
+        'private_key',
+        'signing_key',
+        'api_key',
+        'client_key',
+        'webhook_key',
+        'verification_code',
+        'verification_token',
+        'recovery_code',
+        'backup_code',
+        'card_number',
+        'cvv',
+        'cvc',
     ];
 
     /**
@@ -334,19 +337,36 @@ class ActivityLogService
      */
     protected function isSensitiveKey(string $key): bool
     {
-        $normalizedKey = Str::of($key)
-            ->snake()
-            ->lower()
-            ->toString();
+        // Normalize camelCase, kebab-case, dotted and header-style keys.
+        // Split acronym-to-word and camelCase boundaries before replacing
+        // punctuation. Laravel's generic snake() normalization does not
+        // consistently split all-uppercase HTTP header segments.
+        $key = preg_replace('/([A-Z]+)([A-Z][a-z])/', '$1_$2', $key) ?? $key;
+        $key = preg_replace('/([a-z0-9])([A-Z])/', '$1_$2', $key) ?? $key;
 
-        foreach (self::SENSITIVE_KEYS as $sensitiveKey) {
-            $normalizedSensitiveKey = Str::of($sensitiveKey)
-                ->snake()
-                ->lower()
-                ->toString();
+        $normalizedKey = strtolower($key);
+        $normalizedKey = preg_replace('/[^a-z0-9]+/', '_', $normalizedKey) ?? $normalizedKey;
+        $normalizedKey = trim($normalizedKey, '_');
 
-            if ($normalizedKey === $normalizedSensitiveKey) {
-                return true;
+        if ($normalizedKey === '') {
+            return false;
+        }
+
+        $segments = explode('_', $normalizedKey);
+
+        foreach (self::SENSITIVE_KEY_SEGMENTS as $sensitiveSegment) {
+            $normalizedSegment = strtolower($sensitiveSegment);
+            $normalizedSegment = preg_replace('/[^a-z0-9]+/', '_', $normalizedSegment) ?? $normalizedSegment;
+            $normalizedSegment = trim($normalizedSegment, '_');
+
+            // Match explicit sensitive phrases or standalone credential terms.
+            $sensitiveParts = explode('_', $normalizedSegment);
+            $partCount = count($sensitiveParts);
+
+            for ($offset = 0; $offset <= count($segments) - $partCount; $offset++) {
+                if (array_slice($segments, $offset, $partCount) === $sensitiveParts) {
+                    return true;
+                }
             }
         }
 

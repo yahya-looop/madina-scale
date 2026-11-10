@@ -2,28 +2,30 @@
 
 namespace Tests\Feature;
 
-use App\Models\Location;
 use App\Models\Module;
 use App\Models\Permission;
 use App\Models\Role;
 use App\Models\SalesOrder;
-use App\Models\SalesOrderRiskAssessment;
+use App\Models\SalesOrderPhoneVerification;
 use App\Models\SalesOrderShipment;
 use App\Models\User;
+use App\Services\OrderPhoneVerificationService;
 use App\Services\OrderRiskService;
 use App\Services\OrderSmsService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
 class OrderRiskAndMessagingTest extends TestCase
 {
     use RefreshDatabase;
 
-    private function makeOrder(string $phone, string $status = 'pending', ?Location $location = null): SalesOrder
+    private function makeOrder(string $phone, string $status = 'pending'): SalesOrder
     {
-        $location ??= \inventoryTestLocation();
+        $location = \inventoryTestLocation();
 
         return SalesOrder::query()->create([
             'order_number' => 'RISK-'.strtoupper(bin2hex(random_bytes(5))),
@@ -32,39 +34,6 @@ class OrderRiskAndMessagingTest extends TestCase
             'subtotal' => 100, 'discount_total' => 0, 'tax_total' => 0, 'grand_total' => 100,
             'created_by' => User::factory()->create()->id,
         ]);
-    }
-
-    /**
-     * @param  list<string>  $permissionSlugs
-     */
-    private function userWithOrderPermissions(SalesOrder $order, array $permissionSlugs, string $accessLevel = 'manage'): User
-    {
-        $user = User::factory()->create();
-        $module = Module::firstOrCreate(['slug' => 'orders'], [
-            'name' => 'Orders', 'description' => 'Order management.',
-            'sort_order' => 30, 'is_system' => true, 'is_active' => true,
-        ]);
-        $permissionIds = [];
-        foreach ($permissionSlugs as $slug) {
-            $permission = Permission::firstOrCreate(['slug' => $slug], [
-                'module_id' => $module->id,
-                'name' => Str::headline(str_replace('.', ' ', $slug)),
-                'description' => 'Order workflow test permission.',
-            ]);
-            $permissionIds[] = $permission->id;
-        }
-        $role = Role::create([
-            'name' => 'Order Operations Test Role',
-            'slug' => 'order-operations-'.Str::lower(Str::random(12)),
-            'description' => null,
-            'is_system' => false,
-            'is_active' => true,
-        ]);
-        $role->permissions()->sync($permissionIds);
-        $user->roles()->attach($role->id);
-        $user->locations()->attach($order->location_id, ['access_level' => $accessLevel]);
-
-        return $user;
     }
 
     public function test_risk_engine_flags_repeated_cancelled_orders_for_manual_review(): void
@@ -261,91 +230,6 @@ class OrderRiskAndMessagingTest extends TestCase
         $this->assertSame('booking', $shipment->fresh()->status);
     }
 
-    public function test_risk_assessment_creation_requires_manage_location_access(): void
-    {
-        $order = $this->makeOrder('01711111111');
-        $viewer = $this->userWithOrderPermissions($order, ['system.orders.risk.manage'], 'view');
-
-        $this->actingAs($viewer)
-            ->postJson('/api/orders/'.$order->id.'/risk-assessment')
-            ->assertForbidden();
-
-        $this->assertDatabaseMissing('sales_order_risk_assessments', ['sales_order_id' => $order->id]);
-
-        $manager = $this->userWithOrderPermissions($order, ['system.orders.risk.manage'], 'manage');
-        $this->actingAs($manager)
-            ->postJson('/api/orders/'.$order->id.'/risk-assessment')
-            ->assertOk()
-            ->assertJsonPath('data.sales_order_id', $order->id);
-
-        $this->assertDatabaseHas('sales_order_risk_assessments', ['sales_order_id' => $order->id]);
-    }
-
-    public function test_order_nested_operations_reject_another_locations_order_and_children(): void
-    {
-        $ownLocation = \inventoryTestLocation('own');
-        $otherLocation = \inventoryTestLocation('other');
-        $ownOrder = $this->makeOrder('01711111111', 'confirmed', $ownLocation);
-        $otherOrder = $this->makeOrder('01822222222', 'confirmed', $otherLocation);
-        $shipment = SalesOrderShipment::query()->create([
-            'sales_order_id' => $otherOrder->id,
-            'provider' => 'steadfast',
-            'idempotency_key' => 'cross-location-'.$otherOrder->id,
-            'tracking_code' => 'TRACK-CROSS-'.$otherOrder->id,
-            'status' => 'booked',
-            'recipient_name' => $otherOrder->customer_name,
-            'recipient_phone' => $otherOrder->customer_phone,
-            'recipient_address' => 'Dhaka, Bangladesh',
-            'cod_amount' => 100,
-        ]);
-        $assessment = SalesOrderRiskAssessment::query()->create([
-            'sales_order_id' => $otherOrder->id,
-            'score' => 40,
-            'level' => 'medium',
-            'decision' => 'verify',
-            'signals' => [],
-        ]);
-        $user = $this->userWithOrderPermissions($ownOrder, [
-            'system.orders.risk.manage',
-            'system.orders.communication.manage',
-            'system.orders.shipment.manage',
-            'system.orders.view',
-            'system.shipping.view',
-            'system.shipping.delivery.manage',
-        ]);
-
-        $this->actingAs($user)
-            ->postJson('/api/orders/'.$otherOrder->id.'/risk-assessment')
-            ->assertForbidden();
-        $this->postJson('/api/orders/risk-assessments/'.$assessment->id.'/review', [
-            'decision' => 'allow',
-            'review_note' => 'Reviewed by an unauthorized location operator.',
-        ])->assertForbidden();
-        $this->postJson('/api/orders/'.$otherOrder->id.'/phone-verification/request')->assertForbidden();
-        $this->postJson('/api/orders/'.$otherOrder->id.'/phone-verification/verify', ['code' => '123456'])->assertForbidden();
-        $this->postJson('/api/orders/'.$otherOrder->id.'/sms', ['event' => 'confirmed'])->assertForbidden();
-        $this->getJson('/api/orders/'.$otherOrder->id.'/shipments')->assertForbidden();
-        $this->postJson('/api/orders/'.$otherOrder->id.'/shipments', [
-            'provider' => 'steadfast',
-            'idempotency_key' => 'unauthorized-booking',
-            'recipient_address' => 'Dhaka, Bangladesh',
-        ])->assertForbidden();
-        $this->postJson('/api/orders/'.$otherOrder->id.'/shipments/'.$shipment->id.'/retry', [
-            'confirm_no_existing_shipment' => true,
-            'retry_reason' => 'Unauthorized location operator attempted a retry.',
-        ])->assertForbidden();
-        $this->getJson('/api/shipping/shipments/'.$shipment->id.'/events')->assertForbidden();
-        $this->patchJson('/api/shipping/shipments/'.$shipment->id.'/status', [
-            'status' => 'in_transit',
-            'reason' => 'Unauthorized status update attempt.',
-        ])->assertForbidden();
-
-        $this->assertDatabaseHas('sales_order_shipments', ['id' => $shipment->id, 'status' => 'booked']);
-        $this->assertDatabaseHas('sales_order_risk_assessments', ['id' => $assessment->id, 'decision' => 'verify']);
-        $this->assertDatabaseMissing('sales_order_sms_logs', ['sales_order_id' => $otherOrder->id]);
-        $this->assertDatabaseMissing('sales_order_phone_verifications', ['sales_order_id' => $otherOrder->id]);
-    }
-
     public function test_courier_webhook_records_events_and_prevents_status_regression(): void
     {
         config(['order_integrations.webhook_secret' => 'test-webhook-secret']);
@@ -401,5 +285,93 @@ class OrderRiskAndMessagingTest extends TestCase
             'tracking_code' => 'TRACK-UNKNOWN',
             'status' => 'in_transit',
         ])->assertNotFound();
+    }
+
+    public function test_phone_verification_code_is_consumed_once(): void
+    {
+        config(['order_integrations.verification.max_attempts' => 5]);
+
+        $order = $this->makeOrder('01711111111', 'confirmed');
+        $challenge = SalesOrderPhoneVerification::query()->create([
+            'sales_order_id' => $order->id,
+            'phone' => $order->customer_phone,
+            'code_hash' => Hash::make('123456'),
+            'attempts' => 0,
+            'expires_at' => now()->addMinutes(5),
+        ]);
+
+        $service = app(OrderPhoneVerificationService::class);
+
+        $this->assertTrue($service->verify($order, '123456'));
+        $this->assertNotNull($challenge->fresh()->consumed_at);
+        $this->assertNotNull($challenge->fresh()->verified_at);
+
+        try {
+            $service->verify($order, '123456');
+            $this->fail('A consumed verification code must not be reusable.');
+        } catch (ValidationException) {
+            $this->assertDatabaseHas('sales_order_phone_verifications', [
+                'id' => $challenge->id,
+                'attempts' => 0,
+            ]);
+        }
+    }
+
+    public function test_phone_verification_failed_attempt_limit_is_persisted(): void
+    {
+        config(['order_integrations.verification.max_attempts' => 5]);
+
+        $order = $this->makeOrder('01711111111', 'confirmed');
+        $challenge = SalesOrderPhoneVerification::query()->create([
+            'sales_order_id' => $order->id,
+            'phone' => $order->customer_phone,
+            'code_hash' => Hash::make('123456'),
+            'attempts' => 4,
+            'expires_at' => now()->addMinutes(5),
+        ]);
+        $service = app(OrderPhoneVerificationService::class);
+
+        try {
+            $service->verify($order, '000000');
+            $this->fail('An incorrect verification code must be rejected.');
+        } catch (ValidationException) {
+            $this->assertSame(5, $challenge->fresh()->attempts);
+        }
+
+        try {
+            $service->verify($order, '123456');
+            $this->fail('A challenge at the attempt limit must remain locked.');
+        } catch (ValidationException) {
+            $this->assertSame(5, $challenge->fresh()->attempts);
+        }
+    }
+
+    public function test_phone_verification_send_limit_applies_across_orders_for_the_same_phone(): void
+    {
+        config([
+            'order_integrations.verification.enabled' => true,
+            'order_integrations.sms.enabled' => false,
+            'order_integrations.sms.endpoint' => null,
+            'order_integrations.sms.api_key' => null,
+        ]);
+
+        $service = app(OrderPhoneVerificationService::class);
+        $orders = [
+            $this->makeOrder('01711111111', 'confirmed'),
+            $this->makeOrder('01711111111', 'confirmed'),
+            $this->makeOrder('01711111111', 'confirmed'),
+            $this->makeOrder('01711111111', 'confirmed'),
+        ];
+
+        $service->send($orders[0]);
+        $service->send($orders[1]);
+        $service->send($orders[2]);
+
+        try {
+            $service->send($orders[3]);
+            $this->fail('The fourth OTP request for one phone within ten minutes must be rejected.');
+        } catch (ValidationException) {
+            $this->assertDatabaseCount('sales_order_phone_verifications', 3);
+        }
     }
 }

@@ -124,6 +124,52 @@ test('user with inventory view permission can access stock and movement endpoint
         ->assertOk();
 });
 
+test('stock list returns only the latest movement for simple and variant stock without hydrating history', function () {
+    $user = createInventoryApiUser(['system.inventory.view']);
+    $location = inventoryApiCreateLocation();
+    $user->locations()->attach($location->id, ['access_level' => 'manage']);
+
+    $simpleProduct = inventoryApiCreateProduct();
+    $variableProduct = inventoryApiCreateProduct('variable');
+    $variant = inventoryApiCreateVariant($variableProduct);
+
+    $simpleStock = InventoryStock::query()->create([
+        'product_id' => $simpleProduct->id,
+        'location_id' => $location->id,
+        'quantity' => '2.0000',
+        'reserved_quantity' => '0.0000',
+        'low_stock_threshold' => '0.0000',
+    ]);
+    $variantStock = InventoryStock::query()->create([
+        'product_variant_id' => $variant->id,
+        'location_id' => $location->id,
+        'quantity' => '3.0000',
+        'reserved_quantity' => '0.0000',
+        'low_stock_threshold' => '0.0000',
+    ]);
+
+    $createMovement = function (array $dimensions, string $balance) use ($location): StockMovement {
+        return StockMovement::query()->create($dimensions + [
+            'location_id' => $location->id,
+            'movement_type' => 'receipt',
+            'quantity_delta' => '1.0000',
+            'balance_before' => bcsub($balance, '1.0000', 4),
+            'balance_after' => $balance,
+        ]);
+    };
+
+    $createMovement(['product_id' => $simpleProduct->id], '1.0000');
+    $latestSimple = $createMovement(['product_id' => $simpleProduct->id], '2.0000');
+    $createMovement(['product_variant_id' => $variant->id], '2.0000');
+    $latestVariant = $createMovement(['product_variant_id' => $variant->id], '3.0000');
+
+    $this->actingAs($user)->getJson('/api/inventory/stocks')->assertOk()
+        ->assertJsonPath('data.0.id', $simpleStock->id)
+        ->assertJsonPath('data.0.latest_movement.id', $latestSimple->id)
+        ->assertJsonPath('data.1.id', $variantStock->id)
+        ->assertJsonPath('data.1.latest_movement.id', $latestVariant->id);
+});
+
 test('inventory view permission alone cannot perform stock mutations', function () {
     $user = createInventoryApiUser([
         'system.inventory.view',

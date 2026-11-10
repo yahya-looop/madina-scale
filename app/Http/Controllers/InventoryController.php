@@ -376,37 +376,59 @@ class InventoryController extends Controller
         }
 
         $productIds = $stocks->pluck('product_id')->filter()->unique()->values();
+        $variantIds = $stocks->pluck('product_variant_id')->filter()->unique()->values();
         $locationIds = $stocks->pluck('location_id')->filter()->unique()->values();
-        if ($productIds->isEmpty() || $locationIds->isEmpty()) {
+
+        if ($locationIds->isEmpty() || ($productIds->isEmpty() && $variantIds->isEmpty())) {
             return;
         }
 
-        $movements = StockMovement::query()
-            ->with('creator:id,name,email')
-            ->whereIn('product_id', $productIds)
+        // Aggregate in SQL first: never hydrate an unbounded movement history
+        // just to select one latest audit row for each stock record.
+        $latestMovementIds = StockMovement::query()
+            ->selectRaw('MAX(id) AS latest_id')
             ->whereIn('location_id', $locationIds)
-            ->orderByDesc('id')
-            ->get();
+            ->where(function ($query) use ($productIds, $variantIds): void {
+                if ($productIds->isNotEmpty()) {
+                    $query->where(function ($simple) use ($productIds): void {
+                        $simple->whereIn('product_id', $productIds)
+                            ->whereNull('product_variant_id');
+                    });
+                }
 
-        $latest = [];
-        foreach ($movements as $movement) {
-            $key = implode(':', [
-                $movement->product_id,
+                if ($variantIds->isNotEmpty()) {
+                    $variantFilter = function ($variant) use ($variantIds): void {
+                        $variant->whereIn('product_variant_id', $variantIds)
+                            ->whereNull('product_id');
+                    };
+
+                    if ($productIds->isNotEmpty()) {
+                        $query->orWhere($variantFilter);
+                    } else {
+                        $query->where($variantFilter);
+                    }
+                }
+            })
+            ->groupBy('product_id', 'product_variant_id', 'location_id')
+            ->pluck('latest_id');
+
+        $latest = StockMovement::query()
+            ->with('creator:id,name,email')
+            ->whereIn('id', $latestMovementIds)
+            ->get()
+            ->keyBy(fn (StockMovement $movement): string => implode(':', [
+                $movement->product_id ?? 0,
                 $movement->product_variant_id ?? 0,
                 $movement->location_id,
-            ]);
-            if (! isset($latest[$key])) {
-                $latest[$key] = $movement;
-            }
-        }
+            ]));
 
         foreach ($stocks as $stock) {
             $key = implode(':', [
-                $stock->product_id,
+                $stock->product_id ?? 0,
                 $stock->product_variant_id ?? 0,
                 $stock->location_id,
             ]);
-            $stock->setAttribute('latest_movement', $latest[$key] ?? null);
+            $stock->setAttribute('latest_movement', $latest->get($key));
         }
     }
 
