@@ -10,9 +10,9 @@ class AuthorizationService
     /**
      * Determine whether a user has a specific permission.
      *
-     * Module lifecycle restrictions always apply, including to Developers.
-     * Developer access bypasses role assignments, not disabled or locked
-     * module states.
+     * A permission must exist and belong to a module before any role-based
+     * or Developer authorization is considered. Module lifecycle restrictions
+     * always apply, including to Developers.
      */
     public function can(
         User $user,
@@ -29,27 +29,33 @@ class AuthorizationService
             ->where('slug', $permissionSlug)
             ->first();
 
-        if ($permission?->module !== null) {
-            $module = $permission->module;
-            $moduleState = ! $module->is_active || $module->state === 'disabled'
-                ? 'disabled'
-                : ($module->state ?: 'enabled');
-
-            if ($moduleState === 'disabled') {
-                return false;
-            }
-
-            if ($moduleState === 'locked' && preg_match('/\.(view|read)$/', $permissionSlug) !== 1) {
-                return false;
-            }
-        }
-
-        if ($this->isDeveloper($user)) {
-            return true;
-        }
-
+        // Unknown or structurally invalid permissions must never be granted,
+        // including to Developers.
         if ($permission === null || $permission->module === null) {
             return false;
+        }
+
+        $module = $permission->module;
+        $moduleState = ! $module->is_active || $module->state === 'disabled'
+            ? 'disabled'
+            : ($module->state ?: 'enabled');
+
+        if ($moduleState === 'disabled') {
+            return false;
+        }
+
+        // Locked modules are read-only for every user, including Developers.
+        if (
+            $moduleState === 'locked'
+            && preg_match('/\.(view|read)$/', $permissionSlug) !== 1
+        ) {
+            return false;
+        }
+
+        // Developer bypasses role-permission assignments only. It does not
+        // bypass user status, permission existence, or module lifecycle rules.
+        if ($this->isDeveloper($user)) {
+            return true;
         }
 
         return $permission->roles()
@@ -63,12 +69,14 @@ class AuthorizationService
     /**
      * Determine whether the user is an active Developer.
      *
-     * Developer is identified by its immutable system slug rather than
-     * by the display name so the role can be renamed visually without
-     * affecting authorization logic.
+     * The immutable system role slug is used instead of the display name.
      */
     public function isDeveloper(User $user): bool
     {
+        if ($user->status !== 'active') {
+            return false;
+        }
+
         return $user->roles()
             ->where('roles.slug', 'developer')
             ->where('roles.is_system', true)

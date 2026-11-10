@@ -18,14 +18,17 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
 
 function createSystemConsoleDeveloper(): User
 {
+    // Ensure the canonical permission catalog exists for permission-protected routes.
+    app(SystemAuthorizationSeeder::class)->run();
+
     $user = User::factory()->create();
-    $role = Role::factory()->create([
-        'name' => 'Developer',
-        'slug' => 'developer',
-        'is_system' => true,
-        'is_active' => true,
-    ]);
-    $user->roles()->attach($role->id);
+    $role = Role::query()
+        ->where('slug', 'developer')
+        ->where('is_system', true)
+        ->where('is_active', true)
+        ->firstOrFail();
+
+    $user->roles()->syncWithoutDetaching([$role->id]);
 
     return $user;
 }
@@ -93,12 +96,9 @@ test('module state changes keep the legacy active flag synchronized', function (
 
 test('core modules cannot be disabled through the module state endpoint', function () {
     $developer = createSystemConsoleDeveloper();
-    $module = Module::factory()->create([
-        'slug' => 'system',
-        'is_system' => true,
-        'is_active' => true,
-        'state' => 'enabled',
-    ]);
+    // The authorization seeder creates the canonical system module.
+    // Reuse it rather than inserting a duplicate slug into the unique index.
+    $module = Module::query()->where('slug', 'system')->firstOrFail();
 
     $this->actingAs($developer)
         ->patchJson("/api/modules/{$module->id}/state", ['state' => 'disabled'])

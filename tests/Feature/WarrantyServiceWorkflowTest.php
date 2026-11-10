@@ -16,7 +16,12 @@ class WarrantyServiceWorkflowTest extends TestCase
 {
     use RefreshDatabase;
 
-    private function fixture(string $status = 'open'): array
+    private function fixture(string $status = 'open', array $grantedPermissions = [
+        'system.warranty.view',
+        'system.warranty.create',
+        'system.warranty.update',
+        'system.warranty.process',
+    ]): array
     {
         $location = \inventoryTestLocation('warranty-'.strtolower(Str::random(8)));
         $user = User::factory()->create();
@@ -44,7 +49,7 @@ class WarrantyServiceWorkflowTest extends TestCase
             'is_system' => false,
             'is_active' => true,
         ]);
-        $role->permissions()->attach($permissions->pluck('id'));
+        $role->permissions()->attach($permissions->whereIn('slug', $grantedPermissions)->pluck('id'));
         $user->roles()->attach($role->id);
         $user->locations()->attach($location->id, ['access_level' => 'manage']);
         $customer = Customer::query()->create([
@@ -153,5 +158,40 @@ class WarrantyServiceWorkflowTest extends TestCase
         ])->assertUnprocessable()->assertJsonValidationErrors('status');
 
         $this->assertDatabaseHas('service_tickets', ['id' => $ticketId, 'status' => 'rejected']);
+    }
+
+    public function test_update_permission_alone_can_update_a_ticket(): void
+    {
+        ['user' => $user, 'ticket_id' => $ticketId] = $this->fixture('open', ['system.warranty.update']);
+
+        $this->actingAs($user)->putJson('/api/warranty-service/tickets/'.$ticketId, [
+            'status' => 'diagnosing',
+            'diagnosis' => 'Update-only role started diagnosis.',
+        ])->assertOk()->assertJsonPath('data.status', 'diagnosing');
+    }
+
+    public function test_process_permission_alone_can_update_a_ticket(): void
+    {
+        ['user' => $user, 'ticket_id' => $ticketId] = $this->fixture('open', ['system.warranty.process']);
+
+        $this->actingAs($user)->putJson('/api/warranty-service/tickets/'.$ticketId, [
+            'status' => 'diagnosing',
+            'diagnosis' => 'Process-only role started diagnosis.',
+        ])->assertOk()->assertJsonPath('data.status', 'diagnosing');
+    }
+
+    public function test_ticket_update_is_forbidden_without_update_or_process_permission(): void
+    {
+        ['user' => $user, 'ticket_id' => $ticketId] = $this->fixture('open', []);
+
+        $this->actingAs($user)->putJson('/api/warranty-service/tickets/'.$ticketId, [
+            'status' => 'diagnosing',
+            'diagnosis' => 'Unauthorized update attempt.',
+        ])->assertForbidden();
+
+        $this->assertDatabaseHas('service_tickets', [
+            'id' => $ticketId,
+            'status' => 'open',
+        ]);
     }
 }

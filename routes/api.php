@@ -323,7 +323,8 @@ Route::middleware(['web', 'auth'])->group(function () {
     Route::put('/marketing/coupons/{coupon}', [MarketingController::class, 'updateCoupon'])->middleware('permission:system.marketing.update');
     Route::delete('/marketing/coupons/{coupon}', [MarketingController::class, 'deleteCoupon'])->middleware('permission:system.marketing.delete');
     Route::get('/marketing/analytics', [MarketingController::class, 'analytics'])->middleware('permission:system.marketing.view');
-    Route::post('/marketing/campaigns/{campaign}/events', [MarketingController::class, 'track'])->middleware('throttle:120,1');
+    Route::post('/marketing/campaigns/{campaign}/events', [MarketingController::class, 'track'])
+        ->middleware(['permission:system.marketing.view', 'throttle:120,1']);
     Route::get('/analytics/overview', [BusinessAnalyticsController::class, 'data'])->middleware('permission:system.analytics.view');
 
     /* CMS */
@@ -660,7 +661,8 @@ Route::middleware(['web', 'auth'])->group(function () {
 });
 
 // Provider callbacks authenticate with a dedicated bearer secret and must not require a staff session.
-Route::post('/webhooks/couriers/{provider}', [OrderOperationsController::class, 'courierWebhook']);
+Route::post('/webhooks/couriers/{provider}', [OrderOperationsController::class, 'courierWebhook'])
+    ->middleware('throttle:120,1');
 
 /*
 |--------------------------------------------------------------------------

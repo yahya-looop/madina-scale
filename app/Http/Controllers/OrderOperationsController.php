@@ -224,17 +224,16 @@ class OrderOperationsController extends Controller
             return response()->json(['message' => 'Unsupported courier status; no shipment changes were made.'], 422);
         }
         $status = $map[$normalized];
-        $eventHash = hash('sha256', $provider.'|'.($data['event_id'] ?? '').'|'.($data['tracking_code'] ?? '').'|'.($data['consignment_id'] ?? '').'|'.$normalized.'|'.($data['delivered_at'] ?? ''));
+        // A provider event ID identifies one immutable event. Do not let a replay
+        // with a changed status or payload become a second event. Providers that
+        // omit event IDs retain deterministic payload-based deduplication.
+        $eventHash = isset($data['event_id']) && $data['event_id'] !== ''
+            ? hash('sha256', $provider.'|event|'.$data['event_id'])
+            : hash('sha256', $provider.'|'.($data['event_id'] ?? '').'|'.($data['tracking_code'] ?? '').'|'.($data['consignment_id'] ?? '').'|'.$normalized.'|'.($data['delivered_at'] ?? ''));
 
-        $result = DB::transaction(function () use ($shipment, $provider, $data, $status, $eventHash, $request): array {
+        $result = DB::transaction(function () use ($shipment, $provider, $data, $status, $eventHash): array {
             $locked = SalesOrderShipment::query()->lockForUpdate()->findOrFail($shipment->id);
-            $duplicate = DB::table('sales_order_shipment_events')->where('provider', $provider)->where('event_hash', $eventHash)->exists();
-            if ($duplicate) {
-                return ['duplicate' => true, 'shipment' => $locked, 'send_delivered_sms' => false];
-            }
-
             $previousStatus = (string) $locked->status;
-            $terminal = ['delivered', 'returned', 'cancelled'];
             $allowed = [
                 'booking' => ['booked', 'delivery_failed', 'cancelled'],
                 'queued' => ['booked', 'delivery_failed', 'cancelled'],
@@ -247,29 +246,39 @@ class OrderOperationsController extends Controller
                 'cancelled' => ['cancelled'],
                 'failed' => ['booked', 'delivery_failed', 'cancelled'],
             ];
-            if (! in_array($status, $allowed[$previousStatus] ?? [$previousStatus], true)) {
-                DB::table('sales_order_shipment_events')->insert([
-                    'sales_order_shipment_id' => $locked->id, 'provider' => $provider, 'event_hash' => $eventHash,
-                    'event_id' => $data['event_id'] ?? null, 'previous_status' => $previousStatus,
-                    'received_status' => $status, 'outcome' => 'ignored_transition',
-                    'payload' => json_encode($request->except(['token', 'secret', 'api_key']), JSON_THROW_ON_ERROR),
-                    'received_at' => now(), 'created_at' => now(), 'updated_at' => now(),
-                ]);
+            $ignored = ! in_array($status, $allowed[$previousStatus] ?? [$previousStatus], true);
+            $payload = json_encode($data, JSON_THROW_ON_ERROR);
+            $now = now();
 
+            // insertOrIgnore + the existing unique(provider, event_hash) index
+            // makes deduplication safe even when concurrent callbacks target
+            // different shipment rows with the same provider event ID.
+            $inserted = DB::table('sales_order_shipment_events')->insertOrIgnore([
+                'sales_order_shipment_id' => $locked->id,
+                'provider' => $provider,
+                'event_hash' => $eventHash,
+                'event_id' => $data['event_id'] ?? null,
+                'previous_status' => $previousStatus,
+                'received_status' => $status,
+                'outcome' => $ignored ? 'ignored_transition' : 'applied',
+                'payload' => $payload,
+                'received_at' => $now,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]);
+
+            if ($inserted === 0) {
+                return ['duplicate' => true, 'ignored' => false, 'shipment' => $locked, 'send_delivered_sms' => false];
+            }
+
+            if ($ignored) {
                 return ['duplicate' => false, 'ignored' => true, 'shipment' => $locked, 'send_delivered_sms' => false];
             }
 
             $locked->update([
                 'status' => $status,
                 'delivered_at' => $status === 'delivered' ? ($data['delivered_at'] ?? $locked->delivered_at ?? now()) : $locked->delivered_at,
-                'provider_response' => $request->except(['token', 'secret', 'api_key']),
-            ]);
-            DB::table('sales_order_shipment_events')->insert([
-                'sales_order_shipment_id' => $locked->id, 'provider' => $provider, 'event_hash' => $eventHash,
-                'event_id' => $data['event_id'] ?? null, 'previous_status' => $previousStatus,
-                'received_status' => $status, 'outcome' => 'applied',
-                'payload' => json_encode($request->except(['token', 'secret', 'api_key']), JSON_THROW_ON_ERROR),
-                'received_at' => now(), 'created_at' => now(), 'updated_at' => now(),
+                'provider_response' => $data,
             ]);
 
             return [

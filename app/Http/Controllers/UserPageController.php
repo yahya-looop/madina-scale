@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Role;
 use App\Models\User;
+use App\Services\AuthorizationService;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -11,6 +12,10 @@ use Inertia\Response;
 
 class UserPageController extends Controller
 {
+    public function __construct(
+        private readonly AuthorizationService $authorization,
+    ) {}
+
     /**
      * Display the users index page.
      */
@@ -18,7 +23,10 @@ class UserPageController extends Controller
     {
         $user = $request->user();
 
-        abort_unless($user?->can('system.users.view'), 403);
+        abort_unless(
+            $user !== null && $this->authorization->can($user, 'system.users.view'),
+            403,
+        );
 
         return Inertia::render('Users/Index', [
             'users' => $this->users(),
@@ -36,7 +44,10 @@ class UserPageController extends Controller
     {
         $user = $request->user();
 
-        abort_unless($user?->can('system.users.create'), 403);
+        abort_unless(
+            $user !== null && $this->authorization->can($user, 'system.users.create'),
+            403,
+        );
 
         return Inertia::render('Users/Create', [
             'roles' => $this->roles(),
@@ -53,7 +64,10 @@ class UserPageController extends Controller
     {
         $currentUser = $request->user();
 
-        abort_unless($currentUser?->can('system.users.view'), 403);
+        abort_unless(
+            $currentUser !== null && $this->authorization->can($currentUser, 'system.users.view'),
+            403,
+        );
 
         return Inertia::render('Users/Show', [
             'user' => $user->load([
@@ -67,14 +81,15 @@ class UserPageController extends Controller
 
     /**
      * Display the user edit page.
-     *
-     * The edit UI will be implemented in the next step.
      */
     public function edit(Request $request, User $user): Response
     {
         $currentUser = $request->user();
 
-        abort_unless($currentUser?->can('system.users.update'), 403);
+        abort_unless(
+            $currentUser !== null && $this->authorization->can($currentUser, 'system.users.update'),
+            403,
+        );
 
         return Inertia::render('Users/Edit', [
             'user' => $user->load([
@@ -131,60 +146,18 @@ class UserPageController extends Controller
     }
 
     /**
-     * Build the frontend capability contract.
+     * Build the frontend capability contract from the central authorization
+     * service so the UI cannot drift from backend permission decisions.
      *
      * @return array{canView: bool, canCreate: bool, canUpdate: bool, isDeveloper: bool}
      */
-    private function capabilities(?User $user): array
+    private function capabilities(User $user): array
     {
-        if (! $user) {
-            return [
-                'canView' => false,
-                'canCreate' => false,
-                'canUpdate' => false,
-                'isDeveloper' => false,
-            ];
-        }
-
         return [
-            'canView' => $this->hasPermission($user, 'system.users.view'),
-            'canCreate' => $this->hasPermission($user, 'system.users.create'),
-            'canUpdate' => $this->hasPermission($user, 'system.users.update'),
-            'isDeveloper' => $this->isDeveloper($user),
+            'canView' => $this->authorization->can($user, 'system.users.view'),
+            'canCreate' => $this->authorization->can($user, 'system.users.create'),
+            'canUpdate' => $this->authorization->can($user, 'system.users.update'),
+            'isDeveloper' => $this->authorization->isDeveloper($user),
         ];
-    }
-
-    /**
-     * Check whether a user has a permission.
-     */
-    private function hasPermission(User $user, string $permission): bool
-    {
-        if ($this->isDeveloper($user)) {
-            return true;
-        }
-
-        if (method_exists($user, 'hasPermission')) {
-            return (bool) $user->hasPermission($permission);
-        }
-
-        return false;
-    }
-
-    /**
-     * Determine whether the user is the Developer/system administrator.
-     */
-    private function isDeveloper(User $user): bool
-    {
-        if (method_exists($user, 'hasRole')) {
-            return (bool) $user->hasRole('developer');
-        }
-
-        return $user->roles()
-            ->where(function ($query) {
-                $query
-                    ->where('slug', 'developer')
-                    ->orWhere('name', 'Developer');
-            })
-            ->exists();
     }
 }

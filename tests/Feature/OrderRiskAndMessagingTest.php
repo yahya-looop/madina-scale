@@ -249,12 +249,37 @@ class OrderRiskAndMessagingTest extends TestCase
         $this->withToken('test-webhook-secret')->postJson('/api/webhooks/couriers/steadfast', $payload)
             ->assertOk()->assertJsonPath('data.duplicate', true);
 
+        // Reusing the same provider event ID with a changed payload must not
+        // advance the shipment or create a second event.
+        $this->withToken('test-webhook-secret')->postJson('/api/webhooks/couriers/steadfast', [
+            'tracking_code' => $shipment->tracking_code,
+            'status' => 'delivered',
+            'event_id' => 'evt-100',
+        ])->assertOk()->assertJsonPath('data.duplicate', true)
+            ->assertJsonPath('data.status', 'in_transit');
+
         $this->withToken('test-webhook-secret')->postJson('/api/webhooks/couriers/steadfast', [
             'tracking_code' => $shipment->tracking_code, 'status' => 'booked', 'event_id' => 'evt-old',
         ])->assertAccepted()->assertJsonPath('data.status', 'in_transit');
 
         $this->assertDatabaseHas('sales_order_shipments', ['id' => $shipment->id, 'status' => 'in_transit']);
         $this->assertDatabaseHas('sales_order_shipment_events', ['provider' => 'steadfast', 'event_id' => 'evt-100', 'outcome' => 'applied']);
+        $this->assertDatabaseCount('sales_order_shipment_events', 2);
         $this->assertDatabaseHas('sales_order_shipment_events', ['provider' => 'steadfast', 'event_id' => 'evt-old', 'outcome' => 'ignored_transition']);
+    }
+
+    public function test_courier_webhook_rejects_missing_secret_and_unknown_provider(): void
+    {
+        config(['order_integrations.webhook_secret' => 'test-webhook-secret']);
+
+        $this->postJson('/api/webhooks/couriers/steadfast', [
+            'tracking_code' => 'TRACK-UNKNOWN',
+            'status' => 'in_transit',
+        ])->assertUnauthorized();
+
+        $this->withToken('test-webhook-secret')->postJson('/api/webhooks/couriers/unknown-provider', [
+            'tracking_code' => 'TRACK-UNKNOWN',
+            'status' => 'in_transit',
+        ])->assertNotFound();
     }
 }
