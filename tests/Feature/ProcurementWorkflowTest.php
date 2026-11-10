@@ -4,9 +4,15 @@ use App\Models\FinancialAccount;
 use App\Models\GoodsReceipt;
 use App\Models\InventoryStock;
 use App\Models\JournalEntryLine;
+use App\Models\Module;
+use App\Models\Permission;
 use App\Models\PurchaseOrder;
+use App\Models\PurchaseRequisition;
+use App\Models\Role;
 use App\Models\Supplier;
+use App\Models\SupplierInvoice;
 use App\Models\SupplierPayment;
+use App\Models\SupplierReturn;
 use App\Models\User;
 use App\Services\ProcurementService;
 use Illuminate\Support\Str;
@@ -24,8 +30,45 @@ beforeEach(function (): void {
         'status' => 'active',
         'created_by' => $this->requester->id,
     ]);
+
     $this->service = app(ProcurementService::class);
 });
+
+function createProcurementApiUser(array $permissionSlugs): User
+{
+    $user = User::factory()->create();
+    $module = Module::query()->firstOrCreate(['slug' => 'procurement'], [
+        'name' => 'Procurement & Suppliers',
+        'description' => 'Procurement authorization test module.',
+        'sort_order' => 75,
+        'is_system' => true,
+        'is_active' => true,
+    ]);
+    if (! $module->is_active) {
+        $module->update(['is_active' => true]);
+    }
+
+    $role = Role::query()->create([
+        'name' => 'Procurement API Test Role',
+        'slug' => 'procurement-api-test-'.strtolower(Str::random(10)),
+        'description' => 'Temporary role for procurement authorization tests.',
+        'is_system' => false,
+        'is_active' => true,
+    ]);
+
+    foreach ($permissionSlugs as $slug) {
+        $permission = Permission::query()->firstOrCreate(['slug' => $slug], [
+            'module_id' => $module->id,
+            'name' => ucfirst(str_replace(['system.procurement.', '.', '_'], ['', ' ', ' '], $slug)),
+            'description' => 'Procurement authorization test permission.',
+        ]);
+        $role->permissions()->attach($permission->id);
+    }
+
+    $user->roles()->attach($role->id);
+
+    return $user;
+}
 
 function createApprovedPurchaseOrder(object $test, string $quantity = '10'): PurchaseOrder
 {
@@ -252,4 +295,184 @@ it('rejects zero-quantity requisition and purchase order lines before database w
         'location_id' => $this->location->id,
         'items' => [['product_id' => $this->product->id, 'quantity' => '0', 'unit_cost' => '10.00']],
     ], $this->requester))->toThrow(ValidationException::class);
+});
+
+it('blocks procurement creation against a location the actor cannot manage', function (): void {
+    $otherLocation = inventoryTestLocation('proc-other-'.strtolower(Str::random(6)));
+    $actor = createProcurementApiUser([
+        'system.procurement.requisitions.create',
+        'system.procurement.orders.create',
+    ]);
+    $actor->locations()->attach($this->location->id, ['access_level' => 'manage']);
+
+    $this->actingAs($actor);
+
+    $this->postJson('/api/procurement/requisitions', [
+        'location_id' => $otherLocation->id,
+        'items' => [['product_id' => $this->product->id, 'quantity' => '2']],
+    ])->assertForbidden();
+
+    $this->postJson('/api/procurement/orders', [
+        'supplier_id' => $this->supplier->id,
+        'location_id' => $otherLocation->id,
+        'order_date' => now()->toDateString(),
+        'items' => [['product_id' => $this->product->id, 'quantity' => '2', 'unit_cost' => '10.00']],
+    ])->assertForbidden();
+
+    expect(PurchaseRequisition::query()->count())->toBe(0)
+        ->and(PurchaseOrder::query()->count())->toBe(0);
+});
+
+it('blocks cross-location requisition and purchase order approvals without changing document state', function (): void {
+    $requisition = $this->service->createRequisition([
+        'location_id' => $this->location->id,
+        'items' => [['product_id' => $this->product->id, 'quantity' => '2']],
+    ], $this->requester);
+    $purchaseOrder = $this->service->createPurchaseOrder([
+        'supplier_id' => $this->supplier->id,
+        'location_id' => $this->location->id,
+        'items' => [['product_id' => $this->product->id, 'quantity' => '2', 'unit_cost' => '10.00']],
+    ], $this->requester);
+
+    $actor = createProcurementApiUser([
+        'system.procurement.requisitions.approve',
+        'system.procurement.orders.approve',
+    ]);
+    $otherLocation = inventoryTestLocation('proc-other-'.strtolower(Str::random(6)));
+    $actor->locations()->attach($otherLocation->id, ['access_level' => 'manage']);
+
+    $this->actingAs($actor);
+
+    $this->postJson('/api/procurement/requisitions/'.$requisition->id.'/approve')->assertForbidden();
+    $this->postJson('/api/procurement/orders/'.$purchaseOrder->id.'/approve')->assertForbidden();
+
+    expect($requisition->fresh()->status)->toBe('draft')
+        ->and($purchaseOrder->fresh()->status)->toBe('draft')
+        ->and($requisition->fresh()->approved_by)->toBeNull()
+        ->and($purchaseOrder->fresh()->approved_by)->toBeNull();
+});
+
+it('blocks cross-location goods receiving and supplier invoice creation', function (): void {
+    $purchaseOrder = createApprovedPurchaseOrder($this);
+    $actor = createProcurementApiUser([
+        'system.procurement.receiving.manage',
+        'system.procurement.invoices.manage',
+    ]);
+    $otherLocation = inventoryTestLocation('proc-other-'.strtolower(Str::random(6)));
+    $actor->locations()->attach($otherLocation->id, ['access_level' => 'manage']);
+
+    $this->actingAs($actor);
+
+    $this->postJson('/api/procurement/orders/'.$purchaseOrder->id.'/receive', [
+        'idempotency_key' => (string) Str::uuid(),
+        'items' => [],
+    ])->assertForbidden();
+
+    $this->postJson('/api/procurement/orders/'.$purchaseOrder->id.'/invoices', [
+        'invoice_number' => 'CROSS-'.strtoupper(Str::random(8)),
+        'invoice_date' => now()->toDateString(),
+        'items' => [],
+    ])->assertForbidden();
+
+    expect(GoodsReceipt::query()->count())->toBe(0)
+        ->and($purchaseOrder->fresh()->status)->toBe('approved')
+        ->and(SupplierInvoice::query()->count())->toBe(0);
+});
+
+it('blocks cross-location invoice posting, supplier payments and supplier returns', function (): void {
+    $purchaseOrder = createApprovedPurchaseOrder($this, '2');
+    $poItem = $purchaseOrder->items->firstOrFail();
+    $this->service->receiveGoods($purchaseOrder, [
+        'idempotency_key' => (string) Str::uuid(),
+        'items' => [[
+            'purchase_order_item_id' => $poItem->id,
+            'received_quantity' => '2',
+            'accepted_quantity' => '2',
+            'rejected_quantity' => '0',
+        ]],
+    ], $this->approver);
+    $invoice = $this->service->createSupplierInvoice($purchaseOrder->fresh(), [
+        'invoice_number' => 'CROSS-'.strtoupper(Str::random(8)),
+        'invoice_date' => now()->toDateString(),
+        'items' => [[
+            'purchase_order_item_id' => $poItem->id,
+            'quantity' => '2',
+            'unit_cost' => '100.00',
+        ]],
+    ], $this->requester);
+
+    $actor = createProcurementApiUser([
+        'system.procurement.invoices.manage',
+        'system.procurement.payments.manage',
+        'system.procurement.returns.manage',
+    ]);
+    $otherLocation = inventoryTestLocation('proc-other-'.strtolower(Str::random(6)));
+    $actor->locations()->attach($otherLocation->id, ['access_level' => 'manage']);
+
+    $this->actingAs($actor);
+
+    $this->postJson('/api/procurement/invoices/'.$invoice->id.'/post')->assertForbidden();
+    $this->postJson('/api/procurement/invoices/'.$invoice->id.'/payments', [
+        'payment_date' => now()->toDateString(),
+        'amount' => '10.00',
+        'payment_method' => 'cash',
+        'cash_account_id' => FinancialAccount::query()->where('code', '1000')->value('id'),
+        'idempotency_key' => (string) Str::uuid(),
+    ])->assertForbidden();
+    $this->postJson('/api/procurement/invoices/'.$invoice->id.'/returns', [
+        'reason' => 'Cross-location authorization test',
+        'idempotency_key' => (string) Str::uuid(),
+        'items' => [['purchase_order_item_id' => $poItem->id, 'quantity' => '1']],
+    ])->assertForbidden();
+
+    expect($invoice->fresh()->status)->toBe('draft')
+        ->and(SupplierPayment::query()->count())->toBe(0)
+        ->and(SupplierReturn::query()->count())->toBe(0);
+});
+
+it('limits procurement overview operational records to assigned locations while retaining shared supplier master data', function (): void {
+    $otherLocation = inventoryTestLocation('proc-other-'.strtolower(Str::random(6)));
+    $otherRequisition = $this->service->createRequisition([
+        'location_id' => $otherLocation->id,
+        'items' => [['product_id' => $this->product->id, 'quantity' => '1']],
+    ], $this->requester);
+    $visibleRequisition = $this->service->createRequisition([
+        'location_id' => $this->location->id,
+        'items' => [['product_id' => $this->product->id, 'quantity' => '1']],
+    ], $this->requester);
+
+    $actor = createProcurementApiUser(['system.procurement.view']);
+    $actor->locations()->attach($this->location->id, ['access_level' => 'view']);
+
+    $response = $this->actingAs($actor)
+        ->getJson('/api/procurement/overview')
+        ->assertOk();
+
+    $requisitionIds = collect($response->json('requisitions'))
+        ->pluck('id')
+        ->map(fn ($id): int => (int) $id);
+
+    expect($requisitionIds)->toContain($visibleRequisition->id)
+        ->not->toContain($otherRequisition->id);
+
+    expect(collect($response->json('suppliers'))->pluck('id')->map(fn ($id): int => (int) $id))
+        ->toContain($this->supplier->id);
+});
+
+it('does not allow view-only location access to approve procurement documents', function (): void {
+    $purchaseOrder = $this->service->createPurchaseOrder([
+        'supplier_id' => $this->supplier->id,
+        'location_id' => $this->location->id,
+        'items' => [['product_id' => $this->product->id, 'quantity' => '2', 'unit_cost' => '10.00']],
+    ], $this->requester);
+
+    $actor = createProcurementApiUser(['system.procurement.orders.approve']);
+    $actor->locations()->attach($this->location->id, ['access_level' => 'view']);
+
+    $this->actingAs($actor)
+        ->postJson('/api/procurement/orders/'.$purchaseOrder->id.'/approve')
+        ->assertForbidden();
+
+    expect($purchaseOrder->fresh()->status)->toBe('draft')
+        ->and($purchaseOrder->fresh()->approved_by)->toBeNull();
 });
