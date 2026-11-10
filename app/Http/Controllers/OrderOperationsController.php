@@ -21,7 +21,8 @@ class OrderOperationsController extends Controller
 
     public function assessRisk(Request $request, SalesOrder $order): JsonResponse
     {
-        $this->locationAccess->assertView($request->user(), (int) $order->location_id);
+        // Creating an assessment is a state-changing risk operation, not a read.
+        $this->locationAccess->assertManage($request->user(), (int) $order->location_id);
         $assessment = $this->risk->assess($order);
 
         return response()->json(['message' => 'Risk assessment completed.', 'data' => $assessment]);
