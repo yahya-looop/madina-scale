@@ -8,6 +8,7 @@ use App\Models\Location;
 use App\Models\User;
 use App\Services\AuthorizationService;
 use App\Services\CustomerIdentityService;
+use App\Services\LeadAccessService;
 use App\Services\LocationInventoryAccessService;
 use App\Services\SalesOrderService;
 use App\Services\SettingsService;
@@ -20,9 +21,15 @@ use Illuminate\Validation\ValidationException;
 
 class LeadController extends Controller
 {
+    public function __construct(private readonly LeadAccessService $leadAccess) {}
+
     public function index(Request $request): JsonResponse
     {
-        $query = Lead::query()->with(['assignee:id,name,designation', 'creator:id,name'])->withCount('activities')->search($request->string('search')->toString());
+        $visibleLeads = $this->leadAccess->scopeViewable(Lead::query(), $request->user());
+        $query = $this->leadAccess->scopeViewable(Lead::query(), $request->user())
+            ->with(['assignee:id,name,designation', 'creator:id,name'])
+            ->withCount('activities')
+            ->search($request->string('search')->toString());
         if ($request->filled('status') && $request->input('status') !== 'all') {
             $query->where('status', $request->validate(['status' => ['required', Rule::in($this->statuses())]])['status']);
         }
@@ -34,10 +41,10 @@ class LeadController extends Controller
         }
 
         $stats = [
-            'total' => Lead::count(),
-            'new' => Lead::where('status', 'new')->count(),
-            'follow_up_due' => Lead::whereNotNull('next_follow_up_at')->where('next_follow_up_at', '<=', now())->whereNotIn('status', ['converted', 'lost'])->count(),
-            'converted' => Lead::where('status', 'converted')->count(),
+            'total' => (clone $visibleLeads)->count(),
+            'new' => (clone $visibleLeads)->where('status', 'new')->count(),
+            'follow_up_due' => (clone $visibleLeads)->whereNotNull('next_follow_up_at')->where('next_follow_up_at', '<=', now())->whereNotIn('status', ['converted', 'lost'])->count(),
+            'converted' => (clone $visibleLeads)->where('status', 'converted')->count(),
         ];
         $sortBy = $request->input('sort_by', 'follow_up');
         $sortDirection = $request->input('sort_direction', 'asc');
@@ -100,8 +107,9 @@ class LeadController extends Controller
         ]);
     }
 
-    public function show(Lead $lead): JsonResponse
+    public function show(Request $request, Lead $lead): JsonResponse
     {
+        $this->leadAccess->assertView($request->user(), $lead);
         $lead->load([
             'assignee:id,name,designation', 'owner:id,name', 'creator:id,name', 'customer:id,customer_code,name,phone,email,company_name',
             'convertedOrder:id,order_number,status,grand_total',
@@ -149,6 +157,7 @@ class LeadController extends Controller
 
     public function update(Request $request, Lead $lead): JsonResponse
     {
+        $this->leadAccess->assertManage($request->user(), $lead);
         if ($lead->status === 'converted' || $lead->customer_id !== null || $lead->converted_order_id !== null) {
             throw ValidationException::withMessages([
                 'status' => 'Converted leads are locked and can no longer be edited.',
@@ -165,6 +174,7 @@ class LeadController extends Controller
 
     public function assign(Request $request, Lead $lead, AuthorizationService $authorization): JsonResponse
     {
+        $this->leadAccess->assertView($request->user(), $lead);
         if ($lead->status === 'converted' || $lead->customer_id !== null || $lead->converted_order_id !== null) {
             return response()->json(['message' => 'Converted leads are locked and can no longer be reassigned.'], 422);
         }
@@ -246,6 +256,7 @@ class LeadController extends Controller
         LocationInventoryAccessService $locationAccess,
         CustomerIdentityService $identities,
     ): JsonResponse {
+        $this->leadAccess->assertManage($request->user(), $lead);
         $data = $request->validate([
             'location_id' => ['required', 'integer', 'exists:locations,id'],
             'notes' => ['nullable', 'string', 'max:5000'],
@@ -258,6 +269,11 @@ class LeadController extends Controller
         ]);
 
         $locationAccess->assertManage($request->user(), (int) $data['location_id']);
+        if ($lead->location_id !== null && (int) $lead->location_id !== (int) $data['location_id']) {
+            throw ValidationException::withMessages([
+                'location_id' => 'A lead already assigned to a location must be converted at that same location.',
+            ]);
+        }
 
         $result = DB::transaction(function () use ($request, $lead, $orders, $data, $identities): array {
             $lockedLead = Lead::query()->lockForUpdate()->findOrFail($lead->id);
@@ -291,6 +307,7 @@ class LeadController extends Controller
                 'source_id' => $lockedLead->id,
             ]);
             $lockedLead->update([
+                'location_id' => $lockedLead->location_id ?: (int) $data['location_id'],
                 'customer_id' => $customer->id,
                 'converted_order_id' => $order->id,
                 'status' => 'converted',
@@ -316,8 +333,9 @@ class LeadController extends Controller
         ], 201);
     }
 
-    public function destroy(Lead $lead): JsonResponse
+    public function destroy(Request $request, Lead $lead): JsonResponse
     {
+        $this->leadAccess->assertManage($request->user(), $lead);
         if ($lead->status === 'converted' || $lead->customer_id !== null || $lead->converted_order_id !== null) {
             return response()->json(['message' => 'Converted leads are retained for sales attribution; mark the lead as lost instead.'], 422);
         }
@@ -328,6 +346,7 @@ class LeadController extends Controller
 
     public function storeActivity(Request $request, Lead $lead): JsonResponse
     {
+        $this->leadAccess->assertManage($request->user(), $lead);
         $data = $request->validate([
             'activity_type' => ['required', Rule::in(['call', 'note', 'whatsapp', 'email', 'meeting', 'other'])],
             'outcome' => ['nullable', Rule::in(['answered', 'no_answer', 'busy', 'callback_requested', 'interested', 'not_interested', 'wrong_number', 'message_sent', 'other'])],

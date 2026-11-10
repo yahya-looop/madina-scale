@@ -410,6 +410,15 @@ class SystemAuthorizationSeeder extends Seeder
 
                     ['name' => 'Create Financial Transactions', 'slug' => 'system.finance.transactions.create', 'description' => 'Record income, expenses and customer advance receipts.'],
 
+                    ['name' => 'View Opening Balances', 'slug' => 'system.finance.opening_balances.view', 'description' => 'View controlled location opening balance workflows.'],
+                    ['name' => 'Create Opening Balances', 'slug' => 'system.finance.opening_balances.create', 'description' => 'Create and submit location opening balances.'],
+                    ['name' => 'Approve Opening Balances', 'slug' => 'system.finance.opening_balances.approve', 'description' => 'Approve or reject submitted location opening balances.'],
+                    ['name' => 'Post Opening Balances', 'slug' => 'system.finance.opening_balances.post', 'description' => 'Post approved location opening balances to the ledger.'],
+                    ['name' => 'View Company-wide Adjustments', 'slug' => 'system.finance.company_adjustments.view', 'description' => 'View company-wide controlled accounting adjustments.'],
+                    ['name' => 'Create Company-wide Adjustments', 'slug' => 'system.finance.company_adjustments.create', 'description' => 'Create and submit company-wide adjustments without a location.'],
+                    ['name' => 'Approve Company-wide Adjustments', 'slug' => 'system.finance.company_adjustments.approve', 'description' => 'Approve or reject company-wide accounting adjustments.'],
+                    ['name' => 'Post Company-wide Adjustments', 'slug' => 'system.finance.company_adjustments.post', 'description' => 'Post approved company-wide accounting adjustments to the ledger.'],
+
                     ['name' => 'View Sales Returns', 'slug' => 'system.sales_returns.view', 'description' => 'View sales returns and refund records.'],
 
                     ['name' => 'Create Sales Returns', 'slug' => 'system.sales_returns.create', 'description' => 'Process fulfilled sales returns, stock receipts and refunds.'],

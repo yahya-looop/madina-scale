@@ -8,6 +8,7 @@ use App\Models\FinancialTransaction;
 use App\Models\JournalEntry;
 use App\Services\FinancialLedgerService;
 use App\Services\LocationInventoryAccessService;
+use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -40,9 +41,8 @@ class FinanceController extends Controller
             ->join('financial_accounts as accounts', 'accounts.id', '=', 'lines.account_id')
             ->where('entries.status', 'posted')
             ->where('accounts.type', 'income')
-            ->whereBetween('entries.entry_date', [$monthStart, $monthEnd])
-            ->when($locationId, fn ($q) => $q->where('lines.location_id', $locationId))
-            ->when(! $locationId, fn ($q) => $this->locationAccess->scopeViewable($q, $request->user(), 'lines.location_id'));
+            ->whereBetween('entries.entry_date', [$monthStart, $monthEnd]);
+        $this->applyLedgerLineScope($incomeQuery, $request);
         $monthIncome = $incomeQuery->selectRaw('COALESCE(SUM(lines.credit - lines.debit), 0) as total')->value('total') ?? '0.00';
 
         $expenseQuery = DB::table('journal_entry_lines as lines')
@@ -50,19 +50,17 @@ class FinanceController extends Controller
             ->join('financial_accounts as accounts', 'accounts.id', '=', 'lines.account_id')
             ->where('entries.status', 'posted')
             ->where('accounts.type', 'expense')
-            ->whereBetween('entries.entry_date', [$monthStart, $monthEnd])
-            ->when($locationId, fn ($q) => $q->where('lines.location_id', $locationId))
-            ->when(! $locationId, fn ($q) => $this->locationAccess->scopeViewable($q, $request->user(), 'lines.location_id'));
+            ->whereBetween('entries.entry_date', [$monthStart, $monthEnd]);
+        $this->applyLedgerLineScope($expenseQuery, $request);
         $monthExpenses = $expenseQuery->selectRaw('COALESCE(SUM(lines.debit - lines.credit), 0) as total')->value('total') ?? '0.00';
 
         $cashBalances = DB::table('journal_entry_lines as lines')
             ->join('journal_entries as entries', 'entries.id', '=', 'lines.journal_entry_id')
             ->join('financial_accounts as accounts', 'accounts.id', '=', 'lines.account_id')
             ->where('entries.status', 'posted')
-            ->where('accounts.is_cash_bank', true)
-            ->when($locationId, fn ($q) => $q->where('lines.location_id', $locationId))
-            ->when(! $locationId, fn ($q) => $this->locationAccess->scopeViewable($q, $request->user(), 'lines.location_id'))
-            ->select('accounts.id', 'accounts.code', 'accounts.name')
+            ->where('accounts.is_cash_bank', true);
+        $this->applyLedgerLineScope($cashBalances, $request);
+        $cashBalances = $cashBalances->select('accounts.id', 'accounts.code', 'accounts.name')
             ->selectRaw('COALESCE(SUM(lines.debit - lines.credit), 0) as balance')
             ->groupBy('accounts.id', 'accounts.code', 'accounts.name')
             ->get();
@@ -104,12 +102,11 @@ class FinanceController extends Controller
             ->with('parent:id,code,name')
             ->orderBy('code')->get();
 
-        $balances = DB::table('journal_entry_lines as lines')
+        $balanceQuery = DB::table('journal_entry_lines as lines')
             ->join('journal_entries as entries', 'entries.id', '=', 'lines.journal_entry_id')
-            ->where('entries.status', 'posted')
-            ->when($locationId, fn ($q) => $q->where('lines.location_id', $locationId))
-            ->when(! $locationId, fn ($q) => $this->locationAccess->scopeViewable($q, $request->user(), 'lines.location_id'))
-            ->select('lines.account_id')
+            ->where('entries.status', 'posted');
+        $this->applyLedgerLineScope($balanceQuery, $request);
+        $balances = $balanceQuery->select('lines.account_id')
             ->selectRaw('COALESCE(SUM(lines.debit - lines.credit), 0) as balance')
             ->groupBy('lines.account_id')
             ->pluck('balance', 'account_id');
@@ -175,6 +172,7 @@ class FinanceController extends Controller
     {
         $perPage = min(max($request->integer('per_page', 15), 1), 100);
         $journals = JournalEntry::query()
+            ->whereNotIn('source', ['controlled_opening_balance', 'controlled_company_adjustment'])
             ->with(['lines.account:id,code,name', 'location:id,name', 'creator:id,name', 'poster:id,name'])
             ->when(! $request->filled('location_id'), fn ($q) => $this->locationAccess->scopeViewable($q, $request->user()))
             ->when($request->filled('status'), fn ($q) => $q->where('status', (string) $request->input('status')))
@@ -219,9 +217,9 @@ class FinanceController extends Controller
 
     public function postJournal(Request $request, JournalEntry $journal): JsonResponse
     {
-        if ($journal->location_id) {
-            $this->locationAccess->assertManage($request->user(), (int) $journal->location_id);
-        }
+        abort_if(! $journal->location_id, 403, 'Location-less journals cannot be posted through the operational finance workflow.');
+        $this->locationAccess->assertManage($request->user(), (int) $journal->location_id);
+
         $entry = $this->ledger->post($journal, $request->user());
 
         return response()->json(['message' => 'Journal posted.', 'data' => $entry]);
@@ -271,5 +269,38 @@ class FinanceController extends Controller
         $transaction = $this->ledger->recordTransaction($data, $request->user());
 
         return response()->json(['message' => 'Financial transaction posted.', 'data' => $transaction], $transaction->wasRecentlyCreated ? 201 : 200);
+    }
+
+    /**
+     * Scope posted ledger lines to assigned locations. Authorized company-wide
+     * adjustment viewers may also see null-location company adjustment lines
+     * in consolidated totals when no single location is selected.
+     */
+    private function applyLedgerLineScope(QueryBuilder $query, Request $request): void
+    {
+        $locationId = $request->integer('location_id') ?: null;
+        $user = $request->user();
+
+        if ($locationId) {
+            $this->locationAccess->assertView($user, $locationId);
+            $query->where('lines.location_id', $locationId);
+
+            return;
+        }
+
+        if ($user->can('system.locations.manage')) {
+            return;
+        }
+
+        $query->where(function ($scope) use ($user): void {
+            $this->locationAccess->scopeViewable($scope, $user, 'lines.location_id');
+
+            if ($user->can('system.finance.company_adjustments.view')) {
+                $scope->orWhere(function ($companyWide): void {
+                    $companyWide->whereNull('lines.location_id')
+                        ->where('entries.source', 'controlled_company_adjustment');
+                });
+            }
+        });
     }
 }

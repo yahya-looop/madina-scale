@@ -380,4 +380,159 @@ class SalesCrmLeadManagementTest extends TestCase
         $this->actingAs($user)->getJson('/api/leads')->assertForbidden();
         $this->actingAs($user)->get('/sales-crm/leads')->assertForbidden();
     }
+
+    private function leadAtLocation(User $creator, Location $location, string $name): Lead
+    {
+        return Lead::query()->create([
+            'lead_code' => 'LEAD-'.Str::upper(Str::random(10)),
+            'name' => $name,
+            'phone' => '017'.random_int(10000000, 99999999),
+            'source' => 'manual',
+            'customer_type' => 'retail',
+            'status' => 'new',
+            'interest_level' => 'warm',
+            'location_id' => $location->id,
+            'assigned_to' => $creator->id,
+            'owner_id' => $creator->id,
+            'created_by' => $creator->id,
+            'updated_by' => $creator->id,
+        ]);
+    }
+
+    private function crmLocation(string $name): Location
+    {
+        return Location::query()->create([
+            'name' => $name,
+            'code' => 'CRM-'.Str::upper(Str::random(8)),
+            'type' => 'store',
+            'is_active' => true,
+        ]);
+    }
+
+    public function test_lead_list_and_statistics_are_scoped_to_the_users_locations(): void
+    {
+        $user = $this->crmUser();
+        $otherUser = User::factory()->create();
+        $locationA = $this->crmLocation('CRM Location A');
+        $locationB = $this->crmLocation('CRM Location B');
+
+        $user->locations()->attach($locationA->id, ['access_level' => 'manage']);
+        $otherUser->locations()->attach($locationB->id, ['access_level' => 'manage']);
+
+        $visibleLead = $this->leadAtLocation($otherUser, $locationA, 'Visible Branch Lead');
+        $hiddenLead = $this->leadAtLocation($user, $locationB, 'Hidden Branch Lead');
+        $unlocatedLead = Lead::query()->create([
+            'lead_code' => 'LEAD-'.Str::upper(Str::random(10)),
+            'name' => 'My Unlocated Lead',
+            'phone' => '018'.random_int(10000000, 99999999),
+            'source' => 'manual',
+            'customer_type' => 'retail',
+            'status' => 'new',
+            'interest_level' => 'warm',
+            'assigned_to' => $user->id,
+            'owner_id' => $user->id,
+            'created_by' => $user->id,
+        ]);
+
+        $response = $this->actingAs($user)->getJson('/api/leads')->assertOk();
+
+        $this->assertSame(2, $response->json('total'));
+        $this->assertSame(2, $response->json('stats.total'));
+        $this->assertSame(
+            [$visibleLead->id, $unlocatedLead->id],
+            collect($response->json('data'))->pluck('id')->sort()->values()->all(),
+        );
+        $this->assertNotContains($hiddenLead->id, collect($response->json('data'))->pluck('id')->all());
+    }
+
+    public function test_user_cannot_view_or_mutate_a_lead_from_an_unassigned_location(): void
+    {
+        $user = $this->crmUser([
+            'system.crm.leads.view',
+            'system.crm.leads.create',
+            'system.crm.leads.update',
+            'system.crm.leads.delete',
+            'system.crm.activities.create',
+            'system.customers.create',
+            'system.orders.create',
+        ]);
+        $otherUser = User::factory()->create();
+        $locationA = $this->crmLocation('Assigned CRM Location');
+        $locationB = $this->crmLocation('Unassigned CRM Location');
+        $user->locations()->attach($locationA->id, ['access_level' => 'manage']);
+        $otherUser->locations()->attach($locationB->id, ['access_level' => 'manage']);
+        $lead = $this->leadAtLocation($otherUser, $locationB, 'Another Branch Lead');
+        [, $variant] = $this->conversionOrderFixture($user);
+
+        $this->actingAs($user)
+            ->getJson('/api/leads/'.$lead->id)
+            ->assertForbidden();
+
+        $this->actingAs($user)->putJson('/api/leads/'.$lead->id, [
+            'name' => 'Attempted Cross-Location Update',
+            'phone' => '01712345678',
+            'source' => 'manual',
+            'customer_type' => 'retail',
+            'status' => 'qualified',
+            'interest_level' => 'hot',
+        ])->assertForbidden();
+
+        $this->actingAs($user)->postJson('/api/leads/'.$lead->id.'/activities', [
+            'activity_type' => 'note',
+            'summary' => 'Attempted cross-location activity.',
+            'occurred_at' => now()->toIso8601String(),
+        ])->assertForbidden();
+
+        $this->actingAs($user)
+            ->deleteJson('/api/leads/'.$lead->id)
+            ->assertForbidden();
+
+        $this->actingAs($user)->postJson('/api/leads/'.$lead->id.'/convert-with-order', [
+            'location_id' => $locationA->id,
+            'idempotency_key' => (string) Str::uuid(),
+            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1]],
+        ])->assertForbidden();
+
+        $this->assertDatabaseHas('leads', [
+            'id' => $lead->id,
+            'name' => 'Another Branch Lead',
+            'location_id' => $locationB->id,
+        ]);
+        $this->assertDatabaseMissing('lead_activities', [
+            'lead_id' => $lead->id,
+            'summary' => 'Attempted cross-location activity.',
+        ]);
+    }
+
+    public function test_location_manager_can_manage_leads_inside_their_location_but_not_another_location(): void
+    {
+        $manager = $this->crmUser();
+        $manager->forceFill(['designation' => 'Branch Manager'])->save();
+        $otherUser = User::factory()->create();
+        $locationA = $this->crmLocation('Manager CRM Location');
+        $locationB = $this->crmLocation('Other Manager CRM Location');
+        $manager->locations()->attach($locationA->id, ['access_level' => 'view']);
+        $otherUser->locations()->attach($locationB->id, ['access_level' => 'manage']);
+        $inScopeLead = $this->leadAtLocation($otherUser, $locationA, 'Manager Scope Lead');
+        $outOfScopeLead = $this->leadAtLocation($otherUser, $locationB, 'Outside Manager Scope Lead');
+
+        $this->actingAs($manager)->putJson('/api/leads/'.$inScopeLead->id, [
+            'name' => 'Manager Updated Lead',
+            'phone' => $inScopeLead->phone,
+            'source' => 'manual',
+            'customer_type' => 'retail',
+            'status' => 'qualified',
+            'interest_level' => 'hot',
+        ])->assertOk();
+
+        $this->actingAs($manager)
+            ->putJson('/api/leads/'.$outOfScopeLead->id, [
+                'name' => 'Should Not Update',
+                'phone' => $outOfScopeLead->phone,
+                'source' => 'manual',
+                'customer_type' => 'retail',
+                'status' => 'qualified',
+                'interest_level' => 'hot',
+            ])->assertForbidden();
+    }
 }

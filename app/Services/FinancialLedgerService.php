@@ -2,9 +2,11 @@
 
 namespace App\Services;
 
+use App\Models\ControlledAccountingEntry;
 use App\Models\FinancialAccount;
 use App\Models\FinancialTransaction;
 use App\Models\JournalEntry;
+use App\Models\Location;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -21,7 +23,9 @@ class FinancialLedgerService
      */
     public function createDraft(array $data, User $actor): JournalEntry
     {
-        return DB::transaction(function () use ($data, $actor): JournalEntry {
+        $locationId = $this->assertOperationalLocation($data['location_id'] ?? null);
+
+        return DB::transaction(function () use ($data, $actor, $locationId): JournalEntry {
             $entry = JournalEntry::query()->create([
                 'entry_number' => $this->number('JE'),
                 'entry_date' => $data['entry_date'],
@@ -29,7 +33,7 @@ class FinancialLedgerService
                 'status' => 'draft',
                 'source' => $data['source'] ?? 'manual',
                 'reference' => $data['reference'] ?? null,
-                'location_id' => $data['location_id'] ?? null,
+                'location_id' => $locationId,
                 'created_by' => $actor->id,
             ]);
 
@@ -47,7 +51,7 @@ class FinancialLedgerService
 
                 $entry->lines()->create([
                     'account_id' => $account->id,
-                    'location_id' => $data['location_id'],
+                    'location_id' => $locationId,
                     'customer_id' => $line['customer_id'] ?? null,
                     'supplier_id' => $line['supplier_id'] ?? null,
                     'description' => $line['description'] ?? null,
@@ -73,11 +77,19 @@ class FinancialLedgerService
     {
         return DB::transaction(function () use ($journal, $actor): JournalEntry {
             $entry = JournalEntry::query()->lockForUpdate()->findOrFail($journal->id);
+            if (str_starts_with($entry->source, 'controlled_')) {
+                throw ValidationException::withMessages(['journal' => 'Controlled accounting entries must be posted through their approval workflow.']);
+            }
+            $locationId = $this->assertOperationalLocation($entry->location_id);
             if ($entry->status !== 'draft') {
                 throw ValidationException::withMessages(['journal' => 'Only draft journals can be posted.']);
             }
 
             $lines = $entry->lines()->with('account')->lockForUpdate()->get();
+            if ($lines->contains(fn ($line): bool => (int) $line->location_id !== $locationId)) {
+                throw ValidationException::withMessages(['journal' => 'Every journal line must belong to the same location as its journal.']);
+            }
+
             if ($lines->count() < 2) {
                 throw ValidationException::withMessages(['journal' => 'A journal needs at least two lines.']);
             }
@@ -112,6 +124,97 @@ class FinancialLedgerService
     }
 
     /**
+     * Post a controlled accounting journal after its maker-checker workflow
+     * has approved it. This is intentionally separate from operational post().
+     */
+    public function postControlled(JournalEntry $journal, User $actor, string $workflowType): JournalEntry
+    {
+        return DB::transaction(function () use ($journal, $actor, $workflowType): JournalEntry {
+            $entry = JournalEntry::query()->lockForUpdate()->findOrFail($journal->id);
+            $expectedSource = $workflowType === 'opening_balance'
+                ? 'controlled_opening_balance'
+                : 'controlled_company_adjustment';
+
+            if (! in_array($workflowType, ['opening_balance', 'company_adjustment'], true) || $entry->source !== $expectedSource) {
+                throw ValidationException::withMessages(['journal' => 'Journal source does not match the controlled accounting workflow.']);
+            }
+            if ($entry->status !== 'draft') {
+                throw ValidationException::withMessages(['journal' => 'Only draft controlled journals can be posted.']);
+            }
+
+            $workflow = ControlledAccountingEntry::query()
+                ->where('journal_entry_id', $entry->id)
+                ->where('workflow_type', $workflowType)
+                ->lockForUpdate()
+                ->first();
+
+            if (
+                ! $workflow
+                || $workflow->status !== 'approved'
+                || ! $workflow->approved_by
+                || (int) $workflow->approved_by === (int) $workflow->created_by
+                || (int) $workflow->created_by === (int) $actor->id
+                || (int) $workflow->location_id !== (int) $entry->location_id
+            ) {
+                throw ValidationException::withMessages(['journal' => 'A controlled accounting journal requires an approved independent workflow before posting.']);
+            }
+
+            if ($workflowType === 'opening_balance') {
+                if (
+                    ! $entry->location_id
+                    || ! $workflow->fiscal_year
+                    || date('Y', strtotime((string) $entry->entry_date) ?: 0) !== (string) $workflow->fiscal_year
+                    || ! Location::query()->whereKey($entry->location_id)->where('is_active', true)->exists()
+                ) {
+                    throw ValidationException::withMessages(['journal' => 'Opening balance must belong to an active location.']);
+                }
+            } elseif ($entry->location_id !== null || $workflow->fiscal_year !== null) {
+                throw ValidationException::withMessages(['journal' => 'Company-wide adjustment must not be assigned to a location or opening fiscal year.']);
+            }
+
+            $lines = $entry->lines()->with('account')->lockForUpdate()->get();
+            if ($lines->count() < 2 || $lines->contains(
+                fn ($line): bool => $workflowType === 'opening_balance'
+                    ? (int) $line->location_id !== (int) $entry->location_id
+                    : $line->location_id !== null,
+            )) {
+                throw ValidationException::withMessages(['journal' => 'Every controlled journal line must match the journal scope.']);
+            }
+
+            $debit = '0.00';
+            $credit = '0.00';
+            foreach ($lines as $line) {
+                if (! $line->account || ! $line->account->is_active) {
+                    throw ValidationException::withMessages(['journal' => 'A journal contains an inactive or missing account.']);
+                }
+                $debit = bcadd($debit, (string) $line->debit, 2);
+                $credit = bcadd($credit, (string) $line->credit, 2);
+            }
+            if (bccomp($debit, '0.00', 2) <= 0 || bccomp($debit, $credit, 2) !== 0) {
+                throw ValidationException::withMessages(['journal' => 'Journal is not balanced.']);
+            }
+
+            $entry->update([
+                'status' => 'posted',
+                'posted_by' => $actor->id,
+                'posted_at' => now(),
+            ]);
+
+            $this->activityLog->recordForUser(
+                $actor,
+                'posted',
+                'finance',
+                'Posted controlled journal '.$entry->entry_number,
+                $entry,
+                ['status' => 'draft'],
+                ['status' => 'posted', 'workflow_type' => $workflowType, 'total_debit' => $debit, 'total_credit' => $credit],
+            );
+
+            return $entry->fresh(['lines.account', 'poster']);
+        }, 3);
+    }
+
+    /**
      * Record cash/bank income, expense or an unallocated customer advance.
      * Customer receipts credit Customer Advances until invoice allocation is
      * introduced with the sales receivables workflow.
@@ -120,7 +223,9 @@ class FinancialLedgerService
      */
     public function recordTransaction(array $data, User $actor): FinancialTransaction
     {
-        return DB::transaction(function () use ($data, $actor): FinancialTransaction {
+        $locationId = $this->assertOperationalLocation($data['location_id'] ?? null);
+
+        return DB::transaction(function () use ($data, $actor, $locationId): FinancialTransaction {
             $idempotencyKey = trim((string) $data['idempotency_key']);
             if (DB::connection()->getDriverName() === 'pgsql') {
                 DB::select('SELECT pg_advisory_xact_lock(hashtextextended(?, 0))', ['madina-scale:finance-transaction:'.$idempotencyKey]);
@@ -184,13 +289,13 @@ class FinancialLedgerService
                 'status' => 'draft',
                 'source' => 'financial_transaction',
                 'reference' => $data['reference'] ?? null,
-                'location_id' => $data['location_id'] ?? null,
+                'location_id' => $locationId,
                 'created_by' => $actor->id,
             ]);
 
             foreach ($lines as $line) {
                 $entry->lines()->create($line + [
-                    'location_id' => $data['location_id'] ?? null,
+                    'location_id' => $locationId,
                     'description' => trim($data['description']),
                 ]);
             }
@@ -211,7 +316,7 @@ class FinancialLedgerService
                 'description' => trim($data['description']),
                 'idempotency_key' => $idempotencyKey,
                 'payload_hash' => $payloadHash,
-                'location_id' => $data['location_id'] ?? null,
+                'location_id' => $locationId,
                 'created_by' => $actor->id,
             ]);
 
@@ -227,6 +332,24 @@ class FinancialLedgerService
 
             return $transaction->load(['cashAccount', 'categoryAccount', 'customer', 'journalEntry']);
         }, 3);
+    }
+
+    /**
+     * Operational ledger entries must always belong to an active location.
+     * Company-wide opening balances and adjustments require a separate controlled workflow.
+     */
+    private function assertOperationalLocation(mixed $value): int
+    {
+        if (! is_int($value) && (! is_string($value) || ! ctype_digit($value))) {
+            throw ValidationException::withMessages(['location_id' => 'A location is required for every operational journal.']);
+        }
+
+        $locationId = (int) $value;
+        if ($locationId < 1 || ! Location::query()->whereKey($locationId)->where('is_active', true)->exists()) {
+            throw ValidationException::withMessages(['location_id' => 'Select an active location for this operational journal.']);
+        }
+
+        return $locationId;
     }
 
     /** @return numeric-string */

@@ -3,6 +3,7 @@
 use App\Models\Customer;
 use App\Models\FinancialAccount;
 use App\Models\FinancialTransaction;
+use App\Models\JournalEntry;
 use App\Models\Location;
 use App\Models\User;
 use App\Services\FinancialLedgerService;
@@ -112,4 +113,80 @@ it('replays the same financial transaction idempotently and rejects key reuse wi
     $changed['amount'] = '251.00';
     expect(fn () => $service->recordTransaction($changed, $this->actor))
         ->toThrow(ValidationException::class);
+});
+
+it('rejects operational draft journals without an active location', function (): void {
+    $cash = FinancialAccount::query()->where('code', '1000')->firstOrFail();
+    $expense = FinancialAccount::query()->where('code', '6000')->firstOrFail();
+
+    expect(fn () => app(FinancialLedgerService::class)->createDraft([
+        'entry_date' => now()->toDateString(),
+        'description' => 'Location-less operational journal',
+        'lines' => [
+            ['account_id' => $expense->id, 'debit' => '100.00', 'credit' => '0'],
+            ['account_id' => $cash->id, 'debit' => '0', 'credit' => '100.00'],
+        ],
+    ], $this->actor))->toThrow(ValidationException::class);
+});
+
+it('rejects posting legacy location-less journals through the operational ledger service', function (): void {
+    $cash = FinancialAccount::query()->where('code', '1000')->firstOrFail();
+    $expense = FinancialAccount::query()->where('code', '6000')->firstOrFail();
+    $journal = JournalEntry::query()->create([
+        'entry_number' => 'JE-LEGACY-'.strtoupper(Str::random(8)),
+        'entry_date' => now()->toDateString(),
+        'description' => 'Legacy location-less draft',
+        'status' => 'draft',
+        'source' => 'manual',
+        'created_by' => $this->actor->id,
+    ]);
+    $journal->lines()->createMany([
+        ['account_id' => $expense->id, 'debit' => '100.00', 'credit' => '0.00'],
+        ['account_id' => $cash->id, 'debit' => '0.00', 'credit' => '100.00'],
+    ]);
+
+    expect(fn () => app(FinancialLedgerService::class)->post($journal, $this->actor))
+        ->toThrow(ValidationException::class);
+    expect($journal->fresh()->status)->toBe('draft');
+});
+
+it('rejects journal lines assigned to a different location from their parent journal', function (): void {
+    $otherLocation = Location::query()->create([
+        'name' => 'Other Finance Branch',
+        'code' => 'FIN-'.strtoupper(Str::random(6)),
+        'type' => 'branch',
+        'is_active' => true,
+    ]);
+    $cash = FinancialAccount::query()->where('code', '1000')->firstOrFail();
+    $expense = FinancialAccount::query()->where('code', '6000')->firstOrFail();
+    $journal = app(FinancialLedgerService::class)->createDraft([
+        'entry_date' => now()->toDateString(),
+        'description' => 'Mismatched location lines',
+        'location_id' => $this->location->id,
+        'lines' => [
+            ['account_id' => $expense->id, 'debit' => '100.00', 'credit' => '0'],
+            ['account_id' => $cash->id, 'debit' => '0', 'credit' => '100.00'],
+        ],
+    ], $this->actor);
+    $journal->lines()->firstOrFail()->update(['location_id' => $otherLocation->id]);
+
+    expect(fn () => app(FinancialLedgerService::class)->post($journal, $this->actor))
+        ->toThrow(ValidationException::class);
+    expect($journal->fresh()->status)->toBe('draft');
+});
+
+it('rejects operational financial transactions without a location', function (): void {
+    $cash = FinancialAccount::query()->where('code', '1000')->firstOrFail();
+    $income = FinancialAccount::query()->where('code', '4100')->firstOrFail();
+
+    expect(fn () => app(FinancialLedgerService::class)->recordTransaction([
+        'type' => 'income',
+        'idempotency_key' => (string) Str::uuid(),
+        'transaction_date' => now()->toDateString(),
+        'amount' => '100.00',
+        'payment_method' => 'cash',
+        'cash_account_id' => $cash->id,
+        'category_account_id' => $income->id,
+        'description' => 'Location-less income',
+    ], $this->actor))->toThrow(ValidationException::class);
 });

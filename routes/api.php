@@ -10,6 +10,7 @@ use App\Http\Controllers\BrandController;
 use App\Http\Controllers\BusinessAnalyticsController;
 use App\Http\Controllers\CmsContentController;
 use App\Http\Controllers\CmsPageController;
+use App\Http\Controllers\ControlledAccountingController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\CustomerLocationSuggestionController;
 use App\Http\Controllers\FeatureFlagController;
@@ -208,6 +209,14 @@ Route::middleware(['web', 'auth'])->group(function () {
     Route::post('/finance/journals/{journal}/post', [FinanceController::class, 'postJournal'])->middleware('permission:system.finance.journals.post');
     Route::get('/finance/transactions', [FinanceController::class, 'transactions'])->middleware('permission:system.finance.transactions.view');
     Route::post('/finance/transactions', [FinanceController::class, 'storeTransaction'])->middleware('permission:system.finance.transactions.create');
+
+    Route::get('/finance/opening-balances', [ControlledAccountingController::class, 'openingBalances'])->middleware('permission:system.finance.opening_balances.view');
+    Route::post('/finance/opening-balances', [ControlledAccountingController::class, 'storeOpeningBalance'])->middleware('permission:system.finance.opening_balances.create');
+    Route::get('/finance/company-adjustments', [ControlledAccountingController::class, 'companyAdjustments'])->middleware('permission:system.finance.company_adjustments.view');
+    Route::post('/finance/company-adjustments', [ControlledAccountingController::class, 'storeCompanyAdjustment'])->middleware('permission:system.finance.company_adjustments.create');
+    Route::post('/finance/controlled-accounting/{entry}/approve', [ControlledAccountingController::class, 'approve']);
+    Route::post('/finance/controlled-accounting/{entry}/post', [ControlledAccountingController::class, 'post']);
+    Route::post('/finance/controlled-accounting/{entry}/reject', [ControlledAccountingController::class, 'reject']);
 
     Route::get('/shipping/overview', [ShippingDeliveryController::class, 'index'])->middleware('permission:system.shipping.view');
     Route::get('/shipping/shipments/{shipment}/events', [ShippingDeliveryController::class, 'events'])->middleware('permission:system.shipping.view');

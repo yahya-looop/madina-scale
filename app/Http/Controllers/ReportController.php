@@ -127,7 +127,7 @@ class ReportController extends Controller
             ->join('financial_accounts', 'financial_accounts.id', '=', 'journal_entry_lines.account_id')
             ->where('journal_entries.status', 'posted')
             ->whereBetween('journal_entries.entry_date', [$from, $to]);
-        $this->scope($journal, $user, $locationId, 'journal_entry_lines.location_id');
+        $this->scopeFinanceJournal($journal, $user, $locationId);
         $finance = $journal->select('financial_accounts.code', 'financial_accounts.name', 'financial_accounts.type', 'financial_accounts.normal_balance')
             ->selectRaw('SUM(journal_entry_lines.debit) as debit, SUM(journal_entry_lines.credit) as credit')
             ->groupBy('financial_accounts.id', 'financial_accounts.code', 'financial_accounts.name', 'financial_accounts.type', 'financial_accounts.normal_balance')
@@ -189,5 +189,29 @@ class ReportController extends Controller
         } else {
             $this->locations->scopeViewable($query, $user, $column);
         }
+    }
+
+    private function scopeFinanceJournal(Builder $query, User $user, ?int $locationId): void
+    {
+        if ($locationId) {
+            $query->where('journal_entry_lines.location_id', $locationId);
+
+            return;
+        }
+
+        if ($user->can('system.locations.manage')) {
+            return;
+        }
+
+        $query->where(function (Builder $scope) use ($user): void {
+            $this->locations->scopeViewable($scope, $user, 'journal_entry_lines.location_id');
+
+            if ($user->can('system.finance.company_adjustments.view')) {
+                $scope->orWhere(function (Builder $companyWide): void {
+                    $companyWide->whereNull('journal_entry_lines.location_id')
+                        ->where('journal_entries.source', 'controlled_company_adjustment');
+                });
+            }
+        });
     }
 }

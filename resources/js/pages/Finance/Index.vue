@@ -15,6 +15,12 @@ interface Transaction {
 }
 interface CustomerOption { id: number; customer_code: string; name: string; phone?: string | null }
 interface Journal { id: number; entry_number: string; entry_date: string; description: string; status: string; lines: Array<{ account?: Account; debit: string; credit: string }> }
+interface ControlledEntry {
+    id: number; workflow_type: 'opening_balance' | 'company_adjustment'; fiscal_year?: number | null;
+    location_id?: number | null; status: string; journal_entry_id: number;
+    journal?: { entry_number: string; entry_date: string; description: string; lines: Array<{ account?: Account; debit: string; credit: string }> };
+    location?: { name: string } | null; creator?: { name: string } | null; approver?: { name: string } | null;
+}
 interface Overview {
     month_income: string; month_expenses: string; customer_receipts: string;
     cash_bank_balances: Array<{ id: number; code: string; name: string; balance: string }>;
@@ -22,7 +28,7 @@ interface Overview {
 }
 const props = withDefaults(defineProps<Props>(), { userName: '', userEmail: '' });
 const { can } = useAuthorization();
-const tab = ref<'overview' | 'transactions' | 'accounts' | 'journals'>('overview');
+const tab = ref<'overview' | 'transactions' | 'accounts' | 'journals' | 'controlled'>('overview');
 const loading = ref(false);
 const saving = ref(false);
 const error = ref('');
@@ -31,6 +37,18 @@ const overview = ref<Overview | null>(null);
 const accounts = ref<Account[]>([]);
 const transactions = ref<Transaction[]>([]);
 const journals = ref<Journal[]>([]);
+const openingBalances = ref<ControlledEntry[]>([]);
+const companyAdjustments = ref<ControlledEntry[]>([]);
+const controlledModal = ref(false);
+const rejectModal = ref(false);
+const rejectingEntryId = ref<number | null>(null);
+const rejectNote = ref('');
+const controlledType = ref<'opening_balance' | 'company_adjustment'>('opening_balance');
+const controlledForm = reactive({
+    entry_date: new Date().toISOString().slice(0, 10), fiscal_year: new Date().getFullYear(),
+    location_id: '', description: '', reference: '',
+    lines: [{ account_id: '', debit: '', credit: '' }, { account_id: '', debit: '', credit: '' }],
+});
 const customers = ref<CustomerOption[]>([]);
 const selectedLocation = ref('');
 const transactionModal = ref(false);
@@ -69,7 +87,7 @@ async function load(): Promise<void> {
     loading.value = true; error.value = '';
     try {
         const suffix = selectedLocation.value ? `?location_id=${selectedLocation.value}` : '';
-        const [o, a, t, j, c] = await Promise.all([
+        const [o, a, t, j, c, ob, ca] = await Promise.all([
             api<{ data: Overview }>(`/api/finance/overview${suffix}`),
             api<{ data: Account[] }>(`/api/finance/accounts${suffix}`),
             can('system.finance.transactions.view')
@@ -81,12 +99,20 @@ async function load(): Promise<void> {
             can('system.finance.transactions.create')
                 ? api<{ data: CustomerOption[] }>('/api/finance/customer-options')
                 : Promise.resolve({ data: [] as CustomerOption[] }),
+            can('system.finance.opening_balances.view')
+                ? api<{ data: { data: ControlledEntry[] } }>('/api/finance/opening-balances?per_page=100')
+                : Promise.resolve({ data: { data: [] as ControlledEntry[] } }),
+            can('system.finance.company_adjustments.view')
+                ? api<{ data: { data: ControlledEntry[] } }>('/api/finance/company-adjustments?per_page=100')
+                : Promise.resolve({ data: { data: [] as ControlledEntry[] } }),
         ]);
         overview.value = o.data;
         accounts.value = a.data;
         transactions.value = t.data;
         journals.value = j.data;
         customers.value = c.data;
+        openingBalances.value = ob.data.data;
+        companyAdjustments.value = ca.data.data;
         if (!transactionForm.location_id && o.data.locations.some((l) => l.access_level === 'manage')) {
             const preferred = o.data.locations.find((l) => l.access_level === 'manage')!;
             transactionForm.location_id = String(preferred.id);
@@ -141,6 +167,87 @@ async function saveJournal(): Promise<void> {
     } catch (e) { error.value = e instanceof Error ? e.message : 'Unable to post journal.'; }
     finally { saving.value = false; }
 }
+function openControlled(type: 'opening_balance' | 'company_adjustment'): void {
+    controlledType.value = type;
+    controlledForm.entry_date = new Date().toISOString().slice(0, 10);
+    controlledForm.fiscal_year = new Date().getFullYear();
+    controlledForm.location_id = manageableLocations.value[0] ? String(manageableLocations.value[0].id) : '';
+    controlledForm.description = '';
+    controlledForm.reference = '';
+    controlledForm.lines = [{ account_id: '', debit: '', credit: '' }, { account_id: '', debit: '', credit: '' }];
+    controlledModal.value = true;
+}
+function addControlledLine(): void { controlledForm.lines.push({ account_id: '', debit: '', credit: '' }); }
+async function saveControlled(): Promise<void> {
+    const debitTotal = controlledForm.lines.reduce((sum, line) => sum + Number(line.debit || 0), 0);
+    const creditTotal = controlledForm.lines.reduce((sum, line) => sum + Number(line.credit || 0), 0);
+    if (debitTotal <= 0 || Math.abs(debitTotal - creditTotal) > 0.001) {
+        error.value = 'Controlled journal must be balanced before submission.';
+        return;
+    }
+    saving.value = true; error.value = '';
+    try {
+        const payload = {
+            entry_date: controlledForm.entry_date,
+            ...(controlledType.value === 'opening_balance' ? {
+                fiscal_year: Number(controlledForm.fiscal_year), location_id: Number(controlledForm.location_id),
+            } : {}),
+            description: controlledForm.description, reference: controlledForm.reference,
+            lines: controlledForm.lines.map((line) => ({
+                account_id: Number(line.account_id), debit: line.debit || '0', credit: line.credit || '0',
+            })),
+        };
+        const url = controlledType.value === 'opening_balance'
+            ? '/api/finance/opening-balances' : '/api/finance/company-adjustments';
+        await api(url, { method: 'POST', body: JSON.stringify(payload) });
+        controlledModal.value = false;
+        notify('Entry submitted for independent approval.');
+        await load();
+    } catch (e) { error.value = e instanceof Error ? e.message : 'Unable to submit controlled accounting entry.'; }
+    finally { saving.value = false; }
+}
+function openReject(entry: ControlledEntry): void {
+    rejectingEntryId.value = entry.id;
+    rejectNote.value = '';
+    rejectModal.value = true;
+}
+async function submitControlledRejection(): Promise<void> {
+    if (!rejectingEntryId.value || rejectNote.value.trim().length < 5) {
+        error.value = 'Enter a rejection reason of at least 5 characters.';
+        return;
+    }
+    saving.value = true; error.value = '';
+    try {
+        await api(`/api/finance/controlled-accounting/${rejectingEntryId.value}/reject`, {
+            method: 'POST', body: JSON.stringify({ note: rejectNote.value.trim() }),
+        });
+        rejectModal.value = false;
+        rejectingEntryId.value = null;
+        rejectNote.value = '';
+        notify('Controlled accounting entry rejected.');
+        await load();
+    } catch (e) { error.value = e instanceof Error ? e.message : 'Unable to reject accounting entry.'; }
+    finally { saving.value = false; }
+}
+async function runControlledAction(entry: ControlledEntry, action: 'approve' | 'post'): Promise<void> {
+    saving.value = true; error.value = '';
+    try {
+        await api(`/api/finance/controlled-accounting/${entry.id}/${action}`, {
+            method: 'POST', body: JSON.stringify({}),
+        });
+        notify(action === 'approve' ? 'Accounting entry approved.' : 'Accounting entry posted to the ledger.');
+        await load();
+    } catch (e) { error.value = e instanceof Error ? e.message : `Unable to ${action} accounting entry.`; }
+    finally { saving.value = false; }
+}
+function controlledPermission(entry: ControlledEntry, action: 'view' | 'create' | 'approve' | 'post'): boolean {
+    const allowed = can(`system.finance.${entry.workflow_type === 'opening_balance' ? 'opening_balances' : 'company_adjustments'}.${action}`);
+    if (!allowed) return false;
+    if (entry.workflow_type === 'opening_balance' && action !== 'view') {
+        return manageableLocations.value.some((location) => location.id === entry.location_id);
+    }
+    return true;
+}
 function addJournalLine(): void { journalForm.lines.push({ account_id: '', debit: '', credit: '' }); }
 function formatType(type: string): string { return ({ income: 'Income', expense: 'Expense', customer_receipt: 'Customer receipt' } as Record<string, string>)[type] ?? type; }
 onMounted(load);
@@ -155,13 +262,15 @@ onMounted(load);
                 <div class="heading-actions">
                     <button v-if="can('system.finance.transactions.create') && manageableLocations.length" class="btn btn-primary" @click="transactionModal = true">＋ Record transaction</button>
                     <button v-if="can('system.finance.journals.create') && can('system.finance.journals.post')" class="btn btn-secondary" @click="journalModal = true">＋ Journal entry</button>
+                    <button v-if="can('system.finance.opening_balances.create') && manageableLocations.length" class="btn btn-secondary" @click="openControlled('opening_balance')">＋ Opening balance</button>
+                    <button v-if="can('system.finance.company_adjustments.create')" class="btn btn-secondary" @click="openControlled('company_adjustment')">＋ Company adjustment</button>
                 </div>
             </header>
             <div v-if="error" class="notice notice-error">{{ error }} <button @click="error = ''">×</button></div>
             <div v-if="success" class="notice notice-success">{{ success }}</div>
             <div class="toolbar">
                 <div class="tabs">
-                    <button v-for="item in [{id:'overview',label:'Overview'},{id:'transactions',label:'Transactions'},{id:'accounts',label:'Chart of Accounts'},{id:'journals',label:'Journal Entries'}]" :key="item.id" :class="{active:tab===item.id}" @click="tab = item.id as typeof tab">{{ item.label }}</button>
+                    <button v-for="item in [{id:'overview',label:'Overview'},{id:'transactions',label:'Transactions'},{id:'accounts',label:'Chart of Accounts'},{id:'journals',label:'Journal Entries'},...(can('system.finance.opening_balances.view') || can('system.finance.company_adjustments.view') ? [{id:'controlled',label:'Controlled Accounting'}] : [])]" :key="item.id" :class="{active:tab===item.id}" @click="tab = item.id as typeof tab">{{ item.label }}</button>
                 </div>
                 <select v-model="selectedLocation" @change="load"><option value="">All accessible locations</option><option v-for="loc in overview?.locations ?? []" :key="loc.id" :value="String(loc.id)">{{ loc.name }}</option></select>
             </div>
@@ -189,11 +298,59 @@ onMounted(load);
                     <div class="panel-heading"><div><h2>Chart of Accounts</h2><p>System accounts are protected; custom accounts can be added as needed.</p></div><button v-if="can('system.finance.accounts.manage')" class="btn btn-primary" @click="accountModal=true">＋ Add account</button></div>
                     <div class="table-wrap"><table><thead><tr><th>Code</th><th>Account name</th><th>Type</th><th>Normal balance</th><th>Ledger balance</th><th>Status</th></tr></thead><tbody><tr v-for="account in accounts" :key="account.id"><td>{{ account.code }}</td><td>{{ account.name }} <span v-if="account.is_system" class="system-tag">System</span></td><td>{{ account.type }}</td><td>{{ account.normal_balance }}</td><td class="amount">{{ money(account.ledger_balance) }}</td><td>{{ account.is_active ? 'Active' : 'Inactive' }}</td></tr></tbody></table></div>
                 </section>
-                <section v-else class="panel">
+                <section v-else-if="tab === 'journals'" class="panel">
                     <div class="panel-heading"><div><h2>Journal entries</h2><p>Only posted, balanced journals affect ledger balances.</p></div><button v-if="can('system.finance.journals.create') && can('system.finance.journals.post')" class="btn btn-primary" @click="journalModal=true">＋ Journal entry</button></div>
                     <div class="table-wrap"><table><thead><tr><th>Entry</th><th>Date</th><th>Description</th><th>Lines</th><th>Status</th></tr></thead><tbody><tr v-for="entry in journals" :key="entry.id"><td>{{ entry.entry_number }}</td><td>{{ dateLabel(entry.entry_date) }}</td><td>{{ entry.description }}</td><td>{{ entry.lines?.length ?? 0 }}</td><td><span class="status" :class="entry.status">{{ entry.status }}</span></td></tr><tr v-if="!journals.length"><td colspan="5" class="empty">No journal entries yet.</td></tr></tbody></table></div>
                 </section>
+                <section v-else-if="tab === 'controlled'" class="panel">
+                    <div class="panel-heading"><div><h2>Controlled accounting workflows</h2><p>Opening balances and company-wide adjustments require independent approval before posting.</p></div>
+                        <div class="heading-actions">
+                            <button v-if="can('system.finance.opening_balances.create') && manageableLocations.length" class="btn btn-secondary" @click="openControlled('opening_balance')">＋ Opening balance</button>
+                            <button v-if="can('system.finance.company_adjustments.create')" class="btn btn-primary" @click="openControlled('company_adjustment')">＋ Company adjustment</button>
+                        </div>
+                    </div>
+                    <h3 v-if="can('system.finance.opening_balances.view')">Location opening balances</h3>
+                    <div v-if="can('system.finance.opening_balances.view')" class="table-wrap">
+                        <table><thead><tr><th>Journal</th><th>Fiscal year</th><th>Location</th><th>Created by</th><th>Status</th><th>Action</th></tr></thead><tbody>
+                            <tr v-for="entry in openingBalances" :key="entry.id"><td>{{ entry.journal?.entry_number ?? entry.journal_entry_id }}</td><td>{{ entry.fiscal_year }}</td><td>{{ entry.location?.name ?? '—' }}</td><td>{{ entry.creator?.name ?? '—' }}</td><td><span class="status" :class="entry.status">{{ entry.status }}</span></td><td>
+                                <button v-if="entry.status==='submitted' && controlledPermission(entry,'approve')" class="text-button" :disabled="saving" @click="runControlledAction(entry,'approve')">Approve</button>
+                                <button v-if="entry.status==='submitted' && controlledPermission(entry,'approve')" class="text-button danger" :disabled="saving" @click="openReject(entry)">Reject</button>
+                                <button v-if="entry.status==='approved' && controlledPermission(entry,'post')" class="text-button" :disabled="saving" @click="runControlledAction(entry,'post')">Post</button>
+                            </td></tr>
+                            <tr v-if="!openingBalances.length"><td colspan="6" class="empty">No opening balances found.</td></tr>
+                        </tbody></table>
+                    </div>
+                    <h3 v-if="can('system.finance.company_adjustments.view')">Company-wide adjustments</h3>
+                    <div v-if="can('system.finance.company_adjustments.view')" class="table-wrap">
+                        <table><thead><tr><th>Journal</th><th>Date</th><th>Description</th><th>Created by</th><th>Status</th><th>Action</th></tr></thead><tbody>
+                            <tr v-for="entry in companyAdjustments" :key="entry.id"><td>{{ entry.journal?.entry_number ?? entry.journal_entry_id }}</td><td>{{ dateLabel(entry.journal?.entry_date) }}</td><td>{{ entry.journal?.description ?? '—' }}</td><td>{{ entry.creator?.name ?? '—' }}</td><td><span class="status" :class="entry.status">{{ entry.status }}</span></td><td>
+                                <button v-if="entry.status==='submitted' && controlledPermission(entry,'approve')" class="text-button" :disabled="saving" @click="runControlledAction(entry,'approve')">Approve</button>
+                                <button v-if="entry.status==='submitted' && controlledPermission(entry,'approve')" class="text-button danger" :disabled="saving" @click="openReject(entry)">Reject</button>
+                                <button v-if="entry.status==='approved' && controlledPermission(entry,'post')" class="text-button" :disabled="saving" @click="runControlledAction(entry,'post')">Post</button>
+                            </td></tr>
+                            <tr v-if="!companyAdjustments.length"><td colspan="6" class="empty">No company-wide adjustments found.</td></tr>
+                        </tbody></table>
+                    </div>
+                </section>
             </template>
+
+            <div v-if="rejectModal" class="modal-backdrop" @click.self="rejectModal=false"><form class="modal" @submit.prevent="submitControlledRejection">
+                <div class="modal-title"><div><h2>Reject accounting entry</h2><p>Provide a clear reason. Rejected entries cannot be posted.</p></div><button type="button" class="close" @click="rejectModal=false">×</button></div>
+                <label>Rejection reason<textarea v-model="rejectNote" required minlength="5" maxlength="2000" rows="4"></textarea></label>
+                <div class="modal-actions"><button type="button" class="btn btn-secondary" @click="rejectModal=false">Cancel</button><button class="btn btn-primary" :disabled="saving || rejectNote.trim().length<5">{{ saving ? 'Rejecting…' : 'Confirm rejection' }}</button></div>
+            </form></div>
+
+            <div v-if="controlledModal" class="modal-backdrop" @click.self="controlledModal=false"><form class="modal wide" @submit.prevent="saveControlled">
+                <div class="modal-title"><div><h2>{{ controlledType === 'opening_balance' ? 'Submit location opening balance' : 'Submit company-wide adjustment' }}</h2><p>Balanced journal required. A different authorized user must approve it before posting.</p></div><button type="button" class="close" @click="controlledModal=false">×</button></div>
+                <div class="form-grid"><label>Entry date<input v-model="controlledForm.entry_date" type="date" required></label>
+                    <label v-if="controlledType==='opening_balance'">Fiscal year<input v-model.number="controlledForm.fiscal_year" type="number" min="2000" max="2100" required></label>
+                    <label v-if="controlledType==='opening_balance'">Location<select v-model="controlledForm.location_id" required><option value="">Select location</option><option v-for="l in manageableLocations" :key="l.id" :value="String(l.id)">{{ l.name }}</option></select></label>
+                </div>
+                <label>Description<input v-model="controlledForm.description" required maxlength="500"></label><label>Reference<input v-model="controlledForm.reference" maxlength="120"></label>
+                <div v-for="(line,index) in controlledForm.lines" :key="index" class="journal-line"><select v-model="line.account_id" required><option value="">Account</option><option v-for="a in accounts.filter(x=>x.is_active)" :key="a.id" :value="String(a.id)">{{ a.code }} · {{ a.name }}</option></select><input v-model="line.debit" type="number" min="0" step="0.01" placeholder="Debit"><input v-model="line.credit" type="number" min="0" step="0.01" placeholder="Credit"><button type="button" class="text-button danger" @click="controlledForm.lines.splice(index,1)" :disabled="controlledForm.lines.length<=2">Remove</button></div>
+                <button type="button" class="text-button" @click="addControlledLine">＋ Add line</button>
+                <div class="modal-actions"><button type="button" class="btn btn-secondary" @click="controlledModal=false">Cancel</button><button class="btn btn-primary" :disabled="saving">{{ saving ? 'Submitting…' : 'Submit for approval' }}</button></div>
+            </form></div>
 
             <div v-if="transactionModal" class="modal-backdrop" @click.self="transactionModal=false"><form class="modal" @submit.prevent="saveTransaction"><div class="modal-title"><div><h2>Record financial transaction</h2><p>Each transaction creates and posts a balanced journal.</p></div><button type="button" class="close" @click="transactionModal=false">×</button></div>
                 <label>Transaction type<select v-model="transactionForm.type"><option value="income">Income</option><option value="expense">Expense</option><option value="customer_receipt">Customer receipt / advance</option></select></label>
@@ -223,5 +380,5 @@ onMounted(load);
 </template>
 
 <style scoped>
-.finance-page{display:flex;flex-direction:column;gap:20px;color:var(--text-primary,#172033);min-width:0}.page-heading,.panel-heading,.modal-title{display:flex;align-items:center;justify-content:space-between;gap:16px}.page-heading h1{font-size:26px;font-weight:750;margin:2px 0}.eyebrow{font-size:11px;letter-spacing:.12em;font-weight:700;color:#64748b;margin:0}.subtitle,.panel-heading p,.modal-title p{font-size:13px;color:#64748b;margin:4px 0 0}.heading-actions{display:flex;gap:8px;flex-wrap:wrap}.btn{border:1px solid #d7deea;border-radius:9px;padding:9px 13px;font-size:13px;font-weight:650;cursor:pointer}.btn:disabled{opacity:.55;cursor:not-allowed}.btn-primary{background:#174ea6;border-color:#174ea6;color:white}.btn-secondary{background:white;color:#243247}.toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}.toolbar select,.finance-page input,.finance-page select{border:1px solid #d7deea;border-radius:8px;padding:9px 10px;background:white;color:#182338;min-width:0}.tabs{display:flex;gap:4px;flex-wrap:wrap;border-bottom:1px solid #e5eaf1}.tabs button{padding:10px 13px;border:0;background:transparent;color:#64748b;border-bottom:2px solid transparent;cursor:pointer;font-size:13px}.tabs button.active{color:#174ea6;border-color:#174ea6;font-weight:700}.kpi-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}.kpi,.panel{background:white;border:1px solid #e4e9f0;border-radius:13px;padding:17px;box-shadow:0 2px 8px #14233b08}.kpi span,.kpi small{display:block;color:#64748b;font-size:12px}.kpi strong{display:block;font-size:24px;margin:9px 0 4px;font-weight:750}.panel{margin-top:16px}.panel-heading{margin-bottom:14px}.panel-heading h2,.modal h2{font-size:16px;font-weight:750;margin:0}.text-button{border:0;background:transparent;color:#1755aa;font-size:12px;font-weight:650;cursor:pointer}.balance-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.balance-item{padding:13px;border:1px solid #edf0f5;border-radius:9px}.balance-item span{display:block;color:#64748b;font-size:12px}.balance-item strong{display:block;margin-top:7px;font-size:18px}.table-wrap{overflow:auto}table{width:100%;border-collapse:collapse;white-space:nowrap;font-size:13px}th{text-align:left;color:#64748b;font-size:11px;text-transform:uppercase;letter-spacing:.04em;background:#f8fafc}td,th{padding:11px 10px;border-bottom:1px solid #edf0f5}.amount{text-align:right;font-weight:700}.system-tag{font-size:10px;color:#64748b;background:#eef2f7;padding:3px 6px;border-radius:5px;margin-left:5px}.status{font-size:11px;padding:4px 7px;border-radius:6px;background:#eef2f7}.status.posted{background:#e8f7ee;color:#16723c}.empty{text-align:center;color:#64748b;padding:28px;font-size:13px}.notice{padding:11px 14px;border-radius:9px;font-size:13px}.notice-error{background:#fff0f0;color:#a32828}.notice-success{background:#eaf8ef;color:#176d3a}.notice button{float:right;border:0;background:none;font-size:18px}.modal-backdrop{position:fixed;inset:0;background:#10182880;z-index:1000;display:grid;place-items:center;padding:20px}.modal{width:min(540px,100%);max-height:90vh;overflow:auto;background:white;border-radius:15px;padding:22px;display:flex;flex-direction:column;gap:13px;box-shadow:0 20px 60px #0003}.modal.wide{width:min(850px,100%)}.modal-title{margin-bottom:5px}.close{border:0;background:#f1f4f8;border-radius:7px;width:30px;height:30px;font-size:20px;cursor:pointer}.modal label{display:flex;flex-direction:column;gap:6px;font-size:12px;font-weight:650;color:#344054}.modal label.check{flex-direction:row;align-items:center}.modal input,.modal select{width:100%}.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:8px}.journal-line{display:grid;grid-template-columns:minmax(180px,2fr) 1fr 1fr auto;gap:8px}.danger{color:#b42318}@media(max-width:760px){.page-heading{align-items:flex-start;flex-direction:column}.kpi-grid,.balance-grid{grid-template-columns:1fr}.form-grid{grid-template-columns:1fr}.journal-line{grid-template-columns:1fr 1fr}.journal-line select{grid-column:1/-1}.heading-actions{width:100%}}
+.finance-page{display:flex;flex-direction:column;gap:20px;color:var(--text-primary,#172033);min-width:0}.page-heading,.panel-heading,.modal-title{display:flex;align-items:center;justify-content:space-between;gap:16px}.page-heading h1{font-size:26px;font-weight:750;margin:2px 0}.eyebrow{font-size:11px;letter-spacing:.12em;font-weight:700;color:#64748b;margin:0}.subtitle,.panel-heading p,.modal-title p{font-size:13px;color:#64748b;margin:4px 0 0}.heading-actions{display:flex;gap:8px;flex-wrap:wrap}.btn{border:1px solid #d7deea;border-radius:9px;padding:9px 13px;font-size:13px;font-weight:650;cursor:pointer}.btn:disabled{opacity:.55;cursor:not-allowed}.btn-primary{background:#174ea6;border-color:#174ea6;color:white}.btn-secondary{background:white;color:#243247}.toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}.toolbar select,.finance-page input,.finance-page select{border:1px solid #d7deea;border-radius:8px;padding:9px 10px;background:white;color:#182338;min-width:0}.tabs{display:flex;gap:4px;flex-wrap:wrap;border-bottom:1px solid #e5eaf1}.tabs button{padding:10px 13px;border:0;background:transparent;color:#64748b;border-bottom:2px solid transparent;cursor:pointer;font-size:13px}.tabs button.active{color:#174ea6;border-color:#174ea6;font-weight:700}.kpi-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}.kpi,.panel{background:white;border:1px solid #e4e9f0;border-radius:13px;padding:17px;box-shadow:0 2px 8px #14233b08}.kpi span,.kpi small{display:block;color:#64748b;font-size:12px}.kpi strong{display:block;font-size:24px;margin:9px 0 4px;font-weight:750}.panel{margin-top:16px}.panel-heading{margin-bottom:14px}.panel-heading h2,.modal h2{font-size:16px;font-weight:750;margin:0}.text-button{border:0;background:transparent;color:#1755aa;font-size:12px;font-weight:650;cursor:pointer}.balance-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.balance-item{padding:13px;border:1px solid #edf0f5;border-radius:9px}.balance-item span{display:block;color:#64748b;font-size:12px}.balance-item strong{display:block;margin-top:7px;font-size:18px}.table-wrap{overflow:auto}table{width:100%;border-collapse:collapse;white-space:nowrap;font-size:13px}th{text-align:left;color:#64748b;font-size:11px;text-transform:uppercase;letter-spacing:.04em;background:#f8fafc}td,th{padding:11px 10px;border-bottom:1px solid #edf0f5}.amount{text-align:right;font-weight:700}.system-tag{font-size:10px;color:#64748b;background:#eef2f7;padding:3px 6px;border-radius:5px;margin-left:5px}.status{font-size:11px;padding:4px 7px;border-radius:6px;background:#eef2f7}.status.posted{background:#e8f7ee;color:#16723c}.empty{text-align:center;color:#64748b;padding:28px;font-size:13px}.notice{padding:11px 14px;border-radius:9px;font-size:13px}.notice-error{background:#fff0f0;color:#a32828}.notice-success{background:#eaf8ef;color:#176d3a}.notice button{float:right;border:0;background:none;font-size:18px}.modal-backdrop{position:fixed;inset:0;background:#10182880;z-index:1000;display:grid;place-items:center;padding:20px}.modal{width:min(540px,100%);max-height:90vh;overflow:auto;background:white;border-radius:15px;padding:22px;display:flex;flex-direction:column;gap:13px;box-shadow:0 20px 60px #0003}.modal.wide{width:min(850px,100%)}.modal-title{margin-bottom:5px}.close{border:0;background:#f1f4f8;border-radius:7px;width:30px;height:30px;font-size:20px;cursor:pointer}.modal label{display:flex;flex-direction:column;gap:6px;font-size:12px;font-weight:650;color:#344054}.modal label.check{flex-direction:row;align-items:center}.modal input,.modal select,.modal textarea{width:100%}.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:8px}.journal-line{display:grid;grid-template-columns:minmax(180px,2fr) 1fr 1fr auto;gap:8px}.danger{color:#b42318}@media(max-width:760px){.page-heading{align-items:flex-start;flex-direction:column}.kpi-grid,.balance-grid{grid-template-columns:1fr}.form-grid{grid-template-columns:1fr}.journal-line{grid-template-columns:1fr 1fr}.journal-line select{grid-column:1/-1}.heading-actions{width:100%}}
 </style>
