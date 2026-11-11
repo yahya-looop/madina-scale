@@ -7,6 +7,8 @@ use App\Models\CmsContentSection;
 use App\Models\CmsMedia;
 use App\Models\CmsPage;
 use App\Models\CmsPageRevision;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
@@ -26,12 +28,28 @@ class CmsContentController extends Controller
 
     public function upload(Request $r): JsonResponse
     {
-        $data = $r->validate(['file' => ['required', 'image', 'mimes:jpg,jpeg,png,webp,avif,gif', 'max:10240'], 'alt_text' => ['nullable', 'string', 'max:255']]);
+        $data = $r->validate([
+            'file' => ['required', 'file', 'image', 'mimes:jpg,jpeg,png,webp,avif,gif', 'max:10240', 'dimensions:max_width=5000,max_height=5000'],
+            'alt_text' => ['nullable', 'string', 'max:255'],
+        ]);
         $file = $r->file('file');
         abort_unless($file instanceof UploadedFile, 422, 'A valid image file is required.');
         $path = $file->store('cms/media', 'public');
         abort_if($path === false, 500, 'The media file could not be stored.');
-        $media = CmsMedia::create(['disk' => 'public', 'path' => $path, 'original_name' => mb_substr($file->getClientOriginalName(), 0, 255), 'mime_type' => $file->getMimeType() ?? 'application/octet-stream', 'size' => $file->getSize(), 'alt_text' => $data['alt_text'] ?? null, 'uploaded_by' => $r->user()->id]);
+        try {
+            $media = CmsMedia::create([
+                'disk' => 'public',
+                'path' => $path,
+                'original_name' => mb_substr($file->getClientOriginalName(), 0, 255),
+                'mime_type' => $file->getMimeType() ?? 'application/octet-stream',
+                'size' => $file->getSize(),
+                'alt_text' => $data['alt_text'] ?? null,
+                'uploaded_by' => $r->user()->id,
+            ]);
+        } catch (\Throwable $exception) {
+            Storage::disk('public')->delete($path);
+            throw $exception;
+        }
 
         return response()->json(['data' => array_merge($media->toArray(), ['url' => Storage::disk('public')->url($path)])], 201);
     }
@@ -46,14 +64,94 @@ class CmsContentController extends Controller
 
     public function deleteMedia(CmsMedia $cmsMedium): JsonResponse
     {
-        $url = Storage::disk($cmsMedium->disk)->url($cmsMedium->path);
-        $used = CmsPage::query()->where(fn ($q) => $q->where('featured_image', $url)->orWhere('featured_image', $cmsMedium->path))->exists()
-         || CmsBanner::where('image_url', $url)->orWhere('image_url', $cmsMedium->path)->exists();
-        abort_if($used, 422, 'This media file is currently used by a page or banner.');
-        Storage::disk($cmsMedium->disk)->delete($cmsMedium->path);
+        abort_unless(
+            $cmsMedium->disk === 'public'
+            && str_starts_with($cmsMedium->path, 'cms/media/')
+            && ! str_contains($cmsMedium->path, '..')
+            && ! str_contains($cmsMedium->path, '\\'),
+            404
+        );
+
+        $url = Storage::disk('public')->url($cmsMedium->path);
+        $used = CmsPage::query()
+            ->where(fn ($q) => $q
+                ->where('featured_image', $url)
+                ->orWhere('featured_image', $cmsMedium->path)
+                ->orWhere('content', 'like', '%'.$url.'%')
+                ->orWhere('content', 'like', '%'.$cmsMedium->path.'%')
+                ->orWhereRaw('CAST(sections AS TEXT) LIKE ?', ['%'.$url.'%'])
+                ->orWhereRaw('CAST(sections AS TEXT) LIKE ?', ['%'.$cmsMedium->path.'%']))
+            ->exists()
+            || CmsBanner::query()
+                ->where('image_url', $url)
+                ->orWhere('image_url', $cmsMedium->path)
+                ->exists()
+            || $this->jsonRecordsReferenceMedia(CmsPageRevision::query(), 'snapshot', $url, $cmsMedium->path)
+            || $this->jsonRecordsReferenceMedia(CmsContentSection::query(), 'content', $url, $cmsMedium->path);
+
+        abort_if($used, 422, 'This media file is currently referenced by CMS content or a page revision.');
+        $disk = Storage::disk('public');
+        if ($disk->exists($cmsMedium->path) && ! $disk->delete($cmsMedium->path)) {
+            abort(500, 'The media file could not be deleted. The media record was retained.');
+        }
+
         $cmsMedium->delete();
 
         return response()->json(['message' => 'Media deleted.']);
+    }
+
+    /**
+     * Check JSON-backed CMS records without database-specific JSON casts.
+     * Chunking keeps memory use bounded as revision history grows.
+     *
+     * @template TModel of Model
+     *
+     * @param  Builder<TModel>  $query
+     */
+    private function jsonRecordsReferenceMedia(Builder $query, string $column, string $url, string $path): bool
+    {
+        $found = false;
+        $query->select(['id', $column])->chunkById(100, function ($records) use (&$found, $column, $url, $path): bool {
+            foreach ($records as $record) {
+                if ($this->containsMediaReference($record->getAttribute($column), [$url, $path])) {
+                    $found = true;
+
+                    return false;
+                }
+            }
+
+            return true;
+        });
+
+        return $found;
+    }
+
+    /**
+     * @param  array<int, string>  $references
+     */
+    private function containsMediaReference(mixed $value, array $references): bool
+    {
+        if (is_array($value)) {
+            foreach ($value as $nested) {
+                if ($this->containsMediaReference($nested, $references)) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        if (! is_string($value)) {
+            return false;
+        }
+
+        foreach ($references as $reference) {
+            if ($value === $reference || str_contains($value, $reference)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public function publicBanners(Request $r): JsonResponse

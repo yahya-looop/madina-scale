@@ -342,11 +342,11 @@ Route::middleware(['web', 'auth'])->group(function () {
     Route::post('/cms/pages', [CmsPageController::class, 'store'])->middleware('permission:system.content.create');
     Route::put('/cms/pages/{cmsPage}', [CmsPageController::class, 'update'])->middleware('permission:system.content.update');
     Route::delete('/cms/pages/{cmsPage}', [CmsPageController::class, 'destroy'])->middleware('permission:system.content.delete');
-    Route::post('/cms/media', [CmsPageController::class, 'upload'])->middleware('permission:system.content.create');
+    Route::post('/cms/media', [CmsPageController::class, 'upload'])->middleware(['permission:system.content.create', 'throttle:20,1']);
     Route::get('/cms/media', [CmsContentController::class, 'media'])->middleware('permission:system.content.view');
-    Route::post('/cms/media-library', [CmsContentController::class, 'upload'])->middleware('permission:system.content.create');
+    Route::post('/cms/media-library', [CmsContentController::class, 'upload'])->middleware(['permission:system.content.create', 'throttle:20,1']);
     Route::patch('/cms/media/{cmsMedium}', [CmsContentController::class, 'updateMedia'])->middleware('permission:system.content.update');
-    Route::delete('/cms/media/{cmsMedium}', [CmsContentController::class, 'deleteMedia'])->middleware('permission:system.content.delete');
+    Route::delete('/cms/media/{cmsMedium}', [CmsContentController::class, 'deleteMedia'])->middleware(['permission:system.content.delete', 'throttle:30,1']);
     Route::get('/cms/banners', [CmsContentController::class, 'banners'])->middleware('permission:system.content.view');
     Route::post('/cms/banners', [CmsContentController::class, 'storeBanner'])->middleware('permission:system.content.create');
     Route::put('/cms/banners/{cmsBanner}', [CmsContentController::class, 'updateBanner'])->middleware('permission:system.content.update');
@@ -539,10 +539,10 @@ Route::middleware(['web', 'auth'])->group(function () {
         ->middleware('permission:system.products.view');
 
     Route::post('/products', [ProductController::class, 'store'])
-        ->middleware('permission:system.products.create');
+        ->middleware(['permission:system.products.create', 'throttle:20,1']);
 
     Route::put('/products/{product}', [ProductController::class, 'update'])
-        ->middleware('permission:system.products.update');
+        ->middleware(['permission:system.products.update', 'throttle:20,1']);
 
     Route::delete('/products/{product}', [ProductController::class, 'destroy'])
         ->middleware('permission:system.products.delete');
@@ -556,7 +556,7 @@ Route::middleware(['web', 'auth'])->group(function () {
         ->middleware('permission:system.products.update')
         ->scopeBindings();
     Route::delete('/products/{product}/media/{media}', [ProductMediaController::class, 'destroy'])
-        ->middleware('permission:system.products.delete')
+        ->middleware(['permission:system.products.delete', 'throttle:30,1'])
         ->scopeBindings();
 
     /*

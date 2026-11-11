@@ -9,9 +9,28 @@ use App\Models\ProductMedia;
 use App\Models\Role;
 use App\Models\Unit;
 use App\Models\User;
+use Illuminate\Filesystem\FilesystemAdapter;
 use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+
+function productDimensionTestPng(int $width, int $height): string
+{
+    $chunk = static function (string $type, string $data): string {
+        return pack('N', strlen($data))
+            .$type
+            .$data
+            .pack('N', crc32($type.$data));
+    };
+
+    $row = "\x00".str_repeat("\x00", $width * 3);
+    $imageData = gzcompress(str_repeat($row, $height));
+
+    return "\x89PNG\r\n\x1a\n"
+        .$chunk('IHDR', pack('N2C5', $width, $height, 8, 2, 0, 0, 0))
+        .$chunk('IDAT', $imageData)
+        .$chunk('IEND', '');
+}
 
 beforeEach(function (): void {
     $this->withoutMiddleware(ValidateCsrfToken::class);
@@ -936,4 +955,55 @@ test('product creation allows an optional image and records primary media', func
     $media = $product->primaryMedia()->firstOrFail();
 
     $this->assertTrue(Storage::disk('public')->exists($media->path));
+});
+
+test('product image uploads reject excessive image dimensions', function () {
+    Storage::fake('public');
+    $user = User::factory()->create();
+    productTestGrantPermission($user, 'system.products.create');
+    $masterData = productTestMasterData();
+    $payload = productTestPayload($masterData);
+    $payload['image'] = UploadedFile::fake()->createWithContent('oversized.png', productDimensionTestPng(5001, 1));
+
+    $this->actingAs($user)
+        ->postJson('/api/products', $payload)
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['image']);
+
+    $this->assertDatabaseCount('products', 0);
+    expect(Storage::disk('public')->allFiles('products'))->toBe([]);
+});
+
+test('failed product media file deletion restores the active media record and primary state', function () {
+    Storage::fake('public');
+    $user = User::factory()->create();
+    productTestGrantPermission($user, 'system.products.delete');
+    $masterData = productTestMasterData();
+    $product = Product::create(productTestPayload($masterData));
+    $path = 'products/'.$product->id.'/images/primary-failure.webp';
+    $fakeDisk = Storage::disk('public');
+    $fakeDisk->put($path, 'primary-image');
+    $media = ProductMedia::create([
+        'product_id' => $product->id,
+        'disk' => 'public',
+        'path' => $path,
+        'collection' => 'images',
+        'is_primary' => true,
+    ]);
+
+    $disk = Mockery::mock(FilesystemAdapter::class);
+    $disk->shouldReceive('exists')->once()->with($path)->andReturn(true);
+    $disk->shouldReceive('delete')->once()->with($path)->andReturn(false);
+    Storage::shouldReceive('disk')->once()->with('public')->andReturn($disk);
+
+    $this->actingAs($user)
+        ->deleteJson("/api/products/{$product->id}/media/{$media->id}")
+        ->assertStatus(500);
+
+    $this->assertDatabaseHas('product_media', [
+        'id' => $media->id,
+        'deleted_at' => null,
+        'is_primary' => true,
+    ]);
+    $fakeDisk->assertExists($path);
 });

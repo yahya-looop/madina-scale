@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\CmsMedia;
 use App\Models\CmsPage;
 use App\Models\CmsPageRevision;
 use App\Services\ActivityLogService;
@@ -120,14 +121,34 @@ class CmsPageController extends Controller
 
     public function upload(Request $request): JsonResponse
     {
-        $request->validate(['file' => ['required', 'file', 'image', 'mimes:jpg,jpeg,png,webp,avif', 'max:5120']]);
+        $request->validate([
+            'file' => ['required', 'file', 'image', 'mimes:jpg,jpeg,png,webp,avif', 'max:5120', 'dimensions:max_width=5000,max_height=5000'],
+        ]);
         $file = $request->file('file');
         abort_unless($file instanceof UploadedFile, 422, 'A valid image file is required.');
         $path = $file->store('cms/media', 'public');
         abort_if($path === false, 500, 'The media file could not be stored.');
 
+        try {
+            $media = CmsMedia::create([
+                'disk' => 'public',
+                'path' => $path,
+                'original_name' => mb_substr($file->getClientOriginalName(), 0, 255),
+                'mime_type' => $file->getMimeType() ?? 'application/octet-stream',
+                'size' => $file->getSize(),
+                'uploaded_by' => $request->user()->id,
+            ]);
+        } catch (\Throwable $exception) {
+            Storage::disk('public')->delete($path);
+            throw $exception;
+        }
+
         return response()->json([
-            'data' => ['path' => $path, 'url' => Storage::disk('public')->url($path)],
+            'data' => [
+                'id' => $media->id,
+                'path' => $path,
+                'url' => Storage::disk('public')->url($path),
+            ],
         ], 201);
     }
 

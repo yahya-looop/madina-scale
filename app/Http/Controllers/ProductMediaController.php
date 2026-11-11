@@ -186,7 +186,6 @@ class ProductMediaController extends Controller
                 ->lockForUpdate()
                 ->firstOrFail();
 
-            $lockedMedia->forceFill(['is_primary' => false])->save();
             $lockedMedia->delete();
 
             $hasPrimary = ProductMedia::query()
@@ -210,10 +209,19 @@ class ProductMediaController extends Controller
             return $lockedMedia;
         }, 3);
 
+        $deleteFailed = false;
         try {
-            Storage::disk($deletedMedia->disk)->delete($deletedMedia->path);
+            $disk = Storage::disk($deletedMedia->disk);
+            $deleteFailed = $disk->exists($deletedMedia->path)
+                && ! $disk->delete($deletedMedia->path);
         } catch (\Throwable $exception) {
             report($exception);
+            $deleteFailed = true;
+        }
+
+        if ($deleteFailed) {
+            $this->restoreDeletedMedia($product, $deletedMedia);
+            abort(500, 'The product image file could not be deleted. The media record was restored.');
         }
 
         $primaryMediaId = $product->media()
@@ -230,9 +238,46 @@ class ProductMediaController extends Controller
         ]);
     }
 
+    private function restoreDeletedMedia(Product $product, ProductMedia $media): void
+    {
+        DB::transaction(function () use ($product, $media): void {
+            Product::query()->whereKey($product->id)->lockForUpdate()->firstOrFail();
+
+            $restored = ProductMedia::withTrashed()
+                ->whereKey($media->id)
+                ->where('product_id', $product->id)
+                ->lockForUpdate()
+                ->first();
+
+            if ($restored === null || ! $restored->trashed()) {
+                return;
+            }
+
+            if ($media->is_primary) {
+                ProductMedia::query()
+                    ->where('product_id', $product->id)
+                    ->where('collection', 'images')
+                    ->where('is_primary', true)
+                    ->update(['is_primary' => false]);
+            }
+
+            $restored->restore();
+            if ($media->is_primary) {
+                $restored->forceFill(['is_primary' => true])->save();
+            }
+        }, 3);
+    }
+
     private function ensureProductImage(Product $product, ProductMedia $media): void
     {
-        if ($media->product_id !== $product->id || $media->collection !== 'images') {
+        if (
+            $media->product_id !== $product->id
+            || $media->collection !== 'images'
+            || $media->disk !== 'public'
+            || ! str_starts_with($media->path, 'products/'.$product->id.'/images/')
+            || str_contains($media->path, '..')
+            || str_contains($media->path, '\\')
+        ) {
             abort(404);
         }
     }

@@ -219,7 +219,7 @@ class ProductController extends Controller
                         'disk' => 'public',
                         'path' => $storedPath,
                         'collection' => 'images',
-                        'original_name' => $uploadedFile->getClientOriginalName(),
+                        'original_name' => mb_substr($uploadedFile->getClientOriginalName(), 0, 255),
                         'mime_type' => $uploadedFile->getMimeType(),
                         'size' => $uploadedFile->getSize(),
                         'width' => $imageSize !== false ? $imageSize[0] : null,
@@ -424,7 +424,7 @@ class ProductController extends Controller
                         'disk' => 'public',
                         'path' => $storedPath,
                         'collection' => 'images',
-                        'original_name' => $uploadedFile->getClientOriginalName(),
+                        'original_name' => mb_substr($uploadedFile->getClientOriginalName(), 0, 255),
                         'mime_type' => $uploadedFile->getMimeType(),
                         'size' => $uploadedFile->getSize(),
                         'width' => $imageSize !== false
@@ -473,7 +473,7 @@ class ProductController extends Controller
                         'disk' => 'public',
                         'path' => $galleryPath,
                         'collection' => 'images',
-                        'original_name' => $galleryFile->getClientOriginalName(),
+                        'original_name' => mb_substr($galleryFile->getClientOriginalName(), 0, 255),
                         'mime_type' => $galleryFile->getMimeType(),
                         'size' => $galleryFile->getSize(),
                         'width' => $imageSize !== false ? $imageSize[0] : null,
@@ -688,6 +688,7 @@ class ProductController extends Controller
                 'image',
                 'mimes:jpg,jpeg,png,webp',
                 'max:5120',
+                'dimensions:max_width=5000,max_height=5000',
             ],
             'images' => ['sometimes', 'array', 'max:10'],
             'images.*' => [
@@ -695,6 +696,7 @@ class ProductController extends Controller
                 'image',
                 'mimes:jpg,jpeg,png,webp',
                 'max:5120',
+                'dimensions:max_width=5000,max_height=5000',
             ],
         ]);
     }

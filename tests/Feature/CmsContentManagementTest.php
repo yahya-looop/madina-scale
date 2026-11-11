@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\CmsContentSection;
 use App\Models\CmsMedia;
 use App\Models\CmsPage;
 use App\Models\Module;
@@ -13,6 +14,24 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Tests\TestCase;
+
+function createDimensionTestPng(int $width, int $height): string
+{
+    $chunk = static function (string $type, string $data): string {
+        return pack('N', strlen($data))
+            .$type
+            .$data
+            .pack('N', crc32($type.$data));
+    };
+
+    $row = "\x00".str_repeat("\x00", $width * 3);
+    $imageData = gzcompress(str_repeat($row, $height));
+
+    return "\x89PNG\r\n\x1a\n"
+        .$chunk('IHDR', pack('N2C5', $width, $height, 8, 2, 0, 0, 0))
+        .$chunk('IDAT', $imageData)
+        .$chunk('IEND', '');
+}
 
 class CmsContentManagementTest extends TestCase
 {
@@ -62,5 +81,111 @@ class CmsContentManagementTest extends TestCase
         $this->actingAs($u)->putJson('/api/cms/pages/'.$page->id, array_merge($payload, ['title' => 'Second title']))->assertOk();
         $revision = $page->revisions()->firstOrFail();
         $this->actingAs($u)->postJson('/api/cms/pages/'.$page->id.'/revisions/'.$revision->id.'/restore')->assertOk()->assertJsonPath('data.title', 'First title');
+    }
+
+    public function test_media_upload_rejects_images_with_excessive_dimensions(): void
+    {
+        Storage::fake('public');
+        $user = $this->user();
+
+        $this->actingAs($user)
+            ->post('/api/cms/media-library', [
+                'file' => UploadedFile::fake()->createWithContent('oversized.png', createDimensionTestPng(5001, 1)),
+                'alt_text' => 'Oversized image',
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['file']);
+
+        $this->assertDatabaseCount('cms_media', 0);
+        $this->assertSame([], Storage::disk('public')->allFiles('cms/media'));
+    }
+
+    public function test_media_delete_rejects_unsafe_stored_paths_without_touching_files(): void
+    {
+        Storage::fake('public');
+        $user = $this->user();
+        $unsafePath = 'cms/media/../../private/secret.png';
+        Storage::disk('public')->put('private/secret.png', 'keep-me');
+        $media = CmsMedia::create([
+            'disk' => 'public',
+            'path' => $unsafePath,
+            'original_name' => 'secret.png',
+            'mime_type' => 'image/png',
+            'size' => 7,
+            'uploaded_by' => $user->id,
+        ]);
+
+        $this->actingAs($user)
+            ->deleteJson('/api/cms/media/'.$media->id)
+            ->assertNotFound();
+
+        $this->assertDatabaseHas('cms_media', ['id' => $media->id]);
+        Storage::disk('public')->assertExists('private/secret.png');
+    }
+
+    public function test_page_image_upload_is_registered_in_the_media_library(): void
+    {
+        Storage::fake('public');
+        $user = $this->user();
+
+        $response = $this->actingAs($user)->post('/api/cms/media', [
+            'file' => UploadedFile::fake()->createWithContent(
+                'page-hero.png',
+                base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/nWQAAAAASUVORK5CYII='),
+            ),
+        ])->assertCreated();
+
+        $path = $response->json('data.path');
+        $media = CmsMedia::query()->where('path', $path)->firstOrFail();
+
+        $this->assertSame($user->id, $media->uploaded_by);
+        $this->assertSame('page-hero.png', $media->original_name);
+        Storage::disk('public')->assertExists($path);
+    }
+
+    public function test_media_cannot_be_deleted_while_referenced_by_a_page_revision_or_reusable_section(): void
+    {
+        Storage::fake('public');
+        $user = $this->user();
+        $path = 'cms/media/revision-hero.png';
+        $url = Storage::disk('public')->url($path);
+        Storage::disk('public')->put($path, 'image-content');
+        $media = CmsMedia::create([
+            'disk' => 'public',
+            'path' => $path,
+            'original_name' => 'revision-hero.png',
+            'mime_type' => 'image/png',
+            'size' => 13,
+            'uploaded_by' => $user->id,
+        ]);
+
+        $page = CmsPage::create([
+            'title' => 'Revision image',
+            'slug' => 'revision-image',
+            'status' => 'draft',
+            'featured_image' => $url,
+        ]);
+        $page->revisions()->create([
+            'version' => 1,
+            'snapshot' => ['featured_image' => $url],
+            'created_by' => $user->id,
+        ]);
+        $page->forceFill(['featured_image' => null])->save();
+
+        CmsContentSection::create([
+            'name' => 'Image section',
+            'key' => 'image-section',
+            'type' => 'image_text',
+            'content' => ['image' => ['src' => $path]],
+            'is_active' => true,
+            'created_by' => $user->id,
+        ]);
+
+        $this->actingAs($user)
+            ->deleteJson('/api/cms/media/'.$media->id)
+            ->assertUnprocessable();
+
+        $this->assertDatabaseHas('cms_media', ['id' => $media->id]);
+        Storage::disk('public')->assertExists($path);
     }
 }
