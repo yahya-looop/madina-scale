@@ -130,7 +130,7 @@ async function readError(
 async function load(): Promise<void> {
     loading.value = true;
     try {
-        const response = await fetch('/api/product-categories', {
+        const response = await fetch('/api/v1/backend/product-categories', {
             headers: {
                 Accept: 'application/json',
                 'X-Requested-With': 'XMLHttpRequest',
@@ -190,8 +190,8 @@ async function save(): Promise<void> {
     try {
         const response = await fetch(
             editing.value
-                ? `/api/product-categories/${editing.value.id}`
-                : '/api/product-categories',
+                ? `/api/v1/backend/product-categories/${editing.value.id}`
+                : '/api/v1/backend/product-categories',
             {
                 method: editing.value ? 'PUT' : 'POST',
                 headers: csrfHeaders(),
@@ -225,7 +225,7 @@ async function confirmDelete(): Promise<void> {
     if (!item || deleting.value) return;
     deleting.value = true;
     try {
-        const response = await fetch(`/api/product-categories/${item.id}`, {
+        const response = await fetch(`/api/v1/backend/product-categories/${item.id}`, {
             method: 'DELETE',
             headers: csrfHeaders(),
             credentials: 'same-origin',

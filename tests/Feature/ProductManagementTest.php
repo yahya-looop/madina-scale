@@ -119,7 +119,7 @@ function productTestPayload(array $masterData, array $overrides = []): array
 }
 
 test('product listing requires authentication', function () {
-    $this->getJson('/api/products')
+    $this->getJson('/api/v1/backend/products')
         ->assertUnauthorized();
 });
 
@@ -127,7 +127,7 @@ test('product listing requires view permission', function () {
     $user = User::factory()->create();
 
     $this->actingAs($user)
-        ->getJson('/api/products')
+        ->getJson('/api/v1/backend/products')
         ->assertForbidden();
 });
 
@@ -137,7 +137,7 @@ test('authorized user can list products', function () {
     productTestGrantPermission($user, 'system.products.view');
 
     $this->actingAs($user)
-        ->getJson('/api/products')
+        ->getJson('/api/v1/backend/products')
         ->assertOk()
         ->assertJsonStructure([
             'data',
@@ -154,7 +154,7 @@ test('authorized user can view a product', function () {
     $product = Product::create(productTestPayload($masterData));
 
     $this->actingAs($user)
-        ->getJson('/api/products/'.$product->id)
+        ->getJson('/api/v1/backend/products/'.$product->id)
         ->assertOk()
         ->assertJsonPath('data.id', $product->id)
         ->assertJsonPath('data.name', $product->name);
@@ -169,7 +169,7 @@ test('authorized user can create a product', function () {
     $payload = productTestPayload($masterData);
 
     $this->actingAs($user)
-        ->postJson('/api/products', $payload)
+        ->postJson('/api/v1/backend/products', $payload)
         ->assertCreated()
         ->assertJsonPath('data.name', $payload['name']);
 
@@ -213,7 +213,7 @@ test('variable product creation persists every submitted variant and selects one
     ]);
 
     $response = $this->actingAs($user)
-        ->postJson('/api/products', $payload)
+        ->postJson('/api/v1/backend/products', $payload)
         ->assertCreated();
 
     $productId = (int) $response->json('data.id');
@@ -263,7 +263,7 @@ test('variable product creation chooses the first active variant when no default
     ]);
 
     $response = $this->actingAs($user)
-        ->postJson('/api/products', $payload)
+        ->postJson('/api/v1/backend/products', $payload)
         ->assertCreated();
 
     $this->assertDatabaseHas('product_variants', [
@@ -288,7 +288,7 @@ test('variable product creation rejects multiple default variants', function () 
     ]);
 
     $this->actingAs($user)
-        ->postJson('/api/products', $payload)
+        ->postJson('/api/v1/backend/products', $payload)
         ->assertUnprocessable()
         ->assertJsonValidationErrors(['variants.1.is_default']);
 
@@ -322,7 +322,7 @@ test('variable product creation rejects duplicate variant identifiers without pa
     $productCount = Product::query()->count();
 
     $this->actingAs($user)
-        ->postJson('/api/products', $payload)
+        ->postJson('/api/v1/backend/products', $payload)
         ->assertUnprocessable()
         ->assertJsonValidationErrors(['variants.1.sku']);
 
@@ -357,7 +357,7 @@ test('variable product creation rejects identifiers already owned by another var
     ]);
 
     $this->actingAs($user)
-        ->postJson('/api/products', $simplePayload)
+        ->postJson('/api/v1/backend/products', $simplePayload)
         ->assertUnprocessable()
         ->assertJsonValidationErrors(['sku']);
 
@@ -377,7 +377,7 @@ test('variable product creation rejects identifiers already owned by another var
     $productCount = Product::query()->count();
 
     $this->actingAs($user)
-        ->postJson('/api/products', $payload)
+        ->postJson('/api/v1/backend/products', $payload)
         ->assertUnprocessable()
         ->assertJsonValidationErrors(['variants.0.sku']);
 
@@ -395,7 +395,7 @@ test('variable product creation requires at least one variant', function () {
     ]);
 
     $this->actingAs($user)
-        ->postJson('/api/products', $payload)
+        ->postJson('/api/v1/backend/products', $payload)
         ->assertUnprocessable()
         ->assertJsonValidationErrors(['variants']);
 });
@@ -411,7 +411,7 @@ test('product creation can save initial pricing on a default variant', function 
         'promotional_price' => 74.99,
     ]);
 
-    $response = $this->actingAs($user)->postJson('/api/products', $payload);
+    $response = $this->actingAs($user)->postJson('/api/v1/backend/products', $payload);
     $response->assertCreated();
     $productId = (int) $response->json('data.id');
 
@@ -433,7 +433,7 @@ test('product creation can save initial pricing on a default variant', function 
     // The price-only variant must not block ordinary simple-product edits.
     productTestGrantPermission($user, 'system.products.update');
     $this->actingAs($user)
-        ->putJson('/api/products/'.$productId, array_merge($payload, [
+        ->putJson('/api/v1/backend/products/'.$productId, array_merge($payload, [
             'name' => 'Updated Test Product',
         ]))
         ->assertOk()
@@ -459,7 +459,7 @@ test('variable product updates do not require resubmitting variant records', fun
     ]);
 
     $this->actingAs($user)
-        ->putJson('/api/products/'.$product->id, [
+        ->putJson('/api/v1/backend/products/'.$product->id, [
             'category_id' => $masterData['category']->id,
             'brand_id' => $masterData['brand']->id,
             'unit_id' => $masterData['unit']->id,
@@ -492,7 +492,7 @@ test('changing a simple product to variable clears parent identifiers and retain
     ]);
 
     $this->actingAs($user)
-        ->putJson('/api/products/'.$product->id, [
+        ->putJson('/api/v1/backend/products/'.$product->id, [
             'category_id' => $masterData['category']->id,
             'brand_id' => $masterData['brand']->id,
             'unit_id' => $masterData['unit']->id,
@@ -541,7 +541,7 @@ test('variable products with active variants cannot be changed to simple product
     ]);
 
     $this->actingAs($user)
-        ->putJson('/api/products/'.$product->id, [
+        ->putJson('/api/v1/backend/products/'.$product->id, [
             'category_id' => $masterData['category']->id,
             'brand_id' => $masterData['brand']->id,
             'unit_id' => $masterData['unit']->id,
@@ -576,7 +576,7 @@ test('product search matches variable product variant SKU and barcode', function
     ]);
 
     $this->actingAs($user)
-        ->getJson('/api/products?search='.$variantSku)
+        ->getJson('/api/v1/backend/products?search='.$variantSku)
         ->assertOk()
         ->assertJsonFragment(['id' => $product->id]);
 });
@@ -591,7 +591,7 @@ test('product creation rejects a missing required category', function () {
     unset($payload['category_id']);
 
     $this->actingAs($user)
-        ->postJson('/api/products', $payload)
+        ->postJson('/api/v1/backend/products', $payload)
         ->assertUnprocessable()
         ->assertJsonValidationErrors(['category_id']);
 });
@@ -606,7 +606,7 @@ test('product creation rejects a missing sku for simple products', function () {
     unset($payload['sku']);
 
     $this->actingAs($user)
-        ->postJson('/api/products', $payload)
+        ->postJson('/api/v1/backend/products', $payload)
         ->assertUnprocessable()
         ->assertJsonValidationErrors(['sku']);
 });
@@ -622,7 +622,7 @@ test('product creation rejects a soft deleted category', function () {
     $payload = productTestPayload($masterData);
 
     $this->actingAs($user)
-        ->postJson('/api/products', $payload)
+        ->postJson('/api/v1/backend/products', $payload)
         ->assertUnprocessable()
         ->assertJsonValidationErrors(['category_id']);
 });
@@ -638,7 +638,7 @@ test('product creation rejects a soft deleted brand', function () {
     $payload = productTestPayload($masterData);
 
     $this->actingAs($user)
-        ->postJson('/api/products', $payload)
+        ->postJson('/api/v1/backend/products', $payload)
         ->assertUnprocessable()
         ->assertJsonValidationErrors(['brand_id']);
 });
@@ -654,7 +654,7 @@ test('product creation rejects a soft deleted unit', function () {
     $payload = productTestPayload($masterData);
 
     $this->actingAs($user)
-        ->postJson('/api/products', $payload)
+        ->postJson('/api/v1/backend/products', $payload)
         ->assertUnprocessable()
         ->assertJsonValidationErrors(['unit_id']);
 });
@@ -671,7 +671,7 @@ test('product creation generates a unique slug when the requested slug exists', 
     ]);
 
     $this->actingAs($user)
-        ->postJson('/api/products', $payload)
+        ->postJson('/api/v1/backend/products', $payload)
         ->assertCreated();
 
     $secondPayload = productTestPayload($masterData, [
@@ -680,7 +680,7 @@ test('product creation generates a unique slug when the requested slug exists', 
     ]);
 
     $response = $this->actingAs($user)
-        ->postJson('/api/products', $secondPayload)
+        ->postJson('/api/v1/backend/products', $secondPayload)
         ->assertCreated();
 
     expect($response->json('data.slug'))
@@ -699,7 +699,7 @@ test('product creation rejects a duplicate sku regardless of case', function () 
     ]);
 
     $this->actingAs($user)
-        ->postJson('/api/products', $payload)
+        ->postJson('/api/v1/backend/products', $payload)
         ->assertCreated();
 
     $duplicatePayload = productTestPayload($masterData, [
@@ -707,7 +707,7 @@ test('product creation rejects a duplicate sku regardless of case', function () 
     ]);
 
     $this->actingAs($user)
-        ->postJson('/api/products', $duplicatePayload)
+        ->postJson('/api/v1/backend/products', $duplicatePayload)
         ->assertUnprocessable()
         ->assertJsonValidationErrors(['sku']);
 });
@@ -724,7 +724,7 @@ test('product creation rejects a duplicate barcode regardless of case', function
     ]);
 
     $this->actingAs($user)
-        ->postJson('/api/products', $payload)
+        ->postJson('/api/v1/backend/products', $payload)
         ->assertCreated();
 
     $duplicatePayload = productTestPayload($masterData, [
@@ -732,7 +732,7 @@ test('product creation rejects a duplicate barcode regardless of case', function
     ]);
 
     $this->actingAs($user)
-        ->postJson('/api/products', $duplicatePayload)
+        ->postJson('/api/v1/backend/products', $duplicatePayload)
         ->assertUnprocessable()
         ->assertJsonValidationErrors(['barcode']);
 });
@@ -752,7 +752,7 @@ test('authorized user can update a product', function () {
     ]);
 
     $this->actingAs($user)
-        ->putJson('/api/products/'.$product->id, $payload)
+        ->putJson('/api/v1/backend/products/'.$product->id, $payload)
         ->assertOk()
         ->assertJsonPath('data.name', 'Updated Test Product');
 
@@ -794,19 +794,19 @@ test('product media can be promoted, reordered and have alternative text updated
     ]);
 
     $this->actingAs($user)
-        ->postJson("/api/products/{$product->id}/media/{$second->id}/primary")
+        ->postJson("/api/v1/backend/products/{$product->id}/media/{$second->id}/primary")
         ->assertOk()
         ->assertJsonPath('data.is_primary', true);
 
-    $this->patchJson("/api/products/{$product->id}/media/{$second->id}", [
+    $this->patchJson("/api/v1/backend/products/{$product->id}/media/{$second->id}", [
         'alt_text' => 'Updated second image description',
     ])->assertOk()->assertJsonPath('data.alt_text', 'Updated second image description');
 
-    $this->patchJson("/api/products/{$product->id}/media/reorder", [
+    $this->patchJson("/api/v1/backend/products/{$product->id}/media/reorder", [
         'media_ids' => [$second->id, $first->id],
     ])->assertOk();
 
-    $this->patchJson("/api/products/{$product->id}/media/reorder", [
+    $this->patchJson("/api/v1/backend/products/{$product->id}/media/reorder", [
         'media_ids' => [$first->id, $second->id],
     ])->assertUnprocessable()->assertJsonValidationErrors(['media_ids']);
 
@@ -844,14 +844,14 @@ test('product media actions enforce permissions and nested product ownership', f
     ]);
 
     $this->actingAs($viewer)
-        ->postJson("/api/products/{$firstProduct->id}/media/{$media->id}/primary")
+        ->postJson("/api/v1/backend/products/{$firstProduct->id}/media/{$media->id}/primary")
         ->assertNotFound();
 
-    $this->patchJson("/api/products/{$secondProduct->id}/media/{$media->id}", [
+    $this->patchJson("/api/v1/backend/products/{$secondProduct->id}/media/{$media->id}", [
         'alt_text' => 'Unauthorized update',
     ])->assertForbidden();
 
-    $this->deleteJson("/api/products/{$secondProduct->id}/media/{$media->id}")
+    $this->deleteJson("/api/v1/backend/products/{$secondProduct->id}/media/{$media->id}")
         ->assertForbidden();
 });
 
@@ -884,7 +884,7 @@ test('deleting the primary product image promotes the next image and removes its
     ]);
 
     $this->actingAs($user)
-        ->deleteJson("/api/products/{$product->id}/media/{$primary->id}")
+        ->deleteJson("/api/v1/backend/products/{$product->id}/media/{$primary->id}")
         ->assertOk()
         ->assertJsonPath('data.primary_media_id', $replacement->id);
 
@@ -906,7 +906,7 @@ test('authorized user can soft delete a product', function () {
     $product = Product::create(productTestPayload($masterData));
 
     $this->actingAs($user)
-        ->deleteJson('/api/products/'.$product->id)
+        ->deleteJson('/api/v1/backend/products/'.$product->id)
         ->assertOk();
 
     $this->assertSoftDeleted('products', [
@@ -939,7 +939,7 @@ test('product creation allows an optional image and records primary media', func
     );
 
     $this->actingAs($user)
-        ->post('/api/products', $payload, [
+        ->post('/api/v1/backend/products', $payload, [
             'Accept' => 'application/json',
         ])
         ->assertCreated();
@@ -968,7 +968,7 @@ test('product image uploads reject excessive image dimensions', function () {
     $payload['image'] = UploadedFile::fake()->createWithContent('oversized.png', productDimensionTestPng(5001, 1));
 
     $this->actingAs($user)
-        ->postJson('/api/products', $payload)
+        ->postJson('/api/v1/backend/products', $payload)
         ->assertUnprocessable()
         ->assertJsonValidationErrors(['image']);
 
@@ -999,7 +999,7 @@ test('failed product media file deletion restores the active media record and pr
     Storage::shouldReceive('disk')->once()->with('public')->andReturn($disk);
 
     $this->actingAs($user)
-        ->deleteJson("/api/products/{$product->id}/media/{$media->id}")
+        ->deleteJson("/api/v1/backend/products/{$product->id}/media/{$media->id}")
         ->assertStatus(500);
 
     $this->assertDatabaseHas('product_media', [

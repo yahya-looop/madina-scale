@@ -330,7 +330,7 @@ async function loadProducts(): Promise<void> {
     errorMessage.value = '';
 
     try {
-        products.value = await apiRequest<Product[]>('/api/products');
+        products.value = await apiRequest<Product[]>('/api/v1/backend/products');
     } catch (error) {
         errorMessage.value =
             error instanceof Error ? error.message : 'Unable to load products.';
@@ -342,11 +342,11 @@ async function loadProducts(): Promise<void> {
 async function loadCatalogOptions(): Promise<void> {
     try {
         const [categoryData, brandData, unitData] = await Promise.all([
-            apiRequest<Category[]>('/api/product-categories'),
+            apiRequest<Category[]>('/api/v1/backend/product-categories'),
 
-            apiRequest<Brand[]>('/api/brands'),
+            apiRequest<Brand[]>('/api/v1/backend/brands'),
 
-            apiRequest<Unit[]>('/api/units'),
+            apiRequest<Unit[]>('/api/v1/backend/units'),
         ]);
 
         categories.value = categoryData;
@@ -370,15 +370,15 @@ function refresh(): void {
 }
 
 function goToCreate(): void {
-    router.visit('/products/create');
+    router.visit('/backend/products/create');
 }
 
 function goToShow(product: Product): void {
-    router.visit(`/products/${product.id}`);
+    router.visit(`/backend/products/${product.id}`);
 }
 
 function goToEdit(product: Product): void {
-    router.visit(`/products/${product.id}/edit`);
+    router.visit(`/backend/products/${product.id}/edit`);
 }
 
 function deleteProduct(product: Product): void {
@@ -409,7 +409,7 @@ async function confirmDeleteProduct(): Promise<void> {
     errorMessage.value = '';
 
     try {
-        await apiRequest(`/api/products/${product.id}`, 'DELETE');
+        await apiRequest(`/api/v1/backend/products/${product.id}`, 'DELETE');
 
         products.value = products.value.filter(
             (item) => item.id !== product.id,

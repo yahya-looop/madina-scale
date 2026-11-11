@@ -157,7 +157,7 @@ const authUser = computed<AuthUser>(() => {
 });
 
 const userId = Number(
-    window.location.pathname.match(/\/users\/(\d+)(?:\/edit|\/|$)/)?.[1] ?? 0,
+    window.location.pathname.match(/\/backend\/users\/(\d+)(?:\/edit|\/|$)/)?.[1] ?? 0,
 );
 
 const user = ref<User | null>(null);
@@ -349,7 +349,7 @@ async function loadRoles(): Promise<void> {
 
     try {
         const response = await apiRequest<RoleApiPayload[]>(
-            '/api/roles',
+            '/api/v1/backend/roles',
             'GET',
         );
         roleCatalog.value = response.map((item) => ({
@@ -407,7 +407,7 @@ async function loadUser(): Promise<void> {
 
     try {
         const payload = await apiRequest<UserApiPayload>(
-            `/api/users/${userId}`,
+            `/api/v1/backend/users/${userId}`,
 
             'GET',
         );
@@ -429,7 +429,7 @@ async function loadUser(): Promise<void> {
 
 async function loadLocations(): Promise<void> {
     try {
-        const response = await apiRequest<LocationOption[] | { data: LocationOption[] }>('/api/users/options/locations', 'GET');
+        const response = await apiRequest<LocationOption[] | { data: LocationOption[] }>('/api/v1/backend/users/options/locations', 'GET');
         locations.value = Array.isArray(response) ? response : response.data;
     } catch {
         locations.value = [];
@@ -508,7 +508,7 @@ async function save(): Promise<void> {
 
     try {
         const response = await apiRequest<UserApiPayload>(
-            `/api/users/${user.value.id}`,
+            `/api/v1/backend/users/${user.value.id}`,
 
             'PUT',
 
@@ -546,7 +546,7 @@ async function save(): Promise<void> {
 }
 
 function back(): void {
-    router.get('/users');
+    router.get('/backend/users');
 }
 
 function showUser(): void {
@@ -554,7 +554,7 @@ function showUser(): void {
         return;
     }
 
-    router.get(`/users/${user.value.id}`);
+    router.get(`/backend/users/${user.value.id}`);
 }
 
 function formatDate(value?: string | null, fallback = 'Never'): string {

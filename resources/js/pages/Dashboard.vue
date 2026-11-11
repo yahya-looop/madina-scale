@@ -120,7 +120,7 @@ function selectRange(range: string): void {
 }
 
 function logout(): void {
-    router.post('/logout');
+    router.post('/backend/logout');
 }
 
 function closeChat(): void {

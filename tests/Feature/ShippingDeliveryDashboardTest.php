@@ -50,7 +50,7 @@ class ShippingDeliveryDashboardTest extends TestCase
     public function test_delivery_dashboard_is_location_scoped_and_returns_summary(): void
     {
         ['user' => $user, 'shipment' => $shipment] = $this->fixture();
-        $this->actingAs($user)->getJson('/api/shipping/overview')->assertOk()
+        $this->actingAs($user)->getJson('/api/v1/backend/shipping/overview')->assertOk()
             ->assertJsonPath('summary.total', 1)
             ->assertJsonPath('data.data.0.id', $shipment->id);
     }
@@ -58,7 +58,7 @@ class ShippingDeliveryDashboardTest extends TestCase
     public function test_manual_delivery_status_change_is_transition_checked_and_audited(): void
     {
         ['user' => $user, 'shipment' => $shipment] = $this->fixture();
-        $this->actingAs($user)->patchJson('/api/shipping/shipments/'.$shipment->id.'/status', [
+        $this->actingAs($user)->patchJson('/api/v1/backend/shipping/shipments/'.$shipment->id.'/status', [
             'status' => 'in_transit', 'reason' => 'Courier pickup confirmed by operations.',
         ])->assertOk()->assertJsonPath('data.status', 'in_transit');
         $this->assertDatabaseHas('sales_order_shipment_events', [
@@ -71,7 +71,7 @@ class ShippingDeliveryDashboardTest extends TestCase
     {
         ['user' => $user, 'shipment' => $shipment] = $this->fixture('view');
 
-        $this->actingAs($user)->patchJson('/api/shipping/shipments/'.$shipment->id.'/status', [
+        $this->actingAs($user)->patchJson('/api/v1/backend/shipping/shipments/'.$shipment->id.'/status', [
             'status' => 'in_transit',
             'reason' => 'Attempted update from a view-only location assignment.',
         ])->assertForbidden();
@@ -90,7 +90,7 @@ class ShippingDeliveryDashboardTest extends TestCase
     {
         ['user' => $user, 'shipment' => $shipment] = $this->fixture();
         $shipment->update(['status' => 'returned']);
-        $this->actingAs($user)->patchJson('/api/shipping/shipments/'.$shipment->id.'/status', [
+        $this->actingAs($user)->patchJson('/api/v1/backend/shipping/shipments/'.$shipment->id.'/status', [
             'status' => 'in_transit', 'reason' => 'Trying to reopen a returned shipment.',
         ])->assertStatus(422);
         $this->assertDatabaseMissing('sales_order_shipment_events', ['sales_order_shipment_id' => $shipment->id, 'provider' => 'manual']);

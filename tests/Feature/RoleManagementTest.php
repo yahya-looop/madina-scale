@@ -62,7 +62,7 @@ function createRoleManagementUser(
 }
 
 test('unauthenticated user cannot access roles', function () {
-    $response = $this->getJson('/api/roles');
+    $response = $this->getJson('/api/v1/backend/roles');
 
     $response->assertUnauthorized();
 });
@@ -72,7 +72,7 @@ test('authenticated user without role view permission is forbidden', function ()
 
     $response = $this
         ->actingAs($user)
-        ->getJson('/api/roles');
+        ->getJson('/api/v1/backend/roles');
 
     $response->assertForbidden();
 });
@@ -93,7 +93,7 @@ test('user with role view permission can list roles', function () {
 
     $response = $this
         ->actingAs($fixture['user'])
-        ->getJson('/api/roles');
+        ->getJson('/api/v1/backend/roles');
 
     $response
         ->assertOk()
@@ -111,7 +111,7 @@ test('authenticated user without role create permission is forbidden', function 
 
     $response = $this
         ->actingAs($user)
-        ->postJson('/api/roles', [
+        ->postJson('/api/v1/backend/roles', [
             'name' => 'Unauthorized Role',
             'slug' => 'unauthorized-role',
         ]);
@@ -127,7 +127,7 @@ test('user with role create permission can create a role', function () {
 
     $response = $this
         ->actingAs($fixture['user'])
-        ->postJson('/api/roles', [
+        ->postJson('/api/v1/backend/roles', [
             'name' => 'Operations Manager',
             'slug' => 'operations-manager',
             'description' => 'Operations management role.',
@@ -168,7 +168,7 @@ test('duplicate role slug is rejected', function () {
 
     $response = $this
         ->actingAs($fixture['user'])
-        ->postJson('/api/roles', [
+        ->postJson('/api/v1/backend/roles', [
             'name' => 'Another Role',
             'slug' => 'existing-role',
         ]);
@@ -196,7 +196,7 @@ test('user with role view permission can view a single role', function () {
 
     $response = $this
         ->actingAs($fixture['user'])
-        ->getJson("/api/roles/{$role->id}");
+        ->getJson("/api/v1/backend/roles/{$role->id}");
 
     $response
         ->assertOk()
@@ -227,7 +227,7 @@ test('authenticated user without role update permission is forbidden', function 
 
     $response = $this
         ->actingAs($user)
-        ->putJson("/api/roles/{$role->id}", [
+        ->putJson("/api/v1/backend/roles/{$role->id}", [
             'name' => 'Updated Role',
             'slug' => 'updated-role',
         ]);
@@ -251,7 +251,7 @@ test('user with role update permission can update a role', function () {
 
     $response = $this
         ->actingAs($fixture['user'])
-        ->putJson("/api/roles/{$role->id}", [
+        ->putJson("/api/v1/backend/roles/{$role->id}", [
             'name' => 'Updated Role Name',
             'slug' => 'updated-role-name',
             'description' => 'Updated description.',
@@ -315,7 +315,7 @@ test('duplicate role slug is rejected when updating a role', function () {
 
     $response = $this
         ->actingAs($fixture['user'])
-        ->putJson("/api/roles/{$role->id}", [
+        ->putJson("/api/v1/backend/roles/{$role->id}", [
             'name' => 'Updated Role',
             'slug' => 'existing-role',
         ]);
@@ -343,7 +343,7 @@ test('system role cannot be updated', function () {
 
     $response = $this
         ->actingAs($fixture['user'])
-        ->putJson("/api/roles/{$systemRole->id}", [
+        ->putJson("/api/v1/backend/roles/{$systemRole->id}", [
             'name' => 'Modified Developer',
             'slug' => 'modified-developer',
         ]);
@@ -367,7 +367,7 @@ test('unauthenticated user cannot synchronize role permissions', function () {
     ]);
 
     $response = $this
-        ->putJson("/api/roles/{$role->id}/permissions", [
+        ->putJson("/api/v1/backend/roles/{$role->id}/permissions", [
             'permission_ids' => [],
         ]);
 
@@ -387,7 +387,7 @@ test('user without role permission management permission is forbidden', function
 
     $response = $this
         ->actingAs($user)
-        ->putJson("/api/roles/{$role->id}/permissions", [
+        ->putJson("/api/v1/backend/roles/{$role->id}/permissions", [
             'permission_ids' => [],
         ]);
 
@@ -432,7 +432,7 @@ test('user with role permission management permission can synchronize permission
 
     $response = $this
         ->actingAs($fixture['user'])
-        ->putJson("/api/roles/{$role->id}/permissions", [
+        ->putJson("/api/v1/backend/roles/{$role->id}/permissions", [
             'permission_ids' => [
                 $permissionTwo->id,
             ],
@@ -478,7 +478,7 @@ test('system role cannot have its permissions synchronized', function () {
 
     $response = $this
         ->actingAs($fixture['user'])
-        ->putJson("/api/roles/{$systemRole->id}/permissions", [
+        ->putJson("/api/v1/backend/roles/{$systemRole->id}/permissions", [
             'permission_ids' => [
                 $permission->id,
             ],

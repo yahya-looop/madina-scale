@@ -46,7 +46,7 @@ const props = withDefaults(defineProps<Props>(), {
 });
 
 const locationId = Number(
-    window.location.pathname.match(/\/locations\/(\d+)\/edit/)?.[1] ?? 0,
+    window.location.pathname.match(/\/backend\/locations\/(\d+)\/edit/)?.[1] ?? 0,
 );
 
 const locationTypes = [
@@ -304,7 +304,7 @@ async function loadLocation(): Promise<void> {
     }
 
     try {
-        const response = await fetch(`/api/locations/${locationId}`, {
+        const response = await fetch(`/api/v1/backend/locations/${locationId}`, {
             headers: {
                 Accept: 'application/json',
                 'X-Requested-With': 'XMLHttpRequest',
@@ -359,7 +359,7 @@ async function save(): Promise<void> {
     clearMessages();
 
     try {
-        const response = await fetch(`/api/locations/${locationId}`, {
+        const response = await fetch(`/api/v1/backend/locations/${locationId}`, {
             method: 'PUT',
             headers: {
                 Accept: 'application/json',
@@ -405,7 +405,7 @@ async function save(): Promise<void> {
             );
         }
 
-        router.get(`/locations/${locationId}`);
+        router.get(`/backend/locations/${locationId}`);
     } catch (error) {
         errorMessage.value =
             error instanceof Error
@@ -417,7 +417,7 @@ async function save(): Promise<void> {
 }
 
 function cancel(): void {
-    router.get(`/locations/${locationId}`);
+    router.get(`/backend/locations/${locationId}`);
 }
 
 onMounted(() => {

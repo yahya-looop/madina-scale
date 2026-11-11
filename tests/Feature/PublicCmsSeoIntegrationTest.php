@@ -40,10 +40,10 @@ it('publishes only live CMS pages in the XML sitemap', function (): void {
     $this->get('/sitemap.xml')
         ->assertOk()
         ->assertHeader('Content-Type', 'application/xml; charset=UTF-8')
-        ->assertSee('/pages/about', false)
-        ->assertSee('/pages/scheduled-live', false)
-        ->assertDontSee('/pages/draft-page', false)
-        ->assertDontSee('/pages/future-page', false);
+        ->assertSee('/about', false)
+        ->assertSee('/scheduled-live', false)
+        ->assertDontSee('/draft-page', false)
+        ->assertDontSee('/future-page', false);
 });
 
 it('exposes a robots file that points to the sitemap', function (): void {

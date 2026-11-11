@@ -48,8 +48,8 @@ async function load(): Promise<void> {
         if (filterLocation.value) query.set('location_id', filterLocation.value);
         if (search.value.trim()) query.set('search', search.value.trim());
         const [list, options] = await Promise.all([
-            api<{ data: Payment[] }>(`/api/payments?${query.toString()}`),
-            api<{ data: { locations: Location[]; cash_accounts: CashAccount[]; orders: Order[] } }>(`/api/payments/options${filterLocation.value ? `?location_id=${filterLocation.value}` : ''}`),
+            api<{ data: Payment[] }>(`/api/v1/backend/payments?${query.toString()}`),
+            api<{ data: { locations: Location[]; cash_accounts: CashAccount[]; orders: Order[] } }>(`/api/v1/backend/payments/options${filterLocation.value ? `?location_id=${filterLocation.value}` : ''}`),
         ]);
         payments.value = list.data;
         locations.value = options.data.locations;
@@ -68,7 +68,7 @@ async function saveReceipt(): Promise<void> {
     saving.value = true; error.value = ''; success.value = '';
     try {
         const idempotencyKey = `PAY-${crypto.randomUUID()}`;
-        const receipt = await api<{ data: { id: number } }>('/api/payments/receipts', {
+        const receipt = await api<{ data: { id: number } }>('/api/v1/backend/payments/receipts', {
             method: 'POST',
             body: JSON.stringify({
                 idempotency_key: idempotencyKey,
@@ -84,7 +84,7 @@ async function saveReceipt(): Promise<void> {
         });
         const allocationAmount = Math.min(Number(form.amount), Number(selectedOrder.value.due_amount));
         if (allocationAmount > 0) {
-            await api(`/api/payments/${receipt.data.id}/allocations`, {
+            await api(`/api/v1/backend/payments/${receipt.data.id}/allocations`, {
                 method: 'POST',
                 body: JSON.stringify({ sales_order_id: selectedOrder.value.id, amount: allocationAmount.toFixed(2) }),
             });

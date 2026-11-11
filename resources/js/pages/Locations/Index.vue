@@ -467,7 +467,7 @@ function openCreateModal(): void {
 }
 
 function openShowPage(location: Location): void {
-    router.get(`/locations/${location.id}`);
+    router.get(`/backend/locations/${location.id}`);
 }
 
 function openEditModal(location: Location): void {
@@ -607,7 +607,7 @@ async function fetchLocations(): Promise<boolean> {
     clearMessage();
 
     try {
-        const response = await fetch('/api/locations', {
+        const response = await fetch('/api/v1/backend/locations', {
             method: 'GET',
             headers: {
                 Accept: 'application/json',
@@ -658,8 +658,8 @@ async function saveLocation(): Promise<void> {
             modalMode.value === 'edit' && editingLocation.value !== null;
 
         const url = isEdit
-            ? `/api/locations/${editingLocation.value!.id}`
-            : '/api/locations';
+            ? `/api/v1/backend/locations/${editingLocation.value!.id}`
+            : '/api/v1/backend/locations';
 
         const method = isEdit ? 'PUT' : 'POST';
 
@@ -752,7 +752,7 @@ async function changeStatus(location: Location): Promise<void> {
 
     try {
         const response = await fetch(
-            `/api/locations/${location.id}/${action}`,
+            `/api/v1/backend/locations/${location.id}/${action}`,
             {
                 method: 'PATCH',
                 headers: csrfHeaders(),

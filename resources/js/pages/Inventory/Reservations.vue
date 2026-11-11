@@ -146,7 +146,7 @@ function productLabel(r: Reservation): string {
 async function loadAllPurposes(): Promise<void> {
     try {
         const response = await fetch(
-            '/api/inventory/reservation-purposes/manage',
+            '/api/v1/backend/inventory/reservation-purposes/manage',
             {
                 credentials: 'same-origin',
                 headers: {
@@ -164,7 +164,7 @@ async function loadAllPurposes(): Promise<void> {
 }
 async function loadPurposes(): Promise<void> {
     try {
-        const response = await fetch('/api/inventory/reservation-purposes', {
+        const response = await fetch('/api/v1/backend/inventory/reservation-purposes', {
             credentials: 'same-origin',
             headers: {
                 Accept: 'application/json',
@@ -222,8 +222,8 @@ async function createPurpose(): Promise<void> {
         const editing = editingPurposeId.value !== null;
         const response = await fetch(
             editing
-                ? `/api/inventory/reservation-purposes/${editingPurposeId.value}`
-                : '/api/inventory/reservation-purposes',
+                ? `/api/v1/backend/inventory/reservation-purposes/${editingPurposeId.value}`
+                : '/api/v1/backend/inventory/reservation-purposes',
             {
                 method: editing ? 'PUT' : 'POST',
                 credentials: 'same-origin',
@@ -278,7 +278,7 @@ async function deletePurpose(): Promise<void> {
                 .join('=') ?? '',
         );
         const response = await fetch(
-            `/api/inventory/reservation-purposes/${target.id}`,
+            `/api/v1/backend/inventory/reservation-purposes/${target.id}`,
             {
                 method: 'DELETE',
                 credentials: 'same-origin',
@@ -317,7 +317,7 @@ async function load(target = page.value): Promise<void> {
         if (statusFilter.value !== 'all') p.set('status', statusFilter.value);
         if (purposeFilter.value !== 'all')
             p.set('purpose', purposeFilter.value);
-        const response = await fetch(`/api/inventory/reservations?${p}`, {
+        const response = await fetch(`/api/v1/backend/inventory/reservations?${p}`, {
             credentials: 'same-origin',
             headers: {
                 Accept: 'application/json',
@@ -370,7 +370,7 @@ async function confirmResolution(): Promise<void> {
     notice.value = '';
     try {
         const response = await fetch(
-            `/api/inventory/reservations/${r.id}/${action}`,
+            `/api/v1/backend/inventory/reservations/${r.id}/${action}`,
             {
                 method: 'POST',
                 credentials: 'same-origin',
@@ -430,7 +430,7 @@ onMounted(() => {
             <header class="reservation-page-header">
                 <div>
                     <div class="reservation-breadcrumb">
-                        <a href="/inventory">Inventory</a
+                        <a href="/backend/inventory">Inventory</a
                         ><Icon name="chevron-right" :size="13" /><strong
                             >Reservations</strong
                         >
@@ -451,7 +451,7 @@ onMounted(() => {
                 <div class="reservation-page-actions">
                     <a
                         class="reservation-btn reservation-btn-primary"
-                        href="/inventory"
+                        href="/backend/inventory"
                         ><Icon name="boxes" :size="15" /> Back to inventory</a
                     ><button
                         class="reservation-btn"
@@ -733,7 +733,7 @@ onMounted(() => {
                         Inventory page.
                     </p>
                     <a
-                        href="/inventory"
+                        href="/backend/inventory"
                         class="reservation-btn reservation-btn-primary"
                         >Open inventory</a
                     >

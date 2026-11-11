@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\CmsPage;
 use App\Models\Location;
 use App\Models\Product;
 use App\Models\ProductCategory;
@@ -103,6 +104,40 @@ it('shows only active visible products on the public storefront', function (): v
         );
 });
 
+it('serves the public product catalogue at the root-level /products URL', function (): void {
+    createStorefrontProduct();
+
+    $this->get('/products')
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('Storefront/Index')
+            ->has('products.data', 1)
+            ->where('products.data.0.slug', 'platform-scale')
+        );
+});
+
+it('serves published CMS pages at root-level slugs with a canonical URL', function (): void {
+    CmsPage::query()->create([
+        'title' => 'About Madina Scale',
+        'slug' => 'about',
+        'content' => '<p>About our company.</p>',
+        'status' => 'published',
+        'published_at' => now()->subMinute(),
+        'robots_index' => true,
+        'robots_follow' => true,
+    ]);
+
+    $this->get('/about')
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('Storefront/CmsPage')
+            ->where('page.slug', 'about')
+            ->where('page.seo.canonical', url('/about'))
+        );
+
+    $this->get('/pages/about')->assertOk();
+});
+
 it('shows public product details by slug and does not expose hidden products', function (): void {
     createStorefrontProduct();
 
@@ -112,7 +147,7 @@ it('shows public product details by slug and does not expose hidden products', f
         'visibility' => 'hidden',
     ]);
 
-    $this->get('/shop/platform-scale')
+    $this->get('/products/platform-scale')
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
             ->component('Storefront/Show')
@@ -121,7 +156,9 @@ it('shows public product details by slug and does not expose hidden products', f
             ->where('product.variants.0.has_wholesale_pricing', true)
         );
 
-    $this->get('/shop/hidden-scale')->assertNotFound();
+    $this->get('/products/hidden-scale')->assertNotFound();
+
+    $this->get('/shop/platform-scale')->assertRedirect('/products/platform-scale');
 });
 
 it('allows guests to add a public product to a session cart without signing in', function (): void {

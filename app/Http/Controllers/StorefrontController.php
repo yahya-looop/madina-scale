@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Services\FeatureFlagService;
 use App\Services\PricingEngine;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
@@ -31,6 +32,13 @@ class StorefrontController extends Controller
             ),
             404,
         );
+    }
+
+    public function legacyIndex(Request $request): RedirectResponse
+    {
+        $this->ensureStorefrontEnabled($request);
+
+        return redirect()->route('storefront.products.index', $request->query(), 301);
     }
 
     public function index(Request $request): Response

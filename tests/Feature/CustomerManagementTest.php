@@ -44,36 +44,36 @@ class CustomerManagementTest extends TestCase
     public function test_customer_can_be_created_listed_viewed_updated_and_deleted_without_orders(): void
     {
         $user = $this->customerUser();
-        $this->actingAs($user)->postJson('/api/customers', [
+        $this->actingAs($user)->postJson('/api/v1/backend/customers', [
             'name' => 'Nusrat Jahan', 'phone' => '01712345678', 'email' => 'nusrat@example.com',
             'district' => 'Dhaka', 'division' => 'Dhaka', 'status' => 'active',
         ])->assertCreated()->assertJsonPath('data.name', 'Nusrat Jahan');
 
         $id = Customer::query()->firstOrFail()->id;
-        $this->actingAs($user)->getJson('/api/customers?search=Nusrat')->assertOk()->assertJsonPath('total', 1);
-        $this->actingAs($user)->getJson('/api/customers/'.$id)->assertOk()->assertJsonPath('data.phone', '01712345678');
-        $this->actingAs($user)->putJson('/api/customers/'.$id, [
+        $this->actingAs($user)->getJson('/api/v1/backend/customers?search=Nusrat')->assertOk()->assertJsonPath('total', 1);
+        $this->actingAs($user)->getJson('/api/v1/backend/customers/'.$id)->assertOk()->assertJsonPath('data.phone', '01712345678');
+        $this->actingAs($user)->putJson('/api/v1/backend/customers/'.$id, [
             'name' => 'Nusrat Jahan Akter', 'phone' => '01712345678', 'email' => 'nusrat@example.com', 'status' => 'active',
         ])->assertOk()->assertJsonPath('data.name', 'Nusrat Jahan Akter');
-        $this->actingAs($user)->deleteJson('/api/customers/'.$id)->assertOk();
+        $this->actingAs($user)->deleteJson('/api/v1/backend/customers/'.$id)->assertOk();
     }
 
     public function test_duplicate_customer_phone_is_rejected(): void
     {
         $user = $this->customerUser();
         $payload = ['name' => 'Buyer One', 'phone' => '01812345678', 'status' => 'active'];
-        $this->actingAs($user)->postJson('/api/customers', $payload)->assertCreated();
-        $this->actingAs($user)->postJson('/api/customers', ['name' => 'Buyer Two', 'phone' => '01812345678', 'status' => 'active'])->assertUnprocessable()->assertJsonValidationErrors('phone');
+        $this->actingAs($user)->postJson('/api/v1/backend/customers', $payload)->assertCreated();
+        $this->actingAs($user)->postJson('/api/v1/backend/customers', ['name' => 'Buyer Two', 'phone' => '01812345678', 'status' => 'active'])->assertUnprocessable()->assertJsonValidationErrors('phone');
     }
 
     public function test_customer_duplicate_phone_is_rejected_after_normalization(): void
     {
         $user = $this->customerUser();
-        $this->actingAs($user)->postJson('/api/customers', [
+        $this->actingAs($user)->postJson('/api/v1/backend/customers', [
             'name' => 'Buyer One', 'phone' => '+880 1712-345678', 'status' => 'active',
         ])->assertCreated();
 
-        $this->actingAs($user)->postJson('/api/customers', [
+        $this->actingAs($user)->postJson('/api/v1/backend/customers', [
             'name' => 'Buyer Two', 'phone' => '8801712345678', 'status' => 'active',
         ])->assertUnprocessable()->assertJsonValidationErrors('phone');
     }
@@ -81,11 +81,11 @@ class CustomerManagementTest extends TestCase
     public function test_customer_duplicate_email_is_rejected_case_insensitively(): void
     {
         $user = $this->customerUser();
-        $this->actingAs($user)->postJson('/api/customers', [
+        $this->actingAs($user)->postJson('/api/v1/backend/customers', [
             'name' => 'Buyer One', 'email' => 'Buyer@Example.com', 'status' => 'active',
         ])->assertCreated();
 
-        $this->actingAs($user)->postJson('/api/customers', [
+        $this->actingAs($user)->postJson('/api/v1/backend/customers', [
             'name' => 'Buyer Two', 'email' => 'buyer@example.com', 'status' => 'active',
         ])->assertUnprocessable()->assertJsonValidationErrors('phone');
     }
@@ -142,7 +142,7 @@ class CustomerManagementTest extends TestCase
         ]);
 
         $showResponse = $this->actingAs($user)
-            ->getJson('/api/customers/'.$customer->id)
+            ->getJson('/api/v1/backend/customers/'.$customer->id)
             ->assertOk()
             ->assertJsonPath('data.orders.0.id', $visibleOrder->id)
             ->assertJsonPath('data.orders_count', 1)
@@ -151,7 +151,7 @@ class CustomerManagementTest extends TestCase
         $shownOrderIds = collect($showResponse->json('data.orders'))->pluck('id')->map(fn ($id): int => (int) $id);
         $this->assertNotContains($hiddenOrder->id, $shownOrderIds->all());
 
-        $indexResponse = $this->getJson('/api/customers?search=Scoped%20Customer')->assertOk();
+        $indexResponse = $this->getJson('/api/v1/backend/customers?search=Scoped%20Customer')->assertOk();
         $listedCustomer = collect($indexResponse->json('data'))->firstWhere('id', $customer->id);
 
         $this->assertSame(1, $listedCustomer['orders_count']);

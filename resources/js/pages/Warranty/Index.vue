@@ -53,8 +53,8 @@ async function load(): Promise<void> {
         if (search.value.trim()) q.set('search', search.value.trim());
         if (locationId.value) q.set('location_id', locationId.value);
         const [records, options] = await Promise.all([
-            api<{ warranties: { data: Warranty[] }; tickets: { data: Ticket[] } }>(`/api/warranty-service?${q}`),
-            api<{ locations: Location[]; order_items: OrderItemOption[]; technicians: Technician[]; parts: PartOption[]; customers: CustomerOption[] }>(`/api/warranty-service/options`),
+            api<{ warranties: { data: Warranty[] }; tickets: { data: Ticket[] } }>(`/api/v1/backend/warranty-service?${q}`),
+            api<{ locations: Location[]; order_items: OrderItemOption[]; technicians: Technician[]; parts: PartOption[]; customers: CustomerOption[] }>(`/api/v1/backend/warranty-service/options`),
         ]);
         warranties.value = records.warranties.data; tickets.value = records.tickets.data;
         locations.value = options.locations; orderItems.value = options.order_items; technicians.value = options.technicians; parts.value = options.parts; customers.value = options.customers;
@@ -69,7 +69,7 @@ async function saveWarranty(): Promise<void> {
     if (!selectedItem.value) { error.value = 'Select a fulfilled sales order item.'; return; }
     saving.value = true; error.value = '';
     try {
-        await api('/api/warranty-service/warranties', { method: 'POST', body: JSON.stringify({ ...warrantyForm, sales_order_item_id: Number(warrantyForm.sales_order_item_id), warranty_months: Number(warrantyForm.warranty_months), serial_number: warrantyForm.serial_number || null, notes: warrantyForm.notes || null }) });
+        await api('/api/v1/backend/warranty-service/warranties', { method: 'POST', body: JSON.stringify({ ...warrantyForm, sales_order_item_id: Number(warrantyForm.sales_order_item_id), warranty_months: Number(warrantyForm.warranty_months), serial_number: warrantyForm.serial_number || null, notes: warrantyForm.notes || null }) });
         showWarranty.value = false; success.value = 'Warranty registered successfully.'; await load();
     } catch (e) { error.value = e instanceof Error ? e.message : 'Unable to register warranty.'; }
     finally { saving.value = false; }
@@ -81,7 +81,7 @@ function openTicket(): void {
 async function saveTicket(): Promise<void> {
     saving.value = true; error.value = '';
     try {
-        await api('/api/warranty-service/tickets', { method: 'POST', body: JSON.stringify({ ...ticketForm, warranty_id: ticketForm.warranty_id ? Number(ticketForm.warranty_id) : null, customer_id: Number(ticketForm.customer_id), location_id: Number(ticketForm.location_id), assigned_to: ticketForm.assigned_to ? Number(ticketForm.assigned_to) : null, received_at: new Date(ticketForm.received_at).toISOString() }) });
+        await api('/api/v1/backend/warranty-service/tickets', { method: 'POST', body: JSON.stringify({ ...ticketForm, warranty_id: ticketForm.warranty_id ? Number(ticketForm.warranty_id) : null, customer_id: Number(ticketForm.customer_id), location_id: Number(ticketForm.location_id), assigned_to: ticketForm.assigned_to ? Number(ticketForm.assigned_to) : null, received_at: new Date(ticketForm.received_at).toISOString() }) });
         showTicket.value = false; success.value = 'Service ticket created.'; tab.value = 'tickets'; await load();
     } catch (e) { error.value = e instanceof Error ? e.message : 'Unable to create service ticket.'; }
     finally { saving.value = false; }
@@ -98,7 +98,7 @@ async function issuePart(): Promise<void> {
     if (!partsTicket.value) return;
     saving.value = true; error.value = '';
     try {
-        await api(`/api/warranty-service/tickets/${partsTicket.value.id}/parts`, { method: 'POST', body: JSON.stringify({
+        await api(`/api/v1/backend/warranty-service/tickets/${partsTicket.value.id}/parts`, { method: 'POST', body: JSON.stringify({
             product_variant_id: Number(partForm.product_variant_id), quantity: partForm.quantity,
             notes: partForm.notes || null, idempotency_key: crypto.randomUUID(),
         }) });
@@ -110,7 +110,7 @@ async function updateTicket(): Promise<void> {
     if (!editingTicket.value) return;
     saving.value = true; error.value = '';
     try {
-        await api(`/api/warranty-service/tickets/${editingTicket.value.id}`, { method: 'PUT', body: JSON.stringify({ ...ticketEdit, assigned_to: ticketEdit.assigned_to ? Number(ticketEdit.assigned_to) : null }) });
+        await api(`/api/v1/backend/warranty-service/tickets/${editingTicket.value.id}`, { method: 'PUT', body: JSON.stringify({ ...ticketEdit, assigned_to: ticketEdit.assigned_to ? Number(ticketEdit.assigned_to) : null }) });
         editingTicket.value = null; success.value = 'Service ticket updated.'; await load();
     } catch (e) { error.value = e instanceof Error ? e.message : 'Unable to update ticket.'; }
     finally { saving.value = false; }

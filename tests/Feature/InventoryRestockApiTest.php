@@ -78,11 +78,11 @@ test('zero-stock item can be restocked through the receipt API and leaves low-st
 
     $this->actingAs($user);
 
-    $this->getJson('/api/inventory/low-stock')
+    $this->getJson('/api/v1/backend/inventory/low-stock')
         ->assertOk()
         ->assertJsonFragment(['id' => $stock->id]);
 
-    $this->postJson('/api/inventory/receive', [
+    $this->postJson('/api/v1/backend/inventory/receive', [
         'product_id' => $product->id,
         'location_id' => $location->id,
         'quantity' => '25.0000',
@@ -110,7 +110,7 @@ test('zero-stock item can be restocked through the receipt API and leaves low-st
         'reason' => 'Restock regression test',
     ]);
 
-    $this->getJson('/api/inventory/low-stock')
+    $this->getJson('/api/v1/backend/inventory/low-stock')
         ->assertOk()
         ->assertJsonMissing(['id' => $stock->id]);
 });
@@ -124,7 +124,7 @@ test('restock receipt supports a variant without creating parent-product stock',
 
     $this->actingAs($user);
 
-    $this->postJson('/api/inventory/receive', [
+    $this->postJson('/api/v1/backend/inventory/receive', [
         'product_variant_id' => $variant->id,
         'location_id' => $location->id,
         'quantity' => '6.0000',
@@ -166,7 +166,7 @@ test('low-stock restock transfers stock between locations and refuses non-low de
     $receiver->locations()->attach($destination->id, ['access_level' => 'receive']);
     $this->actingAs($user);
 
-    $this->postJson('/api/inventory/restock', [
+    $this->postJson('/api/v1/backend/inventory/restock', [
         'product_id' => $product->id, 'source_location_id' => $source->id,
         'destination_location_id' => $destination->id, 'quantity' => '5',
         'reason' => 'Low-stock replenishment', 'idempotency_key' => (string) Str::uuid(),
@@ -183,7 +183,7 @@ test('low-stock restock transfers stock between locations and refuses non-low de
     $this->assertDatabaseMissing('stock_movements', ['location_id' => $destination->id, 'movement_type' => 'transfer_in', 'quantity_delta' => '5.0000']);
 
     $destinationStock->update(['quantity' => '25.0000']);
-    $this->postJson('/api/inventory/restock', [
+    $this->postJson('/api/v1/backend/inventory/restock', [
         'product_id' => $product->id, 'source_location_id' => $source->id,
         'destination_location_id' => $destination->id, 'quantity' => '1',
     ])->assertUnprocessable();

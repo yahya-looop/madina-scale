@@ -35,7 +35,7 @@ class PublicCmsPageController extends Controller
                 'seo' => [
                     'title' => $page->meta_title ?: $page->title,
                     'description' => $page->meta_description ?: $page->excerpt,
-                    'canonical' => $page->canonical_url ?: route('storefront.pages.show', ['slug' => $page->slug]),
+                    'canonical' => $page->canonical_url ?: $this->canonicalUrl($page->slug),
                     'index' => $page->robots_index,
                     'follow' => $page->robots_follow,
                 ],
@@ -43,5 +43,23 @@ class PublicCmsPageController extends Controller
                 'updatedAt' => $page->updated_at?->toISOString(),
             ],
         ]);
+    }
+
+    private function canonicalUrl(string $slug): string
+    {
+        $reservedSlugs = [
+            'backend', 'api', 'up', 'images', 'storage', 'build', 'assets', 'fonts', 'products', 'cart', 'checkout', 'account',
+            'shop', 'pages', 'order-success', 'flash-sales', 'login', 'logout',
+            'dashboard', 'content', 'seo', 'marketing', 'analytics', 'reports',
+            'product-categories', 'brands', 'units', 'attributes', 'sales-crm',
+            'b2b', 'pricing', 'customers', 'orders', 'sales-returns',
+            'shipping-delivery', 'warranty-service', 'payments', 'procurement',
+            'finance', 'inventory', 'locations', 'developer', 'settings',
+            'users',
+        ];
+
+        return in_array(strtolower($slug), $reservedSlugs, true)
+            ? route('storefront.pages.legacy', ['slug' => $slug])
+            : route('storefront.pages.show', ['slug' => $slug]);
     }
 }

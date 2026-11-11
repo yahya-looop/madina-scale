@@ -287,7 +287,7 @@ async function refreshUsers(): Promise<void> {
   isLoading.value = true;
   operationMessage.value = '';
   try {
-    const response = await fetch('/api/users', {
+    const response = await fetch('/api/v1/backend/users', {
       method: 'GET',
       headers: {
         Accept: 'application/json',
@@ -317,19 +317,19 @@ function openCreate(): void {
   if (!props.capabilities.canCreate) {
     return;
   }
-  router.visit('/users/create');
+  router.visit('/backend/users/create');
 }
 function openUser(user: User): void {
   if (!props.capabilities.canView) {
     return;
   }
-  router.visit(`/users/${user.id}`);
+  router.visit(`/backend/users/${user.id}`);
 }
 function editUser(user: User): void {
   if (!props.capabilities.canUpdate) {
     return;
   }
-  router.visit(`/users/${user.id}/edit`);
+  router.visit(`/backend/users/${user.id}/edit`);
 }
 function clearFilters(): void {
   search.value = '';

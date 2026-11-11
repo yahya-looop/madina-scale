@@ -487,7 +487,7 @@ async function fetchModules(): Promise<void> {
     clearOperationMessage();
 
     try {
-        const response = await fetch('/api/modules', {
+        const response = await fetch('/api/v1/backend/modules', {
             method: 'GET',
             headers: {
                 Accept: 'application/json',
@@ -521,7 +521,7 @@ async function fetchModules(): Promise<void> {
 async function changeModuleState(module: Module, state: Module['state']): Promise<void> {
     clearOperationMessage();
     try {
-        const response = await fetch(`/api/modules/${module.id}/state`, {
+        const response = await fetch(`/api/v1/backend/modules/${module.id}/state`, {
             method: 'PATCH',
             headers: buildHeaders(),
             credentials: 'same-origin',
@@ -581,8 +581,8 @@ async function saveModule(): Promise<void> {
         const editing = editingModule.value !== null;
 
         const endpoint = editing
-            ? `/api/modules/${editingModule.value!.id}`
-            : '/api/modules';
+            ? `/api/v1/backend/modules/${editingModule.value!.id}`
+            : '/api/v1/backend/modules';
 
         const method = editing ? 'PUT' : 'POST';
 

@@ -1062,7 +1062,7 @@ async function fetchSettings(): Promise<void> {
 
     try {
         const response = await apiRequest<ApiSettingsResponse>(
-            '/api/settings',
+            '/api/v1/backend/settings',
             'GET',
         );
 
@@ -1120,7 +1120,7 @@ async function saveSettings(): Promise<void> {
 
     try {
         const response = await apiRequest<ApiSettingsResponse>(
-            '/api/settings',
+            '/api/v1/backend/settings',
             'PUT',
             {
                 settings: changedSettings,

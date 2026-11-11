@@ -95,7 +95,7 @@ function formatPrice(value: string | null): string {
             <div
                 class="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8"
             >
-                <Link href="/shop" class="flex items-center gap-3">
+                <Link href="/" class="flex items-center gap-3">
                     <span
                         class="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-600 text-white"
                         ><Icon name="scale" :size="25"
@@ -121,7 +121,7 @@ function formatPrice(value: string | null): string {
         </header>
         <main class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 lg:py-12">
             <Link
-                href="/shop"
+                href="/products"
                 class="inline-flex items-center gap-2 text-sm font-semibold text-emerald-700 hover:text-emerald-800"
                 ><Icon name="arrow-left" :size="17" />{{ copy.back }}</Link
             >

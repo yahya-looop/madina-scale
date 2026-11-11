@@ -220,7 +220,7 @@ const operationMeta = computed(
         title: "Receive Stock",
         description: "Add received inventory to a location.",
         icon: "stock-in",
-        endpoint: "/api/inventory/receive",
+        endpoint: "/api/v1/backend/inventory/receive",
         permission: "system.inventory.receive",
       },
       issue: {
@@ -228,21 +228,21 @@ const operationMeta = computed(
         description:
           "Record stock leaving a location for internal use or other approved reasons.",
         icon: "stock-out",
-        endpoint: "/api/inventory/issue",
+        endpoint: "/api/v1/backend/inventory/issue",
         permission: "system.inventory.issue",
       },
       adjust: {
         title: "Adjust Stock",
         description: "Apply a signed correction to the stock balance.",
         icon: "sliders-horizontal",
-        endpoint: "/api/inventory/adjust",
+        endpoint: "/api/v1/backend/inventory/adjust",
         permission: "system.inventory.adjust",
       },
       transfer: {
         title: "Transfer Stock",
         description: "Move inventory atomically between two locations.",
         icon: "arrows-left-right",
-        endpoint: "/api/inventory/transfers",
+        endpoint: "/api/v1/backend/inventory/transfers",
         permission: "system.inventory.transfer",
       },
       restock: {
@@ -250,7 +250,7 @@ const operationMeta = computed(
         description:
           "Transfer an item from a source warehouse to a location where it is low in stock.",
         icon: "repeat-once",
-        endpoint: "/api/inventory/restock",
+        endpoint: "/api/v1/backend/inventory/restock",
         permission: "system.inventory.transfer",
       },
     }[operation.value])
@@ -343,7 +343,7 @@ function resetForm(): void {
 }
 async function loadTransferCounts(): Promise<void> {
   try {
-    const response = await fetch("/api/inventory/transfers/counts", {
+    const response = await fetch("/api/v1/backend/inventory/transfers/counts", {
       credentials: "same-origin",
       headers: {
         Accept: "application/json",
@@ -371,7 +371,7 @@ async function loadTransfers(): Promise<void> {
   try {
     const direction = operation.value === "receive" ? "incoming" : "outgoing";
     const params = new URLSearchParams({ direction, per_page: "50" });
-    const response = await fetch(`/api/inventory/transfers?${params}`, {
+    const response = await fetch(`/api/v1/backend/inventory/transfers?${params}`, {
       credentials: "same-origin",
       headers: {
         Accept: "application/json",
@@ -434,7 +434,7 @@ async function confirmTransferAction(): Promise<void> {
   clearNotices();
   try {
     const endpointAction = action === "resolve" ? "resolve-discrepancy" : action;
-    const response = await fetch(`/api/inventory/transfers/${row.id}/${endpointAction}`, {
+    const response = await fetch(`/api/v1/backend/inventory/transfers/${row.id}/${endpointAction}`, {
       method: "POST",
       credentials: "same-origin",
       headers: {
@@ -494,7 +494,7 @@ async function loadOptions(): Promise<void> {
 
   try {
     const [productResponse, locationResponse] = await Promise.all([
-      fetch(`/api/products?status=active&_=${Date.now()}`, {
+      fetch(`/api/v1/backend/products?status=active&_=${Date.now()}`, {
         method: "GET",
         cache: "no-store",
         credentials: "same-origin",
@@ -505,7 +505,7 @@ async function loadOptions(): Promise<void> {
           "X-Requested-With": "XMLHttpRequest",
         },
       }),
-      fetch(`/api/inventory/locations?_=${Date.now()}`, {
+      fetch(`/api/v1/backend/inventory/locations?_=${Date.now()}`, {
         method: "GET",
         cache: "no-store",
         credentials: "same-origin",
@@ -578,7 +578,7 @@ async function loadLowStock(): Promise<void> {
         per_page: "100",
         page: String(page),
       });
-      const response = await fetch(`/api/inventory/low-stock?${params}`, {
+      const response = await fetch(`/api/v1/backend/inventory/low-stock?${params}`, {
         credentials: "same-origin",
         headers: {
           Accept: "application/json",
@@ -644,7 +644,7 @@ async function loadSourceStock(): Promise<void> {
       );
     else if (stock.product_id) params.set("product_id", String(stock.product_id));
     else throw new Error("This stock row is not linked to a product or variant.");
-    const response = await fetch(`/api/inventory?${params}`, {
+    const response = await fetch(`/api/v1/backend/inventory?${params}`, {
       credentials: "same-origin",
       headers: {
         Accept: "application/json",
@@ -688,7 +688,7 @@ async function loadVariants(): Promise<void> {
   loadingVariants.value = true;
   try {
     const response = await fetch(
-      `/api/products/${encodeURIComponent(productId.value)}/variants`,
+      `/api/v1/backend/products/${encodeURIComponent(productId.value)}/variants`,
       {
         credentials: "same-origin",
         headers: {
@@ -894,7 +894,7 @@ onMounted(() => {
       <header class="page-header">
         <div class="page-heading">
           <div class="breadcrumb">
-            <a href="/inventory">Inventory</a
+            <a href="/backend/inventory">Inventory</a
             ><Icon name="chevron-right" :size="12" /><strong>Stock Operations</strong>
           </div>
           <div class="title-row">
@@ -911,7 +911,7 @@ onMounted(() => {
           </div>
         </div>
         <div class="header-actions">
-          <a class="button secondary" href="/inventory/movements"
+          <a class="button secondary" href="/backend/inventory/movements"
             ><Icon name="history" :size="14" /> Movement history</a
           >
         </div>

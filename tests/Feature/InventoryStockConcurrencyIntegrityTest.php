@@ -64,11 +64,11 @@ test('repeated issues cannot consume reserved stock or oversell the remaining av
         'quantity' => '4.5000',
     ];
 
-    $this->postJson('/api/inventory/issue', $payload)->assertOk();
+    $this->postJson('/api/v1/backend/inventory/issue', $payload)->assertOk();
 
     // The second request represents a competing request based on the same original UI state.
     // The service must re-check the locked/current balance, not trust the client's stale balance.
-    $this->postJson('/api/inventory/issue', $payload)->assertUnprocessable();
+    $this->postJson('/api/v1/backend/inventory/issue', $payload)->assertUnprocessable();
 
     $this->assertDatabaseHas('inventory_stocks', [
         'id' => $stock->id,

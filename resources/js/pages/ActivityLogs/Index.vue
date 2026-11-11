@@ -412,7 +412,7 @@ function exportAuditLogs(): void {
     const params = new URLSearchParams(buildQuery());
     params.delete('page');
     params.delete('per_page');
-    window.location.assign(`/api/activity-logs/export?${params.toString()}`);
+    window.location.assign(`/api/v1/backend/activity-logs/export?${params.toString()}`);
 }
 
 /*
@@ -467,7 +467,7 @@ async function fetchLogs(
         const query = buildQuery();
 
         const response = await apiRequest<ActivityLogResponse>(
-            `/api/activity-logs?${query}`,
+            `/api/v1/backend/activity-logs?${query}`,
         );
 
         logs.value = response.data ?? [];

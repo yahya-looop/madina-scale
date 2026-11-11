@@ -43,14 +43,14 @@ test('reservation reduces available quantity and release restores it', function 
     app(InventoryService::class)->receive(['product_id' => $product->id, 'location_id' => $location->id, 'quantity' => '10']);
     $this->actingAs($user);
 
-    $created = $this->postJson('/api/inventory/reservations', [
+    $created = $this->postJson('/api/v1/backend/inventory/reservations', [
         'product_id' => $product->id, 'location_id' => $location->id, 'quantity' => '4',
         'purpose' => 'customer_order', 'reference_type' => 'order', 'reference_id' => 'ORD-100',
     ])->assertCreated()->assertJsonPath('data.status', 'active');
     $id = $created->json('data.id');
     $this->assertDatabaseHas('inventory_stocks', ['product_id' => $product->id, 'location_id' => $location->id, 'reserved_quantity' => '4.0000']);
 
-    $this->postJson("/api/inventory/reservations/{$id}/release")->assertOk()->assertJsonPath('data.status', 'released');
+    $this->postJson("/api/v1/backend/inventory/reservations/{$id}/release")->assertOk()->assertJsonPath('data.status', 'released');
     $this->assertDatabaseHas('inventory_stocks', ['product_id' => $product->id, 'location_id' => $location->id, 'reserved_quantity' => '0.0000', 'quantity' => '10.0000']);
 });
 
@@ -61,11 +61,11 @@ test('fulfilling a reservation reduces both on-hand and reserved stock and write
     $user->locations()->attach($location->id, ['access_level' => 'manage']);
     app(InventoryService::class)->receive(['product_id' => $product->id, 'location_id' => $location->id, 'quantity' => '10']);
     $this->actingAs($user);
-    $id = $this->postJson('/api/inventory/reservations', [
+    $id = $this->postJson('/api/v1/backend/inventory/reservations', [
         'product_id' => $product->id, 'location_id' => $location->id, 'quantity' => '3', 'purpose' => 'internal_use',
     ])->assertCreated()->json('data.id');
 
-    $this->postJson("/api/inventory/reservations/{$id}/fulfill")->assertOk()->assertJsonPath('data.status', 'fulfilled');
+    $this->postJson("/api/v1/backend/inventory/reservations/{$id}/fulfill")->assertOk()->assertJsonPath('data.status', 'fulfilled');
     $this->assertDatabaseHas('inventory_stocks', ['product_id' => $product->id, 'location_id' => $location->id, 'quantity' => '7.0000', 'reserved_quantity' => '0.0000']);
     $this->assertDatabaseHas('stock_movements', ['product_id' => $product->id, 'location_id' => $location->id, 'movement_type' => 'issue', 'reference_type' => 'inventory_reservation', 'reference_id' => (string) $id]);
 });
@@ -78,7 +78,7 @@ test('reservation cannot exceed available stock', function () {
     app(InventoryService::class)->receive(['product_id' => $product->id, 'location_id' => $location->id, 'quantity' => '2']);
     $this->actingAs($user);
 
-    $this->postJson('/api/inventory/reservations', [
+    $this->postJson('/api/v1/backend/inventory/reservations', [
         'product_id' => $product->id, 'location_id' => $location->id, 'quantity' => '3', 'purpose' => 'customer_order',
     ])->assertUnprocessable();
     $this->assertDatabaseHas('inventory_stocks', ['product_id' => $product->id, 'location_id' => $location->id, 'quantity' => '2.0000', 'reserved_quantity' => '0.0000']);
@@ -92,7 +92,7 @@ test('fulfilling a customer-order reservation creates an order fulfillment movem
     app(InventoryService::class)->receive(['product_id' => $product->id, 'location_id' => $location->id, 'quantity' => '10']);
     $this->actingAs($user);
 
-    $id = $this->postJson('/api/inventory/reservations', [
+    $id = $this->postJson('/api/v1/backend/inventory/reservations', [
         'product_id' => $product->id,
         'location_id' => $location->id,
         'quantity' => '3',
@@ -101,7 +101,7 @@ test('fulfilling a customer-order reservation creates an order fulfillment movem
         'reference_id' => 'ORD-101',
     ])->assertCreated()->json('data.id');
 
-    $this->postJson("/api/inventory/reservations/{$id}/fulfill")
+    $this->postJson("/api/v1/backend/inventory/reservations/{$id}/fulfill")
         ->assertOk()
         ->assertJsonPath('data.status', 'fulfilled');
 
@@ -129,11 +129,11 @@ test('cancelling an active reservation releases reserved quantity without changi
     app(InventoryService::class)->receive(['product_id' => $product->id, 'location_id' => $location->id, 'quantity' => '8']);
     $this->actingAs($user);
 
-    $id = $this->postJson('/api/inventory/reservations', [
+    $id = $this->postJson('/api/v1/backend/inventory/reservations', [
         'product_id' => $product->id, 'location_id' => $location->id, 'quantity' => '3', 'purpose' => 'internal_use',
     ])->assertCreated()->json('data.id');
 
-    $this->postJson("/api/inventory/reservations/{$id}/cancel")
+    $this->postJson("/api/v1/backend/inventory/reservations/{$id}/cancel")
         ->assertOk()->assertJsonPath('data.status', 'cancelled');
 
     $this->assertDatabaseHas('inventory_stocks', [
@@ -153,12 +153,12 @@ test('a reservation cannot be fulfilled twice or deduct stock twice', function (
     app(InventoryService::class)->receive(['product_id' => $product->id, 'location_id' => $location->id, 'quantity' => '8']);
     $this->actingAs($user);
 
-    $id = $this->postJson('/api/inventory/reservations', [
+    $id = $this->postJson('/api/v1/backend/inventory/reservations', [
         'product_id' => $product->id, 'location_id' => $location->id, 'quantity' => '3', 'purpose' => 'internal_use',
     ])->assertCreated()->json('data.id');
 
-    $this->postJson("/api/inventory/reservations/{$id}/fulfill")->assertOk()->assertJsonPath('data.status', 'fulfilled');
-    $this->postJson("/api/inventory/reservations/{$id}/fulfill")->assertUnprocessable();
+    $this->postJson("/api/v1/backend/inventory/reservations/{$id}/fulfill")->assertOk()->assertJsonPath('data.status', 'fulfilled');
+    $this->postJson("/api/v1/backend/inventory/reservations/{$id}/fulfill")->assertUnprocessable();
 
     $this->assertDatabaseHas('inventory_stocks', [
         'product_id' => $product->id, 'location_id' => $location->id,
@@ -175,13 +175,13 @@ test('an expired reservation releases its reserved quantity and cannot be fulfil
     app(InventoryService::class)->receive(['product_id' => $product->id, 'location_id' => $location->id, 'quantity' => '8']);
     $this->actingAs($user);
 
-    $id = $this->postJson('/api/inventory/reservations', [
+    $id = $this->postJson('/api/v1/backend/inventory/reservations', [
         'product_id' => $product->id, 'location_id' => $location->id, 'quantity' => '3',
         'purpose' => 'customer_order', 'expires_at' => now()->addMinute()->toISOString(),
     ])->assertCreated()->json('data.id');
 
     $this->travel(2)->minutes();
-    $this->postJson("/api/inventory/reservations/{$id}/fulfill")
+    $this->postJson("/api/v1/backend/inventory/reservations/{$id}/fulfill")
         ->assertOk()->assertJsonPath('data.status', 'expired');
 
     $this->assertDatabaseHas('inventory_stocks', [
@@ -199,14 +199,14 @@ test('reservation purposes can be added without changing frontend code or valida
     app(InventoryService::class)->receive(['product_id' => $product->id, 'location_id' => $location->id, 'quantity' => '8']);
     $this->actingAs($user);
 
-    $this->postJson('/api/inventory/reservation-purposes', [
+    $this->postJson('/api/v1/backend/inventory/reservation-purposes', [
         'key' => 'quality_check', 'label' => 'Quality inspection',
     ])->assertCreated()->assertJsonPath('data.key', 'quality_check');
 
-    $this->getJson('/api/inventory/reservation-purposes')
+    $this->getJson('/api/v1/backend/inventory/reservation-purposes')
         ->assertOk()->assertJsonFragment(['key' => 'quality_check', 'label' => 'Quality inspection']);
 
-    $this->postJson('/api/inventory/reservations', [
+    $this->postJson('/api/v1/backend/inventory/reservations', [
         'product_id' => $product->id, 'location_id' => $location->id,
         'quantity' => '2', 'purpose' => 'quality_check',
     ])->assertCreated()->assertJsonPath('data.purpose', 'quality_check');
@@ -222,16 +222,16 @@ test('reservation endpoints are scoped to locations assigned to the actor', func
     app(InventoryService::class)->receive(['product_id' => $product->id, 'location_id' => $unassigned->id, 'quantity' => '10']);
 
     $this->actingAs($user);
-    $created = $this->postJson('/api/inventory/reservations', [
+    $created = $this->postJson('/api/v1/backend/inventory/reservations', [
         'product_id' => $product->id, 'location_id' => $assigned->id,
         'quantity' => '2', 'purpose' => 'customer_order',
     ])->assertCreated();
     $reservationId = $created->json('data.id');
 
-    $this->getJson('/api/inventory/reservations')->assertOk()
+    $this->getJson('/api/v1/backend/inventory/reservations')->assertOk()
         ->assertJsonCount(1, 'data')
         ->assertJsonPath('data.0.location_id', $assigned->id);
-    $this->postJson('/api/inventory/reservations', [
+    $this->postJson('/api/v1/backend/inventory/reservations', [
         'product_id' => $product->id, 'location_id' => $unassigned->id,
         'quantity' => '2', 'purpose' => 'customer_order',
     ])->assertForbidden();
@@ -241,7 +241,7 @@ test('reservation endpoints are scoped to locations assigned to the actor', func
         'quantity' => '1.0000', 'purpose' => 'customer_order', 'status' => 'active',
         'created_by' => $user->id,
     ]);
-    $this->postJson('/api/inventory/reservations/'.$unassignedReservation->id.'/release')->assertForbidden();
+    $this->postJson('/api/v1/backend/inventory/reservations/'.$unassignedReservation->id.'/release')->assertForbidden();
     $this->assertDatabaseHas('inventory_reservations', ['id' => $reservationId, 'status' => 'active']);
 });
 
@@ -252,7 +252,7 @@ test('reservation purposes cannot be deleted below the minimum of two', function
     $purposes = InventoryReservationPurpose::query()->where('is_active', true)->orderBy('id')->get();
     expect($purposes)->toHaveCount(2);
 
-    $this->deleteJson('/api/inventory/reservation-purposes/'.$purposes[0]->id)
+    $this->deleteJson('/api/v1/backend/inventory/reservation-purposes/'.$purposes[0]->id)
         ->assertUnprocessable()
         ->assertJsonPath('minimum_required', 2);
 
@@ -268,12 +268,12 @@ test('deleting a used reservation purpose removes it without archiving and prese
     app(InventoryService::class)->receive(['product_id' => $product->id, 'location_id' => $location->id, 'quantity' => '10']);
     $this->actingAs($user);
 
-    $purpose = $this->postJson('/api/inventory/reservation-purposes', [
+    $purpose = $this->postJson('/api/v1/backend/inventory/reservation-purposes', [
         'key' => 'quality_check',
         'label' => 'Quality Check',
     ])->assertCreated()->json('data');
 
-    $reservationId = $this->postJson('/api/inventory/reservations', [
+    $reservationId = $this->postJson('/api/v1/backend/inventory/reservations', [
         'product_id' => $product->id,
         'location_id' => $location->id,
         'quantity' => '2',
@@ -283,7 +283,7 @@ test('deleting a used reservation purpose removes it without archiving and prese
         ->assertJsonPath('data.purpose_label', 'Quality Check')
         ->json('data.id');
 
-    $this->deleteJson('/api/inventory/reservation-purposes/'.$purpose['id'])
+    $this->deleteJson('/api/v1/backend/inventory/reservation-purposes/'.$purpose['id'])
         ->assertOk()
         ->assertJsonPath('active_count', 2);
 
@@ -295,7 +295,7 @@ test('deleting a used reservation purpose removes it without archiving and prese
         'reason' => 'Incoming quality inspection',
     ]);
 
-    $this->getJson('/api/inventory/reservations')
+    $this->getJson('/api/v1/backend/inventory/reservations')
         ->assertOk()
         ->assertJsonPath('data.0.purpose_label', 'Quality Check');
 });

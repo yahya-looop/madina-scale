@@ -87,17 +87,17 @@ class WarrantyServiceWorkflowTest extends TestCase
     {
         ['user' => $user, 'ticket_id' => $ticketId] = $this->fixture();
 
-        $this->actingAs($user)->putJson('/api/warranty-service/tickets/'.$ticketId, [
+        $this->actingAs($user)->putJson('/api/v1/backend/warranty-service/tickets/'.$ticketId, [
             'status' => 'diagnosing',
             'diagnosis' => 'Power input circuit requires inspection.',
         ])->assertOk()->assertJsonPath('data.status', 'diagnosing');
 
-        $this->actingAs($user)->putJson('/api/warranty-service/tickets/'.$ticketId, [
+        $this->actingAs($user)->putJson('/api/v1/backend/warranty-service/tickets/'.$ticketId, [
             'status' => 'in_repair',
             'diagnosis' => 'Faulty power module confirmed.',
         ])->assertOk()->assertJsonPath('data.status', 'in_repair');
 
-        $this->actingAs($user)->putJson('/api/warranty-service/tickets/'.$ticketId, [
+        $this->actingAs($user)->putJson('/api/v1/backend/warranty-service/tickets/'.$ticketId, [
             'status' => 'resolved',
             'resolution' => 'Replaced faulty power module and tested device.',
         ])->assertOk()->assertJsonPath('data.status', 'resolved');
@@ -113,7 +113,7 @@ class WarrantyServiceWorkflowTest extends TestCase
     {
         ['user' => $user, 'ticket_id' => $ticketId] = $this->fixture();
 
-        $this->actingAs($user)->putJson('/api/warranty-service/tickets/'.$ticketId, [
+        $this->actingAs($user)->putJson('/api/v1/backend/warranty-service/tickets/'.$ticketId, [
             'status' => 'closed',
             'resolution' => 'Attempted direct closure.',
         ])->assertUnprocessable()->assertJsonValidationErrors('status');
@@ -125,12 +125,12 @@ class WarrantyServiceWorkflowTest extends TestCase
     {
         ['user' => $user, 'ticket_id' => $ticketId] = $this->fixture('resolved');
 
-        $this->actingAs($user)->putJson('/api/warranty-service/tickets/'.$ticketId, [
+        $this->actingAs($user)->putJson('/api/v1/backend/warranty-service/tickets/'.$ticketId, [
             'status' => 'closed',
             'resolution' => 'Customer collected the repaired device.',
         ])->assertOk()->assertJsonPath('data.status', 'closed');
 
-        $this->actingAs($user)->putJson('/api/warranty-service/tickets/'.$ticketId, [
+        $this->actingAs($user)->putJson('/api/v1/backend/warranty-service/tickets/'.$ticketId, [
             'status' => 'in_repair',
             'resolution' => 'Trying to reopen a closed ticket.',
         ])->assertUnprocessable()->assertJsonValidationErrors('status');
@@ -142,7 +142,7 @@ class WarrantyServiceWorkflowTest extends TestCase
     {
         ['user' => $user, 'ticket_id' => $ticketId] = $this->fixture('in_repair');
 
-        $this->actingAs($user)->putJson('/api/warranty-service/tickets/'.$ticketId, [
+        $this->actingAs($user)->putJson('/api/v1/backend/warranty-service/tickets/'.$ticketId, [
             'status' => 'resolved',
         ])->assertUnprocessable()->assertJsonValidationErrors('resolution');
 
@@ -153,7 +153,7 @@ class WarrantyServiceWorkflowTest extends TestCase
     {
         ['user' => $user, 'ticket_id' => $ticketId] = $this->fixture('rejected');
 
-        $this->actingAs($user)->putJson('/api/warranty-service/tickets/'.$ticketId, [
+        $this->actingAs($user)->putJson('/api/v1/backend/warranty-service/tickets/'.$ticketId, [
             'status' => 'diagnosing',
         ])->assertUnprocessable()->assertJsonValidationErrors('status');
 
@@ -164,7 +164,7 @@ class WarrantyServiceWorkflowTest extends TestCase
     {
         ['user' => $user, 'ticket_id' => $ticketId] = $this->fixture('open', ['system.warranty.update']);
 
-        $this->actingAs($user)->putJson('/api/warranty-service/tickets/'.$ticketId, [
+        $this->actingAs($user)->putJson('/api/v1/backend/warranty-service/tickets/'.$ticketId, [
             'status' => 'diagnosing',
             'diagnosis' => 'Update-only role started diagnosis.',
         ])->assertOk()->assertJsonPath('data.status', 'diagnosing');
@@ -174,7 +174,7 @@ class WarrantyServiceWorkflowTest extends TestCase
     {
         ['user' => $user, 'ticket_id' => $ticketId] = $this->fixture('open', ['system.warranty.process']);
 
-        $this->actingAs($user)->putJson('/api/warranty-service/tickets/'.$ticketId, [
+        $this->actingAs($user)->putJson('/api/v1/backend/warranty-service/tickets/'.$ticketId, [
             'status' => 'diagnosing',
             'diagnosis' => 'Process-only role started diagnosis.',
         ])->assertOk()->assertJsonPath('data.status', 'diagnosing');
@@ -184,7 +184,7 @@ class WarrantyServiceWorkflowTest extends TestCase
     {
         ['user' => $user, 'ticket_id' => $ticketId] = $this->fixture('open', []);
 
-        $this->actingAs($user)->putJson('/api/warranty-service/tickets/'.$ticketId, [
+        $this->actingAs($user)->putJson('/api/v1/backend/warranty-service/tickets/'.$ticketId, [
             'status' => 'diagnosing',
             'diagnosis' => 'Unauthorized update attempt.',
         ])->assertForbidden();

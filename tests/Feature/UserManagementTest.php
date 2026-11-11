@@ -16,7 +16,7 @@ class UserManagementTest extends TestCase
 
     public function test_unauthenticated_user_cannot_access_users(): void
     {
-        $response = $this->getJson('/api/users');
+        $response = $this->getJson('/api/v1/backend/users');
 
         $response->assertUnauthorized();
     }
@@ -27,7 +27,7 @@ class UserManagementTest extends TestCase
 
         $this->actingAs($user);
 
-        $response = $this->getJson('/api/users');
+        $response = $this->getJson('/api/v1/backend/users');
 
         $response->assertForbidden();
     }
@@ -43,7 +43,7 @@ class UserManagementTest extends TestCase
         ]);
 
         $response = $this->actingAs($user)
-            ->getJson('/api/users');
+            ->getJson('/api/v1/backend/users');
 
         $response
             ->assertOk()
@@ -57,7 +57,7 @@ class UserManagementTest extends TestCase
         $user = User::factory()->create();
 
         $response = $this->actingAs($user)
-            ->postJson('/api/users', [
+            ->postJson('/api/v1/backend/users', [
                 'name' => 'New User',
                 'email' => 'new@example.com',
                 'password' => 'SecurePassword123!',
@@ -74,7 +74,7 @@ class UserManagementTest extends TestCase
         $this->grantPermission($admin, 'system.users.create');
 
         $response = $this->actingAs($admin)
-            ->postJson('/api/users', [
+            ->postJson('/api/v1/backend/users', [
                 'name' => 'New User',
                 'email' => 'new@example.com',
                 'password' => 'SecurePassword123!',
@@ -110,7 +110,7 @@ class UserManagementTest extends TestCase
         ]);
 
         $response = $this->actingAs($admin)
-            ->postJson('/api/users', [
+            ->postJson('/api/v1/backend/users', [
                 'name' => 'Another User',
                 'email' => 'existing@example.com',
                 'password' => 'SecurePassword123!',
@@ -135,7 +135,7 @@ class UserManagementTest extends TestCase
         ]);
 
         $response = $this->actingAs($admin)
-            ->getJson("/api/users/{$managedUser->id}");
+            ->getJson("/api/v1/backend/users/{$managedUser->id}");
 
         $response
             ->assertOk()
@@ -152,7 +152,7 @@ class UserManagementTest extends TestCase
         $managedUser = User::factory()->create();
 
         $response = $this->actingAs($admin)
-            ->putJson("/api/users/{$managedUser->id}", [
+            ->putJson("/api/v1/backend/users/{$managedUser->id}", [
                 'name' => 'Updated User',
                 'email' => $managedUser->email,
             ]);
@@ -172,7 +172,7 @@ class UserManagementTest extends TestCase
         ]);
 
         $response = $this->actingAs($admin)
-            ->putJson("/api/users/{$managedUser->id}", [
+            ->putJson("/api/v1/backend/users/{$managedUser->id}", [
                 'name' => 'Updated Name',
                 'email' => 'updated@example.com',
             ]);
@@ -206,7 +206,7 @@ class UserManagementTest extends TestCase
         ]);
 
         $response = $this->actingAs($admin)
-            ->putJson("/api/users/{$managedUser->id}", [
+            ->putJson("/api/v1/backend/users/{$managedUser->id}", [
                 'name' => $managedUser->name,
                 'email' => $managedUser->email,
                 'password' => 'NewPassword123!',
@@ -241,7 +241,7 @@ class UserManagementTest extends TestCase
         ]);
 
         $response = $this->actingAs($admin)
-            ->postJson('/api/users', [
+            ->postJson('/api/v1/backend/users', [
                 'name' => 'Sales User',
                 'email' => 'sales@example.com',
                 'password' => 'SecurePassword123!',
@@ -282,7 +282,7 @@ class UserManagementTest extends TestCase
         $managedUser->roles()->attach($developerRole->id);
 
         $response = $this->actingAs($admin)
-            ->putJson('/api/users/'.$managedUser->id, [
+            ->putJson('/api/v1/backend/users/'.$managedUser->id, [
                 'name' => 'Yahya Al Mahmood',
                 'email' => 'developer@example.com',
                 'status' => 'active',
@@ -311,7 +311,7 @@ class UserManagementTest extends TestCase
         ]);
 
         $response = $this->actingAs($admin)
-            ->postJson('/api/users', [
+            ->postJson('/api/v1/backend/users', [
                 'name' => 'System User',
                 'email' => 'system@example.com',
                 'password' => 'SecurePassword123!',
@@ -328,13 +328,13 @@ class UserManagementTest extends TestCase
 
         $this->actingAs($user);
 
-        $this->get('/users')->assertForbidden();
-        $this->get('/users/create')->assertForbidden();
+        $this->get('/backend/users')->assertForbidden();
+        $this->get('/backend/users/create')->assertForbidden();
 
         $managedUser = User::factory()->create();
 
-        $this->get('/users/'.$managedUser->id)->assertForbidden();
-        $this->get('/users/'.$managedUser->id.'/edit')->assertForbidden();
+        $this->get('/backend/users/'.$managedUser->id)->assertForbidden();
+        $this->get('/backend/users/'.$managedUser->id.'/edit')->assertForbidden();
     }
 
     public function test_user_pages_allow_users_with_matching_permissions(): void
@@ -343,27 +343,27 @@ class UserManagementTest extends TestCase
         $this->grantPermission($viewer, 'system.users.view');
 
         $this->actingAs($viewer)
-            ->get('/users')
+            ->get('/backend/users')
             ->assertOk();
 
         $managedUser = User::factory()->create();
 
         $this->actingAs($viewer)
-            ->get('/users/'.$managedUser->id)
+            ->get('/backend/users/'.$managedUser->id)
             ->assertOk();
 
         $creator = User::factory()->create();
         $this->grantPermission($creator, 'system.users.create');
 
         $this->actingAs($creator)
-            ->get('/users/create')
+            ->get('/backend/users/create')
             ->assertOk();
 
         $editor = User::factory()->create();
         $this->grantPermission($editor, 'system.users.update');
 
         $this->actingAs($editor)
-            ->get('/users/'.$managedUser->id.'/edit')
+            ->get('/backend/users/'.$managedUser->id.'/edit')
             ->assertOk();
     }
 

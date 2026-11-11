@@ -12,7 +12,7 @@ export type NavigationItem = {
 export const primaryNavigation: NavigationItem[] = [
     {
         label: 'Dashboard',
-        href: '/dashboard',
+        href: '/backend/dashboard',
         icon: 'dashboard',
         permission: 'system.dashboard.view',
     },
@@ -25,13 +25,13 @@ export const primaryNavigation: NavigationItem[] = [
         children: [
             {
                 label: 'Sales Orders',
-                href: '/orders',
+                href: '/backend/orders',
                 icon: 'orders',
                 permission: 'system.orders.view',
             },
             {
                 label: 'Sales Returns',
-                href: '/sales-returns',
+                href: '/backend/sales-returns',
                 icon: 'undo-2',
                 permission: 'system.sales_returns.view',
             },
@@ -47,35 +47,35 @@ export const primaryNavigation: NavigationItem[] = [
         children: [
             {
                 label: 'Products',
-                href: '/products',
+                href: '/backend/products',
                 icon: 'products',
                 permission: 'system.products.view',
             },
 
             {
                 label: 'Categories',
-                href: '/product-categories',
+                href: '/backend/product-categories',
                 icon: 'chart-column-stacked',
                 permission: 'system.products.categories.view',
             },
 
             {
                 label: 'Brands',
-                href: '/brands',
+                href: '/backend/brands',
                 icon: 'brand',
                 permission: 'system.products.brands.view',
             },
 
             {
                 label: 'Units',
-                href: '/units',
+                href: '/backend/units',
                 icon: 'combine',
                 permission: 'system.products.units.view',
             },
 
             {
                 label: 'Attributes',
-                href: '/attributes',
+                href: '/backend/attributes',
                 icon: 'book-heart',
                 permission: 'system.products.attributes.view',
             },
@@ -91,31 +91,31 @@ export const primaryNavigation: NavigationItem[] = [
         children: [
             {
                 label: 'Stock Overview',
-                href: '/inventory',
+                href: '/backend/inventory',
                 icon: 'boxes',
                 permission: 'system.inventory.view',
             },
             {
                 label: 'Low Stock',
-                href: '/inventory/low-stock',
+                href: '/backend/inventory/low-stock',
                 icon: 'alert-triangle',
                 permission: 'system.inventory.view',
             },
             {
                 label: 'Stock Movements',
-                href: '/inventory/movements',
+                href: '/backend/inventory/movements',
                 icon: 'history',
                 permission: 'system.inventory.view',
             },
             {
                 label: 'Stock Operations',
-                href: '/inventory/operations',
+                href: '/backend/inventory/operations',
                 icon: 'settings-2',
                 permission: 'system.inventory.view',
             },
             {
                 label: 'Reservations',
-                href: '/inventory/reservations',
+                href: '/backend/inventory/reservations',
                 icon: 'clipboard-list',
                 permission: 'system.inventory.view',
             },
@@ -130,7 +130,7 @@ export const primaryNavigation: NavigationItem[] = [
         children: [
             {
                 label: 'Customer List',
-                href: '/customers',
+                href: '/backend/customers',
                 icon: 'customers',
                 permission: 'system.customers.view',
             },
@@ -145,7 +145,7 @@ export const primaryNavigation: NavigationItem[] = [
         children: [
             {
                 label: 'Lead Management',
-                href: '/sales-crm/leads',
+                href: '/backend/sales-crm/leads',
                 icon: 'users',
                 permission: 'system.crm.leads.view',
             },
@@ -155,13 +155,13 @@ export const primaryNavigation: NavigationItem[] = [
     {
         label: 'B2B & Wholesale',
         icon: 'wholesale',
-        href: '/b2b',
+        href: '/backend/b2b',
         permission: 'system.b2b.view',
     },
 
     {
         label: 'Pricing & Promotions',
-        href: '/pricing',
+        href: '/backend/pricing',
         icon: 'pricing',
         permission: 'system.pricing.view',
     },
@@ -175,7 +175,7 @@ export const primaryNavigation: NavigationItem[] = [
         children: [
             {
                 label: 'Finance Overview',
-                href: '/finance',
+                href: '/backend/finance',
                 icon: 'chart-no-axes-combined',
                 permission: 'system.finance.view',
             },
@@ -188,7 +188,7 @@ export const primaryNavigation: NavigationItem[] = [
         expandable: true,
         permission: 'system.procurement.view',
         children: [
-            { label: 'Procurement Overview', href: '/procurement', icon: 'layout-dashboard', permission: 'system.procurement.view' },
+            { label: 'Procurement Overview', href: '/backend/procurement', icon: 'layout-dashboard', permission: 'system.procurement.view' },
         ],
     },
 
@@ -198,20 +198,20 @@ export const primaryNavigation: NavigationItem[] = [
         expandable: true,
         permission: 'system.shipping.view',
         children: [
-            { label: 'Delivery Dashboard', href: '/shipping-delivery', icon: 'truck', permission: 'system.shipping.view' },
+            { label: 'Delivery Dashboard', href: '/backend/shipping-delivery', icon: 'truck', permission: 'system.shipping.view' },
         ],
     },
 
     {
         label: 'Payments',
-        href: '/payments',
+        href: '/backend/payments',
         icon: 'payments',
         permission: 'system.payments.view',
     },
 
     {
         label: 'Warranty & Service',
-        href: '/warranty-service',
+        href: '/backend/warranty-service',
         icon: 'service',
         permission: 'system.warranty.view',
     },
@@ -222,11 +222,11 @@ export const primaryNavigation: NavigationItem[] = [
         expandable: true,
         permission: 'system.content.view',
         children: [
-            { label: 'Content Pages', href: '/content/pages', icon: 'cms', permission: 'system.content.view' },
-            { label: 'Media Library', href: '/content/media', icon: 'image', permission: 'system.content.view' },
-            { label: 'Banner Management', href: '/content/banners', icon: 'image', permission: 'system.content.view' },
-            { label: 'Reusable Sections', href: '/content/sections', icon: 'layout', permission: 'system.content.view' },
-            { label: 'SEO Management', href: '/seo', icon: 'seo', permission: 'system.seo.view' },
+            { label: 'Content Pages', href: '/backend/content/pages', icon: 'cms', permission: 'system.content.view' },
+            { label: 'Media Library', href: '/backend/content/media', icon: 'image', permission: 'system.content.view' },
+            { label: 'Banner Management', href: '/backend/content/banners', icon: 'image', permission: 'system.content.view' },
+            { label: 'Reusable Sections', href: '/backend/content/sections', icon: 'layout', permission: 'system.content.view' },
+            { label: 'SEO Management', href: '/backend/seo', icon: 'seo', permission: 'system.seo.view' },
         ],
     },
     {
@@ -235,9 +235,9 @@ export const primaryNavigation: NavigationItem[] = [
         expandable: true,
         permission: 'system.marketing.view',
         children: [
-            { label: 'Marketing Overview', href: '/marketing', icon: 'dashboard', permission: 'system.marketing.view' },
-            { label: 'Campaigns', href: '/marketing/campaigns', icon: 'target', permission: 'system.marketing.view' },
-            { label: 'Coupons & Offers', href: '/marketing/coupons', icon: 'tag', permission: 'system.marketing.view' },
+            { label: 'Marketing Overview', href: '/backend/marketing', icon: 'dashboard', permission: 'system.marketing.view' },
+            { label: 'Campaigns', href: '/backend/marketing/campaigns', icon: 'target', permission: 'system.marketing.view' },
+            { label: 'Coupons & Offers', href: '/backend/marketing/coupons', icon: 'tag', permission: 'system.marketing.view' },
         ],
     },
     {
@@ -246,11 +246,11 @@ export const primaryNavigation: NavigationItem[] = [
         expandable: true,
         permission: 'system.analytics.view',
         children: [
-            { label: 'Analytics Overview', href: '/analytics', icon: 'chart-column', permission: 'system.analytics.view' },
-            { label: 'Sales Analytics', href: '/analytics/sales', icon: 'sales', permission: 'system.analytics.view' },
-            { label: 'Website Analytics', href: '/analytics/website', icon: 'globe', permission: 'system.analytics.view' },
-            { label: 'Marketing Analytics', href: '/analytics/marketing', icon: 'megaphone', permission: 'system.analytics.view' },
-            { label: 'Reports', href: '/reports', icon: 'reports', permission: 'system.reports.view' },
+            { label: 'Analytics Overview', href: '/backend/analytics', icon: 'chart-column', permission: 'system.analytics.view' },
+            { label: 'Sales Analytics', href: '/backend/analytics/sales', icon: 'sales', permission: 'system.analytics.view' },
+            { label: 'Website Analytics', href: '/backend/analytics/website', icon: 'globe', permission: 'system.analytics.view' },
+            { label: 'Marketing Analytics', href: '/backend/analytics/marketing', icon: 'megaphone', permission: 'system.analytics.view' },
+            { label: 'Reports', href: '/backend/reports', icon: 'reports', permission: 'system.reports.view' },
         ],
     },
 
@@ -262,7 +262,7 @@ export const primaryNavigation: NavigationItem[] = [
         children: [
             {
                 label: 'Users',
-                href: '/users',
+                href: '/backend/users',
                 icon: 'users',
                 permission: 'system.users.view',
             },
@@ -277,28 +277,28 @@ export const primaryNavigation: NavigationItem[] = [
         children: [
             {
                 label: 'Role & Permissions',
-                href: '/settings/roles-permissions',
+                href: '/backend/settings/roles-permissions',
                 icon: 'users',
                 permission: 'system.roles.view',
             },
 
             {
                 label: 'System',
-                href: '/settings/system',
+                href: '/backend/settings/system',
                 icon: 'settings',
                 permission: 'system.settings.view',
             },
 
             {
                 label: 'Locations',
-                href: '/locations',
+                href: '/backend/locations',
                 icon: 'map-pin',
                 permission: 'system.locations.view',
             },
 
             {
                 label: 'Activity Logs',
-                href: '/settings/activity-logs',
+                href: '/backend/settings/activity-logs',
                 icon: 'activity',
                 permission: 'system.activity_logs.view',
             },
@@ -315,13 +315,13 @@ export const primaryNavigation: NavigationItem[] = [
         children: [
             {
                 label: 'API & Providers',
-                href: '/developer/api-providers',
+                href: '/backend/developer/api-providers',
                 icon: 'plug-zap',
                 permission: 'system.api_providers.view',
             },
             {
                 label: 'Module Management',
-                href: '/developer/modules',
+                href: '/backend/developer/modules',
                 icon: 'developer',
                 permission: 'system.modules.view',
             },

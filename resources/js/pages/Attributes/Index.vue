@@ -141,7 +141,7 @@ async function loadAttributes(): Promise<void> {
     isLoading.value = true;
     errorMessage.value = '';
     try {
-        attributes.value = await apiRequest<Attribute[]>('/api/attributes');
+        attributes.value = await apiRequest<Attribute[]>('/api/v1/backend/attributes');
     } catch (error) {
         errorMessage.value =
             error instanceof Error
@@ -202,7 +202,7 @@ async function saveAttribute(): Promise<void> {
     try {
         if (editing.value) {
             const updated = await apiRequest<Attribute>(
-                `/api/attributes/${editing.value.id}`,
+                `/api/v1/backend/attributes/${editing.value.id}`,
                 'PUT',
                 payload,
             );
@@ -212,7 +212,7 @@ async function saveAttribute(): Promise<void> {
             successMessage.value = 'Attribute updated successfully.';
         } else {
             const created = await apiRequest<Attribute>(
-                '/api/attributes',
+                '/api/v1/backend/attributes',
                 'POST',
                 payload,
             );
@@ -243,7 +243,7 @@ async function confirmDelete(): Promise<void> {
     errorMessage.value = '';
     successMessage.value = '';
     try {
-        await apiRequest(`/api/attributes/${attribute.id}`, 'DELETE');
+        await apiRequest(`/api/v1/backend/attributes/${attribute.id}`, 'DELETE');
         attributes.value = attributes.value.filter(
             (item) => item.id !== attribute.id,
         );
@@ -259,7 +259,7 @@ async function confirmDelete(): Promise<void> {
     }
 }
 function openValues(attribute: Attribute): void {
-    router.visit(`/attributes/${attribute.id}/values`);
+    router.visit(`/backend/attributes/${attribute.id}/values`);
 }
 function formatDate(value: string): string {
     const date = new Date(value);

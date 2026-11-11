@@ -137,7 +137,7 @@ test('location restricted analytics only counts customers and conversions from v
         ],
     ]);
 
-    $response = $this->actingAs($user)->getJson('/api/analytics/overview?from='.now()->toDateString().'&to='.now()->toDateString());
+    $response = $this->actingAs($user)->getJson('/api/v1/backend/analytics/overview?from='.now()->toDateString().'&to='.now()->toDateString());
 
     $response->assertOk()
         ->assertJsonPath('scope.type', 'assigned_locations')
@@ -157,6 +157,6 @@ test('user cannot request analytics for a location they cannot view', function (
     $hiddenLocation = analyticsTestLocation('Unassigned Branch', 'AN-UNASSIGNED-'.uniqid());
 
     $this->actingAs($user)
-        ->getJson('/api/analytics/overview?location_id='.$hiddenLocation->id)
+        ->getJson('/api/v1/backend/analytics/overview?location_id='.$hiddenLocation->id)
         ->assertForbidden();
 });

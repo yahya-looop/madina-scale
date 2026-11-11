@@ -63,7 +63,7 @@ class MarketingCampaignTrackingTest extends TestCase
     {
         ['user' => $user, 'campaign' => $campaign] = $this->campaignFixture(false);
 
-        $this->actingAs($user)->postJson('/api/marketing/campaigns/'.$campaign->id.'/events', [
+        $this->actingAs($user)->postJson('/api/v1/backend/marketing/campaigns/'.$campaign->id.'/events', [
             'event_type' => 'impression',
         ])->assertForbidden();
 
@@ -74,7 +74,7 @@ class MarketingCampaignTrackingTest extends TestCase
     {
         ['user' => $user, 'campaign' => $campaign] = $this->campaignFixture();
 
-        $this->actingAs($user)->postJson('/api/marketing/campaigns/'.$campaign->id.'/events', [
+        $this->actingAs($user)->postJson('/api/v1/backend/marketing/campaigns/'.$campaign->id.'/events', [
             'event_type' => 'impression',
             'source' => 'storefront',
             'visitor_key' => 'visitor-test-123',
@@ -88,7 +88,7 @@ class MarketingCampaignTrackingTest extends TestCase
             'visitor_key' => hash('sha256', 'visitor-test-123'),
         ]);
 
-        $this->actingAs($user)->postJson('/api/marketing/campaigns/'.$campaign->id.'/events', [
+        $this->actingAs($user)->postJson('/api/v1/backend/marketing/campaigns/'.$campaign->id.'/events', [
             'event_type' => 'conversion',
         ])->assertUnprocessable();
 
@@ -99,7 +99,7 @@ class MarketingCampaignTrackingTest extends TestCase
     {
         ['user' => $user, 'campaign' => $campaign] = $this->campaignFixture(true, 'paused');
 
-        $this->actingAs($user)->postJson('/api/marketing/campaigns/'.$campaign->id.'/events', [
+        $this->actingAs($user)->postJson('/api/v1/backend/marketing/campaigns/'.$campaign->id.'/events', [
             'event_type' => 'click',
         ])->assertNotFound();
 

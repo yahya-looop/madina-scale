@@ -307,12 +307,12 @@ it('blocks procurement creation against a location the actor cannot manage', fun
 
     $this->actingAs($actor);
 
-    $this->postJson('/api/procurement/requisitions', [
+    $this->postJson('/api/v1/backend/procurement/requisitions', [
         'location_id' => $otherLocation->id,
         'items' => [['product_id' => $this->product->id, 'quantity' => '2']],
     ])->assertForbidden();
 
-    $this->postJson('/api/procurement/orders', [
+    $this->postJson('/api/v1/backend/procurement/orders', [
         'supplier_id' => $this->supplier->id,
         'location_id' => $otherLocation->id,
         'order_date' => now()->toDateString(),
@@ -343,8 +343,8 @@ it('blocks cross-location requisition and purchase order approvals without chang
 
     $this->actingAs($actor);
 
-    $this->postJson('/api/procurement/requisitions/'.$requisition->id.'/approve')->assertForbidden();
-    $this->postJson('/api/procurement/orders/'.$purchaseOrder->id.'/approve')->assertForbidden();
+    $this->postJson('/api/v1/backend/procurement/requisitions/'.$requisition->id.'/approve')->assertForbidden();
+    $this->postJson('/api/v1/backend/procurement/orders/'.$purchaseOrder->id.'/approve')->assertForbidden();
 
     expect($requisition->fresh()->status)->toBe('draft')
         ->and($purchaseOrder->fresh()->status)->toBe('draft')
@@ -363,12 +363,12 @@ it('blocks cross-location goods receiving and supplier invoice creation', functi
 
     $this->actingAs($actor);
 
-    $this->postJson('/api/procurement/orders/'.$purchaseOrder->id.'/receive', [
+    $this->postJson('/api/v1/backend/procurement/orders/'.$purchaseOrder->id.'/receive', [
         'idempotency_key' => (string) Str::uuid(),
         'items' => [],
     ])->assertForbidden();
 
-    $this->postJson('/api/procurement/orders/'.$purchaseOrder->id.'/invoices', [
+    $this->postJson('/api/v1/backend/procurement/orders/'.$purchaseOrder->id.'/invoices', [
         'invoice_number' => 'CROSS-'.strtoupper(Str::random(8)),
         'invoice_date' => now()->toDateString(),
         'items' => [],
@@ -411,15 +411,15 @@ it('blocks cross-location invoice posting, supplier payments and supplier return
 
     $this->actingAs($actor);
 
-    $this->postJson('/api/procurement/invoices/'.$invoice->id.'/post')->assertForbidden();
-    $this->postJson('/api/procurement/invoices/'.$invoice->id.'/payments', [
+    $this->postJson('/api/v1/backend/procurement/invoices/'.$invoice->id.'/post')->assertForbidden();
+    $this->postJson('/api/v1/backend/procurement/invoices/'.$invoice->id.'/payments', [
         'payment_date' => now()->toDateString(),
         'amount' => '10.00',
         'payment_method' => 'cash',
         'cash_account_id' => FinancialAccount::query()->where('code', '1000')->value('id'),
         'idempotency_key' => (string) Str::uuid(),
     ])->assertForbidden();
-    $this->postJson('/api/procurement/invoices/'.$invoice->id.'/returns', [
+    $this->postJson('/api/v1/backend/procurement/invoices/'.$invoice->id.'/returns', [
         'reason' => 'Cross-location authorization test',
         'idempotency_key' => (string) Str::uuid(),
         'items' => [['purchase_order_item_id' => $poItem->id, 'quantity' => '1']],
@@ -445,7 +445,7 @@ it('limits procurement overview operational records to assigned locations while 
     $actor->locations()->attach($this->location->id, ['access_level' => 'view']);
 
     $response = $this->actingAs($actor)
-        ->getJson('/api/procurement/overview')
+        ->getJson('/api/v1/backend/procurement/overview')
         ->assertOk();
 
     $requisitionIds = collect($response->json('requisitions'))
@@ -470,7 +470,7 @@ it('does not allow view-only location access to approve procurement documents', 
     $actor->locations()->attach($this->location->id, ['access_level' => 'view']);
 
     $this->actingAs($actor)
-        ->postJson('/api/procurement/orders/'.$purchaseOrder->id.'/approve')
+        ->postJson('/api/v1/backend/procurement/orders/'.$purchaseOrder->id.'/approve')
         ->assertForbidden();
 
     expect($purchaseOrder->fresh()->status)->toBe('draft')

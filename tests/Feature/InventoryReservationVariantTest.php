@@ -52,7 +52,7 @@ test('reservation fulfillment affects only the selected variant stock and record
 
     $this->actingAs($user);
 
-    $created = $this->postJson('/api/inventory/reservations', [
+    $created = $this->postJson('/api/v1/backend/inventory/reservations', [
         'product_variant_id' => $variant->id,
         'location_id' => $location->id,
         'quantity' => '4.0000',
@@ -61,7 +61,7 @@ test('reservation fulfillment affects only the selected variant stock and record
 
     $reservationId = $created->json('data.id');
 
-    $this->postJson("/api/inventory/reservations/{$reservationId}/fulfill")
+    $this->postJson("/api/v1/backend/inventory/reservations/{$reservationId}/fulfill")
         ->assertOk()
         ->assertJsonPath('data.status', 'fulfilled');
 

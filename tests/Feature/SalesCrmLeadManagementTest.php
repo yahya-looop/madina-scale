@@ -125,7 +125,7 @@ class SalesCrmLeadManagementTest extends TestCase
     {
         $user = $this->crmUser();
 
-        $this->actingAs($user)->postJson('/api/leads', [
+        $this->actingAs($user)->postJson('/api/v1/backend/leads', [
             'name' => 'Rahim Traders',
             'phone' => '01712345678',
             'area' => 'Nawabpur',
@@ -143,16 +143,16 @@ class SalesCrmLeadManagementTest extends TestCase
         $lead = Lead::query()->firstOrFail();
 
         $this->actingAs($user)
-            ->getJson('/api/leads?search=Rahim')
+            ->getJson('/api/v1/backend/leads?search=Rahim')
             ->assertOk()
             ->assertJsonPath('total', 1);
 
         $this->actingAs($user)
-            ->getJson('/api/leads/'.$lead->id)
+            ->getJson('/api/v1/backend/leads/'.$lead->id)
             ->assertOk()
             ->assertJsonPath('data.phone', '01712345678');
 
-        $this->actingAs($user)->putJson('/api/leads/'.$lead->id, [
+        $this->actingAs($user)->putJson('/api/v1/backend/leads/'.$lead->id, [
             'name' => 'Rahim Traders Ltd',
             'phone' => '01712345678',
             'source' => 'facebook',
@@ -169,7 +169,7 @@ class SalesCrmLeadManagementTest extends TestCase
     {
         $user = $this->crmUser();
 
-        $this->actingAs($user)->postJson('/api/leads', [
+        $this->actingAs($user)->postJson('/api/v1/backend/leads', [
             'name' => 'Prospect One',
             'phone' => '01812345678',
             'source' => 'manual',
@@ -182,7 +182,7 @@ class SalesCrmLeadManagementTest extends TestCase
         $followUp = now()->addDay()->toIso8601String();
 
         $this->actingAs($user)->postJson(
-            '/api/leads/'.$lead->id.'/activities',
+            '/api/v1/backend/leads/'.$lead->id.'/activities',
             [
                 'activity_type' => 'call',
                 'outcome' => 'callback_requested',
@@ -208,7 +208,7 @@ class SalesCrmLeadManagementTest extends TestCase
         ]);
 
         $this->actingAs($user)
-            ->getJson('/api/leads/'.$lead->id)
+            ->getJson('/api/v1/backend/leads/'.$lead->id)
             ->assertOk()
             ->assertJsonCount(1, 'data.activities');
     }
@@ -217,7 +217,7 @@ class SalesCrmLeadManagementTest extends TestCase
     {
         $user = $this->crmUser();
 
-        $this->actingAs($user)->postJson('/api/leads', [
+        $this->actingAs($user)->postJson('/api/v1/backend/leads', [
             'name' => 'Unassigned Prospect',
             'phone' => '01712345678',
             'source' => 'manual',
@@ -229,7 +229,7 @@ class SalesCrmLeadManagementTest extends TestCase
         $lead = Lead::query()->firstOrFail();
 
         $this->actingAs($user)->postJson(
-            '/api/leads/'.$lead->id.'/assignment',
+            '/api/v1/backend/leads/'.$lead->id.'/assignment',
             ['assigned_to' => $user->id]
         )
             ->assertUnprocessable()
@@ -261,7 +261,7 @@ class SalesCrmLeadManagementTest extends TestCase
 
         [$location, $variant] = $this->conversionOrderFixture($user);
 
-        $this->actingAs($user)->postJson('/api/leads', [
+        $this->actingAs($user)->postJson('/api/v1/backend/leads', [
             'name' => 'Conversion Prospect',
             'phone' => '01712345678',
             'email' => 'prospect@example.com',
@@ -286,7 +286,7 @@ class SalesCrmLeadManagementTest extends TestCase
 
         // A qualified lead should create an order and link one customer.
         $this->actingAs($user)
-            ->postJson('/api/leads/'.$lead->id.'/convert-with-order', $payload)
+            ->postJson('/api/v1/backend/leads/'.$lead->id.'/convert-with-order', $payload)
             ->assertCreated()
             ->assertJsonPath('data.status', 'converted')
             ->assertJsonPath('data.customer.name', 'Conversion Prospect');
@@ -308,7 +308,7 @@ class SalesCrmLeadManagementTest extends TestCase
 
         // A converted lead is immutable in the pipeline: it cannot be changed
         // back into an active lead after the first successful purchase.
-        $this->actingAs($user)->putJson('/api/leads/'.$lead->id, [
+        $this->actingAs($user)->putJson('/api/v1/backend/leads/'.$lead->id, [
             'name' => 'Conversion Prospect',
             'phone' => '01712345678',
             'email' => 'prospect@example.com',
@@ -333,7 +333,7 @@ class SalesCrmLeadManagementTest extends TestCase
 
         $this->actingAs($user)
             ->postJson(
-                '/api/leads/'.$lead->id.'/convert-with-order',
+                '/api/v1/backend/leads/'.$lead->id.'/convert-with-order',
                 $retryPayload
             )
             ->assertUnprocessable()
@@ -354,7 +354,7 @@ class SalesCrmLeadManagementTest extends TestCase
     {
         $creator = $this->crmUser();
 
-        $this->actingAs($creator)->postJson('/api/leads', [
+        $this->actingAs($creator)->postJson('/api/v1/backend/leads', [
             'name' => 'Permission Check Prospect',
             'phone' => '01912345678',
             'source' => 'manual',
@@ -369,7 +369,7 @@ class SalesCrmLeadManagementTest extends TestCase
         $customerOnlyUser = $this->crmUser(['system.customers.create']);
 
         $this->actingAs($customerOnlyUser)
-            ->postJson('/api/leads/'.$lead->id.'/convert-with-order', [])
+            ->postJson('/api/v1/backend/leads/'.$lead->id.'/convert-with-order', [])
             ->assertForbidden();
     }
 
@@ -377,8 +377,8 @@ class SalesCrmLeadManagementTest extends TestCase
     {
         $user = User::factory()->create();
 
-        $this->actingAs($user)->getJson('/api/leads')->assertForbidden();
-        $this->actingAs($user)->get('/sales-crm/leads')->assertForbidden();
+        $this->actingAs($user)->getJson('/api/v1/backend/leads')->assertForbidden();
+        $this->actingAs($user)->get('/backend/sales-crm/leads')->assertForbidden();
     }
 
     private function leadAtLocation(User $creator, Location $location, string $name): Lead
@@ -434,7 +434,7 @@ class SalesCrmLeadManagementTest extends TestCase
             'created_by' => $user->id,
         ]);
 
-        $response = $this->actingAs($user)->getJson('/api/leads')->assertOk();
+        $response = $this->actingAs($user)->getJson('/api/v1/backend/leads')->assertOk();
 
         $this->assertSame(2, $response->json('total'));
         $this->assertSame(2, $response->json('stats.total'));
@@ -465,10 +465,10 @@ class SalesCrmLeadManagementTest extends TestCase
         [, $variant] = $this->conversionOrderFixture($user);
 
         $this->actingAs($user)
-            ->getJson('/api/leads/'.$lead->id)
+            ->getJson('/api/v1/backend/leads/'.$lead->id)
             ->assertForbidden();
 
-        $this->actingAs($user)->putJson('/api/leads/'.$lead->id, [
+        $this->actingAs($user)->putJson('/api/v1/backend/leads/'.$lead->id, [
             'name' => 'Attempted Cross-Location Update',
             'phone' => '01712345678',
             'source' => 'manual',
@@ -477,17 +477,17 @@ class SalesCrmLeadManagementTest extends TestCase
             'interest_level' => 'hot',
         ])->assertForbidden();
 
-        $this->actingAs($user)->postJson('/api/leads/'.$lead->id.'/activities', [
+        $this->actingAs($user)->postJson('/api/v1/backend/leads/'.$lead->id.'/activities', [
             'activity_type' => 'note',
             'summary' => 'Attempted cross-location activity.',
             'occurred_at' => now()->toIso8601String(),
         ])->assertForbidden();
 
         $this->actingAs($user)
-            ->deleteJson('/api/leads/'.$lead->id)
+            ->deleteJson('/api/v1/backend/leads/'.$lead->id)
             ->assertForbidden();
 
-        $this->actingAs($user)->postJson('/api/leads/'.$lead->id.'/convert-with-order', [
+        $this->actingAs($user)->postJson('/api/v1/backend/leads/'.$lead->id.'/convert-with-order', [
             'location_id' => $locationA->id,
             'idempotency_key' => (string) Str::uuid(),
             'items' => [['product_variant_id' => $variant->id, 'quantity' => 1]],
@@ -516,7 +516,7 @@ class SalesCrmLeadManagementTest extends TestCase
         $inScopeLead = $this->leadAtLocation($otherUser, $locationA, 'Manager Scope Lead');
         $outOfScopeLead = $this->leadAtLocation($otherUser, $locationB, 'Outside Manager Scope Lead');
 
-        $this->actingAs($manager)->putJson('/api/leads/'.$inScopeLead->id, [
+        $this->actingAs($manager)->putJson('/api/v1/backend/leads/'.$inScopeLead->id, [
             'name' => 'Manager Updated Lead',
             'phone' => $inScopeLead->phone,
             'source' => 'manual',
@@ -526,7 +526,7 @@ class SalesCrmLeadManagementTest extends TestCase
         ])->assertOk();
 
         $this->actingAs($manager)
-            ->putJson('/api/leads/'.$outOfScopeLead->id, [
+            ->putJson('/api/v1/backend/leads/'.$outOfScopeLead->id, [
                 'name' => 'Should Not Update',
                 'phone' => $outOfScopeLead->phone,
                 'source' => 'manual',

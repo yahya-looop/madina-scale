@@ -149,7 +149,7 @@ async function load(): Promise<void> {
   }
 
   try {
-    const response = await fetch(`/api/reports/data?${params.toString()}`, {
+    const response = await fetch(`/api/v1/backend/reports/data?${params.toString()}`, {
       method: "GET",
       credentials: "same-origin",
       headers: {
@@ -197,7 +197,7 @@ function exportCsv(dataset: string): void {
     params.set("location_id", locationId.value);
   }
 
-  window.location.href = `/api/reports/export?${params.toString()}`;
+  window.location.href = `/api/v1/backend/reports/export?${params.toString()}`;
 }
 
 function currentExportDataset(): string {

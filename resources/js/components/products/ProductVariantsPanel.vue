@@ -222,7 +222,7 @@ async function loadAttributes(): Promise<void> {
 
     try {
         const result = await request<CatalogAttribute[]>(
-            '/api/attributes?status=active',
+            '/api/v1/backend/attributes?status=active',
         );
 
         // The backend only accepts selectable attributes for variants. These are
@@ -254,7 +254,7 @@ async function loadAttributes(): Promise<void> {
 async function loadAttributeValues(attributeId: number): Promise<void> {
     try {
         const values = await request<CatalogAttributeValue[]>(
-            `/api/attribute-values?attribute_id=${attributeId}&status=active`,
+            `/api/v1/backend/attribute-values?attribute_id=${attributeId}&status=active`,
         );
 
         attributeValues.value[attributeId] = values.filter(
@@ -290,7 +290,7 @@ async function loadVariants(): Promise<void> {
 
     try {
         variants.value = await request<ProductVariant[]>(
-            `/api/products/${props.productId}/variants`,
+            `/api/v1/backend/products/${props.productId}/variants`,
         );
     } catch (error) {
         errorMessage.value =
@@ -446,8 +446,8 @@ async function saveVariant(): Promise<void> {
     const editing = editingId.value !== null;
 
     const url = editing
-        ? `/api/products/${props.productId}/variants/${editingId.value}`
-        : `/api/products/${props.productId}/variants`;
+        ? `/api/v1/backend/products/${props.productId}/variants/${editingId.value}`
+        : `/api/v1/backend/products/${props.productId}/variants`;
 
     try {
         await request<ProductVariant>(url, editing ? 'PUT' : 'POST', payload());
@@ -496,7 +496,7 @@ async function confirmDeleteVariant(): Promise<void> {
 
     try {
         await request(
-            `/api/products/${props.productId}/variants/${variant.id}`,
+            `/api/v1/backend/products/${props.productId}/variants/${variant.id}`,
             'DELETE',
         );
 

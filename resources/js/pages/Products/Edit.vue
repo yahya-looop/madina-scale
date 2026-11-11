@@ -94,7 +94,7 @@ const productId = computed<number>(() => {
         return Number(props.productId);
     }
 
-    const match = window.location.pathname.match(/\/products\/(\d+)\/edit/);
+    const match = window.location.pathname.match(/\/backend\/products\/(\d+)\/edit/);
 
     return Number(match?.[1] ?? 0);
 });
@@ -391,9 +391,9 @@ async function loadOptions(): Promise<void> {
 
     try {
         const [categoryData, brandData, unitData] = await Promise.all([
-            apiRequest<Option[]>('/api/product-categories'),
-            apiRequest<Option[]>('/api/brands'),
-            apiRequest<Option[]>('/api/units'),
+            apiRequest<Option[]>('/api/v1/backend/product-categories'),
+            apiRequest<Option[]>('/api/v1/backend/brands'),
+            apiRequest<Option[]>('/api/v1/backend/units'),
         ]);
 
         categories.value = Array.isArray(categoryData) ? categoryData : [];
@@ -426,7 +426,7 @@ async function loadProduct(): Promise<void> {
 
     try {
         const data = await apiRequest<Product>(
-            `/api/products/${productId.value}`,
+            `/api/v1/backend/products/${productId.value}`,
         );
 
         product.value = data;
@@ -581,7 +581,7 @@ function removeGalleryImage(index: number): void {
 
 async function refreshProductMedia(): Promise<void> {
     const refreshed = await apiRequest<Product>(
-        `/api/products/${productId.value}`,
+        `/api/v1/backend/products/${productId.value}`,
     );
     product.value = refreshed;
 }
@@ -596,7 +596,7 @@ async function setPrimaryMedia(media: ProductMedia): Promise<void> {
 
     try {
         await apiRequest<ProductMedia>(
-            `/api/products/${productId.value}/media/${media.id}/primary`,
+            `/api/v1/backend/products/${productId.value}/media/${media.id}/primary`,
             { method: 'POST' },
         );
         await refreshProductMedia();
@@ -629,7 +629,7 @@ async function deleteProductMedia(media: ProductMedia): Promise<void> {
 
     try {
         await apiRequest<{ id: number }>(
-            `/api/products/${productId.value}/media/${media.id}`,
+            `/api/v1/backend/products/${productId.value}/media/${media.id}`,
             { method: 'DELETE' },
         );
         await refreshProductMedia();
@@ -653,7 +653,7 @@ async function saveMediaAltText(media: ProductMedia): Promise<void> {
 
     try {
         const updated = await apiRequest<ProductMedia>(
-            `/api/products/${productId.value}/media/${media.id}`,
+            `/api/v1/backend/products/${productId.value}/media/${media.id}`,
             {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
@@ -705,7 +705,7 @@ async function moveGalleryMedia(media: ProductMedia, direction: -1 | 1): Promise
 
     try {
         await apiRequest<ProductMedia[]>(
-            `/api/products/${productId.value}/media/reorder`,
+            `/api/v1/backend/products/${productId.value}/media/reorder`,
             {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
@@ -815,7 +815,7 @@ async function updateProduct(): Promise<void> {
         formData.append('_method', 'PUT');
 
         const updatedProduct = await apiRequest<Product>(
-            `/api/products/${productId.value}`,
+            `/api/v1/backend/products/${productId.value}`,
             {
                 method: 'POST',
                 body: formData,
@@ -829,7 +829,7 @@ async function updateProduct(): Promise<void> {
         successMessage.value = 'Product updated successfully.';
 
         window.setTimeout(() => {
-            router.visit(`/products/${productId.value}`);
+            router.visit(`/backend/products/${productId.value}`);
         }, 900);
     } catch (error) {
         const apiError = error as ApiError;
@@ -853,16 +853,16 @@ async function updateProduct(): Promise<void> {
    ========================================================================== */
 
 function cancel(): void {
-    router.visit(`/products/${productId.value}`);
+    router.visit(`/backend/products/${productId.value}`);
 }
 
 /** Pricing and variant management lives on the product details page. */
 function managePricingAndVariants(): void {
-    router.visit(`/products/${productId.value}`);
+    router.visit(`/backend/products/${productId.value}`);
 }
 
 function backToProducts(): void {
-    router.visit('/products');
+    router.visit('/backend/products');
 }
 
 /* ==========================================================================
@@ -1709,7 +1709,7 @@ onBeforeUnmount(() => {
                                     <label for="slug"> Product Slug </label>
 
                                     <div class="slug-field">
-                                        <span> /products/ </span>
+                                        <span> /backend/products/ </span>
 
                                         <input
                                             id="slug"

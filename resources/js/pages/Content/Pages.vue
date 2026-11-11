@@ -46,7 +46,7 @@ async function load(): Promise<void> {
         if (search.value.trim()) params.set('search', search.value.trim());
         if (statusFilter.value) params.set('status', statusFilter.value);
         params.set('per_page', '100');
-        const result = await api(`/api/cms/pages?${params.toString()}`);
+        const result = await api(`/api/v1/backend/cms/pages?${params.toString()}`);
         pages.value = result.data ?? [];
     } catch (e) { error.value = e instanceof Error ? e.message : 'Unable to load pages.'; }
     finally { loading.value = false; }
@@ -56,7 +56,7 @@ function resetForm(): void {
         published_at: '', meta_title: '', meta_description: '', meta_keywords: '', canonical_url: '', robots_index: true, robots_follow: true });
     editingId.value = null;
 }
-async function loadSectionTemplates(): Promise<void> { try { const result = await api('/api/cms/sections'); sectionTemplates.value = (result.data ?? []).filter((item: {is_active:boolean}) => item.is_active); } catch { sectionTemplates.value = []; } }
+async function loadSectionTemplates(): Promise<void> { try { const result = await api('/api/v1/backend/cms/sections'); sectionTemplates.value = (result.data ?? []).filter((item: {is_active:boolean}) => item.is_active); } catch { sectionTemplates.value = []; } }
 function addSection(): void { const item = sectionTemplates.value.find((section) => section.key === selectedSectionKey.value); if (!item) return; form.sections.push({ key:item.key, name:item.name, type:item.type, content:item.content }); selectedSectionKey.value = ''; }
 function removeSection(index: number): void { form.sections.splice(index, 1); }
 async function createPage(): Promise<void> { resetForm(); await loadSectionTemplates(); showEditor.value = true; }
@@ -71,25 +71,25 @@ async function save(): Promise<void> {
     saving.value = true; error.value = '';
     try {
         const payload = { ...form, published_at: form.published_at || null };
-        await api(editingId.value ? `/api/cms/pages/${editingId.value}` : '/api/cms/pages', editingId.value ? 'PUT' : 'POST', payload);
+        await api(editingId.value ? `/api/v1/backend/cms/pages/${editingId.value}` : '/api/v1/backend/cms/pages', editingId.value ? 'PUT' : 'POST', payload);
         showEditor.value = false; await load();
     } catch (e) { error.value = e instanceof Error ? e.message : 'Unable to save page.'; }
     finally { saving.value = false; }
 }
 async function removePage(page: CmsPage): Promise<void> {
     if (!window.confirm(`Delete “${page.title}”?`)) return;
-    try { await api(`/api/cms/pages/${page.id}`, 'DELETE'); await load(); }
+    try { await api(`/api/v1/backend/cms/pages/${page.id}`, 'DELETE'); await load(); }
     catch (e) { error.value = e instanceof Error ? e.message : 'Unable to delete page.'; }
 }
 
 async function openRevisions(page: CmsPage): Promise<void> {
     revisionPage.value = page; revisions.value = [];
-    try { const result = await api(`/api/cms/pages/${page.id}/revisions`); revisions.value = result.data ?? []; }
+    try { const result = await api(`/api/v1/backend/cms/pages/${page.id}/revisions`); revisions.value = result.data ?? []; }
     catch (e) { error.value = e instanceof Error ? e.message : 'Unable to load revisions.'; }
 }
 async function restoreRevision(revisionId: number): Promise<void> {
     if (!revisionPage.value || !window.confirm('Restore this revision? The current page will be saved as a new revision first.')) return;
-    try { await api(`/api/cms/pages/${revisionPage.value.id}/revisions/${revisionId}/restore`, 'POST', {}); revisionPage.value = null; await load(); }
+    try { await api(`/api/v1/backend/cms/pages/${revisionPage.value.id}/revisions/${revisionId}/restore`, 'POST', {}); revisionPage.value = null; await load(); }
     catch (e) { error.value = e instanceof Error ? e.message : 'Unable to restore revision.'; }
 }
 
@@ -97,7 +97,7 @@ async function uploadImage(event: Event): Promise<void> {
     const file = (event.target as HTMLInputElement).files?.[0]; if (!file) return;
     const data = new FormData(); data.append('file', file);
     try {
-        const response = await fetch('/api/cms/media-library', { method: 'POST', credentials: 'same-origin', headers: { Accept: 'application/json', 'X-CSRF-TOKEN': csrf() }, body: data });
+        const response = await fetch('/api/v1/backend/cms/media-library', { method: 'POST', credentials: 'same-origin', headers: { Accept: 'application/json', 'X-CSRF-TOKEN': csrf() }, body: data });
         const result = await response.json(); if (!response.ok) throw new Error(result.message || 'Upload failed.');
         form.featured_image = result.data.url;
     } catch (e) { error.value = e instanceof Error ? e.message : 'Image upload failed.'; }

@@ -63,7 +63,7 @@ const copy = computed(() =>
     language.value === 'bn'
         ? {
               shop: 'অনলাইন স্টোর',
-              login: 'ERP লগইন',
+              login: 'স্টাফ লগইন',
               eyebrow: 'MADINA SCALE · OFFICIAL STORE',
               title: 'আপনার কাজের জন্য সঠিক স্কেল খুঁজুন',
               subtitle:
@@ -84,7 +84,7 @@ const copy = computed(() =>
           }
         : {
               shop: 'Online Store',
-              login: 'ERP Login',
+              login: 'Staff Login',
               eyebrow: 'MADINA SCALE · OFFICIAL STORE',
               title: 'Find the right scale for your work',
               subtitle:
@@ -155,7 +155,7 @@ function pageLabel(label: string): string {
                 class="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8"
             >
                 <Link
-                    href="/shop"
+                    href="/"
                     class="flex min-w-0 items-center gap-3"
                     aria-label="Madina Scale home"
                 >
@@ -185,7 +185,7 @@ function pageLabel(label: string): string {
                         {{ language === 'bn' ? 'English' : 'বাংলা' }}
                     </button>
                     <a
-                        href="/login"
+                        href="/backend/login"
                         class="hidden rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-700 sm:inline-flex"
                         >{{ copy.login }}</a
                     >
@@ -326,7 +326,7 @@ function pageLabel(label: string): string {
                         class="group flex min-w-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition duration-200 hover:-translate-y-1 hover:border-emerald-200 hover:shadow-lg"
                     >
                         <Link
-                            :href="`/shop/${product.slug}`"
+                            :href="`/products/${product.slug}`"
                             class="relative block aspect-[4/3] overflow-hidden bg-slate-100"
                         >
                             <img
@@ -394,7 +394,7 @@ function pageLabel(label: string): string {
                                     {{ copy.wholesale }}
                                 </p>
                                 <div class="mt-4 grid grid-cols-2 gap-2">
-                                    <Link :href="`/shop/${product.slug}`" class="inline-flex items-center justify-center gap-1 rounded-xl border border-emerald-600 px-2 py-2.5 text-xs font-bold text-emerald-700 transition hover:bg-emerald-50">
+                                    <Link :href="`/products/${product.slug}`" class="inline-flex items-center justify-center gap-1 rounded-xl border border-emerald-600 px-2 py-2.5 text-xs font-bold text-emerald-700 transition hover:bg-emerald-50">
                                         {{ copy.view }} <Icon name="arrow-right" :size="14" />
                                     </Link>
                                     <button v-if="product.default_variant_id" type="button" class="inline-flex items-center justify-center gap-1 rounded-xl bg-emerald-700 px-2 py-2.5 text-xs font-bold text-white transition hover:bg-emerald-800" @click="router.post('/cart/items', { product_variant_id: product.default_variant_id, quantity: 1 }, { preserveScroll: true })">

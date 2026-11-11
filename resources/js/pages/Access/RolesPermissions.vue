@@ -568,7 +568,7 @@ function selectRole(roleId: number): void {
     isSelectingRole.value = true;
 
     router.get(
-        '/settings/roles-permissions',
+        '/backend/settings/roles-permissions',
         {
             role: roleId,
         },
@@ -590,7 +590,7 @@ function selectRole(roleId: number): void {
 
 function reloadAccessPage(): void {
     router.get(
-        '/settings/roles-permissions',
+        '/backend/settings/roles-permissions',
         selectedRoleId.value !== null
             ? {
                   role: selectedRoleId.value,
@@ -650,7 +650,7 @@ async function savePermissions(): Promise<void> {
 
     try {
         await apiRequest<Permission[]>(
-            `/api/roles/${selectedRole.value.id}/permissions`,
+            `/api/v1/backend/roles/${selectedRole.value.id}/permissions`,
             'PUT',
             {
                 permission_ids: selectedPermissionIds.value,
@@ -811,7 +811,7 @@ async function submitRole(): Promise<void> {
              * role
              */
             const created = await apiRequest<Role>(
-                '/api/roles',
+                '/api/v1/backend/roles',
                 'POST',
                 payload,
             );
@@ -823,7 +823,7 @@ async function submitRole(): Promise<void> {
             operationMessage.value = 'Role created successfully.';
 
             router.get(
-                '/settings/roles-permissions',
+                '/backend/settings/roles-permissions',
                 {
                     role: created.id,
                 },
@@ -848,7 +848,7 @@ async function submitRole(): Promise<void> {
         }
 
         await apiRequest<Role>(
-            `/api/roles/${selectedRole.value.id}`,
+            `/api/v1/backend/roles/${selectedRole.value.id}`,
             'PUT',
             payload,
         );

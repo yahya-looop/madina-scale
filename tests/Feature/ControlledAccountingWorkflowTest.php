@@ -49,7 +49,7 @@ it('creates, approves and posts an opening balance with maker checker separation
     $payload = controlledAccountingPayload($this->location->id, now()->toDateString());
 
     $created = $this->actingAs($this->maker)
-        ->postJson('/api/finance/opening-balances', $payload)
+        ->postJson('/api/v1/backend/finance/opening-balances', $payload)
         ->assertCreated()
         ->assertJsonPath('data.workflow_type', 'opening_balance')
         ->assertJsonPath('data.status', 'submitted')
@@ -61,20 +61,20 @@ it('creates, approves and posts an opening balance with maker checker separation
         ->toThrow(ValidationException::class);
 
     $this->actingAs($this->maker)
-        ->postJson("/api/finance/controlled-accounting/{$entryId}/approve")
+        ->postJson("/api/v1/backend/finance/controlled-accounting/{$entryId}/approve")
         ->assertForbidden();
 
     $this->actingAs($this->approver)
-        ->postJson("/api/finance/controlled-accounting/{$entryId}/approve", ['note' => 'Opening balance checked.'])
+        ->postJson("/api/v1/backend/finance/controlled-accounting/{$entryId}/approve", ['note' => 'Opening balance checked.'])
         ->assertOk()
         ->assertJsonPath('data.status', 'approved');
 
     $this->actingAs($this->maker)
-        ->postJson("/api/finance/controlled-accounting/{$entryId}/post")
+        ->postJson("/api/v1/backend/finance/controlled-accounting/{$entryId}/post")
         ->assertForbidden();
 
     $this->actingAs($this->approver)
-        ->postJson("/api/finance/controlled-accounting/{$entryId}/post")
+        ->postJson("/api/v1/backend/finance/controlled-accounting/{$entryId}/post")
         ->assertOk()
         ->assertJsonPath('data.status', 'posted');
 
@@ -90,7 +90,7 @@ it('creates and posts a company-wide adjustment without a location', function ()
     $payload = controlledAccountingPayload($this->location->id, now()->toDateString(), false);
 
     $created = $this->actingAs($this->maker)
-        ->postJson('/api/finance/company-adjustments', $payload)
+        ->postJson('/api/v1/backend/finance/company-adjustments', $payload)
         ->assertCreated()
         ->assertJsonPath('data.workflow_type', 'company_adjustment')
         ->assertJsonPath('data.location_id', null)
@@ -99,12 +99,12 @@ it('creates and posts a company-wide adjustment without a location', function ()
     $entryId = $created->json('data.id');
 
     $this->actingAs($this->approver)
-        ->postJson("/api/finance/controlled-accounting/{$entryId}/approve")
+        ->postJson("/api/v1/backend/finance/controlled-accounting/{$entryId}/approve")
         ->assertOk()
         ->assertJsonPath('data.status', 'approved');
 
     $this->actingAs($this->approver)
-        ->postJson("/api/finance/controlled-accounting/{$entryId}/post")
+        ->postJson("/api/v1/backend/finance/controlled-accounting/{$entryId}/post")
         ->assertOk()
         ->assertJsonPath('data.status', 'posted');
 
@@ -123,14 +123,14 @@ it('creates and posts a company-wide adjustment without a location', function ()
 
 it('prevents operational posting of controlled journals and prevents duplicate opening balances', function (): void {
     $payload = controlledAccountingPayload($this->location->id, now()->toDateString());
-    $created = $this->actingAs($this->maker)->postJson('/api/finance/opening-balances', $payload)->assertCreated();
+    $created = $this->actingAs($this->maker)->postJson('/api/v1/backend/finance/opening-balances', $payload)->assertCreated();
     $journal = JournalEntry::query()->findOrFail($created->json('data.journal_entry_id'));
 
     expect(fn () => app(FinancialLedgerService::class)->post($journal, $this->approver))
         ->toThrow(ValidationException::class);
 
     $this->actingAs($this->maker)
-        ->postJson('/api/finance/opening-balances', $payload)
+        ->postJson('/api/v1/backend/finance/opening-balances', $payload)
         ->assertUnprocessable();
 });
 
@@ -139,7 +139,7 @@ it('rejects unbalanced controlled accounting entries before submission', functio
     $payload['lines'][1]['credit'] = '999.99';
 
     $this->actingAs($this->maker)
-        ->postJson('/api/finance/opening-balances', $payload)
+        ->postJson('/api/v1/backend/finance/opening-balances', $payload)
         ->assertUnprocessable()
         ->assertJsonValidationErrors('lines');
 });
@@ -148,12 +148,12 @@ it('allows an independent approver to reject a submitted opening balance and per
     $payload = controlledAccountingPayload($this->location->id, now()->toDateString());
 
     $created = $this->actingAs($this->maker)
-        ->postJson('/api/finance/opening-balances', $payload)
+        ->postJson('/api/v1/backend/finance/opening-balances', $payload)
         ->assertCreated();
     $entryId = $created->json('data.id');
 
     $this->actingAs($this->approver)
-        ->postJson("/api/finance/controlled-accounting/{$entryId}/reject", ['note' => 'Please reconcile the source balance.'])
+        ->postJson("/api/v1/backend/finance/controlled-accounting/{$entryId}/reject", ['note' => 'Please reconcile the source balance.'])
         ->assertOk()
         ->assertJsonPath('data.status', 'rejected');
 
@@ -163,7 +163,7 @@ it('allows an independent approver to reject a submitted opening balance and per
     ]);
 
     $this->actingAs($this->maker)
-        ->postJson('/api/finance/opening-balances', $payload)
+        ->postJson('/api/v1/backend/finance/opening-balances', $payload)
         ->assertCreated();
 });
 
@@ -171,6 +171,6 @@ it('does not allow users without company adjustment permission to create company
     $ordinaryUser = User::factory()->create();
 
     $this->actingAs($ordinaryUser)
-        ->postJson('/api/finance/company-adjustments', controlledAccountingPayload($this->location->id, now()->toDateString(), false))
+        ->postJson('/api/v1/backend/finance/company-adjustments', controlledAccountingPayload($this->location->id, now()->toDateString(), false))
         ->assertForbidden();
 });

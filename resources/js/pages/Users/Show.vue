@@ -173,7 +173,7 @@ const authUser = computed<AuthUser>(() => {
 
 const userId = Number(
 
-    window.location.pathname.match(/\/users\/(\d+)(?:\/|$)/)?.[1] ?? 0,
+    window.location.pathname.match(/\/backend\/users\/(\d+)(?:\/|$)/)?.[1] ?? 0,
 
 );
 
@@ -400,7 +400,7 @@ async function loadUser(): Promise<void> {
 
         const payload = await apiRequest<UserApiPayload>(
 
-            `/api/users/${userId}`,
+            `/api/v1/backend/users/${userId}`,
 
             'GET',
 
@@ -426,7 +426,7 @@ async function loadUser(): Promise<void> {
 
 function back(): void {
 
-    router.get('/users');
+    router.get('/backend/users');
 
 }
 
@@ -438,7 +438,7 @@ function editUser(): void {
 
     }
 
-    router.get(`/users/${user.value.id}/edit`);
+    router.get(`/backend/users/${user.value.id}/edit`);
 
 }
 

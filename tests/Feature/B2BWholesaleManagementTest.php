@@ -49,22 +49,22 @@ class B2BWholesaleManagementTest extends TestCase
     public function test_business_account_can_be_created_listed_viewed_updated_and_deleted_when_unreferenced(): void
     {
         $user = $this->b2bUser();
-        $this->actingAs($user)->postJson('/api/b2b/accounts', $this->accountPayload())
+        $this->actingAs($user)->postJson('/api/v1/backend/b2b/accounts', $this->accountPayload())
             ->assertCreated()->assertJsonPath('data.company_name', 'North Star Wholesale')->assertJsonPath('data.tier', 'gold');
         $account = B2BAccount::query()->firstOrFail();
-        $this->actingAs($user)->getJson('/api/b2b/accounts?search=North%20Star')->assertOk()->assertJsonPath('total', 1);
-        $this->actingAs($user)->getJson('/api/b2b/accounts/'.$account->id)->assertOk()->assertJsonPath('data.account_code', $account->account_code);
-        $this->actingAs($user)->putJson('/api/b2b/accounts/'.$account->id, array_replace($this->accountPayload(), ['company_name' => 'North Star Trading']))
+        $this->actingAs($user)->getJson('/api/v1/backend/b2b/accounts?search=North%20Star')->assertOk()->assertJsonPath('total', 1);
+        $this->actingAs($user)->getJson('/api/v1/backend/b2b/accounts/'.$account->id)->assertOk()->assertJsonPath('data.account_code', $account->account_code);
+        $this->actingAs($user)->putJson('/api/v1/backend/b2b/accounts/'.$account->id, array_replace($this->accountPayload(), ['company_name' => 'North Star Trading']))
             ->assertOk()->assertJsonPath('data.company_name', 'North Star Trading');
-        $this->actingAs($user)->deleteJson('/api/b2b/accounts/'.$account->id)->assertOk();
+        $this->actingAs($user)->deleteJson('/api/v1/backend/b2b/accounts/'.$account->id)->assertOk();
     }
 
     public function test_quote_totals_are_calculated_server_side_and_quote_history_protects_account(): void
     {
         $user = $this->b2bUser();
-        $this->actingAs($user)->postJson('/api/b2b/accounts', $this->accountPayload())->assertCreated();
+        $this->actingAs($user)->postJson('/api/v1/backend/b2b/accounts', $this->accountPayload())->assertCreated();
         $account = B2BAccount::query()->firstOrFail();
-        $response = $this->actingAs($user)->postJson('/api/b2b/quotes', [
+        $response = $this->actingAs($user)->postJson('/api/v1/backend/b2b/quotes', [
             'b2b_account_id' => $account->id, 'currency' => 'BDT', 'discount_amount' => 100, 'tax_amount' => 50,
             'items' => [
                 ['description' => 'Bulk product A', 'quantity' => 10, 'unit_price' => 100, 'discount_percent' => 10],
@@ -72,14 +72,14 @@ class B2BWholesaleManagementTest extends TestCase
             ],
         ])->assertCreated()->assertJsonPath('data.subtotal', '1400.00')->assertJsonPath('data.total', '1350.00');
         $quote = B2BQuote::query()->firstOrFail();
-        $this->actingAs($user)->patchJson('/api/b2b/quotes/'.$quote->id.'/status', ['status' => 'sent'])->assertOk()->assertJsonPath('data.status', 'sent');
-        $this->actingAs($user)->deleteJson('/api/b2b/accounts/'.$account->id)->assertUnprocessable()->assertJsonValidationErrors('account');
+        $this->actingAs($user)->patchJson('/api/v1/backend/b2b/quotes/'.$quote->id.'/status', ['status' => 'sent'])->assertOk()->assertJsonPath('data.status', 'sent');
+        $this->actingAs($user)->deleteJson('/api/v1/backend/b2b/accounts/'.$account->id)->assertUnprocessable()->assertJsonValidationErrors('account');
     }
 
     public function test_b2b_endpoints_require_the_b2b_permissions(): void
     {
         $user = User::factory()->create();
-        $this->actingAs($user)->getJson('/api/b2b/accounts')->assertForbidden();
-        $this->actingAs($user)->postJson('/api/b2b/accounts', $this->accountPayload())->assertForbidden();
+        $this->actingAs($user)->getJson('/api/v1/backend/b2b/accounts')->assertForbidden();
+        $this->actingAs($user)->postJson('/api/v1/backend/b2b/accounts', $this->accountPayload())->assertForbidden();
     }
 }

@@ -103,7 +103,7 @@ async function readError(r: Response, fallback: string): Promise<string> {
 async function load(): Promise<void> {
     loading.value = true;
     try {
-        const r = await fetch('/api/units', {
+        const r = await fetch('/api/v1/backend/units', {
             headers: {
                 Accept: 'application/json',
                 'X-Requested-With': 'XMLHttpRequest',
@@ -152,7 +152,7 @@ async function save(): Promise<void> {
     };
     try {
         const r = await fetch(
-            editing.value ? `/api/units/${editing.value.id}` : '/api/units',
+            editing.value ? `/api/v1/backend/units/${editing.value.id}` : '/api/v1/backend/units',
             {
                 method: editing.value ? 'PUT' : 'POST',
                 headers: csrfHeaders(),
@@ -182,7 +182,7 @@ async function confirmDelete(): Promise<void> {
     if (!x || deleting.value) return;
     deleting.value = true;
     try {
-        const r = await fetch(`/api/units/${x.id}`, {
+        const r = await fetch(`/api/v1/backend/units/${x.id}`, {
             method: 'DELETE',
             headers: csrfHeaders(),
             credentials: 'same-origin',

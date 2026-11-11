@@ -137,7 +137,7 @@ async function loadLocations(): Promise<void> {
     locationsLoading.value = true;
     locationsError.value = '';
     try {
-        const response = await fetch('/api/locations?active=1', {
+        const response = await fetch('/api/v1/backend/locations?active=1', {
             credentials: 'same-origin',
             headers: {
                 Accept: 'application/json',
@@ -192,7 +192,7 @@ async function loadSourceStock(): Promise<void> {
             params.set('product_id', String(props.stock.product_id));
         else params.set('product_variant_id', String(itemId.value));
         const response = await fetch(
-            `/api/inventory/stocks?${params.toString()}`,
+            `/api/v1/backend/inventory/stocks?${params.toString()}`,
             {
                 credentials: 'same-origin',
                 headers: {
@@ -294,7 +294,7 @@ async function submit(): Promise<void> {
         };
         if (props.stock.product_id) body.product_id = props.stock.product_id;
         else body.product_variant_id = itemId.value;
-        const response = await fetch('/api/inventory/transfer', {
+        const response = await fetch('/api/v1/backend/inventory/transfer', {
             method: 'POST',
             credentials: 'same-origin',
             headers: {

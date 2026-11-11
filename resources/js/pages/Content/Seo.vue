@@ -4,7 +4,7 @@ import Icon from '@/components/dashboard/Icon.vue';
 const checks = [
   { title: 'XML Sitemap', detail: 'Published and indexable CMS pages plus eligible storefront records.', href: '/sitemap.xml', action: 'Open sitemap' },
   { title: 'Robots.txt', detail: 'Crawler directives and sitemap discovery.', href: '/robots.txt', action: 'Open robots.txt' },
-  { title: 'Page metadata', detail: 'Edit meta title, description, canonical URL and robots directives inside each CMS page.', href: '/content/pages', action: 'Manage content pages' },
+  { title: 'Page metadata', detail: 'Edit meta title, description, canonical URL and robots directives inside each CMS page.', href: '/backend/content/pages', action: 'Manage content pages' },
 ];</script>
 <template>
   <ErpLayout><div class="seo-page space-y-5">

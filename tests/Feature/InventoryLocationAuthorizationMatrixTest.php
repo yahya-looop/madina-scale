@@ -65,24 +65,24 @@ test('view access is isolated to assigned locations across stock low-stock and m
 
     $this->actingAs($user);
 
-    $this->getJson('/api/inventory/stocks')
+    $this->getJson('/api/v1/backend/inventory/stocks')
         ->assertOk()
         ->assertJsonCount(1, 'data')
         ->assertJsonPath('data.0.location_id', $visibleLocation->id);
 
-    $this->getJson('/api/inventory/low-stock')
+    $this->getJson('/api/v1/backend/inventory/low-stock')
         ->assertOk()
         ->assertJsonCount(1, 'data')
         ->assertJsonPath('data.0.location_id', $visibleLocation->id);
 
-    $this->getJson('/api/inventory/movements')
+    $this->getJson('/api/v1/backend/inventory/movements')
         ->assertOk()
         ->assertJsonCount(1, 'data')
         ->assertJsonPath('data.0.location_id', $visibleLocation->id);
 
-    $this->getJson('/api/inventory/stocks?location_id='.$hiddenLocation->id)->assertForbidden();
-    $this->getJson('/api/inventory/low-stock?location_id='.$hiddenLocation->id)->assertForbidden();
-    $this->getJson('/api/inventory/movements?location_id='.$hiddenLocation->id)->assertForbidden();
+    $this->getJson('/api/v1/backend/inventory/stocks?location_id='.$hiddenLocation->id)->assertForbidden();
+    $this->getJson('/api/v1/backend/inventory/low-stock?location_id='.$hiddenLocation->id)->assertForbidden();
+    $this->getJson('/api/v1/backend/inventory/movements?location_id='.$hiddenLocation->id)->assertForbidden();
 });
 
 test('receive access permits receipts but denies issue adjustment and threshold changes', function () {
@@ -99,7 +99,7 @@ test('receive access permits receipts but denies issue adjustment and threshold 
 
     $this->actingAs($user);
 
-    $this->postJson('/api/inventory/receive', [
+    $this->postJson('/api/v1/backend/inventory/receive', [
         'product_id' => $product->id,
         'location_id' => $location->id,
         'quantity' => '5.0000',
@@ -108,19 +108,19 @@ test('receive access permits receipts but denies issue adjustment and threshold 
 
     $stock = InventoryStock::query()->where('product_id', $product->id)->where('location_id', $location->id)->firstOrFail();
 
-    $this->postJson('/api/inventory/issue', [
+    $this->postJson('/api/v1/backend/inventory/issue', [
         'product_id' => $product->id,
         'location_id' => $location->id,
         'quantity' => '1.0000',
     ])->assertForbidden();
 
-    $this->postJson('/api/inventory/adjust', [
+    $this->postJson('/api/v1/backend/inventory/adjust', [
         'product_id' => $product->id,
         'location_id' => $location->id,
         'quantity' => '-1.0000',
     ])->assertForbidden();
 
-    $this->patchJson('/api/inventory/stocks/'.$stock->id.'/threshold', [
+    $this->patchJson('/api/v1/backend/inventory/stocks/'.$stock->id.'/threshold', [
         'low_stock_threshold' => 20,
     ])->assertForbidden();
 
@@ -146,7 +146,7 @@ test('inventory location options expose only active assigned locations and their
     $user->locations()->attach($manageLocation->id, ['access_level' => 'manage']);
     $user->locations()->attach($inactiveLocation->id, ['access_level' => 'manage']);
 
-    $response = $this->actingAs($user)->getJson('/api/inventory/locations')
+    $response = $this->actingAs($user)->getJson('/api/v1/backend/inventory/locations')
         ->assertOk()
         ->assertJsonCount(3, 'data');
 
@@ -173,7 +173,7 @@ test('global location manager can load all active inventory locations as managea
     $user->locations()->attach($assignedLocation->id, ['access_level' => 'view']);
 
     $activeLocationCount = Location::query()->where('is_active', true)->count();
-    $response = $this->actingAs($user)->getJson('/api/inventory/locations')
+    $response = $this->actingAs($user)->getJson('/api/v1/backend/inventory/locations')
         ->assertOk()
         ->assertJsonCount($activeLocationCount, 'data');
 

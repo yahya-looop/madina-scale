@@ -88,22 +88,22 @@ async function load(): Promise<void> {
     try {
         const suffix = selectedLocation.value ? `?location_id=${selectedLocation.value}` : '';
         const [o, a, t, j, c, ob, ca] = await Promise.all([
-            api<{ data: Overview }>(`/api/finance/overview${suffix}`),
-            api<{ data: Account[] }>(`/api/finance/accounts${suffix}`),
+            api<{ data: Overview }>(`/api/v1/backend/finance/overview${suffix}`),
+            api<{ data: Account[] }>(`/api/v1/backend/finance/accounts${suffix}`),
             can('system.finance.transactions.view')
-                ? api<{ data: Transaction[] }>(`/api/finance/transactions${suffix || '?'}${suffix ? '&' : ''}per_page=12`)
+                ? api<{ data: Transaction[] }>(`/api/v1/backend/finance/transactions${suffix || '?'}${suffix ? '&' : ''}per_page=12`)
                 : Promise.resolve({ data: [] as Transaction[] }),
             can('system.finance.journals.view')
-                ? api<{ data: Journal[] }>(`/api/finance/journals${suffix || '?'}${suffix ? '&' : ''}per_page=10`)
+                ? api<{ data: Journal[] }>(`/api/v1/backend/finance/journals${suffix || '?'}${suffix ? '&' : ''}per_page=10`)
                 : Promise.resolve({ data: [] as Journal[] }),
             can('system.finance.transactions.create')
-                ? api<{ data: CustomerOption[] }>('/api/finance/customer-options')
+                ? api<{ data: CustomerOption[] }>('/api/v1/backend/finance/customer-options')
                 : Promise.resolve({ data: [] as CustomerOption[] }),
             can('system.finance.opening_balances.view')
-                ? api<{ data: { data: ControlledEntry[] } }>('/api/finance/opening-balances?per_page=100')
+                ? api<{ data: { data: ControlledEntry[] } }>('/api/v1/backend/finance/opening-balances?per_page=100')
                 : Promise.resolve({ data: { data: [] as ControlledEntry[] } }),
             can('system.finance.company_adjustments.view')
-                ? api<{ data: { data: ControlledEntry[] } }>('/api/finance/company-adjustments?per_page=100')
+                ? api<{ data: { data: ControlledEntry[] } }>('/api/v1/backend/finance/company-adjustments?per_page=100')
                 : Promise.resolve({ data: { data: [] as ControlledEntry[] } }),
         ]);
         overview.value = o.data;
@@ -127,7 +127,7 @@ async function saveTransaction(): Promise<void> {
     saving.value = true; error.value = '';
     try {
         if (!transactionForm.idempotency_key) transactionForm.idempotency_key = `${Date.now()}-${Math.random().toString(36).slice(2, 14)}`;
-        await api('/api/finance/transactions', { method: 'POST', body: JSON.stringify({
+        await api('/api/v1/backend/finance/transactions', { method: 'POST', body: JSON.stringify({
             ...transactionForm, amount: transactionForm.amount, cash_account_id: Number(transactionForm.cash_account_id),
             category_account_id: transactionForm.type === 'customer_receipt' ? null : Number(transactionForm.category_account_id),
             customer_id: transactionForm.customer_id ? Number(transactionForm.customer_id) : null,
@@ -141,7 +141,7 @@ async function saveTransaction(): Promise<void> {
 async function saveAccount(): Promise<void> {
     saving.value = true; error.value = '';
     try {
-        await api('/api/finance/accounts', { method: 'POST', body: JSON.stringify(accountForm) });
+        await api('/api/v1/backend/finance/accounts', { method: 'POST', body: JSON.stringify(accountForm) });
         accountModal.value = false; Object.assign(accountForm, { code: '', name: '', type: 'expense', normal_balance: 'debit', is_cash_bank: false, description: '' });
         notify('Chart-of-account entry created.'); await load();
     } catch (e) { error.value = e instanceof Error ? e.message : 'Unable to create account.'; }
@@ -156,11 +156,11 @@ async function saveJournal(): Promise<void> {
     }
     saving.value = true; error.value = '';
     try {
-        const created = await api<{ data: Journal }>('/api/finance/journals', { method: 'POST', body: JSON.stringify({
+        const created = await api<{ data: Journal }>('/api/v1/backend/finance/journals', { method: 'POST', body: JSON.stringify({
             ...journalForm, location_id: Number(journalForm.location_id),
             lines: journalForm.lines.map((l) => ({ ...l, account_id: Number(l.account_id), debit: l.debit || '0', credit: l.credit || '0' })),
         }) });
-        await api(`/api/finance/journals/${created.data.id}/post`, { method: 'POST', body: JSON.stringify({}) });
+        await api(`/api/v1/backend/finance/journals/${created.data.id}/post`, { method: 'POST', body: JSON.stringify({}) });
         journalModal.value = false; journalForm.description = ''; journalForm.reference = '';
         journalForm.lines = [{ account_id: '', debit: '', credit: '' }, { account_id: '', debit: '', credit: '' }];
         notify('Balanced journal posted successfully.'); await load();
@@ -198,7 +198,7 @@ async function saveControlled(): Promise<void> {
             })),
         };
         const url = controlledType.value === 'opening_balance'
-            ? '/api/finance/opening-balances' : '/api/finance/company-adjustments';
+            ? '/api/v1/backend/finance/opening-balances' : '/api/v1/backend/finance/company-adjustments';
         await api(url, { method: 'POST', body: JSON.stringify(payload) });
         controlledModal.value = false;
         notify('Entry submitted for independent approval.');
@@ -218,7 +218,7 @@ async function submitControlledRejection(): Promise<void> {
     }
     saving.value = true; error.value = '';
     try {
-        await api(`/api/finance/controlled-accounting/${rejectingEntryId.value}/reject`, {
+        await api(`/api/v1/backend/finance/controlled-accounting/${rejectingEntryId.value}/reject`, {
             method: 'POST', body: JSON.stringify({ note: rejectNote.value.trim() }),
         });
         rejectModal.value = false;
@@ -232,7 +232,7 @@ async function submitControlledRejection(): Promise<void> {
 async function runControlledAction(entry: ControlledEntry, action: 'approve' | 'post'): Promise<void> {
     saving.value = true; error.value = '';
     try {
-        await api(`/api/finance/controlled-accounting/${entry.id}/${action}`, {
+        await api(`/api/v1/backend/finance/controlled-accounting/${entry.id}/${action}`, {
             method: 'POST', body: JSON.stringify({}),
         });
         notify(action === 'approve' ? 'Accounting entry approved.' : 'Accounting entry posted to the ledger.');

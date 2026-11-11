@@ -54,25 +54,25 @@ class PricingPromotionAndFlashSaleTest extends TestCase
             'ends_at' => now()->addDays(5)->toIso8601String(),
         ];
 
-        $this->actingAs($user)->postJson('/api/pricing/promotions', $payload)
+        $this->actingAs($user)->postJson('/api/v1/backend/pricing/promotions', $payload)
             ->assertCreated()->assertJsonPath('data.name', 'October Wholesale Offer')
             ->assertJsonPath('data.code', 'WHOLESALE10');
 
         $promotion = PricingPromotion::firstOrFail();
-        $this->actingAs($user)->getJson('/api/pricing/promotions?search=wholesale')
+        $this->actingAs($user)->getJson('/api/v1/backend/pricing/promotions?search=wholesale')
             ->assertOk()->assertJsonPath('total', 1);
-        $this->actingAs($user)->putJson('/api/pricing/promotions/'.$promotion->id, array_replace($payload, [
+        $this->actingAs($user)->putJson('/api/v1/backend/pricing/promotions/'.$promotion->id, array_replace($payload, [
             'name' => 'Updated Wholesale Offer', 'code' => 'wholesale15', 'discount_value' => 15,
         ]))->assertOk()->assertJsonPath('data.discount_value', '15.00');
 
-        $this->actingAs($user)->deleteJson('/api/pricing/promotions/'.$promotion->id)->assertOk();
+        $this->actingAs($user)->deleteJson('/api/v1/backend/pricing/promotions/'.$promotion->id)->assertOk();
         $this->assertDatabaseMissing('pricing_promotions', ['id' => $promotion->id]);
     }
 
     public function test_percentage_discount_cannot_exceed_one_hundred(): void
     {
         $user = $this->pricingUser();
-        $this->actingAs($user)->postJson('/api/pricing/promotions', [
+        $this->actingAs($user)->postJson('/api/v1/backend/pricing/promotions', [
             'name' => 'Invalid Discount', 'discount_type' => 'percent', 'discount_value' => 101,
             'scope' => 'order', 'status' => 'draft',
         ])->assertUnprocessable()->assertJsonValidationErrors('discount_value');
@@ -81,8 +81,8 @@ class PricingPromotionAndFlashSaleTest extends TestCase
     public function test_pricing_endpoints_require_permissions_and_public_flash_sales_are_read_only(): void
     {
         $user = User::factory()->create();
-        $this->actingAs($user)->getJson('/api/pricing/promotions')->assertForbidden();
-        $this->actingAs($user)->postJson('/api/pricing/promotions', [])->assertForbidden();
+        $this->actingAs($user)->getJson('/api/v1/backend/pricing/promotions')->assertForbidden();
+        $this->actingAs($user)->postJson('/api/v1/backend/pricing/promotions', [])->assertForbidden();
 
         $this->getJson('/api/public/flash-sales')->assertOk()->assertJsonPath('data', []);
     }
@@ -94,9 +94,9 @@ class PricingPromotionAndFlashSaleTest extends TestCase
             'name' => 'First coupon', 'code' => 'case10', 'discount_type' => 'percent',
             'discount_value' => 10, 'scope' => 'order', 'status' => 'active',
         ];
-        $this->actingAs($user)->postJson('/api/pricing/promotions', $payload)->assertCreated();
+        $this->actingAs($user)->postJson('/api/v1/backend/pricing/promotions', $payload)->assertCreated();
 
-        $this->actingAs($user)->postJson('/api/pricing/promotions', array_replace($payload, [
+        $this->actingAs($user)->postJson('/api/v1/backend/pricing/promotions', array_replace($payload, [
             'name' => 'Duplicate coupon', 'code' => 'CASE10',
         ]))->assertUnprocessable()->assertJsonValidationErrors('code');
     }

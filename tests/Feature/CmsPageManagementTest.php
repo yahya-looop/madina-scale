@@ -52,31 +52,31 @@ class CmsPageManagementTest extends TestCase
     public function test_cms_page_can_be_created_updated_listed_and_deleted(): void
     {
         $user = $this->cmsUser();
-        $this->actingAs($user)->postJson('/api/cms/pages', $this->payload())
+        $this->actingAs($user)->postJson('/api/v1/backend/cms/pages', $this->payload())
             ->assertCreated()->assertJsonPath('data.slug', 'about-madina-scale');
         $page = CmsPage::query()->firstOrFail();
-        $this->actingAs($user)->getJson('/api/cms/pages')->assertOk()->assertJsonPath('total', 1);
-        $this->actingAs($user)->putJson('/api/cms/pages/'.$page->id, $this->payload(['title' => 'About Us']))
+        $this->actingAs($user)->getJson('/api/v1/backend/cms/pages')->assertOk()->assertJsonPath('total', 1);
+        $this->actingAs($user)->putJson('/api/v1/backend/cms/pages/'.$page->id, $this->payload(['title' => 'About Us']))
             ->assertOk()->assertJsonPath('data.title', 'About Us');
-        $this->actingAs($user)->deleteJson('/api/cms/pages/'.$page->id)->assertOk();
+        $this->actingAs($user)->deleteJson('/api/v1/backend/cms/pages/'.$page->id)->assertOk();
         $this->assertDatabaseMissing('cms_pages', ['id' => $page->id]);
     }
 
     public function test_published_page_cannot_be_deleted_until_unpublished(): void
     {
         $user = $this->cmsUser();
-        $this->actingAs($user)->postJson('/api/cms/pages', $this->payload(['status' => 'published']))->assertCreated();
+        $this->actingAs($user)->postJson('/api/v1/backend/cms/pages', $this->payload(['status' => 'published']))->assertCreated();
         $page = CmsPage::query()->firstOrFail();
-        $this->actingAs($user)->deleteJson('/api/cms/pages/'.$page->id)->assertUnprocessable();
+        $this->actingAs($user)->deleteJson('/api/v1/backend/cms/pages/'.$page->id)->assertUnprocessable();
     }
 
     public function test_duplicate_slug_is_rejected_on_update(): void
     {
         $user = $this->cmsUser();
-        $this->actingAs($user)->postJson('/api/cms/pages', $this->payload())->assertCreated();
-        $this->actingAs($user)->postJson('/api/cms/pages', $this->payload(['title' => 'Contact', 'slug' => 'contact']))->assertCreated();
+        $this->actingAs($user)->postJson('/api/v1/backend/cms/pages', $this->payload())->assertCreated();
+        $this->actingAs($user)->postJson('/api/v1/backend/cms/pages', $this->payload(['title' => 'Contact', 'slug' => 'contact']))->assertCreated();
         $second = CmsPage::query()->where('slug', 'contact')->firstOrFail();
-        $this->actingAs($user)->putJson('/api/cms/pages/'.$second->id, $this->payload(['title' => 'Contact', 'slug' => 'about-madina-scale']))
+        $this->actingAs($user)->putJson('/api/v1/backend/cms/pages/'.$second->id, $this->payload(['title' => 'Contact', 'slug' => 'about-madina-scale']))
             ->assertUnprocessable()->assertJsonValidationErrors('slug');
     }
 }

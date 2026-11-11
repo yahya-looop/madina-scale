@@ -53,7 +53,7 @@ test('developer can change module lifecycle state and the change is audited', fu
     ]);
 
     $this->actingAs($developer)
-        ->patchJson("/api/modules/{$module->id}/state", ['state' => 'hidden'])
+        ->patchJson("/api/v1/backend/modules/{$module->id}/state", ['state' => 'hidden'])
         ->assertOk()
         ->assertJsonPath('data.state', 'hidden');
 
@@ -78,7 +78,7 @@ test('module state changes keep the legacy active flag synchronized', function (
     ]);
 
     $this->actingAs($developer)
-        ->patchJson("/api/modules/{$module->id}/state", ['state' => 'disabled'])
+        ->patchJson("/api/v1/backend/modules/{$module->id}/state", ['state' => 'disabled'])
         ->assertOk()
         ->assertJsonPath('data.state', 'disabled')
         ->assertJsonPath('data.is_active', false);
@@ -86,7 +86,7 @@ test('module state changes keep the legacy active flag synchronized', function (
     expect($module->fresh()->is_active)->toBeFalse();
 
     $this->actingAs($developer)
-        ->patchJson("/api/modules/{$module->id}/state", ['state' => 'enabled'])
+        ->patchJson("/api/v1/backend/modules/{$module->id}/state", ['state' => 'enabled'])
         ->assertOk()
         ->assertJsonPath('data.state', 'enabled')
         ->assertJsonPath('data.is_active', true);
@@ -101,7 +101,7 @@ test('core modules cannot be disabled through the module state endpoint', functi
     $module = Module::query()->where('slug', 'system')->firstOrFail();
 
     $this->actingAs($developer)
-        ->patchJson("/api/modules/{$module->id}/state", ['state' => 'disabled'])
+        ->patchJson("/api/v1/backend/modules/{$module->id}/state", ['state' => 'disabled'])
         ->assertForbidden();
 
     expect($module->fresh()->state)->toBe('enabled');
@@ -145,7 +145,7 @@ test('developer can create and configure feature flags with audit records', func
     $developer = createSystemConsoleDeveloper();
 
     $this->actingAs($developer)
-        ->postJson('/api/feature-flags', [
+        ->postJson('/api/v1/backend/feature-flags', [
             'name' => 'Experimental checkout',
             'key' => 'checkout.experimental.enabled',
             'is_enabled' => true,
@@ -158,7 +158,7 @@ test('developer can create and configure feature flags with audit records', func
     $flag = FeatureFlag::query()->where('key', 'checkout.experimental.enabled')->firstOrFail();
 
     $this->actingAs($developer)
-        ->putJson("/api/feature-flags/{$flag->id}", [
+        ->putJson("/api/v1/backend/feature-flags/{$flag->id}", [
             'is_enabled' => false,
             'rollout_percentage' => 0,
         ])
@@ -197,7 +197,7 @@ test('developer can create menu entries and menu visibility remains permission-a
     $permission = createSystemConsolePermission($module, 'system.custom_menu.view');
 
     $this->actingAs($developer)
-        ->postJson('/api/menu-registry', [
+        ->postJson('/api/v1/backend/menu-registry', [
             'key' => 'custom.reports',
             'label' => 'Custom Reports',
             'route' => '/custom-reports',
@@ -225,8 +225,8 @@ test('non-developer users cannot manage feature flags or menu registry', functio
     $managePermission = createSystemConsolePermission($systemModule, 'system.system.manage');
     $role->permissions()->attach($managePermission->id);
 
-    $this->actingAs($user)->getJson('/api/feature-flags')->assertForbidden();
-    $this->actingAs($user)->getJson('/api/menu-registry')->assertForbidden();
+    $this->actingAs($user)->getJson('/api/v1/backend/feature-flags')->assertForbidden();
+    $this->actingAs($user)->getJson('/api/v1/backend/menu-registry')->assertForbidden();
 });
 
 test('menu registry prevents creating unsupported third-level navigation', function () {
@@ -259,7 +259,7 @@ test('menu registry prevents creating unsupported third-level navigation', funct
     ]);
 
     $this->actingAs($developer)
-        ->putJson("/api/menu-registry/{$root->id}", [
+        ->putJson("/api/v1/backend/menu-registry/{$root->id}", [
             'key' => $root->key,
             'label' => $root->label,
             'route' => null,
@@ -331,7 +331,7 @@ test('non-developer cannot change module state even when granted the system mana
     $module = Module::factory()->create(['state' => 'enabled', 'is_active' => true]);
 
     $this->actingAs($user)
-        ->patchJson("/api/modules/{$module->id}/state", ['state' => 'disabled'])
+        ->patchJson("/api/v1/backend/modules/{$module->id}/state", ['state' => 'disabled'])
         ->assertForbidden();
 
     expect($module->fresh()->state)->toBe('enabled');
@@ -341,7 +341,7 @@ test('developer can update system settings atomically with an audit snapshot', f
     $developer = createSystemConsoleDeveloper();
 
     $this->actingAs($developer)
-        ->putJson('/api/settings', [
+        ->putJson('/api/v1/backend/settings', [
             'settings' => [
                 ['key' => 'general.site_name', 'value' => 'Madina Scale Test', 'type' => 'string'],
                 ['key' => 'system.maintenance_mode', 'value' => false, 'type' => 'boolean'],
@@ -392,13 +392,13 @@ test('system maintenance mode blocks public traffic while preserving Developer a
     ]);
 
     $this->get('/shop')->assertServiceUnavailable();
-    $this->get('/login')->assertOk();
+    $this->get('/backend/login')->assertOk();
 
     $developer = createSystemConsoleDeveloper();
-    $this->actingAs($developer)->get('/developer/console')->assertOk();
+    $this->actingAs($developer)->get('/backend/developer/console')->assertOk();
 
     $regularUser = User::factory()->create();
-    $this->actingAs($regularUser)->get('/dashboard')->assertServiceUnavailable();
+    $this->actingAs($regularUser)->get('/backend/dashboard')->assertServiceUnavailable();
 });
 
 test('system feature flag code keys cannot be renamed through the service', function () {
@@ -414,7 +414,7 @@ test('system settings reject invalid registered values and duplicate keys', func
     $developer = createSystemConsoleDeveloper();
 
     $this->actingAs($developer)
-        ->putJson('/api/settings', [
+        ->putJson('/api/v1/backend/settings', [
             'settings' => [
                 ['key' => 'currency.decimal_places', 'value' => 8, 'type' => 'integer'],
             ],
@@ -423,7 +423,7 @@ test('system settings reject invalid registered values and duplicate keys', func
         ->assertJsonValidationErrors('settings.0.value');
 
     $this->actingAs($developer)
-        ->putJson('/api/settings', [
+        ->putJson('/api/v1/backend/settings', [
             'settings' => [
                 ['key' => 'general.site_name', 'value' => 'First', 'type' => 'string'],
                 ['key' => 'general.site_name', 'value' => 'Second', 'type' => 'string'],
@@ -442,7 +442,7 @@ test('critical maintenance settings remain Developer-only even when settings upd
     $role->permissions()->attach($updatePermission->id);
 
     $this->actingAs($user)
-        ->putJson('/api/settings', [
+        ->putJson('/api/v1/backend/settings', [
             'settings' => [
                 ['key' => 'system.maintenance_mode', 'value' => true, 'type' => 'boolean'],
             ],

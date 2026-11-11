@@ -18,7 +18,7 @@ class EnforceSystemMaintenanceMode
 
     public function handle(Request $request, Closure $next): Response
     {
-        if ($request->routeIs('login', 'login.store', 'logout')) {
+        if ($request->routeIs('login', 'login.store', 'logout', 'login.legacy', 'login.store.legacy', 'logout.legacy')) {
             return $next($request);
         }
 

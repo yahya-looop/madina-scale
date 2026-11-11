@@ -74,7 +74,7 @@ const assignmentError = ref('');
 const assignmentAvailable = ref(false);
 
 const locationId = Number(
-    window.location.pathname.match(/\/locations\/(\d+)/)?.[1] ?? 0,
+    window.location.pathname.match(/\/backend\/locations\/(\d+)/)?.[1] ?? 0,
 );
 
 const locationTypeLabels: Record<string, string> = {
@@ -174,7 +174,7 @@ async function loadLocation(): Promise<void> {
     errorMessage.value = '';
 
     try {
-        const response = await fetch(`/api/locations/${locationId}`, {
+        const response = await fetch(`/api/v1/backend/locations/${locationId}`, {
             headers: {
                 Accept: 'application/json',
                 'X-Requested-With': 'XMLHttpRequest',
@@ -203,12 +203,12 @@ async function loadLocation(): Promise<void> {
 }
 
 function back(): void {
-    router.get('/locations');
+    router.get('/backend/locations');
 }
 
 function edit(): void {
     if (location.value) {
-        router.get(`/locations/${location.value.id}/edit`);
+        router.get(`/backend/locations/${location.value.id}/edit`);
     }
 }
 
@@ -217,7 +217,7 @@ async function loadAssignments(): Promise<void> {
     assignmentLoading.value = true;
     assignmentError.value = '';
     try {
-        const response = await fetch(`/api/locations/${locationId}/users`, {
+        const response = await fetch(`/api/v1/backend/locations/${locationId}/users`, {
             headers: {
                 Accept: 'application/json',
                 'X-Requested-With': 'XMLHttpRequest',
@@ -274,7 +274,7 @@ async function saveAssignments(): Promise<void> {
         const token = document.querySelector<HTMLMetaElement>(
             'meta[name="csrf-token"]',
         )?.content;
-        const response = await fetch(`/api/locations/${locationId}/users`, {
+        const response = await fetch(`/api/v1/backend/locations/${locationId}/users`, {
             method: 'PUT',
             headers: {
                 Accept: 'application/json',

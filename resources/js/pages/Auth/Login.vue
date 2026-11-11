@@ -7,7 +7,7 @@ const form = useForm({ email: '', password: '', remember: false });
 const showPassword = ref(false);
 
 const submit = () => {
-    form.post('/login', {
+    form.post('/backend/login', {
         onFinish: () => form.reset('password'),
     });
 };

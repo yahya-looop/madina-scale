@@ -268,7 +268,7 @@ async function load(target = page.value) {
       channel: channel.value,
       search: search.value.trim(),
     });
-    const payload = await api(`/api/orders?${params}`);
+    const payload = await api(`/api/v1/backend/orders?${params}`);
     rows.value = payload.data || [];
     page.value = payload.current_page || target;
     lastPage.value = payload.last_page || 1;
@@ -288,7 +288,7 @@ async function load(target = page.value) {
 async function loadOptions() {
   try {
     const payload = await api(
-      `/api/orders/options${locationId.value ? `?location_id=${locationId.value}` : ""}`
+      `/api/v1/backend/orders/options${locationId.value ? `?location_id=${locationId.value}` : ""}`
     );
     locations.value = payload.locations || [];
     variants.value = payload.variants || [];
@@ -307,7 +307,7 @@ async function searchCustomers() {
     const term = customerSearch.value.trim();
     const query = new URLSearchParams({ status: "active", per_page: "10" });
     if (term) query.set("search", term);
-    const payload = await api(`/api/customers?${query.toString()}`);
+    const payload = await api(`/api/v1/backend/customers?${query.toString()}`);
     customerOptions.value = Array.isArray(payload.data) ? payload.data : [];
     customerPickerOpen.value = true;
     if (!customerOptions.value.length) {
@@ -413,7 +413,7 @@ async function createOrder() {
   error.value = "";
   try {
     const key = crypto.randomUUID();
-    const payload = await api("/api/orders", {
+    const payload = await api("/api/v1/backend/orders", {
       method: "POST",
       body: JSON.stringify({
         idempotency_key: key,
@@ -443,7 +443,7 @@ async function openDetail(order: Order) {
   detailLoading.value = true;
   error.value = "";
   try {
-    const payload = await api(`/api/orders/${order.id}`);
+    const payload = await api(`/api/v1/backend/orders/${order.id}`);
     detail.value = payload.data;
     courierAddress.value = payload.data.shipments?.[0]?.recipient_address || "";
     courierCod.value = String(payload.data.grand_total ?? "0");
@@ -471,7 +471,7 @@ async function confirmOrder(order: Order) {
   confirmingOrderId.value = order.id;
   error.value = "";
   try {
-    const payload = await api(`/api/orders/${order.id}/confirm`, {
+    const payload = await api(`/api/v1/backend/orders/${order.id}/confirm`, {
       method: "POST",
       body: "{}",
     });
@@ -500,7 +500,7 @@ async function fulfillOrder() {
   saving.value = true;
   error.value = "";
   try {
-    const payload = await api(`/api/orders/${order.id}/fulfill`, {
+    const payload = await api(`/api/v1/backend/orders/${order.id}/fulfill`, {
       method: "POST",
       body: JSON.stringify({
         idempotency_key: crypto.randomUUID(),
@@ -525,7 +525,7 @@ async function assessRisk() {
   riskLoading.value = true;
   error.value = "";
   try {
-    const payload = await api(`/api/orders/${order.id}/risk-assessment`, {
+    const payload = await api(`/api/v1/backend/orders/${order.id}/risk-assessment`, {
       method: "POST",
       body: "{}",
     });
@@ -546,7 +546,7 @@ async function reviewRisk(assessment: RiskAssessment, decision: string) {
   );
   if (!note || note.trim().length < 3) return;
   try {
-    await api(`/api/orders/risk-assessments/${assessment.id}/review`, {
+    await api(`/api/v1/backend/orders/risk-assessments/${assessment.id}/review`, {
       method: "POST",
       body: JSON.stringify({ decision, review_note: note.trim() }),
     });
@@ -560,14 +560,14 @@ async function requestPhoneOtp() {
   const order = detail.value;
   if (!order) return;
   try {
-    const payload = await api(`/api/orders/${order.id}/phone-verification/request`, {
+    const payload = await api(`/api/v1/backend/orders/${order.id}/phone-verification/request`, {
       method: "POST",
       body: "{}",
     });
     notice.value = payload.message;
     const code = window.prompt("Enter the 6-digit code sent to the customer:");
     if (code && /^\d{6}$/.test(code)) {
-      await api(`/api/orders/${order.id}/phone-verification/verify`, {
+      await api(`/api/v1/backend/orders/${order.id}/phone-verification/verify`, {
         method: "POST",
         body: JSON.stringify({ code }),
       });
@@ -588,7 +588,7 @@ async function bookCourier() {
   saving.value = true;
   error.value = "";
   try {
-    const payload = await api(`/api/orders/${order.id}/shipments`, {
+    const payload = await api(`/api/v1/backend/orders/${order.id}/shipments`, {
       method: "POST",
       body: JSON.stringify({
         provider: courierProvider.value,
@@ -609,7 +609,7 @@ async function sendOrderSms() {
   const order = detail.value;
   if (!order) return;
   try {
-    const payload = await api(`/api/orders/${order.id}/sms`, {
+    const payload = await api(`/api/v1/backend/orders/${order.id}/sms`, {
       method: "POST",
       body: JSON.stringify({ event: smsEvent.value }),
     });
@@ -628,7 +628,7 @@ async function cancelOrder() {
   }
   saving.value = true;
   try {
-    const payload = await api(`/api/orders/${target.id}/cancel`, {
+    const payload = await api(`/api/v1/backend/orders/${target.id}/cancel`, {
       method: "POST",
       body: JSON.stringify({ reason: cancelReason.value.trim() }),
     });
@@ -695,7 +695,7 @@ onMounted(async () => {
       <header class="orders-hero">
         <div>
           <div class="orders-breadcrumb">
-            <a href="/dashboard">Workspace</a
+            <a href="/backend/dashboard">Workspace</a
             ><Icon name="chevron-right" :size="13" /><strong>Orders</strong>
           </div>
           <div class="orders-title">

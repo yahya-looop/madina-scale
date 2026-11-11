@@ -88,11 +88,11 @@ function catalogMasterDataCreateProduct(): Product
 test('catalog master data endpoints require their dedicated permissions', function () {
     $user = User::factory()->create();
 
-    $this->actingAs($user)->getJson('/api/product-categories')->assertForbidden();
-    $this->getJson('/api/brands')->assertForbidden();
-    $this->getJson('/api/units')->assertForbidden();
-    $this->getJson('/api/attributes')->assertForbidden();
-    $this->getJson('/api/attribute-values')->assertForbidden();
+    $this->actingAs($user)->getJson('/api/v1/backend/product-categories')->assertForbidden();
+    $this->getJson('/api/v1/backend/brands')->assertForbidden();
+    $this->getJson('/api/v1/backend/units')->assertForbidden();
+    $this->getJson('/api/v1/backend/attributes')->assertForbidden();
+    $this->getJson('/api/v1/backend/attribute-values')->assertForbidden();
 });
 
 test('brands units attributes and attribute values can be created and updated', function () {
@@ -110,44 +110,44 @@ test('brands units attributes and attribute values can be created and updated', 
         catalogMasterDataGrantPermission($user, $permission);
     }
 
-    $brand = $this->actingAs($user)->postJson('/api/brands', [
+    $brand = $this->actingAs($user)->postJson('/api/v1/backend/brands', [
         'name' => 'Catalog Brand '.uniqid(),
         'description' => 'Initial brand description',
         'status' => 'active',
     ])->assertCreated()->json('data');
-    $this->putJson('/api/brands/'.$brand['id'], [
+    $this->putJson('/api/v1/backend/brands/'.$brand['id'], [
         'name' => 'Updated Catalog Brand',
         'description' => 'Updated brand description',
     ])->assertOk()->assertJsonPath('data.name', 'Updated Catalog Brand');
 
-    $unit = $this->postJson('/api/units', [
+    $unit = $this->postJson('/api/v1/backend/units', [
         'name' => 'Catalog Piece '.uniqid(),
         'short_name' => 'PC',
         'status' => 'active',
     ])->assertCreated()->json('data');
-    $this->putJson('/api/units/'.$unit['id'], [
+    $this->putJson('/api/v1/backend/units/'.$unit['id'], [
         'name' => 'Updated Catalog Piece',
         'short_name' => 'PCS',
     ])->assertOk()->assertJsonPath('data.short_name', 'PCS');
 
-    $attribute = $this->postJson('/api/attributes', [
+    $attribute = $this->postJson('/api/v1/backend/attributes', [
         'name' => 'Catalog Material '.uniqid(),
         'type' => 'color',
         'status' => 'active',
     ])->assertCreated()->json('data');
-    $this->putJson('/api/attributes/'.$attribute['id'], [
+    $this->putJson('/api/v1/backend/attributes/'.$attribute['id'], [
         'name' => 'Updated Catalog Material',
         'type' => 'color',
     ])->assertOk()->assertJsonPath('data.name', 'Updated Catalog Material');
 
-    $value = $this->postJson('/api/attribute-values', [
+    $value = $this->postJson('/api/v1/backend/attribute-values', [
         'attribute_id' => $attribute['id'],
         'name' => 'Ocean Blue',
         'value' => '#2563eb',
         'color_code' => '#2563eb',
         'status' => 'active',
     ])->assertCreated()->json('data');
-    $this->putJson('/api/attribute-values/'.$value['id'], [
+    $this->putJson('/api/v1/backend/attribute-values/'.$value['id'], [
         'attribute_id' => $attribute['id'],
         'name' => 'Deep Ocean Blue',
         'value' => '#1d4ed8',
@@ -160,14 +160,14 @@ test('category hierarchy rejects self-parenting and moving a parent below its de
     catalogMasterDataGrantPermission($user, 'system.products.categories.create');
     catalogMasterDataGrantPermission($user, 'system.products.categories.update');
 
-    $rootResponse = $this->actingAs($user)->postJson('/api/product-categories', [
+    $rootResponse = $this->actingAs($user)->postJson('/api/v1/backend/product-categories', [
         'name' => 'Catalog Root '.uniqid(),
         'status' => 'active',
         'visibility' => 'visible',
     ])->assertCreated();
     $rootId = (int) $rootResponse->json('data.id');
 
-    $childResponse = $this->postJson('/api/product-categories', [
+    $childResponse = $this->postJson('/api/v1/backend/product-categories', [
         'parent_id' => $rootId,
         'name' => 'Catalog Child '.uniqid(),
         'status' => 'active',
@@ -175,7 +175,7 @@ test('category hierarchy rejects self-parenting and moving a parent below its de
     ])->assertCreated();
     $childId = (int) $childResponse->json('data.id');
 
-    $grandchildResponse = $this->postJson('/api/product-categories', [
+    $grandchildResponse = $this->postJson('/api/v1/backend/product-categories', [
         'parent_id' => $childId,
         'name' => 'Catalog Grandchild '.uniqid(),
         'status' => 'active',
@@ -183,12 +183,12 @@ test('category hierarchy rejects self-parenting and moving a parent below its de
     ])->assertCreated();
     $grandchildId = (int) $grandchildResponse->json('data.id');
 
-    $this->putJson("/api/product-categories/{$rootId}", [
+    $this->putJson("/api/v1/backend/product-categories/{$rootId}", [
         'parent_id' => $rootId,
         'name' => 'Catalog Root Renamed',
     ])->assertUnprocessable()->assertJsonValidationErrors(['parent_id']);
 
-    $this->putJson("/api/product-categories/{$rootId}", [
+    $this->putJson("/api/v1/backend/product-categories/{$rootId}", [
         'parent_id' => $grandchildId,
         'name' => 'Catalog Root Renamed',
     ])->assertUnprocessable()->assertJsonValidationErrors(['parent_id']);
@@ -203,13 +203,13 @@ test('categories brands and units cannot be deleted while products reference the
     $product = catalogMasterDataCreateProduct();
 
     $this->actingAs($user)
-        ->deleteJson('/api/product-categories/'.$product->category_id)
+        ->deleteJson('/api/v1/backend/product-categories/'.$product->category_id)
         ->assertUnprocessable();
 
-    $this->deleteJson('/api/brands/'.$product->brand_id)
+    $this->deleteJson('/api/v1/backend/brands/'.$product->brand_id)
         ->assertUnprocessable();
 
-    $this->deleteJson('/api/units/'.$product->unit_id)
+    $this->deleteJson('/api/v1/backend/units/'.$product->unit_id)
         ->assertUnprocessable();
 
     $this->assertModelExists($product->category()->firstOrFail());
@@ -218,9 +218,9 @@ test('categories brands and units cannot be deleted while products reference the
 
     $product->delete();
 
-    $this->deleteJson('/api/product-categories/'.$product->category_id)->assertUnprocessable();
-    $this->deleteJson('/api/brands/'.$product->brand_id)->assertUnprocessable();
-    $this->deleteJson('/api/units/'.$product->unit_id)->assertUnprocessable();
+    $this->deleteJson('/api/v1/backend/product-categories/'.$product->category_id)->assertUnprocessable();
+    $this->deleteJson('/api/v1/backend/brands/'.$product->brand_id)->assertUnprocessable();
+    $this->deleteJson('/api/v1/backend/units/'.$product->unit_id)->assertUnprocessable();
 });
 
 test('attributes and attribute values cannot be deleted while assigned to variants', function () {
@@ -268,23 +268,23 @@ test('attributes and attribute values cannot be deleted while assigned to varian
     ]);
 
     $this->actingAs($user)
-        ->putJson('/api/attributes/'.$attribute->id, [
+        ->putJson('/api/v1/backend/attributes/'.$attribute->id, [
             'name' => $attribute->name,
             'type' => 'text',
         ])
         ->assertUnprocessable()
         ->assertJsonValidationErrors(['type']);
 
-    $this->putJson('/api/attribute-values/'.$value->id, [
+    $this->putJson('/api/v1/backend/attribute-values/'.$value->id, [
         'attribute_id' => $otherAttribute->id,
         'name' => $value->name,
         'value' => $value->value,
     ])->assertUnprocessable()->assertJsonValidationErrors(['attribute_id']);
 
-    $this->deleteJson('/api/attribute-values/'.$value->id)
+    $this->deleteJson('/api/v1/backend/attribute-values/'.$value->id)
         ->assertUnprocessable();
 
-    $this->deleteJson('/api/attributes/'.$attribute->id)
+    $this->deleteJson('/api/v1/backend/attributes/'.$attribute->id)
         ->assertUnprocessable();
 
     $this->assertModelExists($attribute);

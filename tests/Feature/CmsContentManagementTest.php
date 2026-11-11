@@ -56,19 +56,19 @@ class CmsContentManagementTest extends TestCase
     {
         Storage::fake('public');
         $u = $this->user();
-        $this->actingAs($u)->post('/api/cms/media-library', ['file' => UploadedFile::fake()->createWithContent('hero.png', base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/nWQAAAAASUVORK5CYII=')), 'alt_text' => 'Hero'])->assertCreated();
+        $this->actingAs($u)->post('/api/v1/backend/cms/media-library', ['file' => UploadedFile::fake()->createWithContent('hero.png', base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/nWQAAAAASUVORK5CYII=')), 'alt_text' => 'Hero'])->assertCreated();
         $media = CmsMedia::firstOrFail();
         Storage::disk('public')->assertExists($media->path);
         $page = CmsPage::create(['title' => 'Landing', 'slug' => 'landing', 'status' => 'draft', 'featured_image' => Storage::disk('public')->url($media->path)]);
-        $this->actingAs($u)->deleteJson('/api/cms/media/'.$media->id)->assertUnprocessable();
+        $this->actingAs($u)->deleteJson('/api/v1/backend/cms/media/'.$media->id)->assertUnprocessable();
     }
 
     public function test_banner_and_reusable_section_crud(): void
     {
         $u = $this->user();
-        $this->actingAs($u)->postJson('/api/cms/banners', ['title' => 'Homepage hero', 'image_url' => 'https://example.com/hero.jpg', 'placement' => 'homepage', 'status' => 'active', 'sort_order' => 1])->assertCreated();
+        $this->actingAs($u)->postJson('/api/v1/backend/cms/banners', ['title' => 'Homepage hero', 'image_url' => 'https://example.com/hero.jpg', 'placement' => 'homepage', 'status' => 'active', 'sort_order' => 1])->assertCreated();
         $this->assertDatabaseHas('cms_banners', ['title' => 'Homepage hero', 'status' => 'active']);
-        $this->actingAs($u)->postJson('/api/cms/sections', ['name' => 'Main hero', 'key' => 'main-hero', 'type' => 'hero', 'content' => ['heading' => 'Welcome'], 'is_active' => true])->assertCreated();
+        $this->actingAs($u)->postJson('/api/v1/backend/cms/sections', ['name' => 'Main hero', 'key' => 'main-hero', 'type' => 'hero', 'content' => ['heading' => 'Welcome'], 'is_active' => true])->assertCreated();
         $this->assertDatabaseHas('cms_content_sections', ['key' => 'main-hero']);
     }
 
@@ -76,11 +76,11 @@ class CmsContentManagementTest extends TestCase
     {
         $u = $this->user();
         $payload = ['title' => 'First title', 'slug' => 'revision-page', 'status' => 'draft', 'robots_index' => true, 'robots_follow' => true];
-        $this->actingAs($u)->postJson('/api/cms/pages', $payload)->assertCreated();
+        $this->actingAs($u)->postJson('/api/v1/backend/cms/pages', $payload)->assertCreated();
         $page = CmsPage::firstOrFail();
-        $this->actingAs($u)->putJson('/api/cms/pages/'.$page->id, array_merge($payload, ['title' => 'Second title']))->assertOk();
+        $this->actingAs($u)->putJson('/api/v1/backend/cms/pages/'.$page->id, array_merge($payload, ['title' => 'Second title']))->assertOk();
         $revision = $page->revisions()->firstOrFail();
-        $this->actingAs($u)->postJson('/api/cms/pages/'.$page->id.'/revisions/'.$revision->id.'/restore')->assertOk()->assertJsonPath('data.title', 'First title');
+        $this->actingAs($u)->postJson('/api/v1/backend/cms/pages/'.$page->id.'/revisions/'.$revision->id.'/restore')->assertOk()->assertJsonPath('data.title', 'First title');
     }
 
     public function test_media_upload_rejects_images_with_excessive_dimensions(): void
@@ -89,7 +89,7 @@ class CmsContentManagementTest extends TestCase
         $user = $this->user();
 
         $this->actingAs($user)
-            ->post('/api/cms/media-library', [
+            ->post('/api/v1/backend/cms/media-library', [
                 'file' => UploadedFile::fake()->createWithContent('oversized.png', createDimensionTestPng(5001, 1)),
                 'alt_text' => 'Oversized image',
             ])
@@ -116,7 +116,7 @@ class CmsContentManagementTest extends TestCase
         ]);
 
         $this->actingAs($user)
-            ->deleteJson('/api/cms/media/'.$media->id)
+            ->deleteJson('/api/v1/backend/cms/media/'.$media->id)
             ->assertNotFound();
 
         $this->assertDatabaseHas('cms_media', ['id' => $media->id]);
@@ -128,7 +128,7 @@ class CmsContentManagementTest extends TestCase
         Storage::fake('public');
         $user = $this->user();
 
-        $response = $this->actingAs($user)->post('/api/cms/media', [
+        $response = $this->actingAs($user)->post('/api/v1/backend/cms/media', [
             'file' => UploadedFile::fake()->createWithContent(
                 'page-hero.png',
                 base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/nWQAAAAASUVORK5CYII='),
@@ -182,7 +182,7 @@ class CmsContentManagementTest extends TestCase
         ]);
 
         $this->actingAs($user)
-            ->deleteJson('/api/cms/media/'.$media->id)
+            ->deleteJson('/api/v1/backend/cms/media/'.$media->id)
             ->assertUnprocessable();
 
         $this->assertDatabaseHas('cms_media', ['id' => $media->id]);

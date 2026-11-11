@@ -123,7 +123,7 @@ class SalesOrderWorkflowTest extends TestCase
             'reserved_quantity' => 0,
         ]);
 
-        $response = $this->actingAs($user)->getJson('/api/orders/options?location_id='.$location->id);
+        $response = $this->actingAs($user)->getJson('/api/v1/backend/orders/options?location_id='.$location->id);
 
         $response->assertOk()
             ->assertJsonCount(2, 'variants')
@@ -156,7 +156,7 @@ class SalesOrderWorkflowTest extends TestCase
         );
         $user = $this->orderUser($location);
 
-        $this->actingAs($user)->getJson('/api/orders/options?location_id='.$location->id)
+        $this->actingAs($user)->getJson('/api/v1/backend/orders/options?location_id='.$location->id)
             ->assertOk()
             ->assertJsonCount(1, 'variants')
             ->assertJsonPath('variants.0.id', $variant->id)
@@ -164,7 +164,7 @@ class SalesOrderWorkflowTest extends TestCase
             ->assertJsonStructure(['variants' => [['image_url', 'image_alt', 'inventory_owner']]])
             ->assertJsonPath('variants.0.inventory_owner', 'product');
 
-        $this->actingAs($user)->postJson('/api/orders', [
+        $this->actingAs($user)->postJson('/api/v1/backend/orders', [
             'location_id' => $location->id,
             'customer_name' => 'Simple Product Buyer',
             'items' => [['product_variant_id' => $variant->id, 'quantity' => 2]],
@@ -181,7 +181,7 @@ class SalesOrderWorkflowTest extends TestCase
         [$location, $variant] = $this->orderFixture();
         $user = $this->orderUser($location);
 
-        $this->actingAs($user)->postJson('/api/orders', [
+        $this->actingAs($user)->postJson('/api/v1/backend/orders', [
             'location_id' => $location->id,
             'customer_name' => 'Test Buyer',
             'items' => [['product_variant_id' => $variant->id, 'quantity' => 2]],
@@ -192,7 +192,7 @@ class SalesOrderWorkflowTest extends TestCase
         ]);
         $order = SalesOrder::query()->firstOrFail();
 
-        $this->actingAs($user)->postJson("/api/orders/{$order->id}/cancel", [
+        $this->actingAs($user)->postJson("/api/v1/backend/orders/{$order->id}/cancel", [
             'reason' => 'Customer changed their mind',
         ])->assertOk()->assertJsonPath('data.status', 'cancelled');
 
@@ -207,7 +207,7 @@ class SalesOrderWorkflowTest extends TestCase
         [$location, $variant] = $this->orderFixture();
         $user = $this->orderUser($location);
 
-        $this->actingAs($user)->postJson('/api/orders', [
+        $this->actingAs($user)->postJson('/api/v1/backend/orders', [
             'location_id' => $location->id,
             'customer_name' => 'Original Buyer',
             'customer_phone' => '01711111111',
@@ -218,7 +218,7 @@ class SalesOrderWorkflowTest extends TestCase
         $item = $order->items()->firstOrFail();
         $reservationId = $item->reservation_id;
 
-        $this->actingAs($user)->putJson("/api/orders/{$order->id}", [
+        $this->actingAs($user)->putJson("/api/v1/backend/orders/{$order->id}", [
             'customer_name' => 'Updated Buyer',
             'customer_phone' => '01822222222',
             'customer_email' => 'buyer@example.com',
@@ -255,7 +255,7 @@ class SalesOrderWorkflowTest extends TestCase
         [$location, $variant] = $this->orderFixture();
         $user = $this->orderUser($location);
 
-        $this->actingAs($user)->postJson('/api/orders', [
+        $this->actingAs($user)->postJson('/api/v1/backend/orders', [
             'location_id' => $location->id,
             'customer_name' => 'Original Buyer',
             'items' => [['product_variant_id' => $variant->id, 'quantity' => 2]],
@@ -263,7 +263,7 @@ class SalesOrderWorkflowTest extends TestCase
 
         $order = SalesOrder::query()->firstOrFail();
 
-        $this->actingAs($user)->putJson("/api/orders/{$order->id}", [
+        $this->actingAs($user)->putJson("/api/v1/backend/orders/{$order->id}", [
             'customer_name' => 'Should Not Persist',
             'items' => [['product_variant_id' => $variant->id, 'quantity' => 50]],
         ])->assertUnprocessable();
@@ -286,16 +286,16 @@ class SalesOrderWorkflowTest extends TestCase
         [$location, $variant] = $this->orderFixture();
         $user = $this->orderUser($location);
 
-        $this->actingAs($user)->postJson('/api/orders', [
+        $this->actingAs($user)->postJson('/api/v1/backend/orders', [
             'location_id' => $location->id,
             'customer_name' => 'Confirmed Buyer',
             'items' => [['product_variant_id' => $variant->id, 'quantity' => 1]],
         ])->assertCreated();
 
         $order = SalesOrder::query()->firstOrFail();
-        $this->actingAs($user)->postJson("/api/orders/{$order->id}/confirm", [])->assertOk();
+        $this->actingAs($user)->postJson("/api/v1/backend/orders/{$order->id}/confirm", [])->assertOk();
 
-        $this->putJson("/api/orders/{$order->id}", [
+        $this->putJson("/api/v1/backend/orders/{$order->id}", [
             'customer_name' => 'Changed After Confirmation',
             'items' => [['product_variant_id' => $variant->id, 'quantity' => 2]],
         ])->assertUnprocessable();
@@ -312,7 +312,7 @@ class SalesOrderWorkflowTest extends TestCase
         [$location, $variant] = $this->orderFixture();
         $user = $this->orderUser($location);
 
-        $this->actingAs($user)->postJson('/api/orders', [
+        $this->actingAs($user)->postJson('/api/v1/backend/orders', [
             'location_id' => $location->id,
             'customer_name' => 'Discount Buyer',
             'discount_total' => 25,
@@ -335,7 +335,7 @@ class SalesOrderWorkflowTest extends TestCase
         [$location, $variant] = $this->orderFixture();
         $user = $this->orderUser($location);
 
-        $this->actingAs($user)->postJson('/api/orders', [
+        $this->actingAs($user)->postJson('/api/v1/backend/orders', [
             'location_id' => $location->id,
             'customer_name' => 'Invalid Discount Buyer',
             'discount_total' => 201,
@@ -355,15 +355,15 @@ class SalesOrderWorkflowTest extends TestCase
         [$location, $variant] = $this->orderFixture();
         $user = $this->orderUser($location);
 
-        $this->actingAs($user)->postJson('/api/orders', [
+        $this->actingAs($user)->postJson('/api/v1/backend/orders', [
             'location_id' => $location->id,
             'customer_name' => 'Processing Buyer',
             'items' => [['product_variant_id' => $variant->id, 'quantity' => 1]],
         ])->assertCreated();
 
         $order = SalesOrder::query()->firstOrFail();
-        $this->actingAs($user)->postJson("/api/orders/{$order->id}/confirm", [])->assertOk();
-        $this->postJson("/api/orders/{$order->id}/process", [])
+        $this->actingAs($user)->postJson("/api/v1/backend/orders/{$order->id}/confirm", [])->assertOk();
+        $this->postJson("/api/v1/backend/orders/{$order->id}/process", [])
             ->assertOk()
             ->assertJsonPath('data.status', 'processing');
 
@@ -379,7 +379,7 @@ class SalesOrderWorkflowTest extends TestCase
         [$location, $variant] = $this->orderFixture();
         $user = $this->orderUser($location);
 
-        $this->actingAs($user)->postJson('/api/orders', [
+        $this->actingAs($user)->postJson('/api/v1/backend/orders', [
             'location_id' => $location->id, 'customer_name' => 'Test Buyer',
             'items' => [['product_variant_id' => $variant->id, 'quantity' => 50]],
         ])->assertUnprocessable();
@@ -395,15 +395,15 @@ class SalesOrderWorkflowTest extends TestCase
     {
         [$location, $variant] = $this->orderFixture();
         $user = $this->orderUser($location);
-        $this->actingAs($user)->postJson('/api/orders', [
+        $this->actingAs($user)->postJson('/api/v1/backend/orders', [
             'location_id' => $location->id, 'customer_name' => 'Partial Buyer',
             'items' => [['product_variant_id' => $variant->id, 'quantity' => 2]],
         ])->assertCreated();
         $order = SalesOrder::query()->firstOrFail();
-        $this->postJson("/api/orders/{$order->id}/confirm", [])->assertOk();
+        $this->postJson("/api/v1/backend/orders/{$order->id}/confirm", [])->assertOk();
         $item = $order->items()->firstOrFail();
 
-        $this->postJson("/api/orders/{$order->id}/fulfill", [
+        $this->postJson("/api/v1/backend/orders/{$order->id}/fulfill", [
             'idempotency_key' => (string) Str::uuid(),
             'items' => [['sales_order_item_id' => $item->id, 'quantity' => 1]],
         ])->assertOk()->assertJsonPath('data.status', 'partially_fulfilled');
@@ -412,7 +412,7 @@ class SalesOrderWorkflowTest extends TestCase
             'quantity' => '9.0000', 'reserved_quantity' => '1.0000',
         ]);
 
-        $this->postJson("/api/orders/{$order->id}/fulfill", [
+        $this->postJson("/api/v1/backend/orders/{$order->id}/fulfill", [
             'idempotency_key' => (string) Str::uuid(),
             'items' => [['sales_order_item_id' => $item->id, 'quantity' => 1]],
         ])->assertOk()->assertJsonPath('data.status', 'fulfilled');
@@ -427,7 +427,7 @@ class SalesOrderWorkflowTest extends TestCase
     {
         [$location, $variant] = $this->orderFixture();
         $user = $this->orderUser($location);
-        $this->actingAs($user)->postJson('/api/orders', [
+        $this->actingAs($user)->postJson('/api/v1/backend/orders', [
             'location_id' => $location->id, 'customer_name' => 'Scoped Buyer',
             'items' => [['product_variant_id' => $variant->id, 'quantity' => 1]],
         ])->assertCreated();
@@ -444,9 +444,9 @@ class SalesOrderWorkflowTest extends TestCase
             'discount_total' => 0, 'tax_total' => 0, 'grand_total' => 0, 'created_by' => $user->id,
         ]);
 
-        $this->getJson('/api/orders')->assertOk()->assertJsonCount(1, 'data');
-        $this->getJson("/api/orders/{$order->id}")->assertOk();
-        $this->getJson("/api/orders/{$otherOrder->id}")->assertForbidden();
+        $this->getJson('/api/v1/backend/orders')->assertOk()->assertJsonCount(1, 'data');
+        $this->getJson("/api/v1/backend/orders/{$order->id}")->assertOk();
+        $this->getJson("/api/v1/backend/orders/{$otherOrder->id}")->assertForbidden();
     }
 
     public function test_order_idempotency_key_cannot_be_replayed_by_another_user(): void
@@ -455,7 +455,7 @@ class SalesOrderWorkflowTest extends TestCase
         $owner = $this->orderUser($location);
         $key = (string) Str::uuid();
 
-        $this->actingAs($owner)->postJson('/api/orders', [
+        $this->actingAs($owner)->postJson('/api/v1/backend/orders', [
             'idempotency_key' => $key,
             'location_id' => $location->id,
             'customer_name' => 'Original Buyer',
@@ -463,7 +463,7 @@ class SalesOrderWorkflowTest extends TestCase
         ])->assertCreated();
 
         $otherUser = $this->orderUser($location);
-        $this->actingAs($otherUser)->postJson('/api/orders', [
+        $this->actingAs($otherUser)->postJson('/api/v1/backend/orders', [
             'idempotency_key' => $key,
             'location_id' => $location->id,
             'customer_name' => 'Different Buyer',
@@ -489,16 +489,16 @@ class SalesOrderWorkflowTest extends TestCase
             'items' => [['product_variant_id' => $variant->id, 'quantity' => 1]],
         ];
 
-        $first = $this->actingAs($user)->postJson('/api/orders', $payload)->assertCreated();
+        $first = $this->actingAs($user)->postJson('/api/v1/backend/orders', $payload)->assertCreated();
         $orderId = $first->json('data.id');
 
-        $this->postJson('/api/orders', $payload)
+        $this->postJson('/api/v1/backend/orders', $payload)
             ->assertOk()
             ->assertJsonPath('data.id', $orderId);
 
         $changedPayload = $payload;
         $changedPayload['items'][0]['quantity'] = 2;
-        $this->postJson('/api/orders', $changedPayload)
+        $this->postJson('/api/v1/backend/orders', $changedPayload)
             ->assertUnprocessable()
             ->assertJsonValidationErrors('idempotency_key');
 
@@ -512,7 +512,7 @@ class SalesOrderWorkflowTest extends TestCase
 
     public function test_user_without_order_permission_cannot_list_orders(): void
     {
-        $this->actingAs(User::factory()->create())->getJson('/api/orders')->assertForbidden();
+        $this->actingAs(User::factory()->create())->getJson('/api/v1/backend/orders')->assertForbidden();
     }
 
     public function test_coupon_redemption_is_counted_and_released_when_order_is_cancelled(): void
@@ -527,7 +527,7 @@ class SalesOrderWorkflowTest extends TestCase
             'status' => 'active', 'starts_at' => now()->subMinute(), 'ends_at' => now()->addDay(),
         ]);
 
-        $response = $this->actingAs($user)->postJson('/api/orders', [
+        $response = $this->actingAs($user)->postJson('/api/v1/backend/orders', [
             'location_id' => $location->id, 'customer_name' => 'Coupon Buyer',
             'promotion_code' => 'save10',
             'items' => [['product_variant_id' => $variant->id, 'quantity' => 2]],
@@ -540,7 +540,7 @@ class SalesOrderWorkflowTest extends TestCase
             'pricing_promotion_id' => $promotion->id, 'sales_order_id' => $orderId, 'status' => 'applied',
         ]);
 
-        $this->actingAs($user)->postJson("/api/orders/{$orderId}/cancel", [
+        $this->actingAs($user)->postJson("/api/v1/backend/orders/{$orderId}/cancel", [
             'reason' => 'Coupon lifecycle test cancellation',
         ])->assertOk();
 
@@ -565,7 +565,7 @@ class SalesOrderWorkflowTest extends TestCase
             'regular_price' => 100, 'sale_price' => 70, 'quantity_limit' => 3, 'quantity_sold' => 0,
         ]);
 
-        $response = $this->actingAs($user)->postJson('/api/orders', [
+        $response = $this->actingAs($user)->postJson('/api/v1/backend/orders', [
             'location_id' => $location->id, 'customer_name' => 'Flash Sale Buyer',
             'items' => [['product_variant_id' => $variant->id, 'quantity' => 2]],
         ])->assertCreated()->assertJsonPath('data.grand_total', '140.00');
@@ -576,7 +576,7 @@ class SalesOrderWorkflowTest extends TestCase
             'flash_sale_item_id' => $saleItem->id, 'sales_order_id' => $orderId, 'status' => 'reserved',
         ]);
 
-        $this->actingAs($user)->postJson("/api/orders/{$orderId}/cancel", [
+        $this->actingAs($user)->postJson("/api/v1/backend/orders/{$orderId}/cancel", [
             'reason' => 'Flash sale lifecycle test cancellation',
         ])->assertOk();
 
@@ -604,7 +604,7 @@ class SalesOrderWorkflowTest extends TestCase
             'status' => 'active', 'starts_at' => now()->subMinute(), 'ends_at' => now()->addDay(),
         ]);
 
-        $response = $this->actingAs($user)->postJson('/api/orders', [
+        $response = $this->actingAs($user)->postJson('/api/v1/backend/orders', [
             'location_id' => $location->id,
             'customer_name' => 'Priority Buyer',
             'items' => [['product_variant_id' => $variant->id, 'quantity' => 2]],
@@ -631,7 +631,7 @@ class SalesOrderWorkflowTest extends TestCase
             'status' => 'active', 'starts_at' => now()->subMinute(), 'ends_at' => now()->addDay(),
         ]);
 
-        $response = $this->actingAs($user)->postJson('/api/orders', [
+        $response = $this->actingAs($user)->postJson('/api/v1/backend/orders', [
             'location_id' => $location->id,
             'customer_name' => 'Product Promotion Buyer',
             'items' => [['product_variant_id' => $variant->id, 'quantity' => 2]],
@@ -658,7 +658,7 @@ class SalesOrderWorkflowTest extends TestCase
             'status' => 'active', 'starts_at' => now()->subMinute(), 'ends_at' => now()->addDay(),
         ]);
 
-        $this->actingAs($user)->postJson('/api/orders', [
+        $this->actingAs($user)->postJson('/api/v1/backend/orders', [
             'location_id' => $location->id,
             'customer_name' => 'Unlinked Coupon Buyer',
             'promotion_code' => 'customer10',
@@ -701,14 +701,14 @@ class SalesOrderWorkflowTest extends TestCase
             'regular_price' => 100, 'sale_price' => 70, 'quantity_limit' => 5, 'quantity_sold' => 0,
         ]);
 
-        $response = $this->actingAs($user)->postJson('/api/orders', [
+        $response = $this->actingAs($user)->postJson('/api/v1/backend/orders', [
             'location_id' => $location->id, 'customer_name' => 'Editable Flash Buyer',
             'items' => [['product_variant_id' => $variant->id, 'quantity' => 2]],
         ])->assertCreated();
         $orderId = $response->json('data.id');
         $oldAllocation = SalesOrderFlashSaleAllocation::query()->where('sales_order_id', $orderId)->firstOrFail();
 
-        $this->actingAs($user)->putJson("/api/orders/{$orderId}", [
+        $this->actingAs($user)->putJson("/api/v1/backend/orders/{$orderId}", [
             'customer_name' => 'Editable Flash Buyer',
             'items' => [['product_variant_id' => $variant->id, 'quantity' => 1]],
         ])->assertOk();
@@ -739,7 +739,7 @@ class SalesOrderWorkflowTest extends TestCase
             ]);
         }
 
-        $response = $this->actingAs($user)->postJson('/api/orders', [
+        $response = $this->actingAs($user)->postJson('/api/v1/backend/orders', [
             'location_id' => $location->id, 'customer_name' => 'Stacking Buyer',
             'items' => [['product_variant_id' => $variant->id, 'quantity' => 2]],
         ])->assertCreated()
@@ -773,7 +773,7 @@ class SalesOrderWorkflowTest extends TestCase
             'default_discount_percent' => 0,
         ]);
 
-        $this->actingAs($user)->postJson('/api/orders', [
+        $this->actingAs($user)->postJson('/api/v1/backend/orders', [
             'location_id' => $location->id,
             'customer_id' => $customer->id,
             'items' => [['product_variant_id' => $variant->id, 'quantity' => 1]],
@@ -787,7 +787,7 @@ class SalesOrderWorkflowTest extends TestCase
         // Delivery does not automatically settle an invoice, so fulfilled credit orders remain exposed.
         $order->update(['status' => 'fulfilled']);
 
-        $this->actingAs($user)->postJson('/api/orders', [
+        $this->actingAs($user)->postJson('/api/v1/backend/orders', [
             'location_id' => $location->id,
             'customer_id' => $customer->id,
             'items' => [['product_variant_id' => $variant->id, 'quantity' => 1]],
@@ -827,7 +827,7 @@ class SalesOrderWorkflowTest extends TestCase
             'total' => 100,
         ]);
 
-        $response = $this->actingAs($user)->postJson('/api/orders', [
+        $response = $this->actingAs($user)->postJson('/api/v1/backend/orders', [
             'location_id' => $location->id,
             'customer_id' => $customer->id,
             'items' => [['product_variant_id' => $variant->id, 'quantity' => 1]],
@@ -839,7 +839,7 @@ class SalesOrderWorkflowTest extends TestCase
             'source_id' => $quote->id,
         ]);
 
-        $this->putJson('/api/orders/'.$orderId, [
+        $this->putJson('/api/v1/backend/orders/'.$orderId, [
             'customer_id' => $customer->id,
             'items' => [['product_variant_id' => $variant->id, 'quantity' => 2]],
         ])->assertUnprocessable()->assertJsonValidationErrors('status');
@@ -904,7 +904,7 @@ class SalesOrderWorkflowTest extends TestCase
         [$location, $variant] = $this->orderFixture();
         $user = $this->orderUser($location);
 
-        $storefrontResponse = $this->actingAs($user)->postJson('/api/orders', [
+        $storefrontResponse = $this->actingAs($user)->postJson('/api/v1/backend/orders', [
             'location_id' => $location->id,
             'customer_name' => 'Online Buyer',
             'channel' => 'storefront',
@@ -925,14 +925,14 @@ class SalesOrderWorkflowTest extends TestCase
             'reserved_quantity' => '0.0000',
         ]);
 
-        $this->actingAs($user)->postJson('/api/orders', [
+        $this->actingAs($user)->postJson('/api/v1/backend/orders', [
             'location_id' => $location->id,
             'customer_name' => 'Walk-in Buyer',
             'channel' => 'backoffice',
             'items' => [['product_variant_id' => $variant->id, 'quantity' => 1]],
         ])->assertCreated();
 
-        $this->actingAs($user)->getJson('/api/orders?channel=storefront')
+        $this->actingAs($user)->getJson('/api/v1/backend/orders?channel=storefront')
             ->assertOk()
             ->assertJsonCount(1, 'data')
             ->assertJsonPath('data.0.channel', 'storefront')
@@ -943,7 +943,7 @@ class SalesOrderWorkflowTest extends TestCase
     {
         [$location, $variant] = $this->orderFixture();
         $user = $this->orderUser($location);
-        $response = $this->actingAs($user)->postJson('/api/orders', [
+        $response = $this->actingAs($user)->postJson('/api/v1/backend/orders', [
             'location_id' => $location->id,
             'customer_name' => 'Snapshot Integrity Buyer',
             'items' => [['product_variant_id' => $variant->id, 'quantity' => 1]],
@@ -952,7 +952,7 @@ class SalesOrderWorkflowTest extends TestCase
         $order = SalesOrder::query()->findOrFail($response->json('data.id'));
         $order->update(['grand_total' => '1.00']);
 
-        $this->actingAs($user)->postJson('/api/orders/'.$order->id.'/confirm')
+        $this->actingAs($user)->postJson('/api/v1/backend/orders/'.$order->id.'/confirm')
             ->assertUnprocessable()
             ->assertJsonValidationErrors('pricing');
 

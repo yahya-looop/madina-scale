@@ -298,11 +298,11 @@ it('scopes finance journal and transaction lists to assigned locations', functio
     ]);
     $reader->locations()->attach($this->location->id, ['access_level' => 'view']);
 
-    $journalResponse = $this->actingAs($reader)->getJson('/api/finance/journals')->assertOk();
+    $journalResponse = $this->actingAs($reader)->getJson('/api/v1/backend/finance/journals')->assertOk();
     $journalIds = collect($journalResponse->json('data'))->pluck('id')->map(fn ($id): int => (int) $id);
     expect($journalIds)->toContain($visibleJournal->id)->not->toContain($hiddenJournal->id);
 
-    $transactionResponse = $this->getJson('/api/finance/transactions')->assertOk();
+    $transactionResponse = $this->getJson('/api/v1/backend/finance/transactions')->assertOk();
     $transactionIds = collect($transactionResponse->json('data'))->pluck('id')->map(fn ($id): int => (int) $id);
     expect($transactionIds)->toContain($visibleTransaction->id)->not->toContain($hiddenTransaction->id);
 });
@@ -343,7 +343,7 @@ it('scopes finance overview ledger totals to assigned locations', function (): v
     ]);
     $reader->locations()->attach($this->location->id, ['access_level' => 'view']);
 
-    $response = $this->actingAs($reader)->getJson('/api/finance/overview')->assertOk();
+    $response = $this->actingAs($reader)->getJson('/api/v1/backend/finance/overview')->assertOk();
 
     expect(bccomp((string) $response->json('data.month_income'), '125.00', 2))->toBe(0)
         ->and(collect($response->json('data.recent_transactions'))->pluck('description'))
@@ -376,7 +376,7 @@ it('blocks cross-location journal creation, posting and transaction creation wit
 
     $this->actingAs($writer);
 
-    $this->postJson('/api/finance/journals', [
+    $this->postJson('/api/v1/backend/finance/journals', [
         'entry_date' => now()->toDateString(),
         'description' => 'Unauthorized cross-location journal',
         'location_id' => $otherLocation->id,
@@ -386,9 +386,9 @@ it('blocks cross-location journal creation, posting and transaction creation wit
         ],
     ])->assertForbidden();
 
-    $this->postJson('/api/finance/journals/'.$otherJournal->id.'/post')->assertForbidden();
+    $this->postJson('/api/v1/backend/finance/journals/'.$otherJournal->id.'/post')->assertForbidden();
 
-    $this->postJson('/api/finance/transactions', [
+    $this->postJson('/api/v1/backend/finance/transactions', [
         'type' => 'income',
         'idempotency_key' => (string) Str::uuid(),
         'transaction_date' => now()->toDateString(),
@@ -428,7 +428,7 @@ it('does not allow view-only location access to create or post finance records',
 
     $this->actingAs($reader);
 
-    $this->postJson('/api/finance/journals', [
+    $this->postJson('/api/v1/backend/finance/journals', [
         'entry_date' => now()->toDateString(),
         'description' => 'View-only journal creation',
         'location_id' => $this->location->id,
@@ -438,9 +438,9 @@ it('does not allow view-only location access to create or post finance records',
         ],
     ])->assertForbidden();
 
-    $this->postJson('/api/finance/journals/'.$draft->id.'/post')->assertForbidden();
+    $this->postJson('/api/v1/backend/finance/journals/'.$draft->id.'/post')->assertForbidden();
 
-    $this->postJson('/api/finance/transactions', [
+    $this->postJson('/api/v1/backend/finance/transactions', [
         'type' => 'income',
         'idempotency_key' => (string) Str::uuid(),
         'transaction_date' => now()->toDateString(),
@@ -460,10 +460,10 @@ it('requires finance permissions for customer options and chart of accounts muta
     $user = User::factory()->create();
 
     $this->actingAs($user)
-        ->getJson('/api/finance/customer-options')
+        ->getJson('/api/v1/backend/finance/customer-options')
         ->assertForbidden();
 
-    $this->postJson('/api/finance/accounts', [
+    $this->postJson('/api/v1/backend/finance/accounts', [
         'code' => 'TEST-'.strtoupper(Str::random(6)),
         'name' => 'Unauthorized Account',
         'type' => 'expense',

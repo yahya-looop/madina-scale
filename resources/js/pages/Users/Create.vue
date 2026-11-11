@@ -242,7 +242,7 @@ async function loadRoles(): Promise<void> {
 
         const response = await apiRequest<Role[] | { data: Role[] }>(
 
-            '/api/roles',
+            '/api/v1/backend/roles',
 
             'GET',
 
@@ -304,7 +304,7 @@ async function loadLocations(): Promise<void> {
 
     try {
 
-        const response = await apiRequest<LocationOption[] | { data: LocationOption[] }>('/api/users/options/locations', 'GET');
+        const response = await apiRequest<LocationOption[] | { data: LocationOption[] }>('/api/v1/backend/users/options/locations', 'GET');
 
         locations.value = Array.isArray(response) ? response : response.data;
 
@@ -432,7 +432,7 @@ async function submit(): Promise<void> {
 
     try {
 
-        await apiRequest('/api/users', 'POST', {
+        await apiRequest('/api/v1/backend/users', 'POST', {
 
             name: form.name.trim(),
 
@@ -452,7 +452,7 @@ async function submit(): Promise<void> {
 
         });
 
-        router.get('/users');
+        router.get('/backend/users');
 
     } catch (error) {
 
@@ -490,7 +490,7 @@ async function submit(): Promise<void> {
 
 function backToUsers(): void {
 
-    router.get('/users');
+    router.get('/backend/users');
 
 }
 

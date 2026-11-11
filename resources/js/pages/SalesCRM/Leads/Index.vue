@@ -280,7 +280,7 @@ async function loadLeads() {
       per_page: "15",
     });
     if (followUpOnly.value) q.set("follow_up", "due");
-    const r = await fetch(`/api/leads?${q}`, {
+    const r = await fetch(`/api/v1/backend/leads?${q}`, {
       headers: headers(),
       credentials: "same-origin",
       cache: "no-store",
@@ -340,7 +340,7 @@ async function saveLead() {
   notice.value = "";
   try {
     const r = await fetch(
-      editing.value ? `/api/leads/${editing.value.id}` : "/api/leads",
+      editing.value ? `/api/v1/backend/leads/${editing.value.id}` : "/api/v1/backend/leads",
       {
         method: editing.value ? "PUT" : "POST",
         headers: headers(),
@@ -419,7 +419,7 @@ async function quickUpdateLead(
   error.value = "";
   notice.value = "";
   try {
-    const response = await fetch(`/api/leads/${lead.id}`, {
+    const response = await fetch(`/api/v1/backend/leads/${lead.id}`, {
       method: "PUT",
       headers: headers(),
       credentials: "same-origin",
@@ -446,7 +446,7 @@ async function quickUpdateLead(
 
 async function loadAssignmentOptions() {
   try {
-    const response = await fetch("/api/leads/assignment-options", {
+    const response = await fetch("/api/v1/backend/leads/assignment-options", {
       headers: headers(),
       credentials: "same-origin",
       cache: "no-store",
@@ -473,7 +473,7 @@ async function saveAssignment() {
   error.value = "";
   notice.value = "";
   try {
-    const r = await fetch(`/api/leads/${detail.value.id}/assignment`, {
+    const r = await fetch(`/api/v1/backend/leads/${detail.value.id}/assignment`, {
       method: "POST",
       headers: headers(),
       credentials: "same-origin",
@@ -521,7 +521,7 @@ async function loadOrderOptions() {
   orderOptionsLoading.value = true;
   error.value = "";
   try {
-    const r = await fetch("/api/orders/options", { headers: headers(), credentials: "same-origin" });
+    const r = await fetch("/api/v1/backend/orders/options", { headers: headers(), credentials: "same-origin" });
     if (!r.ok) throw new Error(await readError(r, "Could not load order locations."));
     const payload = await r.json();
     orderLocations.value = payload.locations || [];
@@ -539,7 +539,7 @@ async function loadOrderOptions() {
 async function loadOrderVariants() {
   orderVariants.value = [];
   if (!orderLocationId.value) return;
-  const r = await fetch(`/api/orders/options?location_id=${orderLocationId.value}`, { headers: headers(), credentials: "same-origin" });
+  const r = await fetch(`/api/v1/backend/orders/options?location_id=${orderLocationId.value}`, { headers: headers(), credentials: "same-origin" });
   if (!r.ok) throw new Error(await readError(r, "Could not load products for this location."));
   const payload = await r.json();
   orderVariants.value = payload.variants || [];
@@ -568,7 +568,7 @@ async function submitConversionOrder() {
   orderSubmitting.value = true;
   error.value = "";
   try {
-    const r = await fetch(`/api/leads/${lead.id}/convert-with-order`, {
+    const r = await fetch(`/api/v1/backend/leads/${lead.id}/convert-with-order`, {
       method: "POST", headers: headers(), credentials: "same-origin",
       body: JSON.stringify({
         location_id: orderLocationId.value, notes: orderNotes.value || null,
@@ -590,13 +590,13 @@ async function submitConversionOrder() {
 }
 function viewCustomer() {
   if (!detail.value?.customer) return;
-  window.location.href = `/customers?search=${encodeURIComponent(detail.value.customer.customer_code)}`;
+  window.location.href = `/backend/customers?search=${encodeURIComponent(detail.value.customer.customer_code)}`;
 }
 
 async function openDetail(lead: Lead) {
   error.value = "";
   try {
-    const r = await fetch(`/api/leads/${lead.id}`, {
+    const r = await fetch(`/api/v1/backend/leads/${lead.id}`, {
       headers: headers(),
       credentials: "same-origin",
       cache: "no-store",
@@ -621,7 +621,7 @@ async function saveActivity() {
   activitySaving.value = true;
   error.value = "";
   try {
-    const r = await fetch(`/api/leads/${detail.value.id}/activities`, {
+    const r = await fetch(`/api/v1/backend/leads/${detail.value.id}/activities`, {
       method: "POST",
       headers: headers(),
       credentials: "same-origin",
@@ -652,7 +652,7 @@ async function archiveLead(lead: Lead) {
   if (!confirm(`Archive lead ${lead.name}?`)) return;
   error.value = "";
   try {
-    const r = await fetch(`/api/leads/${lead.id}`, {
+    const r = await fetch(`/api/v1/backend/leads/${lead.id}`, {
       method: "DELETE",
       headers: headers(),
       credentials: "same-origin",

@@ -118,7 +118,7 @@ const locationTypeMap: Record<LocationSuggestionKey, string> = {
 };
 async function loadCustomLocationSuggestions() {
     try {
-        const response = await fetch('/api/customer-location-suggestions', {
+        const response = await fetch('/api/v1/backend/customer-location-suggestions', {
             headers: {
                 Accept: 'application/json',
                 'X-Requested-With': 'XMLHttpRequest',
@@ -149,7 +149,7 @@ async function rememberLocationSuggestion(
     const current = customLocationSuggestions[key];
     if (current.some((item) => item.toLowerCase() === cleanValue.toLowerCase()))
         return;
-    const response = await fetch('/api/customer-location-suggestions', {
+    const response = await fetch('/api/v1/backend/customer-location-suggestions', {
         method: 'POST',
         headers: { ...headers(), Accept: 'application/json' },
         credentials: 'same-origin',
@@ -301,7 +301,7 @@ async function load() {
             page: String(page.value),
             per_page: '15',
         });
-        const r = await fetch(`/api/customers?${q}`, {
+        const r = await fetch(`/api/v1/backend/customers?${q}`, {
             credentials: 'same-origin',
             headers: {
                 Accept: 'application/json',
@@ -364,8 +364,8 @@ async function save() {
     try {
         const r = await fetch(
             editing.value
-                ? `/api/customers/${editing.value.id}`
-                : '/api/customers',
+                ? `/api/v1/backend/customers/${editing.value.id}`
+                : '/api/v1/backend/customers',
             {
                 method: editing.value ? 'PUT' : 'POST',
                 headers: headers(),
@@ -390,7 +390,7 @@ async function save() {
 }
 async function showCustomer(c: Customer) {
     try {
-        const r = await fetch(`/api/customers/${c.id}`, {
+        const r = await fetch(`/api/v1/backend/customers/${c.id}`, {
             credentials: 'same-origin',
             headers: {
                 Accept: 'application/json',
@@ -413,7 +413,7 @@ async function showCustomer(c: Customer) {
 async function removeCustomer() {
     if (!deleteTarget.value) return;
     try {
-        const r = await fetch(`/api/customers/${deleteTarget.value.id}`, {
+        const r = await fetch(`/api/v1/backend/customers/${deleteTarget.value.id}`, {
             method: 'DELETE',
             headers: headers(),
             credentials: 'same-origin',

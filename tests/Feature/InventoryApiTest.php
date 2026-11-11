@@ -59,20 +59,20 @@ function createInventoryApiUser(array $permissionSlugs = []): User
 }
 
 test('unauthenticated users cannot access inventory endpoints', function () {
-    $this->getJson('/api/inventory/stocks')
+    $this->getJson('/api/v1/backend/inventory/stocks')
         ->assertUnauthorized();
 
-    $this->getJson('/api/inventory/movements')
+    $this->getJson('/api/v1/backend/inventory/movements')
         ->assertUnauthorized();
 
-    $this->getJson('/api/inventory/low-stock')
+    $this->getJson('/api/v1/backend/inventory/low-stock')
         ->assertUnauthorized();
 
-    $this->patchJson('/api/inventory/stocks/1/threshold', [
+    $this->patchJson('/api/v1/backend/inventory/stocks/1/threshold', [
         'low_stock_threshold' => '5.0000',
     ])->assertUnauthorized();
 
-    $this->postJson('/api/inventory/receive', [])
+    $this->postJson('/api/v1/backend/inventory/receive', [])
         ->assertUnauthorized();
 });
 
@@ -81,13 +81,13 @@ test('authenticated user without inventory permission receives forbidden respons
 
     $this->actingAs($user);
 
-    $this->getJson('/api/inventory/stocks')
+    $this->getJson('/api/v1/backend/inventory/stocks')
         ->assertForbidden();
 
-    $this->getJson('/api/inventory/movements')
+    $this->getJson('/api/v1/backend/inventory/movements')
         ->assertForbidden();
 
-    $this->getJson('/api/inventory/low-stock')
+    $this->getJson('/api/v1/backend/inventory/low-stock')
         ->assertForbidden();
 
     $stock = InventoryStock::create([
@@ -99,11 +99,11 @@ test('authenticated user without inventory permission receives forbidden respons
     ]);
 
     $this->patchJson(
-        '/api/inventory/stocks/'.$stock->id.'/threshold',
+        '/api/v1/backend/inventory/stocks/'.$stock->id.'/threshold',
         ['low_stock_threshold' => '20']
     )->assertForbidden();
 
-    $this->postJson('/api/inventory/receive', [])
+    $this->postJson('/api/v1/backend/inventory/receive', [])
         ->assertForbidden();
 });
 
@@ -114,13 +114,13 @@ test('user with inventory view permission can access stock and movement endpoint
 
     $this->actingAs($user);
 
-    $this->getJson('/api/inventory/stocks')
+    $this->getJson('/api/v1/backend/inventory/stocks')
         ->assertOk();
 
-    $this->getJson('/api/inventory/movements')
+    $this->getJson('/api/v1/backend/inventory/movements')
         ->assertOk();
 
-    $this->getJson('/api/inventory/low-stock')
+    $this->getJson('/api/v1/backend/inventory/low-stock')
         ->assertOk();
 });
 
@@ -163,7 +163,7 @@ test('stock list returns only the latest movement for simple and variant stock w
     $createMovement(['product_variant_id' => $variant->id], '2.0000');
     $latestVariant = $createMovement(['product_variant_id' => $variant->id], '3.0000');
 
-    $this->actingAs($user)->getJson('/api/inventory/stocks')->assertOk()
+    $this->actingAs($user)->getJson('/api/v1/backend/inventory/stocks')->assertOk()
         ->assertJsonPath('data.0.id', $simpleStock->id)
         ->assertJsonPath('data.0.latest_movement.id', $latestSimple->id)
         ->assertJsonPath('data.1.id', $variantStock->id)
@@ -177,16 +177,16 @@ test('inventory view permission alone cannot perform stock mutations', function 
 
     $this->actingAs($user);
 
-    $this->postJson('/api/inventory/receive', [])
+    $this->postJson('/api/v1/backend/inventory/receive', [])
         ->assertForbidden();
 
-    $this->postJson('/api/inventory/issue', [])
+    $this->postJson('/api/v1/backend/inventory/issue', [])
         ->assertForbidden();
 
-    $this->postJson('/api/inventory/adjust', [])
+    $this->postJson('/api/v1/backend/inventory/adjust', [])
         ->assertForbidden();
 
-    $this->postJson('/api/inventory/transfer', [])
+    $this->postJson('/api/v1/backend/inventory/transfer', [])
         ->assertForbidden();
 
     $stock = InventoryStock::create([
@@ -197,7 +197,7 @@ test('inventory view permission alone cannot perform stock mutations', function 
         'low_stock_threshold' => '2.0000',
     ]);
 
-    $this->patchJson('/api/inventory/stocks/'.$stock->id.'/threshold', [
+    $this->patchJson('/api/v1/backend/inventory/stocks/'.$stock->id.'/threshold', [
         'low_stock_threshold' => '5.0000',
     ])->assertForbidden();
 });
@@ -209,7 +209,7 @@ test('receive endpoint validates required stock movement fields', function () {
 
     $this->actingAs($user);
 
-    $this->postJson('/api/inventory/receive', [])
+    $this->postJson('/api/v1/backend/inventory/receive', [])
         ->assertUnprocessable()
         ->assertJsonValidationErrors([
             'location_id',
@@ -224,7 +224,7 @@ test('issue endpoint validates required stock movement fields', function () {
 
     $this->actingAs($user);
 
-    $this->postJson('/api/inventory/issue', [])
+    $this->postJson('/api/v1/backend/inventory/issue', [])
         ->assertUnprocessable()
         ->assertJsonValidationErrors([
             'location_id',
@@ -239,7 +239,7 @@ test('adjust endpoint validates required stock movement fields', function () {
 
     $this->actingAs($user);
 
-    $this->postJson('/api/inventory/adjust', [])
+    $this->postJson('/api/v1/backend/inventory/adjust', [])
         ->assertUnprocessable()
         ->assertJsonValidationErrors([
             'location_id',
@@ -254,7 +254,7 @@ test('transfer endpoint validates required transfer fields', function () {
 
     $this->actingAs($user);
 
-    $this->postJson('/api/inventory/transfer', [])
+    $this->postJson('/api/v1/backend/inventory/transfer', [])
         ->assertUnprocessable()
         ->assertJsonValidationErrors([
             'source_location_id',
@@ -286,7 +286,7 @@ test('authorized receive API increases stock and creates a movement', function (
 
     $this->actingAs($user);
 
-    $response = $this->postJson('/api/inventory/receive', [
+    $response = $this->postJson('/api/v1/backend/inventory/receive', [
         'product_id' => $product->id,
         'location_id' => $location->id,
         'quantity' => '12.5000',
@@ -326,7 +326,7 @@ test('authorized issue API reduces stock and records the balance', function () {
 
     $this->actingAs($user);
 
-    $response = $this->postJson('/api/inventory/issue', [
+    $response = $this->postJson('/api/v1/backend/inventory/issue', [
         'product_id' => $product->id,
         'location_id' => $location->id,
         'quantity' => '3.2500',
@@ -361,7 +361,7 @@ test('insufficient stock API request leaves balance and ledger unchanged', funct
 
     $this->actingAs($user);
 
-    $this->postJson('/api/inventory/issue', [
+    $this->postJson('/api/v1/backend/inventory/issue', [
         'product_id' => $product->id,
         'location_id' => $location->id,
         'quantity' => '5.0000',
@@ -394,10 +394,10 @@ test('repeated receive API request with the same idempotency key does not duplic
 
     $this->actingAs($user);
 
-    $first = $this->postJson('/api/inventory/receive', $payload);
+    $first = $this->postJson('/api/v1/backend/inventory/receive', $payload);
     $first->assertCreated();
 
-    $second = $this->postJson('/api/inventory/receive', $payload);
+    $second = $this->postJson('/api/v1/backend/inventory/receive', $payload);
     $second->assertCreated();
 
     expect($second->json('data.id'))
@@ -428,7 +428,7 @@ test('authorized transfer API dispatches to destination confirmation workflow', 
     ]);
 
     $this->actingAs($user);
-    $response = $this->postJson('/api/inventory/transfer', [
+    $response = $this->postJson('/api/v1/backend/inventory/transfer', [
         'product_id' => $product->id,
         'source_location_id' => $source->id,
         'destination_location_id' => $destination->id,
@@ -448,7 +448,7 @@ test('authorized transfer API dispatches to destination confirmation workflow', 
     ]);
 
     $transfer = InventoryTransfer::query()->firstOrFail();
-    $this->actingAs($receiver)->postJson("/api/inventory/transfers/{$transfer->id}/accept", ['quantity_received' => '4.0000', 'idempotency_key' => (string) Str::uuid()])
+    $this->actingAs($receiver)->postJson("/api/v1/backend/inventory/transfers/{$transfer->id}/accept", ['quantity_received' => '4.0000', 'idempotency_key' => (string) Str::uuid()])
         ->assertOk()->assertJsonPath('data.status', 'received');
     $this->assertDatabaseHas('inventory_stocks', [
         'product_id' => $product->id, 'location_id' => $destination->id, 'quantity' => '4.0000',
@@ -474,7 +474,7 @@ test('failed transfer API request leaves both location balances unchanged', func
 
     $this->actingAs($user);
 
-    $this->postJson('/api/inventory/transfer', [
+    $this->postJson('/api/v1/backend/inventory/transfer', [
         'product_id' => $product->id,
         'source_location_id' => $source->id,
         'destination_location_id' => $destination->id,
@@ -535,7 +535,7 @@ test('low stock API returns only enabled thresholds using available quantity', f
 
     $this->actingAs($user);
 
-    $this->getJson('/api/inventory/low-stock')
+    $this->getJson('/api/v1/backend/inventory/low-stock')
         ->assertOk()
         ->assertJsonCount(1, 'data')
         ->assertJsonPath('data.0.product_id', $lowStockProduct->id)
@@ -574,7 +574,7 @@ test('low stock API supports location and product filters with pagination', func
     $this->actingAs($user);
 
     $this->getJson(
-        '/api/inventory/low-stock?location_id='.$firstLocation->id
+        '/api/v1/backend/inventory/low-stock?location_id='.$firstLocation->id
         .'&product_id='.$firstProduct->id
         .'&per_page=1'
     )
@@ -591,11 +591,11 @@ test('low stock API validates filters and pagination limits', function () {
 
     $this->actingAs($user);
 
-    $this->getJson('/api/inventory/low-stock?location_id=0')
+    $this->getJson('/api/v1/backend/inventory/low-stock?location_id=0')
         ->assertUnprocessable()
         ->assertJsonValidationErrors(['location_id']);
 
-    $this->getJson('/api/inventory/low-stock?per_page=101')
+    $this->getJson('/api/v1/backend/inventory/low-stock?per_page=101')
         ->assertUnprocessable()
         ->assertJsonValidationErrors(['per_page']);
 });
@@ -621,7 +621,7 @@ test('user with inventory update permission can update low stock threshold witho
 
     $this->actingAs($user);
 
-    $this->patchJson('/api/inventory/stocks/'.$stock->id.'/threshold', [
+    $this->patchJson('/api/v1/backend/inventory/stocks/'.$stock->id.'/threshold', [
         'low_stock_threshold' => '20',
     ])
         ->assertOk()
@@ -660,7 +660,7 @@ test('low stock threshold requires an integer of at least 20', function () {
 
     // The minimum allowed threshold is 20, and valid values are whole numbers.
     foreach (['20', '50', '100'] as $validThreshold) {
-        $this->patchJson('/api/inventory/stocks/'.$stock->id.'/threshold', [
+        $this->patchJson('/api/v1/backend/inventory/stocks/'.$stock->id.'/threshold', [
             'low_stock_threshold' => $validThreshold,
         ])
             ->assertOk()
@@ -668,7 +668,7 @@ test('low stock threshold requires an integer of at least 20', function () {
     }
 
     foreach (['0', '19', '-5', '50.5', '1.12345'] as $invalidThreshold) {
-        $this->patchJson('/api/inventory/stocks/'.$stock->id.'/threshold', [
+        $this->patchJson('/api/v1/backend/inventory/stocks/'.$stock->id.'/threshold', [
             'low_stock_threshold' => $invalidThreshold,
         ])
             ->assertUnprocessable()
@@ -683,7 +683,7 @@ test('low stock threshold update returns not found for a missing stock row', fun
 
     $this->actingAs($user);
 
-    $this->patchJson('/api/inventory/stocks/999999/threshold', [
+    $this->patchJson('/api/v1/backend/inventory/stocks/999999/threshold', [
         'low_stock_threshold' => '5.0000',
     ])->assertNotFound();
 });
@@ -704,11 +704,11 @@ test('inventory stock and low-stock queries are limited to assigned locations', 
         'quantity' => '1.0000', 'reserved_quantity' => '0.0000', 'low_stock_threshold' => '5.0000',
     ]);
 
-    $this->actingAs($user)->getJson('/api/inventory/stocks')->assertOk()
+    $this->actingAs($user)->getJson('/api/v1/backend/inventory/stocks')->assertOk()
         ->assertJsonCount(1, 'data')->assertJsonPath('data.0.location_id', $assigned->id);
-    $this->getJson('/api/inventory/low-stock')->assertOk()
+    $this->getJson('/api/v1/backend/inventory/low-stock')->assertOk()
         ->assertJsonCount(1, 'data')->assertJsonPath('data.0.location_id', $assigned->id);
-    $this->getJson('/api/inventory/stocks?location_id='.$unassigned->id)->assertForbidden();
+    $this->getJson('/api/v1/backend/inventory/stocks?location_id='.$unassigned->id)->assertForbidden();
 });
 
 test('receive requires receive or manage access to the target location', function () {
@@ -719,9 +719,9 @@ test('receive requires receive or manage access to the target location', functio
     $user->locations()->attach($assigned->id, ['access_level' => 'receive']);
 
     $payload = ['product_id' => $product->id, 'quantity' => '2', 'reason' => 'Receiving test'];
-    $this->actingAs($user)->postJson('/api/inventory/receive', $payload + ['location_id' => $unassigned->id])
+    $this->actingAs($user)->postJson('/api/v1/backend/inventory/receive', $payload + ['location_id' => $unassigned->id])
         ->assertForbidden();
-    $this->postJson('/api/inventory/receive', $payload + ['location_id' => $assigned->id])
+    $this->postJson('/api/v1/backend/inventory/receive', $payload + ['location_id' => $assigned->id])
         ->assertCreated();
 });
 
@@ -741,13 +741,13 @@ test('issue and adjustment require manage access even when the global permission
         'quantity' => '10.0000', 'reserved_quantity' => '0.0000', 'low_stock_threshold' => '0.0000',
     ]);
 
-    $this->actingAs($user)->postJson('/api/inventory/issue', [
+    $this->actingAs($user)->postJson('/api/v1/backend/inventory/issue', [
         'product_id' => $product->id, 'location_id' => $receiveOnly->id, 'quantity' => '1',
     ])->assertForbidden();
-    $this->postJson('/api/inventory/adjust', [
+    $this->postJson('/api/v1/backend/inventory/adjust', [
         'product_id' => $product->id, 'location_id' => $receiveOnly->id, 'quantity' => '1',
     ])->assertForbidden();
-    $this->postJson('/api/inventory/issue', [
+    $this->postJson('/api/v1/backend/inventory/issue', [
         'product_id' => $product->id, 'location_id' => $managed->id, 'quantity' => '1',
     ])->assertOk();
 });

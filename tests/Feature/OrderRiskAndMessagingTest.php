@@ -107,7 +107,7 @@ class OrderRiskAndMessagingTest extends TestCase
             'last_error' => 'Provider timeout; booking outcome requires review.',
         ]);
 
-        $this->actingAs($user)->postJson('/api/orders/'.$order->id.'/shipments', [
+        $this->actingAs($user)->postJson('/api/v1/backend/orders/'.$order->id.'/shipments', [
             'provider' => 'steadfast',
             'idempotency_key' => $shipment->idempotency_key,
             'recipient_address' => 'Dhaka, Bangladesh',
@@ -139,7 +139,7 @@ class OrderRiskAndMessagingTest extends TestCase
             'booked_at' => now(),
         ]);
 
-        $this->actingAs($user)->postJson('/api/orders/'.$order->id.'/shipments', [
+        $this->actingAs($user)->postJson('/api/v1/backend/orders/'.$order->id.'/shipments', [
             'provider' => 'steadfast',
             'idempotency_key' => $shipment->idempotency_key,
             'recipient_address' => 'Dhaka, Bangladesh',
@@ -174,7 +174,7 @@ class OrderRiskAndMessagingTest extends TestCase
             'last_error' => 'Previous timeout; portal checked by operator.',
         ]);
 
-        $this->actingAs($user)->postJson('/api/orders/'.$order->id.'/shipments/'.$shipment->id.'/retry', [
+        $this->actingAs($user)->postJson('/api/v1/backend/orders/'.$order->id.'/shipments/'.$shipment->id.'/retry', [
             'confirm_no_existing_shipment' => true,
             'retry_reason' => 'Checked courier merchant portal; no parcel exists',
         ])->assertOk()->assertJsonPath('data.status', 'booked')
@@ -200,7 +200,7 @@ class OrderRiskAndMessagingTest extends TestCase
             'recipient_address' => 'Dhaka, Bangladesh', 'cod_amount' => 100,
         ]);
 
-        $this->actingAs($user)->postJson('/api/orders/'.$order->id.'/shipments/'.$shipment->id.'/retry', [
+        $this->actingAs($user)->postJson('/api/v1/backend/orders/'.$order->id.'/shipments/'.$shipment->id.'/retry', [
             'confirm_no_existing_shipment' => true,
             'retry_reason' => 'Checked courier merchant portal; no parcel exists',
         ])->assertStatus(422);
@@ -222,7 +222,7 @@ class OrderRiskAndMessagingTest extends TestCase
             'recipient_address' => 'Dhaka, Bangladesh', 'cod_amount' => 100,
         ]);
 
-        $this->actingAs($user)->postJson('/api/orders/'.$order->id.'/shipments/'.$shipment->id.'/retry', [
+        $this->actingAs($user)->postJson('/api/v1/backend/orders/'.$order->id.'/shipments/'.$shipment->id.'/retry', [
             'confirm_no_existing_shipment' => true,
             'retry_reason' => 'Checked courier merchant portal; no parcel exists',
         ])->assertStatus(202)->assertJsonPath('data.status', 'booking');

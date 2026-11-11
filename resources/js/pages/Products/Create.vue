@@ -265,11 +265,11 @@ async function loadOptions() {
     try {
         const [categoryResponse, brandResponse, unitResponse] =
             await Promise.all([
-                fetch('/api/product-categories'),
+                fetch('/api/v1/backend/product-categories'),
 
-                fetch('/api/brands'),
+                fetch('/api/v1/backend/brands'),
 
-                fetch('/api/units'),
+                fetch('/api/v1/backend/units'),
             ]);
 
         if (!categoryResponse.ok) {
@@ -634,7 +634,7 @@ async function createProduct() {
             payload.append('images[]', file),
         );
 
-        const response = await fetch('/api/products', {
+        const response = await fetch('/api/v1/backend/products', {
             method: 'POST',
 
             headers: {
@@ -672,7 +672,7 @@ async function createProduct() {
         );
 
         setTimeout(() => {
-            router.visit('/products');
+            router.visit('/backend/products');
         }, 900);
     } catch (error) {
         showToast(
@@ -688,7 +688,7 @@ async function createProduct() {
 }
 
 function cancel() {
-    router.visit('/products');
+    router.visit('/backend/products');
 }
 
 onMounted(() => {
@@ -1026,7 +1026,7 @@ onBeforeUnmount(() => {
                                 </div>
 
                                 <div class="slug-field">
-                                    <span>/products/</span>
+                                    <span>/backend/products/</span>
 
                                     <input
                                         v-model="form.slug"

@@ -315,7 +315,7 @@ async function load(targetPage = page.value): Promise<void> {
             per_page: String(perPage.value),
         });
 
-        const response = await fetch(`/api/inventory/movements?${params}`, {
+        const response = await fetch(`/api/v1/backend/inventory/movements?${params}`, {
             credentials: 'same-origin',
 
             headers: {
@@ -395,11 +395,11 @@ async function openProductDetails(
             'X-Requested-With': 'XMLHttpRequest',
         };
         const [movementResponse, stockResponse] = await Promise.all([
-            fetch(`/api/inventory/movements?${movementParams}`, {
+            fetch(`/api/v1/backend/inventory/movements?${movementParams}`, {
                 credentials: 'same-origin',
                 headers,
             }),
-            fetch(`/api/inventory/stocks?${stockParams}`, {
+            fetch(`/api/v1/backend/inventory/stocks?${stockParams}`, {
                 credentials: 'same-origin',
                 headers,
             }),
@@ -477,7 +477,7 @@ onMounted(() => void load(1));
             <header class="page-header">
                 <div class="page-heading">
                     <div class="breadcrumb">
-                        <a href="/inventory">Inventory</a
+                        <a href="/backend/inventory">Inventory</a
                         ><Icon name="chevron-right" :size="13" /><strong
                             >Stock Movements</strong
                         >

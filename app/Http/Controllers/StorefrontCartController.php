@@ -195,7 +195,7 @@ class StorefrontCartController extends Controller
         $this->ensureStorefrontEnabled($request);
         $order = $request->session()->get('storefront_last_order');
         if (! $order) {
-            return to_route('storefront.index');
+            return to_route('storefront.products.index');
         }
 
         return Inertia::render('Storefront/OrderSuccess', ['order' => $order]);

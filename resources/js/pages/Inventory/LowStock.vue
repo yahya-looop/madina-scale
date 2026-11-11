@@ -104,7 +104,7 @@ async function load(targetPage = page.value): Promise<void> {
             page: String(targetPage),
             per_page: String(perPage.value),
         });
-        const response = await fetch(`/api/inventory/low-stock?${params}`, {
+        const response = await fetch(`/api/v1/backend/inventory/low-stock?${params}`, {
             credentials: 'same-origin',
             headers: {
                 Accept: 'application/json',
@@ -163,7 +163,7 @@ onMounted(() => void load(1));
             <header class="page-header">
                 <div class="page-heading">
                     <div class="breadcrumb">
-                        <a href="/inventory">Inventory</a
+                        <a href="/backend/inventory">Inventory</a
                         ><Icon name="chevron-right" :size="13" /><strong
                             >Low Stock</strong
                         >

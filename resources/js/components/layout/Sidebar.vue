@@ -36,8 +36,8 @@ const currentPath = computed<string>(() => {
 });
 
 const legacyNavigationPermissions: Record<string, string> = {
-    '/users': 'system.users.view',
-    '/settings/roles-permissions': 'system.roles.view',
+    '/backend/users': 'system.users.view',
+    '/backend/settings/roles-permissions': 'system.roles.view',
 };
 
 function getPermission(item: NavigationItem): string | null {
@@ -72,9 +72,9 @@ const items = computed<NavigationItem[]>(() => {
 
 /**
  * Only the most-specific matching route is active.
- * This keeps /inventory from also activating on /inventory/low-stock
- * or /inventory/movements, while preserving parent activity for
- * nested detail routes that have no more-specific navigation item.
+ * This keeps /backend/inventory from also activating on
+ * /backend/inventory/low-stock or /backend/inventory/movements, while
+ * preserving parent activity for nested detail routes.
  */
 const visibleRouteItems = computed<NavigationItem[]>(() =>
     items.value.flatMap((item) => [

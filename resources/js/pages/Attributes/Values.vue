@@ -131,11 +131,11 @@ async function loadPage(): Promise<void> {
     try {
         const [attributeData, attributeList, valueData] = await Promise.all([
             apiRequest<Attribute>(
-                `/api/attributes/${Number(props.attributeId)}`,
+                `/api/v1/backend/attributes/${Number(props.attributeId)}`,
             ),
-            apiRequest<Attribute[]>('/api/attributes'),
+            apiRequest<Attribute[]>('/api/v1/backend/attributes'),
             apiRequest<AttributeValue[]>(
-                `/api/attribute-values?attribute_id=${Number(props.attributeId)}`,
+                `/api/v1/backend/attribute-values?attribute_id=${Number(props.attributeId)}`,
             ),
         ]);
         attribute.value = attributeData;
@@ -203,14 +203,14 @@ async function saveValue(): Promise<void> {
     try {
         if (editing.value) {
             await apiRequest<AttributeValue>(
-                `/api/attribute-values/${editing.value.id}`,
+                `/api/v1/backend/attribute-values/${editing.value.id}`,
                 'PUT',
                 payload,
             );
             successMessage.value = 'Attribute value updated successfully.';
         } else {
             await apiRequest<AttributeValue>(
-                '/api/attribute-values',
+                '/api/v1/backend/attribute-values',
                 'POST',
                 payload,
             );
@@ -238,7 +238,7 @@ async function confirmDelete(): Promise<void> {
     errorMessage.value = '';
     successMessage.value = '';
     try {
-        await apiRequest(`/api/attribute-values/${item.id}`, 'DELETE');
+        await apiRequest(`/api/v1/backend/attribute-values/${item.id}`, 'DELETE');
         values.value = values.value.filter((value) => value.id !== item.id);
         deleteTarget.value = null;
         successMessage.value = `"${item.name}" deleted successfully.`;
@@ -280,13 +280,13 @@ onMounted(loadPage);
                     <div class="breadcrumb">
                         <button
                             type="button"
-                            @click="router.visit('/attributes')"
+                            @click="router.visit('/backend/attributes')"
                         >
                             Products</button
                         ><span class="breadcrumb-separator">/</span
                         ><button
                             type="button"
-                            @click="router.visit('/attributes')"
+                            @click="router.visit('/backend/attributes')"
                         >
                             Attributes</button
                         ><span class="breadcrumb-separator">/</span
@@ -316,7 +316,7 @@ onMounted(loadPage);
                     ><button
                         class="btn secondary"
                         type="button"
-                        @click="router.visit('/attributes')"
+                        @click="router.visit('/backend/attributes')"
                     >
                         <Icon name="arrow-left" :size="14" /> Attributes</button
                     ><button

@@ -70,7 +70,7 @@ test('global location manager may dispatch without an explicit source assignment
         'low_stock_threshold' => '0',
     ]);
 
-    $this->actingAs($manager)->postJson('/api/inventory/transfers', [
+    $this->actingAs($manager)->postJson('/api/v1/backend/inventory/transfers', [
         'product_id' => $product->id,
         'source_location_id' => $source->id,
         'destination_location_id' => $destination->id,
@@ -103,7 +103,7 @@ test('removing destination assignment revokes the users ability to receive an ex
         'low_stock_threshold' => '0',
     ]);
 
-    $this->actingAs($sender)->postJson('/api/inventory/transfers', [
+    $this->actingAs($sender)->postJson('/api/v1/backend/inventory/transfers', [
         'product_id' => $product->id,
         'source_location_id' => $source->id,
         'destination_location_id' => $destination->id,
@@ -116,7 +116,7 @@ test('removing destination assignment revokes the users ability to receive an ex
     // Revoke assignment after dispatch; authorization must be checked at receipt time.
     $receiver->locations()->detach($destination->id);
 
-    $this->actingAs($receiver)->postJson("/api/inventory/transfers/{$transfer->id}/accept", [
+    $this->actingAs($receiver)->postJson("/api/v1/backend/inventory/transfers/{$transfer->id}/accept", [
         'quantity_received' => '4',
         'idempotency_key' => (string) Str::uuid(),
     ])->assertUnprocessable();

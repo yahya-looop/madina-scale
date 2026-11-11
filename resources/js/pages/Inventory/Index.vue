@@ -121,7 +121,7 @@ async function loadReservationPurposes(): Promise<void> {
     reservationPurposesLoading.value = true;
     reservationPurposesError.value = '';
     try {
-        const response = await fetch('/api/inventory/reservation-purposes', {
+        const response = await fetch('/api/v1/backend/inventory/reservation-purposes', {
             credentials: 'same-origin',
             headers: {
                 Accept: 'application/json',
@@ -257,7 +257,7 @@ async function submitReservation(): Promise<void> {
             reservationExpiresAt.value || defaultReservationExpiry();
         body.expires_at = new Date(expiryInput).toISOString();
 
-        const response = await fetch('/api/inventory/reservations', {
+        const response = await fetch('/api/v1/backend/inventory/reservations', {
             method: 'POST',
             credentials: 'same-origin',
             headers: {
@@ -499,7 +499,7 @@ async function saveThreshold(): Promise<void> {
     thresholdMessage.value = '';
     try {
         const response = await fetch(
-            `/api/inventory/stocks/${stock.id}/threshold`,
+            `/api/v1/backend/inventory/stocks/${stock.id}/threshold`,
             {
                 method: 'PATCH',
                 credentials: 'same-origin',
@@ -561,7 +561,7 @@ async function loadStocks(page = currentPage.value): Promise<void> {
         });
 
         const response = await fetch(
-            `/api/inventory/stocks?${params.toString()}`,
+            `/api/v1/backend/inventory/stocks?${params.toString()}`,
             {
                 method: 'GET',
                 credentials: 'same-origin',
@@ -662,14 +662,14 @@ onMounted(() => {
                 <div class="header-actions">
                     <a
                         class="button button-secondary"
-                        href="/inventory/reservations"
+                        href="/backend/inventory/reservations"
                     >
                         <Icon name="calendar-check" :size="15" />
                         Reservations
                     </a>
                     <a
                         class="button button-secondary"
-                        href="/inventory/operations"
+                        href="/backend/inventory/operations"
                     >
                         <Icon name="settings-2" :size="15" />
                         Stock Operations
@@ -804,7 +804,7 @@ onMounted(() => {
                 role="status"
             >
                 <Icon name="check-circle" :size="17" /> {{ reservationSuccess }}
-                <a href="/inventory/reservations">View reservations</a>
+                <a href="/backend/inventory/reservations">View reservations</a>
                 <button
                     type="button"
                     aria-label="Dismiss notification"
@@ -1310,7 +1310,7 @@ onMounted(() => {
                                 </p>
                                 <footer class="reservation-modal-footer">
                                     <a
-                                        href="/inventory/reservations"
+                                        href="/backend/inventory/reservations"
                                         class="reservation-history-link"
                                         >Manage existing reservations</a
                                     >
@@ -1777,7 +1777,7 @@ onMounted(() => {
                                         </div>
                                         <a
                                             class="stock-operation-link"
-                                            href="/inventory/operations"
+                                            href="/backend/inventory/operations"
                                         >
                                             <span class="operation-link-icon"
                                                 ><Icon

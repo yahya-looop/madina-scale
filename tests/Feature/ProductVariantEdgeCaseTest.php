@@ -153,7 +153,7 @@ test('variant creation rejects a value belonging to another attribute', function
 
     $this->actingAs($user)
         ->postJson(
-            "/api/products/{$product->id}/variants",
+            "/api/v1/backend/products/{$product->id}/variants",
             variantEdgePayload([
                 'attribute_values' => [
                     [
@@ -181,7 +181,7 @@ test('variant creation rejects an inactive attribute value', function () {
 
     $this->actingAs($user)
         ->postJson(
-            "/api/products/{$product->id}/variants",
+            "/api/v1/backend/products/{$product->id}/variants",
             variantEdgePayload([
                 'attribute_values' => [
                     [
@@ -227,7 +227,7 @@ test('variant creation accepts color and boolean attribute types exposed by the 
 
     $this->actingAs($user)
         ->postJson(
-            "/api/products/{$product->id}/variants",
+            "/api/v1/backend/products/{$product->id}/variants",
             variantEdgePayload([
                 'attribute_values' => [
                     [
@@ -259,7 +259,7 @@ test('variant creation rejects a non-selectable attribute type', function () {
 
     $this->actingAs($user)
         ->postJson(
-            "/api/products/{$product->id}/variants",
+            "/api/v1/backend/products/{$product->id}/variants",
             variantEdgePayload([
                 'attribute_values' => [
                     [
@@ -293,7 +293,7 @@ test('partial update rejects a start date after the stored promotion end date', 
 
     $this->actingAs($user)
         ->putJson(
-            "/api/products/{$product->id}/variants/{$variant->id}",
+            "/api/v1/backend/products/{$product->id}/variants/{$variant->id}",
             ['promotion_starts_at' => '2026-10-21 10:00:00']
         )
         ->assertUnprocessable()
@@ -314,7 +314,7 @@ test('setting a new default variant clears the previous default', function () {
 
     $first = $this->actingAs($user)
         ->postJson(
-            "/api/products/{$product->id}/variants",
+            "/api/v1/backend/products/{$product->id}/variants",
             variantEdgePayload(['is_default' => true])
         )
         ->assertCreated()
@@ -322,7 +322,7 @@ test('setting a new default variant clears the previous default', function () {
 
     $second = $this->actingAs($user)
         ->postJson(
-            "/api/products/{$product->id}/variants",
+            "/api/v1/backend/products/{$product->id}/variants",
             variantEdgePayload(['is_default' => true])
         )
         ->assertCreated()
@@ -366,7 +366,7 @@ test('variant creation rejects an identical attribute combination for the same p
 
     $this->actingAs($user)
         ->postJson(
-            "/api/products/{$product->id}/variants",
+            "/api/v1/backend/products/{$product->id}/variants",
             variantEdgePayload(['attribute_values' => $selection])
         )
         ->assertCreated();
@@ -374,7 +374,7 @@ test('variant creation rejects an identical attribute combination for the same p
     // Reverse request order to prove the signature is canonical.
     $this->actingAs($user)
         ->postJson(
-            "/api/products/{$product->id}/variants",
+            "/api/v1/backend/products/{$product->id}/variants",
             variantEdgePayload(['attribute_values' => array_reverse($selection)])
         )
         ->assertUnprocessable()
@@ -401,14 +401,14 @@ test('the same attribute combination is allowed for a different product', functi
 
     $this->actingAs($user)
         ->postJson(
-            "/api/products/{$productA->id}/variants",
+            "/api/v1/backend/products/{$productA->id}/variants",
             variantEdgePayload(['attribute_values' => $selection])
         )
         ->assertCreated();
 
     $this->actingAs($user)
         ->postJson(
-            "/api/products/{$productB->id}/variants",
+            "/api/v1/backend/products/{$productB->id}/variants",
             variantEdgePayload(['attribute_values' => $selection])
         )
         ->assertCreated();
@@ -423,7 +423,7 @@ test('first active variant becomes default and deleting it promotes the next act
 
     $first = $this->actingAs($user)
         ->postJson(
-            "/api/products/{$product->id}/variants",
+            "/api/v1/backend/products/{$product->id}/variants",
             variantEdgePayload(['is_default' => false])
         )
         ->assertCreated()
@@ -432,7 +432,7 @@ test('first active variant becomes default and deleting it promotes the next act
 
     $second = $this->actingAs($user)
         ->postJson(
-            "/api/products/{$product->id}/variants",
+            "/api/v1/backend/products/{$product->id}/variants",
             variantEdgePayload(['is_default' => false])
         )
         ->assertCreated()
@@ -440,7 +440,7 @@ test('first active variant becomes default and deleting it promotes the next act
         ->json('data');
 
     $this->actingAs($user)
-        ->deleteJson("/api/products/{$product->id}/variants/{$first['id']}")
+        ->deleteJson("/api/v1/backend/products/{$product->id}/variants/{$first['id']}")
         ->assertOk();
 
     $this->assertSoftDeleted('product_variants', ['id' => $first['id']]);
@@ -460,7 +460,7 @@ test('inactivating the default variant promotes another active variant', functio
 
     $first = $this->actingAs($user)
         ->postJson(
-            "/api/products/{$product->id}/variants",
+            "/api/v1/backend/products/{$product->id}/variants",
             variantEdgePayload(['is_default' => true])
         )
         ->assertCreated()
@@ -468,7 +468,7 @@ test('inactivating the default variant promotes another active variant', functio
 
     $second = $this->actingAs($user)
         ->postJson(
-            "/api/products/{$product->id}/variants",
+            "/api/v1/backend/products/{$product->id}/variants",
             variantEdgePayload(['is_default' => false])
         )
         ->assertCreated()
@@ -476,7 +476,7 @@ test('inactivating the default variant promotes another active variant', functio
 
     $this->actingAs($user)
         ->putJson(
-            "/api/products/{$product->id}/variants/{$first['id']}",
+            "/api/v1/backend/products/{$product->id}/variants/{$first['id']}",
             ['status' => 'inactive']
         )
         ->assertOk()
@@ -497,7 +497,7 @@ test('an inactive variant cannot be selected as the default', function () {
 
     $this->actingAs($user)
         ->postJson(
-            "/api/products/{$product->id}/variants",
+            "/api/v1/backend/products/{$product->id}/variants",
             variantEdgePayload([
                 'status' => 'inactive',
                 'is_default' => true,
@@ -521,7 +521,7 @@ test('variant update rejects changing to another variant attribute combination',
 
     $first = $this->actingAs($user)
         ->postJson(
-            "/api/products/{$product->id}/variants",
+            "/api/v1/backend/products/{$product->id}/variants",
             variantEdgePayload([
                 'attribute_values' => [[
                     'attribute_id' => $color->id,
@@ -534,7 +534,7 @@ test('variant update rejects changing to another variant attribute combination',
 
     $second = $this->actingAs($user)
         ->postJson(
-            "/api/products/{$product->id}/variants",
+            "/api/v1/backend/products/{$product->id}/variants",
             variantEdgePayload([
                 'attribute_values' => [[
                     'attribute_id' => $color->id,
@@ -547,7 +547,7 @@ test('variant update rejects changing to another variant attribute combination',
 
     $this->actingAs($user)
         ->putJson(
-            "/api/products/{$product->id}/variants/{$second['id']}",
+            "/api/v1/backend/products/{$product->id}/variants/{$second['id']}",
             ['attribute_values' => [[
                 'attribute_id' => $color->id,
                 'attribute_value_id' => $yellow->id,

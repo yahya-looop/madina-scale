@@ -82,13 +82,13 @@ test('activity log API does not serialize polymorphic subject models', function 
     ]);
 
     $this->actingAs($developer)
-        ->getJson('/api/activity-logs')
+        ->getJson('/api/v1/backend/activity-logs')
         ->assertOk()
         ->assertJsonMissingPath('data.0.subject')
         ->assertJsonMissing(['email' => 'private-subject@example.test']);
 
     $this->actingAs($developer)
-        ->getJson("/api/activity-logs/{$log->id}")
+        ->getJson("/api/v1/backend/activity-logs/{$log->id}")
         ->assertOk()
         ->assertJsonMissingPath('data.subject')
         ->assertJsonMissing(['email' => 'private-subject@example.test'])
@@ -103,6 +103,6 @@ test('activity log API denies users without the activity log permission', functi
     $user = User::factory()->create();
 
     $this->actingAs($user)
-        ->getJson('/api/activity-logs')
+        ->getJson('/api/v1/backend/activity-logs')
         ->assertForbidden();
 });

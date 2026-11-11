@@ -119,7 +119,7 @@ function variantTestPayload(array $overrides = []): array
 test('variant listing requires authentication', function () {
     $product = variantTestCreateProduct();
 
-    $this->getJson("/api/products/{$product->id}/variants")
+    $this->getJson("/api/v1/backend/products/{$product->id}/variants")
         ->assertUnauthorized();
 });
 
@@ -128,7 +128,7 @@ test('variant listing requires view permission', function () {
     $product = variantTestCreateProduct();
 
     $this->actingAs($user)
-        ->getJson("/api/products/{$product->id}/variants")
+        ->getJson("/api/v1/backend/products/{$product->id}/variants")
         ->assertForbidden();
 });
 
@@ -141,14 +141,14 @@ test('authorized user can create and view a variant', function () {
     $payload = variantTestPayload();
 
     $created = $this->actingAs($user)
-        ->postJson("/api/products/{$product->id}/variants", $payload)
+        ->postJson("/api/v1/backend/products/{$product->id}/variants", $payload)
         ->assertCreated()
         ->assertJsonPath('data.name', $payload['name'])
         ->assertJsonPath('data.product_id', $product->id);
 
     $variantId = $created->json('data.id');
 
-    $this->getJson("/api/products/{$product->id}/variants/{$variantId}")
+    $this->getJson("/api/v1/backend/products/{$product->id}/variants/{$variantId}")
         ->assertOk()
         ->assertJsonPath('data.id', $variantId)
         ->assertJsonPath('data.sku', $payload['sku']);
@@ -172,7 +172,7 @@ test('variant creation rejects a simple product', function () {
 
     $this->actingAs($user)
         ->postJson(
-            "/api/products/{$product->id}/variants",
+            "/api/v1/backend/products/{$product->id}/variants",
             variantTestPayload()
         )
         ->assertUnprocessable();
@@ -194,14 +194,14 @@ test('variant update and delete cannot cross product boundaries', function () {
 
     $this->actingAs($user)
         ->putJson(
-            "/api/products/{$productA->id}/variants/{$variant->id}",
+            "/api/v1/backend/products/{$productA->id}/variants/{$variant->id}",
             ['name' => 'Unauthorized Change']
         )
         ->assertNotFound();
 
     $this->actingAs($user)
         ->deleteJson(
-            "/api/products/{$productA->id}/variants/{$variant->id}"
+            "/api/v1/backend/products/{$productA->id}/variants/{$variant->id}"
         )
         ->assertNotFound();
 
@@ -223,14 +223,14 @@ test('variant creation rejects duplicate sku regardless of case', function () {
 
     $this->actingAs($user)
         ->postJson(
-            "/api/products/{$productA->id}/variants",
+            "/api/v1/backend/products/{$productA->id}/variants",
             variantTestPayload(['sku' => $sku])
         )
         ->assertCreated();
 
     $this->actingAs($user)
         ->postJson(
-            "/api/products/{$productB->id}/variants",
+            "/api/v1/backend/products/{$productB->id}/variants",
             variantTestPayload(['sku' => strtolower($sku)])
         )
         ->assertUnprocessable()
@@ -248,14 +248,14 @@ test('variant creation rejects duplicate barcode regardless of case', function (
 
     $this->actingAs($user)
         ->postJson(
-            "/api/products/{$productA->id}/variants",
+            "/api/v1/backend/products/{$productA->id}/variants",
             variantTestPayload(['barcode' => $barcode])
         )
         ->assertCreated();
 
     $this->actingAs($user)
         ->postJson(
-            "/api/products/{$productB->id}/variants",
+            "/api/v1/backend/products/{$productB->id}/variants",
             variantTestPayload(['barcode' => strtolower($barcode)])
         )
         ->assertUnprocessable()
@@ -275,7 +275,7 @@ test('variant update validates promotion date range', function () {
 
     $this->actingAs($user)
         ->putJson(
-            "/api/products/{$product->id}/variants/{$variant->id}",
+            "/api/v1/backend/products/{$product->id}/variants/{$variant->id}",
             [
                 'promotion_starts_at' => '2026-10-20 10:00:00',
                 'promotion_ends_at' => '2026-10-19 10:00:00',
@@ -299,7 +299,7 @@ test('authorized user can soft delete a variant', function () {
     ));
 
     $this->actingAs($user)
-        ->deleteJson("/api/products/{$product->id}/variants/{$variant->id}")
+        ->deleteJson("/api/v1/backend/products/{$product->id}/variants/{$variant->id}")
         ->assertOk();
 
     $this->assertSoftDeleted('product_variants', [
@@ -333,7 +333,7 @@ test('variant creation rejects an inactive attribute', function () {
 
     $this->actingAs($user)
         ->postJson(
-            "/api/products/{$product->id}/variants",
+            "/api/v1/backend/products/{$product->id}/variants",
             variantTestPayload([
                 'attribute_values' => [
                     ['attribute_id' => $attribute->id, 'attribute_value_id' => $value->id],

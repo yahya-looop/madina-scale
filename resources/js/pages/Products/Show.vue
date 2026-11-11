@@ -140,7 +140,7 @@ const copiedField = ref('');
 const activeMediaIndex = ref(0);
 
 const productId = computed(() => {
-    const match = window.location.pathname.match(/\/products\/(\d+)/);
+    const match = window.location.pathname.match(/\/backend\/products\/(\d+)/);
 
     return Number(match?.[1] ?? 0);
 });
@@ -272,7 +272,7 @@ async function loadProduct(): Promise<void> {
 
     try {
         product.value = await apiRequest<Product>(
-            `/api/products/${productId.value}`,
+            `/api/v1/backend/products/${productId.value}`,
         );
 
         activeMediaIndex.value = 0;
@@ -285,7 +285,7 @@ async function loadProduct(): Promise<void> {
 }
 
 function goBack(): void {
-    router.visit('/products');
+    router.visit('/backend/products');
 }
 
 function goToEdit(): void {
@@ -293,7 +293,7 @@ function goToEdit(): void {
         return;
     }
 
-    router.visit(`/products/${product.value.id}/edit`);
+    router.visit(`/backend/products/${product.value.id}/edit`);
 }
 
 function nextMedia(): void {
@@ -409,9 +409,9 @@ async function deleteProduct(): Promise<void> {
     errorMessage.value = '';
 
     try {
-        await apiRequest(`/api/products/${product.value.id}`, 'DELETE');
+        await apiRequest(`/api/v1/backend/products/${product.value.id}`, 'DELETE');
 
-        router.visit('/products');
+        router.visit('/backend/products');
     } catch (error) {
         errorMessage.value =
             error instanceof Error
