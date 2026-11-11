@@ -282,6 +282,16 @@ class ProductController extends Controller
             ]);
         }
 
+        if (
+            $product->product_type === 'variable'
+            && $validated['product_type'] === 'simple'
+            && $this->hasVariantInventoryHistory((int) $product->id)
+        ) {
+            throw ValidationException::withMessages([
+                'product_type' => 'A variable product with inventory history cannot be converted to simple. Reconcile its inventory first.',
+            ]);
+        }
+
         $validated['slug'] = $this->resolveSlug(
             $validated['slug'] ?? null,
             $validated['name'],
@@ -348,6 +358,22 @@ class ProductController extends Controller
                 $galleryFiles,
                 &$additionalStoredPaths
             ) {
+                $lockedProduct = Product::query()
+                    ->whereKey($product->id)
+                    ->lockForUpdate()
+                    ->firstOrFail();
+
+                if (
+                    $lockedProduct->product_type === 'simple'
+                    && $validated['product_type'] === 'variable'
+                    && $this->hasInventoryHistory((int) $lockedProduct->id)
+                ) {
+                    throw ValidationException::withMessages([
+                        'product_type' => 'A simple product with inventory stock or movement history cannot be converted to variable. Reconcile its inventory first.',
+                    ]);
+                }
+
+                $product = $lockedProduct;
                 $product->update($validated);
 
                 if (
@@ -602,13 +628,109 @@ class ProductController extends Controller
 
     public function destroy(Product $product): JsonResponse
     {
-        // Soft-delete the product only. Keep media records and files so
-        // a future restore does not leave the product without its images.
-        $product->delete();
+        DB::transaction(function () use ($product): void {
+            $lockedProduct = Product::query()
+                ->whereKey($product->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            $variantIds = DB::table('product_variants')
+                ->where('product_id', $lockedProduct->id)
+                ->pluck('id');
+
+            $hasOnHandOrReservedStock = DB::table('inventory_stocks')
+                ->where(function ($query) use ($lockedProduct, $variantIds): void {
+                    $query->where('product_id', $lockedProduct->id);
+
+                    if ($variantIds->isNotEmpty()) {
+                        $query->orWhereIn('product_variant_id', $variantIds);
+                    }
+                })
+                ->where(function ($query): void {
+                    $query->where('quantity', '>', 0)
+                        ->orWhere('reserved_quantity', '>', 0);
+                })
+                ->exists();
+
+            $hasActiveReservation = DB::table('inventory_reservations')
+                ->where('status', 'active')
+                ->where(function ($query) use ($lockedProduct, $variantIds): void {
+                    $query->where('product_id', $lockedProduct->id);
+
+                    if ($variantIds->isNotEmpty()) {
+                        $query->orWhereIn('product_variant_id', $variantIds);
+                    }
+                })
+                ->exists();
+
+            $hasOutstandingTransfer = DB::table('inventory_transfers')
+                ->whereIn('status', ['in_transit', 'partially_received', 'discrepancy'])
+                ->whereColumn('quantity_received', '<', 'quantity_sent')
+                ->where(function ($query) use ($lockedProduct, $variantIds): void {
+                    $query->where('product_id', $lockedProduct->id);
+
+                    if ($variantIds->isNotEmpty()) {
+                        $query->orWhereIn('product_variant_id', $variantIds);
+                    }
+                })
+                ->exists();
+
+            if ($hasOnHandOrReservedStock || $hasActiveReservation || $hasOutstandingTransfer) {
+                throw ValidationException::withMessages([
+                    'product' => 'This product cannot be deleted while it has on-hand stock, active reservations or outstanding transfers. Reconcile inventory first.',
+                ]);
+            }
+
+            // Keep media records and files so a future restore retains its images.
+            $lockedProduct->delete();
+        }, 3);
 
         return response()->json([
             'message' => 'Product deleted successfully.',
         ]);
+    }
+
+    /**
+     * Historical variant inventory dimensions must remain attached to their
+     * original variable product, including when the variants were soft-deleted.
+     */
+    private function hasVariantInventoryHistory(int $productId): bool
+    {
+        return DB::table('product_variants as variants')
+            ->where('variants.product_id', $productId)
+            ->where(function ($query): void {
+                $query->whereExists(function ($stock): void {
+                    $stock->selectRaw('1')
+                        ->from('inventory_stocks')
+                        ->whereColumn('inventory_stocks.product_variant_id', 'variants.id');
+                })->orWhereExists(function ($movements): void {
+                    $movements->selectRaw('1')
+                        ->from('stock_movements')
+                        ->whereColumn('stock_movements.product_variant_id', 'variants.id');
+                })->orWhereExists(function ($reservations): void {
+                    $reservations->selectRaw('1')
+                        ->from('inventory_reservations')
+                        ->whereColumn('inventory_reservations.product_variant_id', 'variants.id');
+                })->orWhereExists(function ($transfers): void {
+                    $transfers->selectRaw('1')
+                        ->from('inventory_transfers')
+                        ->whereColumn('inventory_transfers.product_variant_id', 'variants.id');
+                });
+            })
+            ->exists();
+    }
+
+    /**
+     * Inventory ownership is stored against the product type. Once stock or
+     * ledger history exists, changing a simple product into a variable product
+     * would orphan the product-level inventory dimensions.
+     */
+    private function hasInventoryHistory(int $productId): bool
+    {
+        return DB::table('inventory_stocks')->where('product_id', $productId)->exists()
+            || DB::table('stock_movements')->where('product_id', $productId)->exists()
+            || DB::table('inventory_reservations')->where('product_id', $productId)->exists()
+            || DB::table('inventory_transfers')->where('product_id', $productId)->exists();
     }
 
     /**

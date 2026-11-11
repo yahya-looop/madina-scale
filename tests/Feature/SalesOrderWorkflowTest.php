@@ -423,6 +423,62 @@ class SalesOrderWorkflowTest extends TestCase
         $this->assertDatabaseCount('sales_order_fulfillments', 2);
     }
 
+    public function test_fulfillment_idempotency_replays_only_the_identical_payload_even_after_completion(): void
+    {
+        [$location, $variant] = $this->orderFixture();
+        $user = $this->orderUser($location);
+
+        $this->actingAs($user)->postJson('/api/v1/backend/orders', [
+            'location_id' => $location->id,
+            'customer_name' => 'Idempotent Fulfillment Buyer',
+            'items' => [['product_variant_id' => $variant->id, 'quantity' => 2]],
+        ])->assertCreated();
+
+        $order = SalesOrder::query()->firstOrFail();
+        $this->postJson("/api/v1/backend/orders/{$order->id}/confirm", [])->assertOk();
+        $item = $order->items()->firstOrFail();
+        $key = (string) Str::uuid();
+        $payload = [
+            'idempotency_key' => $key,
+            'notes' => 'Packed batch A',
+            'items' => [['sales_order_item_id' => $item->id, 'quantity' => 2]],
+        ];
+
+        $this->postJson("/api/v1/backend/orders/{$order->id}/fulfill", $payload)
+            ->assertOk()
+            ->assertJsonPath('data.status', 'fulfilled');
+
+        $this->postJson("/api/v1/backend/orders/{$order->id}/fulfill", $payload)
+            ->assertOk()
+            ->assertJsonPath('data.status', 'fulfilled');
+
+        $this->assertDatabaseCount('sales_order_fulfillments', 1);
+        $this->assertDatabaseHas('sales_order_fulfillments', [
+            'sales_order_id' => $order->id,
+            'idempotency_key' => $key,
+            'notes' => 'Packed batch A',
+        ]);
+        $this->assertDatabaseHas('inventory_stocks', [
+            'product_variant_id' => $variant->id,
+            'location_id' => $location->id,
+            'quantity' => '8.0000',
+            'reserved_quantity' => '0.0000',
+        ]);
+
+        $this->postJson("/api/v1/backend/orders/{$order->id}/fulfill", [
+            ...$payload,
+            'notes' => 'Different payload',
+        ])->assertUnprocessable()->assertJsonValidationErrors('idempotency_key');
+
+        $this->assertDatabaseCount('sales_order_fulfillments', 1);
+        $this->assertDatabaseHas('inventory_stocks', [
+            'product_variant_id' => $variant->id,
+            'location_id' => $location->id,
+            'quantity' => '8.0000',
+            'reserved_quantity' => '0.0000',
+        ]);
+    }
+
     public function test_order_list_and_detail_are_scoped_to_assigned_locations(): void
     {
         [$location, $variant] = $this->orderFixture();

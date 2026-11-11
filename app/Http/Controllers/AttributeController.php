@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Attribute;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -85,24 +86,32 @@ class AttributeController extends Controller
     {
         $validated = $this->validateAttribute($request, $attribute);
 
-        $nextType = $validated['type'] ?? $attribute->type;
+        DB::transaction(function () use ($attribute, &$validated): void {
+            $lockedAttribute = Attribute::query()
+                ->whereKey($attribute->id)
+                ->lockForUpdate()
+                ->firstOrFail();
 
-        if (
-            $attribute->variantAttributeValues()->exists()
-            && ! in_array($nextType, ['select', 'multiselect', 'boolean', 'color'], true)
-        ) {
-            throw ValidationException::withMessages([
-                'type' => 'An attribute used by product variants must remain selectable.',
-            ]);
-        }
+            $nextType = $validated['type'] ?? $lockedAttribute->type;
 
-        $validated['slug'] = $this->resolveSlug(
-            $validated['slug'] ?? null,
-            $validated['name'],
-            $attribute,
-        );
+            if (
+                $lockedAttribute->variantAttributeValues()->exists()
+                && ! in_array($nextType, ['select', 'multiselect', 'boolean', 'color'], true)
+            ) {
+                throw ValidationException::withMessages([
+                    'type' => 'An attribute used by product variants must remain selectable.',
+                ]);
+            }
 
-        $attribute->update($validated);
+            $validated['slug'] = $this->resolveSlug(
+                $validated['slug'] ?? null,
+                $validated['name'],
+                $lockedAttribute,
+            );
+
+            $lockedAttribute->update($validated);
+        }, 3);
+
         $attribute->refresh();
 
         return response()->json([
@@ -113,13 +122,29 @@ class AttributeController extends Controller
 
     public function destroy(Attribute $attribute): JsonResponse
     {
-        if ($attribute->values()->exists() || $attribute->variantAttributeValues()->exists()) {
+        $canDelete = DB::transaction(function () use ($attribute): bool {
+            $lockedAttribute = Attribute::query()
+                ->whereKey($attribute->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            if (
+                $lockedAttribute->values()->exists()
+                || $lockedAttribute->variantAttributeValues()->exists()
+            ) {
+                return false;
+            }
+
+            $lockedAttribute->delete();
+
+            return true;
+        }, 3);
+
+        if (! $canDelete) {
             return response()->json([
                 'message' => 'This attribute cannot be deleted while it has attribute values or is assigned to product variants.',
             ], 422);
         }
-
-        $attribute->delete();
 
         return response()->json([
             'message' => 'Attribute deleted successfully.',

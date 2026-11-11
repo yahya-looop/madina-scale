@@ -13,10 +13,18 @@ class PricingEngine
 {
     public function flashSalePriceForVariant(int $variantId): ?string
     {
-        $item = FlashSaleItem::query()
+        $items = FlashSaleItem::query()
+            ->with('variant.product')
             ->where('product_variant_id', $variantId)
             ->where(function ($query): void {
-                $query->whereNull('quantity_limit')->orWhereColumn('quantity_sold', '<', 'quantity_limit');
+                $query->whereNull('quantity_limit')
+                    ->orWhereColumn('quantity_sold', '<', 'quantity_limit');
+            })
+            ->whereHas('variant', function ($query): void {
+                $query->where('status', 'active')
+                    ->whereHas('product', fn ($product) => $product
+                        ->where('status', 'active')
+                        ->where('visibility', 'visible'));
             })
             ->whereHas('sale', function ($query): void {
                 $query->where('status', 'active')
@@ -25,7 +33,23 @@ class PricingEngine
                     ->where('ends_at', '>=', now());
             })
             ->orderBy('sale_price')
-            ->first();
+            ->orderBy('id')
+            ->get();
+
+        $item = $items->first(function (FlashSaleItem $candidate): bool {
+            $variant = $candidate->variant;
+
+            if ($variant === null) {
+                return false;
+            }
+
+            /** @var numeric-string $salePrice */
+            $salePrice = (string) $candidate->sale_price;
+            /** @var numeric-string $effectiveSellingPrice */
+            $effectiveSellingPrice = $variant->effectiveSellingPrice();
+
+            return bccomp($salePrice, $effectiveSellingPrice, 2) < 0;
+        });
 
         return $item?->sale_price;
     }

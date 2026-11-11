@@ -10,6 +10,7 @@ use App\Models\ProductMedia;
 use App\Models\Role;
 use App\Models\Unit;
 use App\Models\User;
+use App\Services\InventoryService;
 use Illuminate\Filesystem\FilesystemAdapter;
 use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 use Illuminate\Http\UploadedFile;
@@ -522,6 +523,35 @@ test('changing a simple product to variable clears parent identifiers and retain
     ]);
 });
 
+test('simple product with inventory history cannot be converted to variable', function () {
+    $user = User::factory()->create();
+    productTestGrantPermission($user, 'system.products.update');
+    $masterData = productTestMasterData();
+    $product = Product::create(productTestPayload($masterData));
+    $location = inventoryTestLocation();
+
+    app(InventoryService::class)->receive([
+        'product_id' => $product->id,
+        'location_id' => $location->id,
+        'quantity' => '1.0000',
+    ]);
+
+    $this->actingAs($user)
+        ->putJson('/api/v1/backend/products/'.$product->id, [
+            'category_id' => $masterData['category']->id,
+            'brand_id' => $masterData['brand']->id,
+            'unit_id' => $masterData['unit']->id,
+            'name' => $product->name,
+            'product_type' => 'variable',
+            'status' => 'active',
+            'visibility' => 'visible',
+        ])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['product_type']);
+
+    expect($product->fresh()->product_type)->toBe('simple');
+});
+
 test('variable products with active variants cannot be changed to simple products', function () {
     $user = User::factory()->create();
     productTestGrantPermission($user, 'system.products.update');
@@ -911,6 +941,35 @@ test('authorized user can soft delete a product', function () {
 
     $this->assertSoftDeleted('products', [
         'id' => $product->id,
+    ]);
+});
+
+test('product with on-hand inventory cannot be soft deleted', function () {
+    $user = User::factory()->create();
+    productTestGrantPermission($user, 'system.products.delete');
+
+    $masterData = productTestMasterData();
+    $product = Product::create(productTestPayload($masterData));
+    $location = inventoryTestLocation();
+
+    app(InventoryService::class)->receive([
+        'product_id' => $product->id,
+        'location_id' => $location->id,
+        'quantity' => '2.0000',
+    ]);
+
+    $this->actingAs($user)
+        ->deleteJson('/api/v1/backend/products/'.$product->id)
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['product']);
+
+    $this->assertDatabaseHas('products', [
+        'id' => $product->id,
+        'deleted_at' => null,
+    ]);
+    $this->assertDatabaseHas('inventory_stocks', [
+        'product_id' => $product->id,
+        'quantity' => '2.0000',
     ]);
 });
 

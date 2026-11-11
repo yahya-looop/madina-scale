@@ -223,6 +223,39 @@ test('categories brands and units cannot be deleted while products reference the
     $this->deleteJson('/api/v1/backend/units/'.$product->unit_id)->assertUnprocessable();
 });
 
+test('soft-deleted attributes cannot receive new attribute values', function () {
+    $user = User::factory()->create();
+    catalogMasterDataGrantPermission($user, 'system.products.attributes.create');
+    catalogMasterDataGrantPermission($user, 'system.products.attributes.delete');
+    catalogMasterDataGrantPermission($user, 'system.products.attributes.values.create');
+
+    $attribute = $this->actingAs($user)
+        ->postJson('/api/v1/backend/attributes', [
+            'name' => 'Retired Attribute '.uniqid(),
+            'type' => 'select',
+            'status' => 'active',
+        ])
+        ->assertCreated()
+        ->json('data');
+
+    $this->deleteJson('/api/v1/backend/attributes/'.$attribute['id'])
+        ->assertOk();
+
+    $this->postJson('/api/v1/backend/attribute-values', [
+        'attribute_id' => $attribute['id'],
+        'name' => 'Late Value',
+        'value' => 'late-value',
+        'status' => 'active',
+    ])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['attribute_id']);
+
+    $this->assertDatabaseMissing('attribute_values', [
+        'attribute_id' => $attribute['id'],
+        'name' => 'Late Value',
+    ]);
+});
+
 test('attributes and attribute values cannot be deleted while assigned to variants', function () {
     $user = User::factory()->create();
     catalogMasterDataGrantPermission($user, 'system.products.attributes.update');

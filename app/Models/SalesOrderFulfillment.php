@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class SalesOrderFulfillment extends Model
 {
-    protected $fillable = ['fulfillment_number', 'sales_order_id', 'status', 'notes', 'created_by', 'fulfilled_at'];
+    protected $fillable = ['fulfillment_number', 'sales_order_id', 'status', 'idempotency_key', 'notes', 'created_by', 'fulfilled_at'];
 
     protected function casts(): array
     {

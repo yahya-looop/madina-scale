@@ -33,6 +33,7 @@ class StockMovement extends Model
         'reference_id',
         'idempotency_key',
         'created_by',
+        'ip_address',
         'metadata',
     ];
 

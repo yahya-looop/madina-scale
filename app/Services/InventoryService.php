@@ -460,6 +460,7 @@ class InventoryService
                     : null,
                 'idempotency_key' => $idempotencyKey,
                 'created_by' => $actor?->id,
+                'ip_address' => $data['ip_address'] ?? null,
                 'metadata' => $data['metadata'] ?? null,
             ]);
         }, 3);

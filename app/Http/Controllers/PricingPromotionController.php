@@ -210,12 +210,75 @@ class PricingPromotionController extends Controller
         if ($data['discount_type'] === 'percent' && $data['discount_value'] > 100) {
             throw ValidationException::withMessages(['discount_value' => 'Percentage discounts cannot exceed 100%.']);
         }
-        $scopeField = ['product' => 'product_id', 'variant' => 'product_variant_id', 'category' => 'product_category_id'];
-        if (isset($scopeField[$data['scope']]) && empty($data[$scopeField[$data['scope']]])) {
-            throw ValidationException::withMessages([$scopeField[$data['scope']] => 'Select a target for this promotion scope.']);
+        $this->validatePromotionTarget($data);
+
+        foreach ([
+            'product' => 'product_id',
+            'variant' => 'product_variant_id',
+            'category' => 'product_category_id',
+        ] as $scope => $field) {
+            if ($scope !== $data['scope']) {
+                $data[$field] = null;
+            }
         }
 
         return $data;
+    }
+
+    /**
+     * Ensure a scoped promotion points to one active, compatible catalogue target.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private function validatePromotionTarget(array $data): void
+    {
+        $scopeFields = [
+            'product' => 'product_id',
+            'variant' => 'product_variant_id',
+            'category' => 'product_category_id',
+        ];
+        $selectedField = $scopeFields[$data['scope']] ?? null;
+
+        foreach ($scopeFields as $scope => $field) {
+            if ($scope !== $data['scope'] && filled($data[$field] ?? null)) {
+                throw ValidationException::withMessages([
+                    $field => 'The selected target must match the promotion scope.',
+                ]);
+            }
+        }
+
+        if ($selectedField === null) {
+            return;
+        }
+
+        if (blank($data[$selectedField] ?? null)) {
+            throw ValidationException::withMessages([
+                $selectedField => 'Select a target for this promotion scope.',
+            ]);
+        }
+
+        $targetIsActive = match ($data['scope']) {
+            'product' => Product::query()
+                ->where('status', 'active')
+                ->whereKey($data['product_id'])
+                ->exists(),
+            'variant' => ProductVariant::query()
+                ->where('status', 'active')
+                ->whereKey($data['product_variant_id'])
+                ->whereHas('product', fn ($query) => $query->where('status', 'active'))
+                ->exists(),
+            'category' => ProductCategory::query()
+                ->where('status', 'active')
+                ->whereKey($data['product_category_id'])
+                ->exists(),
+            default => false,
+        };
+
+        if (! $targetIsActive) {
+            throw ValidationException::withMessages([
+                $selectedField => 'The selected promotion target is inactive or unavailable.',
+            ]);
+        }
     }
 
     /** @return array<string, mixed> */
@@ -259,8 +322,19 @@ class PricingPromotionController extends Controller
             throw ValidationException::withMessages(['items' => 'Every flash sale item must reference a unique active product variant.']);
         }
         foreach ($items as $item) {
+            $variant = $variants->get((int) $item['product_variant_id']);
             if ((float) $item['sale_price'] >= (float) $item['regular_price']) {
                 throw ValidationException::withMessages(['items' => 'Flash sale price must be lower than the regular price.']);
+            }
+            /** @var numeric-string $salePrice */
+            $salePrice = (string) $item['sale_price'];
+            /** @var numeric-string $effectiveSellingPrice */
+            $effectiveSellingPrice = $variant?->effectiveSellingPrice() ?? '0.00';
+
+            if ($variant && bccomp($salePrice, $effectiveSellingPrice, 2) >= 0) {
+                throw ValidationException::withMessages([
+                    'items' => 'Flash sale price must be lower than the variant current effective selling price.',
+                ]);
             }
         }
         $existing = $sale->items()->get()->keyBy('product_variant_id');

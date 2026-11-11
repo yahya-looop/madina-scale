@@ -100,6 +100,7 @@ class ProductVariant extends Model
 
         $promotionIsActive =
             $this->promotional_price !== null
+            && bccomp((string) $this->promotional_price, (string) $this->selling_price, 2) < 0
             && (
                 $this->promotion_starts_at === null
                 || $this->promotion_starts_at->lte($now)

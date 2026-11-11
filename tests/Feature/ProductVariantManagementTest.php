@@ -11,6 +11,7 @@ use App\Models\ProductVariant;
 use App\Models\Role;
 use App\Models\Unit;
 use App\Models\User;
+use App\Services\InventoryService;
 use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 
 beforeEach(function (): void {
@@ -344,4 +345,36 @@ test('variant creation rejects an inactive attribute', function () {
         ->assertJsonValidationErrors([
             'attribute_values.0.attribute_id',
         ]);
+});
+
+test('variant with on-hand stock cannot be soft deleted', function () {
+    $user = User::factory()->create();
+    variantTestGrantPermission($user, 'system.products.delete');
+
+    $product = variantTestCreateProduct();
+    $variant = ProductVariant::create(array_merge(
+        ['product_id' => $product->id],
+        variantTestPayload()
+    ));
+    $location = inventoryTestLocation();
+
+    app(InventoryService::class)->receive([
+        'product_variant_id' => $variant->id,
+        'location_id' => $location->id,
+        'quantity' => '3.0000',
+    ]);
+
+    $this->actingAs($user)
+        ->deleteJson("/api/v1/backend/products/{$product->id}/variants/{$variant->id}")
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['variant']);
+
+    $this->assertDatabaseHas('product_variants', [
+        'id' => $variant->id,
+        'deleted_at' => null,
+    ]);
+    $this->assertDatabaseHas('inventory_stocks', [
+        'product_variant_id' => $variant->id,
+        'quantity' => '3.0000',
+    ]);
 });

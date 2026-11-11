@@ -6,6 +6,7 @@ use App\Models\Attribute;
 use App\Models\AttributeValue;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -77,15 +78,27 @@ class AttributeValueController extends Controller
     {
         $validated = $this->validateAttributeValue($request);
 
-        $this->ensureAttributeExists($validated['attribute_id']);
+        $attributeValue = DB::transaction(function () use (&$validated): AttributeValue {
+            // Serialize value creation with parent-attribute soft deletion.
+            $attribute = Attribute::query()
+                ->whereKey($validated['attribute_id'])
+                ->lockForUpdate()
+                ->first();
 
-        $validated['slug'] = $this->resolveSlug(
-            $validated['slug'] ?? null,
-            $validated['name'],
-            $validated['attribute_id'],
-        );
+            if ($attribute === null) {
+                throw ValidationException::withMessages([
+                    'attribute_id' => 'The selected attribute does not exist.',
+                ]);
+            }
 
-        $attributeValue = AttributeValue::create($validated);
+            $validated['slug'] = $this->resolveSlug(
+                $validated['slug'] ?? null,
+                $validated['name'],
+                $attribute->id,
+            );
+
+            return AttributeValue::create($validated);
+        }, 3);
 
         $attributeValue->load([
             'attribute:id,name,slug,type',
@@ -106,27 +119,49 @@ class AttributeValueController extends Controller
             $attributeValue
         );
 
-        $this->ensureAttributeExists($validated['attribute_id']);
+        DB::transaction(function () use ($attributeValue, &$validated): void {
+            $attributeIds = collect([
+                $attributeValue->attribute_id,
+                (int) $validated['attribute_id'],
+            ])->unique()->sort()->values();
 
-        if (
-            $attributeValue->variantAttributeValues()->exists()
-            && (int) $validated['attribute_id'] !== $attributeValue->attribute_id
-        ) {
-            throw ValidationException::withMessages([
-                'attribute_id' => 'An attribute value assigned to product variants cannot be moved to another attribute.',
-            ]);
-        }
+            $lockedAttributes = Attribute::query()
+                ->whereIn('id', $attributeIds)
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->get();
 
-        $validated['slug'] = $this->resolveSlug(
-            $validated['slug'] ?? null,
-            $validated['name'],
-            $validated['attribute_id'],
-            $attributeValue,
-        );
+            if ($lockedAttributes->count() !== $attributeIds->count()) {
+                throw ValidationException::withMessages([
+                    'attribute_id' => 'The selected attribute does not exist.',
+                ]);
+            }
 
-        $attributeValue->update($validated);
+            $lockedValue = AttributeValue::query()
+                ->whereKey($attributeValue->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            if (
+                $lockedValue->variantAttributeValues()->exists()
+                && (int) $validated['attribute_id'] !== $lockedValue->attribute_id
+            ) {
+                throw ValidationException::withMessages([
+                    'attribute_id' => 'An attribute value assigned to product variants cannot be moved to another attribute.',
+                ]);
+            }
+
+            $validated['slug'] = $this->resolveSlug(
+                $validated['slug'] ?? null,
+                $validated['name'],
+                $validated['attribute_id'],
+                $lockedValue,
+            );
+
+            $lockedValue->update($validated);
+        }, 3);
+
         $attributeValue->refresh();
-
         $attributeValue->load([
             'attribute:id,name,slug,type',
         ]);
@@ -139,13 +174,32 @@ class AttributeValueController extends Controller
 
     public function destroy(AttributeValue $attributeValue): JsonResponse
     {
-        if ($attributeValue->variantAttributeValues()->exists()) {
+        $canDelete = DB::transaction(function () use ($attributeValue): bool {
+            // Keep the same parent-then-value lock order used by variant writes.
+            Attribute::query()
+                ->whereKey($attributeValue->attribute_id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            $lockedValue = AttributeValue::query()
+                ->whereKey($attributeValue->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            if ($lockedValue->variantAttributeValues()->exists()) {
+                return false;
+            }
+
+            $lockedValue->delete();
+
+            return true;
+        }, 3);
+
+        if (! $canDelete) {
             return response()->json([
                 'message' => 'This attribute value cannot be deleted while it is assigned to product variants.',
             ], 422);
         }
-
-        $attributeValue->delete();
 
         return response()->json([
             'message' => 'Attribute value deleted successfully.',
@@ -209,15 +263,6 @@ class AttributeValueController extends Controller
                 'max:4294967295',
             ],
         ]);
-    }
-
-    private function ensureAttributeExists(int $attributeId): void
-    {
-        if (! Attribute::query()->whereKey($attributeId)->exists()) {
-            throw ValidationException::withMessages([
-                'attribute_id' => 'The selected attribute does not exist.',
-            ]);
-        }
     }
 
     private function resolveSlug(

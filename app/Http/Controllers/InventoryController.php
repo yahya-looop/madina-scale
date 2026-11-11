@@ -232,11 +232,14 @@ class InventoryController extends Controller
         $data = $this->validateMovement($request, true);
         $this->locationAccess->assertReceive($request->user(), (int) $data['location_id']);
 
+        // Capture request metadata before the immutable ledger row is inserted.
+        // Never update a stock movement after creation.
+        $data['ip_address'] = $request->ip();
+
         $movement = $this->inventoryService->receive(
             $data,
             $request->user(),
         );
-        $movement->forceFill(['ip_address' => $request->ip()])->save();
 
         return response()->json([
             'message' => 'Stock received successfully.',
@@ -254,11 +257,13 @@ class InventoryController extends Controller
         $data = $this->validateMovement($request, true);
         $this->locationAccess->assertManage($request->user(), (int) $data['location_id']);
 
+        // Capture request metadata before the immutable ledger row is inserted.
+        $data['ip_address'] = $request->ip();
+
         $movement = $this->inventoryService->issue(
             $data,
             $request->user(),
         );
-        $movement->forceFill(['ip_address' => $request->ip()])->save();
 
         return response()->json([
             'message' => 'Stock issued successfully.',
@@ -276,11 +281,13 @@ class InventoryController extends Controller
         $data = $this->validateMovement($request, true);
         $this->locationAccess->assertManage($request->user(), (int) $data['location_id']);
 
+        // Capture request metadata before the immutable ledger row is inserted.
+        $data['ip_address'] = $request->ip();
+
         $movement = $this->inventoryService->adjust(
             $data,
             $request->user(),
         );
-        $movement->forceFill(['ip_address' => $request->ip()])->save();
 
         return response()->json([
             'message' => 'Stock adjusted successfully.',

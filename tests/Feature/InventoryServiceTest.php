@@ -1,7 +1,10 @@
 <?php
 
 use App\Models\InventoryStock;
+use App\Models\ProductVariant;
 use App\Services\InventoryService;
+use Illuminate\Database\QueryException;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
@@ -323,4 +326,83 @@ test('a transfer idempotency key cannot be reused for a different transfer', fun
     )->toBeFalse();
 
     $this->assertDatabaseCount('stock_movements', 3);
+});
+
+test('database rejects product-level inventory ownership for a variable product', function () {
+    $product = inventoryTestProduct('variable');
+    $location = inventoryTestLocation();
+
+    try {
+        DB::transaction(function () use ($product, $location): void {
+            DB::table('inventory_stocks')->insert([
+                'product_id' => $product->id,
+                'product_variant_id' => null,
+                'location_id' => $location->id,
+                'quantity' => '0.0000',
+                'reserved_quantity' => '0.0000',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        });
+
+        test()->fail('Expected the database owner relationship guard to reject the row.');
+    } catch (QueryException $exception) {
+        expect($exception->getMessage())->toContain('simple products');
+    }
+
+    $this->assertDatabaseCount('inventory_stocks', 0);
+});
+
+test('database prevents changing a simple product type after inventory history exists', function () {
+    $product = inventoryTestProduct('simple');
+    $location = inventoryTestLocation();
+
+    app(InventoryService::class)->receive([
+        'product_id' => $product->id,
+        'location_id' => $location->id,
+        'quantity' => '2.0000',
+    ]);
+
+    try {
+        DB::transaction(function () use ($product): void {
+            DB::table('products')->where('id', $product->id)->update([
+                'product_type' => 'variable',
+                'sku' => null,
+                'updated_at' => now(),
+            ]);
+        });
+
+        test()->fail('Expected the database product type guard to reject the change.');
+    } catch (QueryException $exception) {
+        expect($exception->getMessage())->toContain('cannot be converted to variable');
+    }
+
+    expect($product->fresh()->product_type)->toBe('simple');
+});
+
+test('database prevents soft deleting a variant with on-hand stock', function () {
+    $product = inventoryTestProduct('variable');
+    $variant = inventoryTestVariant($product);
+    $location = inventoryTestLocation();
+
+    app(InventoryService::class)->receive([
+        'product_variant_id' => $variant->id,
+        'location_id' => $location->id,
+        'quantity' => '1.0000',
+    ]);
+
+    try {
+        DB::transaction(function () use ($variant): void {
+            DB::table('product_variants')->where('id', $variant->id)->update([
+                'deleted_at' => now(),
+                'updated_at' => now(),
+            ]);
+        });
+
+        test()->fail('Expected the database variant inventory guard to reject deletion.');
+    } catch (QueryException $exception) {
+        expect($exception->getMessage())->toContain('cannot be deleted');
+    }
+
+    expect(ProductVariant::query()->whereKey($variant->id)->exists())->toBeTrue();
 });

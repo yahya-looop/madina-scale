@@ -593,24 +593,50 @@ class SalesOrderService
     {
         return DB::transaction(function () use ($order, $data, $actor): SalesOrder {
             $locked = SalesOrder::query()->lockForUpdate()->findOrFail($order->id);
-            if (! in_array($locked->status, ['confirmed', 'processing', 'partially_fulfilled'], true)) {
-                throw ValidationException::withMessages(['status' => 'Only confirmed orders with an active workflow can be fulfilled.']);
-            }
+            /** @var list<array{sales_order_item_id: int|string, quantity: int|float|string}> $requestedItemInput */
+            $requestedItemInput = $data['items'];
 
             if (! empty($data['idempotency_key'])) {
+                DB::selectOne(
+                    'SELECT pg_advisory_xact_lock(hashtext(?))',
+                    [$data['idempotency_key']],
+                );
+
                 $existing = SalesOrderFulfillment::query()->where('idempotency_key', $data['idempotency_key'])->first();
                 if ($existing) {
                     if ((int) $existing->sales_order_id !== (int) $locked->id) {
                         throw ValidationException::withMessages(['idempotency_key' => 'This request key has already been used for another fulfillment.']);
                     }
 
+                    $existing->loadMissing('items');
+                    $existingItems = $existing->items->keyBy('sales_order_item_id');
+                    $samePayload = $existing->notes === ($data['notes'] ?? null)
+                        && $existingItems->count() === count($requestedItemInput);
+
+                    foreach ($requestedItemInput as $line) {
+                        $existingItem = $existingItems->get((int) $line['sales_order_item_id']);
+                        $requestedQuantity = number_format((float) $line['quantity'], 4, '.', '');
+
+                        if (! $existingItem
+                            || bccomp((string) $existingItem->quantity, $requestedQuantity, 4) !== 0) {
+                            $samePayload = false;
+                            break;
+                        }
+                    }
+
+                    if (! $samePayload) {
+                        throw ValidationException::withMessages(['idempotency_key' => 'This request key has already been used for a different fulfillment payload.']);
+                    }
+
                     return $locked->load(['items', 'location', 'statusHistory.actor', 'fulfillments.items']);
                 }
             }
 
+            if (! in_array($locked->status, ['confirmed', 'processing', 'partially_fulfilled'], true)) {
+                throw ValidationException::withMessages(['status' => 'Only confirmed orders with an active workflow can be fulfilled.']);
+            }
+
             $items = SalesOrderItem::query()->where('sales_order_id', $locked->id)->lockForUpdate()->get()->keyBy('id');
-            /** @var list<array{sales_order_item_id: int|string, quantity: int|float|string}> $requestedItemInput */
-            $requestedItemInput = $data['items'];
             $requested = collect($requestedItemInput)->keyBy(fn (array $line): int => (int) $line['sales_order_item_id']);
             $fulfillment = SalesOrderFulfillment::query()->create([
                 'fulfillment_number' => 'FUL-'.now()->format('ymd').'-'.Str::upper(Str::random(8)),

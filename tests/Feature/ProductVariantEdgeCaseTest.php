@@ -3,6 +3,8 @@
 use App\Models\Attribute;
 use App\Models\AttributeValue;
 use App\Models\Brand;
+use App\Models\FlashSale;
+use App\Models\FlashSaleItem;
 use App\Models\Module;
 use App\Models\Permission;
 use App\Models\Product;
@@ -11,6 +13,7 @@ use App\Models\ProductVariant;
 use App\Models\Role;
 use App\Models\Unit;
 use App\Models\User;
+use App\Services\PricingEngine;
 use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 
 beforeEach(function (): void {
@@ -566,4 +569,147 @@ test('variant update rejects changing to another variant attribute combination',
         'attribute_id' => $color->id,
         'attribute_value_id' => $yellow->id,
     ]);
+});
+
+test('variant creation rejects a promotional price that is not below selling price', function () {
+    $user = User::factory()->create();
+    variantEdgeGrantPermission($user, 'system.products.create');
+    $product = variantEdgeCreateProduct();
+
+    $this->actingAs($user)
+        ->postJson(
+            "/api/v1/backend/products/{$product->id}/variants",
+            variantEdgePayload([
+                'selling_price' => 100,
+                'promotional_price' => 100,
+            ])
+        )
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('promotional_price');
+
+    $this->assertDatabaseCount('product_variants', 0);
+});
+
+test('variant partial update rejects a selling price below its stored promotional price', function () {
+    $user = User::factory()->create();
+    variantEdgeGrantPermission($user, 'system.products.update');
+    $product = variantEdgeCreateProduct();
+    $variant = ProductVariant::create([
+        'product_id' => $product->id,
+        'name' => 'Price invariant variant',
+        'sku' => 'PRICE-'.strtoupper(uniqid()),
+        'cost_price' => 20,
+        'selling_price' => 100,
+        'promotional_price' => 80,
+        'is_default' => true,
+        'status' => 'active',
+    ]);
+
+    $this->actingAs($user)
+        ->putJson(
+            "/api/v1/backend/products/{$product->id}/variants/{$variant->id}",
+            ['selling_price' => 70]
+        )
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('promotional_price');
+
+    $this->assertDatabaseHas('product_variants', [
+        'id' => $variant->id,
+        'selling_price' => '100.00',
+        'promotional_price' => '80.00',
+    ]);
+});
+
+test('effective selling price ignores a promotional price at or above the regular price', function () {
+    $product = variantEdgeCreateProduct();
+    $variant = ProductVariant::create([
+        'product_id' => $product->id,
+        'name' => 'Defensive price variant',
+        'sku' => 'DEFENSIVE-'.strtoupper(uniqid()),
+        'cost_price' => 20,
+        'selling_price' => 100,
+        'promotional_price' => 110,
+        'promotion_starts_at' => now()->subDay(),
+        'promotion_ends_at' => now()->addDay(),
+        'is_default' => true,
+        'status' => 'active',
+    ]);
+
+    expect($variant->effectiveSellingPrice())->toBe('100.00');
+});
+
+test('storefront flash sale price must be below the current effective variant price', function () {
+    $product = variantEdgeCreateProduct();
+    $product->update(['status' => 'active', 'visibility' => 'visible']);
+    $variant = ProductVariant::create([
+        'product_id' => $product->id,
+        'name' => 'Flash price variant',
+        'sku' => 'FLASH-'.strtoupper(uniqid()),
+        'cost_price' => 20,
+        'selling_price' => 100,
+        'is_default' => true,
+        'status' => 'active',
+    ]);
+    $sale = FlashSale::create([
+        'title' => 'Price integrity sale',
+        'slug' => 'price-integrity-'.strtolower(uniqid()),
+        'status' => 'active',
+        'accent_color' => '#059669',
+        'starts_at' => now()->subMinute(),
+        'ends_at' => now()->addDay(),
+        'show_on_storefront' => true,
+    ]);
+    $item = FlashSaleItem::create([
+        'flash_sale_id' => $sale->id,
+        'product_variant_id' => $variant->id,
+        'regular_price' => 100,
+        'sale_price' => 90,
+    ]);
+
+    $engine = app(PricingEngine::class);
+    expect($engine->flashSalePriceForVariant($variant->id))->toBe('90.00');
+
+    $variant->update(['selling_price' => 80]);
+    expect($engine->flashSalePriceForVariant($variant->id))->toBeNull();
+
+    $item->update(['sale_price' => 70]);
+    expect($engine->flashSalePriceForVariant($variant->id))->toBe('70.00');
+});
+
+test('flash sale creation rejects a sale price above the current effective variant price', function () {
+    $user = User::factory()->create();
+    variantEdgeGrantPermission($user, 'system.pricing.create');
+    $product = variantEdgeCreateProduct();
+    $variant = ProductVariant::create([
+        'product_id' => $product->id,
+        'name' => 'Flash sale validation variant',
+        'sku' => 'FLASH-VALIDATION-'.strtoupper(uniqid()),
+        'cost_price' => 20,
+        'selling_price' => 100,
+        'is_default' => true,
+        'status' => 'active',
+    ]);
+
+    $this->actingAs($user)
+        ->postJson('/api/v1/backend/pricing/flash-sales', [
+            'title' => 'Invalid sale price',
+            'slug' => 'invalid-sale-'.strtolower(uniqid()),
+            'status' => 'draft',
+            'accent_color' => '#059669',
+            'starts_at' => now()->toIso8601String(),
+            'ends_at' => now()->addDay()->toIso8601String(),
+            'show_on_storefront' => true,
+            'items' => [[
+                'product_variant_id' => $variant->id,
+                'regular_price' => 150,
+                'sale_price' => 120,
+                'quantity_limit' => null,
+                'sort_order' => 0,
+            ]],
+        ])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('items');
+
+    $this->assertDatabaseCount('flash_sales', 0);
+    $this->assertDatabaseCount('flash_sale_items', 0);
 });

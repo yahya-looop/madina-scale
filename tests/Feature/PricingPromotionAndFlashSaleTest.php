@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Module;
 use App\Models\Permission;
 use App\Models\PricingPromotion;
+use App\Models\ProductCategory;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -99,5 +100,51 @@ class PricingPromotionAndFlashSaleTest extends TestCase
         $this->actingAs($user)->postJson('/api/v1/backend/pricing/promotions', array_replace($payload, [
             'name' => 'Duplicate coupon', 'code' => 'CASE10',
         ]))->assertUnprocessable()->assertJsonValidationErrors('code');
+    }
+
+    public function test_promotion_cannot_target_an_inactive_category(): void
+    {
+        $user = $this->pricingUser();
+        $category = ProductCategory::query()->create([
+            'name' => 'Inactive Pricing Category',
+            'slug' => 'inactive-pricing-'.Str::lower(Str::random(8)),
+            'status' => 'inactive',
+            'visibility' => 'hidden',
+            'sort_order' => 0,
+        ]);
+
+        $this->actingAs($user)->postJson('/api/v1/backend/pricing/promotions', [
+            'name' => 'Inactive category offer',
+            'discount_type' => 'percent',
+            'discount_value' => 10,
+            'scope' => 'category',
+            'product_category_id' => $category->id,
+            'status' => 'draft',
+        ])->assertUnprocessable()->assertJsonValidationErrors('product_category_id');
+
+        $this->assertDatabaseCount('pricing_promotions', 0);
+    }
+
+    public function test_promotion_rejects_targets_that_do_not_match_its_scope(): void
+    {
+        $user = $this->pricingUser();
+        $category = ProductCategory::query()->create([
+            'name' => 'Extra Pricing Category',
+            'slug' => 'extra-pricing-'.Str::lower(Str::random(8)),
+            'status' => 'active',
+            'visibility' => 'visible',
+            'sort_order' => 0,
+        ]);
+
+        $this->actingAs($user)->postJson('/api/v1/backend/pricing/promotions', [
+            'name' => 'Mismatched target offer',
+            'discount_type' => 'percent',
+            'discount_value' => 10,
+            'scope' => 'order',
+            'product_category_id' => $category->id,
+            'status' => 'draft',
+        ])->assertUnprocessable()->assertJsonValidationErrors('product_category_id');
+
+        $this->assertDatabaseCount('pricing_promotions', 0);
     }
 }

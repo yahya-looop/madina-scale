@@ -55,7 +55,7 @@ class ProductVariantController extends Controller
         unset($data['attribute_values']);
 
         $this->validatePromotionDateRange($data);
-        $this->validateAttributeSelections($attributeValues);
+        $this->validatePriceRelationships($data);
         $this->assertIdentifiersAvailable($data);
 
         try {
@@ -70,6 +70,11 @@ class ProductVariantController extends Controller
                     ->firstOrFail();
 
                 $this->ensureVariableProduct($lockedProduct);
+
+                // Lock and revalidate master data inside the same transaction
+                // that creates the variant, preventing concurrent deactivation
+                // or soft deletion from producing stale attribute assignments.
+                $this->validateAttributeSelections($attributeValues);
 
                 $requestedDefault = ($data['is_default'] ?? false) === true;
                 $variantStatus = $data['status'] ?? 'active';
@@ -164,12 +169,6 @@ class ProductVariantController extends Controller
 
         unset($data['attribute_values']);
 
-        if ($attributeValues !== null) {
-            $this->validateAttributeSelections(
-                $attributeValues
-            );
-        }
-
         $this->assertIdentifiersAvailable(
             $data,
             $productVariant
@@ -202,6 +201,7 @@ class ProductVariantController extends Controller
                     $data,
                     $lockedVariant
                 );
+                $this->validatePriceRelationships($data, $lockedVariant);
 
                 $wasDefault = $lockedVariant->is_default;
                 $effectiveStatus = $data['status'] ?? $lockedVariant->status;
@@ -300,6 +300,31 @@ class ProductVariantController extends Controller
                 ->lockForUpdate()
                 ->firstOrFail();
 
+            $hasOnHandOrReservedStock = DB::table('inventory_stocks')
+                ->where('product_variant_id', $lockedVariant->id)
+                ->where(function ($query): void {
+                    $query->where('quantity', '>', 0)
+                        ->orWhere('reserved_quantity', '>', 0);
+                })
+                ->exists();
+
+            $hasActiveReservation = DB::table('inventory_reservations')
+                ->where('product_variant_id', $lockedVariant->id)
+                ->where('status', 'active')
+                ->exists();
+
+            $hasOutstandingTransfer = DB::table('inventory_transfers')
+                ->where('product_variant_id', $lockedVariant->id)
+                ->whereIn('status', ['in_transit', 'partially_received', 'discrepancy'])
+                ->whereColumn('quantity_received', '<', 'quantity_sent')
+                ->exists();
+
+            if ($hasOnHandOrReservedStock || $hasActiveReservation || $hasOutstandingTransfer) {
+                throw ValidationException::withMessages([
+                    'variant' => 'This variant cannot be deleted while it has on-hand stock, active reservations or outstanding transfers. Reconcile inventory first.',
+                ]);
+            }
+
             $wasDefault = $lockedVariant->is_default;
             $lockedVariant->delete();
 
@@ -345,21 +370,25 @@ class ProductVariantController extends Controller
                 'sometimes',
                 'numeric',
                 'min:0',
+                'max:999999999999.99',
             ],
             'selling_price' => [
                 'sometimes',
                 'numeric',
                 'min:0',
+                'max:999999999999.99',
             ],
             'wholesale_price' => [
                 'nullable',
                 'numeric',
                 'min:0',
+                'max:999999999999.99',
             ],
             'promotional_price' => [
                 'nullable',
                 'numeric',
                 'min:0',
+                'max:999999999999.99',
             ],
             'promotion_starts_at' => [
                 'nullable',
@@ -445,6 +474,38 @@ class ProductVariantController extends Controller
     }
 
     /**
+     * Validate price relationships using the complete effective record.
+     *
+     * Partial updates inherit omitted values from the locked database row.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private function validatePriceRelationships(
+        array $data,
+        ?ProductVariant $variant = null
+    ): void {
+        $sellingPrice = array_key_exists('selling_price', $data)
+            ? (string) $data['selling_price']
+            : ($variant === null ? '0.00' : (string) $variant->selling_price);
+        $promotionalPrice = array_key_exists('promotional_price', $data)
+            ? $data['promotional_price']
+            : $variant?->promotional_price;
+
+        /** @var numeric-string $normalizedSellingPrice */
+        $normalizedSellingPrice = $sellingPrice;
+        /** @var numeric-string|null $normalizedPromotionalPrice */
+        $normalizedPromotionalPrice = $promotionalPrice !== null
+            ? (string) $promotionalPrice
+            : null;
+
+        if ($normalizedPromotionalPrice !== null && bccomp($normalizedPromotionalPrice, $normalizedSellingPrice, 2) >= 0) {
+            throw ValidationException::withMessages([
+                'promotional_price' => 'Promotional price must be lower than the regular selling price.',
+            ]);
+        }
+    }
+
+    /**
      * Validate effective promotion dates.
      *
      * On update, omitted fields are taken from the existing variant.
@@ -500,7 +561,10 @@ class ProductVariantController extends Controller
     }
 
     /**
-     * Validate that every selected attribute and value is usable.
+     * Validate and lock every selected attribute and value.
+     *
+     * Must run inside the variant write transaction. Parent attribute rows
+     * are locked before value rows, matching master-data lifecycle writes.
      *
      * @param  list<array{attribute_id: int|string, attribute_value_id: int|string}>  $selections
      */
@@ -508,11 +572,21 @@ class ProductVariantController extends Controller
         array $selections
     ): void {
         $errors = [];
+        $orderedSelections = $selections;
 
-        foreach ($selections as $index => $selection) {
+        // Acquire shared master-data locks in a stable order to reduce
+        // deadlocks when two variants select the same attributes differently.
+        uasort(
+            $orderedSelections,
+            static fn (array $left, array $right): int => (int) $left['attribute_id']
+                <=> (int) $right['attribute_id'],
+        );
+
+        foreach ($orderedSelections as $index => $selection) {
             $attribute = Attribute::query()
                 ->whereKey($selection['attribute_id'])
                 ->where('status', 'active')
+                ->lockForUpdate()
                 ->first();
 
             if (! $attribute) {
@@ -533,6 +607,7 @@ class ProductVariantController extends Controller
                 ->whereKey($selection['attribute_value_id'])
                 ->where('attribute_id', $attribute->id)
                 ->where('status', 'active')
+                ->lockForUpdate()
                 ->first();
 
             if (! $value) {

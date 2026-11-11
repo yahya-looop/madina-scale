@@ -108,6 +108,7 @@ test('zero-stock item can be restocked through the receipt API and leaves low-st
         'balance_before' => '0.0000',
         'balance_after' => '25.0000',
         'reason' => 'Restock regression test',
+        'ip_address' => '127.0.0.1',
     ]);
 
     $this->getJson('/api/v1/backend/inventory/low-stock')
@@ -187,4 +188,51 @@ test('low-stock restock transfers stock between locations and refuses non-low de
         'product_id' => $product->id, 'source_location_id' => $source->id,
         'destination_location_id' => $destination->id, 'quantity' => '1',
     ])->assertUnprocessable();
+});
+
+test('issue and adjustment APIs write request IP address during immutable ledger insertion', function () {
+    $user = createInventoryApiUser([
+        'system.inventory.receive',
+        'system.inventory.issue',
+        'system.inventory.adjust',
+    ]);
+    $product = inventoryApiCreateProduct();
+    $location = inventoryApiCreateLocation();
+    $user->locations()->attach($location->id, ['access_level' => 'manage']);
+
+    $this->actingAs($user);
+
+    $this->postJson('/api/v1/backend/inventory/receive', [
+        'product_id' => $product->id,
+        'location_id' => $location->id,
+        'quantity' => '10.0000',
+    ])->assertCreated();
+
+    $this->postJson('/api/v1/backend/inventory/issue', [
+        'product_id' => $product->id,
+        'location_id' => $location->id,
+        'quantity' => '2.0000',
+    ])->assertOk();
+
+    $this->postJson('/api/v1/backend/inventory/adjust', [
+        'product_id' => $product->id,
+        'location_id' => $location->id,
+        'quantity' => '1.0000',
+        'reason' => 'Ledger IP regression test',
+    ])->assertOk();
+
+    $this->assertDatabaseHas('stock_movements', [
+        'product_id' => $product->id,
+        'location_id' => $location->id,
+        'movement_type' => 'issue',
+        'ip_address' => '127.0.0.1',
+    ]);
+    $this->assertDatabaseHas('stock_movements', [
+        'product_id' => $product->id,
+        'location_id' => $location->id,
+        'movement_type' => 'adjustment',
+        'ip_address' => '127.0.0.1',
+    ]);
+
+    $this->assertDatabaseCount('stock_movements', 3);
 });
