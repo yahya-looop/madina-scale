@@ -9,6 +9,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -520,13 +521,11 @@ class ProductController extends Controller
             && $oldMediaPath !== null
             && $oldMediaPath !== $storedPath
         ) {
-            try {
-                Storage::disk($oldMediaDisk)->delete($oldMediaPath);
-            } catch (\Throwable $exception) {
-                // Do not fail an otherwise successful product update if
-                // physical cleanup fails. A cleanup job can handle orphans.
-                report($exception);
-            }
+            $this->deleteReplacedProductMediaFile(
+                (int) $product->id,
+                $oldMediaDisk,
+                $oldMediaPath,
+            );
         }
 
         $product->refresh();
@@ -543,6 +542,62 @@ class ProductController extends Controller
             'message' => 'Product updated successfully.',
             'data' => $product,
         ]);
+    }
+
+    /**
+     * Remove a superseded product image after the database replacement commits.
+     * A failed physical deletion is logged for the read-only media audit; it
+     * must not roll back or misreport the already-committed product update.
+     */
+    private function deleteReplacedProductMediaFile(
+        int $productId,
+        string $diskName,
+        string $path,
+    ): void {
+        $expectedPrefix = 'products/'.$productId.'/images/';
+
+        if (
+            $diskName !== 'public'
+            || ! str_starts_with($path, $expectedPrefix)
+            || str_contains($path, '..')
+            || str_contains($path, '\\')
+        ) {
+            Log::warning('Skipped unsafe replaced product media cleanup.', [
+                'product_id' => $productId,
+                'disk' => $diskName,
+                'path' => $path,
+            ]);
+
+            return;
+        }
+
+        try {
+            $disk = Storage::disk($diskName);
+
+            if (! $disk->exists($path)) {
+                Log::notice('Replaced product media file was already missing.', [
+                    'product_id' => $productId,
+                    'path' => $path,
+                ]);
+
+                return;
+            }
+
+            if (! $disk->delete($path)) {
+                Log::warning('Could not delete replaced product media file.', [
+                    'product_id' => $productId,
+                    'disk' => $diskName,
+                    'path' => $path,
+                ]);
+            }
+        } catch (\Throwable $exception) {
+            report($exception);
+            Log::warning('Exception while deleting replaced product media file.', [
+                'product_id' => $productId,
+                'disk' => $diskName,
+                'path' => $path,
+            ]);
+        }
     }
 
     public function destroy(Product $product): JsonResponse

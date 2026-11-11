@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\ProductController;
 use App\Models\Brand;
 use App\Models\Module;
 use App\Models\Permission;
@@ -12,6 +13,7 @@ use App\Models\User;
 use Illuminate\Filesystem\FilesystemAdapter;
 use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 
 function productDimensionTestPng(int $width, int $height): string
@@ -1006,4 +1008,37 @@ test('failed product media file deletion restores the active media record and pr
         'is_primary' => true,
     ]);
     $fakeDisk->assertExists($path);
+});
+
+test('replaced product image cleanup logs a failed storage delete without failing the update', function () {
+    $path = 'products/42/images/old-primary.webp';
+    $disk = Mockery::mock(FilesystemAdapter::class);
+    $disk->shouldReceive('exists')->once()->with($path)->andReturn(true);
+    $disk->shouldReceive('delete')->once()->with($path)->andReturn(false);
+    Storage::shouldReceive('disk')->once()->with('public')->andReturn($disk);
+    Log::spy();
+
+    $controller = app(ProductController::class);
+    $method = new ReflectionMethod($controller, 'deleteReplacedProductMediaFile');
+    $method->invoke($controller, 42, 'public', $path);
+
+    Log::shouldHaveReceived('warning')
+        ->once()
+        ->with('Could not delete replaced product media file.', Mockery::on(
+            fn (array $context): bool => $context['product_id'] === 42
+                && $context['path'] === $path,
+        ));
+});
+
+test('replaced product image cleanup refuses paths outside the product image directory', function () {
+    Storage::shouldReceive('disk')->never();
+    Log::spy();
+
+    $controller = app(ProductController::class);
+    $method = new ReflectionMethod($controller, 'deleteReplacedProductMediaFile');
+    $method->invoke($controller, 42, 'public', 'products/43/images/other.webp');
+
+    Log::shouldHaveReceived('warning')
+        ->once()
+        ->with('Skipped unsafe replaced product media cleanup.', Mockery::type('array'));
 });
