@@ -2,13 +2,17 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ActivityLog;
 use App\Models\FinancialAccount;
 use App\Models\GoodsReceipt;
 use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Models\PurchaseOrder;
+use App\Models\PurchaseOrderRevision;
 use App\Models\PurchaseRequisition;
 use App\Models\Supplier;
+use App\Models\SupplierContact;
+use App\Models\SupplierDocument;
 use App\Models\SupplierInvoice;
 use App\Models\SupplierPayment;
 use App\Models\SupplierReturn;
@@ -17,9 +21,12 @@ use App\Services\LocationInventoryAccessService;
 use App\Services\ProcurementService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ProcurementController extends Controller
 {
@@ -61,7 +68,7 @@ class ProcurementController extends Controller
                 ->orderBy('name')
                 ->get(),
             'requisitions' => PurchaseRequisition::query()->with(['location', 'items'])->whereIn('location_id', $locationIds)->latest()->limit(100)->get(),
-            'purchase_orders' => PurchaseOrder::query()->with(['supplier', 'location', 'items.product:id,name,sku', 'items.variant:id,product_id,name,sku', 'items.variant.product:id,name'])->whereIn('location_id', $locationIds)->latest()->limit(100)->get(),
+            'purchase_orders' => PurchaseOrder::query()->with(['supplier', 'location', 'items.product:id,name,sku', 'items.variant:id,product_id,name,sku', 'items.variant.product:id,name', 'revisions.creator:id,name', 'revisions.reviewer:id,name'])->whereIn('location_id', $locationIds)->latest()->limit(100)->get(),
             'goods_receipts' => GoodsReceipt::query()->with(['items'])->whereIn('location_id', $locationIds)->latest()->limit(100)->get(),
             'invoices' => SupplierInvoice::query()->with(['supplier', 'purchaseOrder', 'items'])->whereHas('purchaseOrder', fn ($query) => $query->whereIn('location_id', $locationIds))->latest()->limit(100)->get(),
             'payments' => SupplierPayment::query()->with(['supplierInvoice'])->whereIn('location_id', $locationIds)->latest()->limit(100)->get(),
@@ -78,6 +85,182 @@ class ProcurementController extends Controller
                 'outstanding_payable' => $outstandingPayable,
             ],
         ]);
+    }
+
+    public function showSupplier(Request $request, Supplier $supplier): JsonResponse
+    {
+        $locationIds = $this->locationAccess->viewableLocations($request->user())->pluck('id')->all();
+        $orders = $supplier->purchaseOrders()->with('location:id,name')->whereIn('location_id', $locationIds)->latest('order_date')->limit(20)->get();
+        $invoicesCount = $supplier->invoices()->whereHas('purchaseOrder', fn ($query) => $query->whereIn('location_id', $locationIds))->count();
+        $supplier->load(['contacts', 'documents']);
+        $supplierData = $supplier->toArray();
+        $supplierData['purchase_orders_count'] = $supplier->purchaseOrders()->whereIn('location_id', $locationIds)->count();
+        $supplierData['invoices_count'] = $invoicesCount;
+        $supplierData['purchase_orders'] = $orders->map(fn (PurchaseOrder $order): array => [
+            'id' => $order->id, 'po_number' => $order->po_number, 'order_date' => $order->order_date->toDateString(),
+            'status' => $order->status, 'grand_total' => $order->grand_total, 'location' => $order->location?->name,
+        ])->values();
+        $supplierData['documents'] = $supplier->documents->map(fn (SupplierDocument $document): array => [
+            'id' => $document->id, 'category' => $document->category, 'original_name' => $document->original_name,
+            'mime_type' => $document->mime_type, 'size' => $document->size,
+            'expires_at' => $document->expires_at?->toDateString(), 'created_at' => $document->created_at?->toISOString(),
+        ])->values();
+        $supplierData['activity'] = ActivityLog::query()->where('subject_type', $supplier->getMorphClass())
+            ->where('subject_id', $supplier->id)->latest('created_at')->limit(15)->get(['id', 'action', 'description', 'created_at']);
+
+        return response()->json(['supplier' => $supplierData]);
+    }
+
+    public function exportSuppliers(Request $request): StreamedResponse
+    {
+        $suppliers = Supplier::query()->withCount('purchaseOrders')->orderBy('name')->get();
+        $filename = 'suppliers-'.now()->format('Ymd-His').'.csv';
+
+        return response()->streamDownload(function () use ($suppliers): void {
+            $output = fopen('php://output', 'w');
+            if ($output === false) {
+                return;
+            }
+            fwrite($output, "\xEF\xBB\xBF");
+            fputcsv($output, ['Supplier Code', 'Name', 'Legal Name', 'Email', 'Phone', 'Tax Number', 'City', 'Country', 'Payment Terms', 'Credit Days', 'Status', 'Purchase Orders']);
+            foreach ($suppliers as $supplier) {
+                fputcsv($output, [$supplier->supplier_code, $supplier->name, $supplier->legal_name, $supplier->email, $supplier->phone, $supplier->tax_number, $supplier->city, $supplier->country, $supplier->payment_terms, $supplier->credit_days, $supplier->status, $supplier->purchase_orders_count]);
+            }
+            fclose($output);
+        }, $filename, ['Content-Type' => 'text/csv; charset=UTF-8']);
+    }
+
+    public function storeSupplierContact(Request $request, Supplier $supplier): JsonResponse
+    {
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:160'],
+            'designation' => ['nullable', 'string', 'max:120'],
+            'email' => ['nullable', 'email', 'max:180'],
+            'phone' => ['nullable', 'string', 'max:40'],
+            'is_primary' => ['sometimes', 'boolean'],
+            'notes' => ['nullable', 'string', 'max:2000'],
+        ]);
+        $data['created_by'] = $request->user()->id;
+
+        $contact = DB::transaction(function () use ($supplier, $data): SupplierContact {
+            Supplier::query()->whereKey($supplier->id)->lockForUpdate()->firstOrFail();
+            if (($data['is_primary'] ?? false) === true) {
+                $supplier->contacts()->update(['is_primary' => false]);
+            }
+
+            return $supplier->contacts()->create($data);
+        });
+        $this->activityLog->recordForUser($request->user(), 'created', 'procurement', 'Added supplier contact for '.$supplier->supplier_code, $contact);
+
+        return response()->json(['contact' => $contact], 201);
+    }
+
+    public function updateSupplierContact(Request $request, Supplier $supplier, SupplierContact $contact): JsonResponse
+    {
+        abort_unless($contact->supplier_id === $supplier->id, 404);
+        $data = $request->validate([
+            'name' => ['sometimes', 'required', 'string', 'max:160'],
+            'designation' => ['nullable', 'string', 'max:120'],
+            'email' => ['nullable', 'email', 'max:180'],
+            'phone' => ['nullable', 'string', 'max:40'],
+            'is_primary' => ['sometimes', 'boolean'],
+            'notes' => ['nullable', 'string', 'max:2000'],
+        ]);
+        $oldValues = $contact->only(array_keys($data));
+        DB::transaction(function () use ($supplier, $contact, $data): void {
+            Supplier::query()->whereKey($supplier->id)->lockForUpdate()->firstOrFail();
+            if (($data['is_primary'] ?? false) === true) {
+                $supplier->contacts()->where('id', '<>', $contact->id)->update(['is_primary' => false]);
+            }
+            $contact->update($data);
+        });
+        $this->activityLog->recordForUser($request->user(), 'updated', 'procurement', 'Updated supplier contact for '.$supplier->supplier_code, $contact, $oldValues, $contact->only(array_keys($data)));
+
+        return response()->json(['contact' => $contact->fresh()]);
+    }
+
+    public function deleteSupplierContact(Request $request, Supplier $supplier, SupplierContact $contact): JsonResponse
+    {
+        abort_unless($contact->supplier_id === $supplier->id, 404);
+        $contact->delete();
+        $this->activityLog->recordForUser($request->user(), 'deleted', 'procurement', 'Deleted supplier contact for '.$supplier->supplier_code, $contact);
+
+        return response()->json(['message' => 'Supplier contact deleted.']);
+    }
+
+    public function storeSupplierDocument(Request $request, Supplier $supplier): JsonResponse
+    {
+        $data = $request->validate([
+            'file' => ['required', 'file', 'mimes:pdf,jpg,jpeg,png,webp', 'max:10240'],
+            'category' => ['nullable', Rule::in(['trade_license', 'tax_certificate', 'bank_document', 'agreement', 'identity', 'other'])],
+            'expires_at' => ['nullable', 'date'],
+        ]);
+        $file = $request->file('file');
+        abort_unless($file instanceof UploadedFile, 422, 'A valid supplier document is required.');
+        $path = $file->store('procurement/suppliers/'.$supplier->id, 'local');
+        abort_if($path === false, 500, 'The supplier document could not be stored.');
+
+        try {
+            $document = $supplier->documents()->create([
+                'category' => $data['category'] ?? 'other',
+                'disk' => 'local',
+                'path' => $path,
+                'original_name' => mb_substr(basename($file->getClientOriginalName()), 0, 255),
+                'mime_type' => $file->getMimeType() ?? 'application/octet-stream',
+                'size' => (int) $file->getSize(),
+                'expires_at' => $data['expires_at'] ?? null,
+                'uploaded_by' => $request->user()->id,
+            ]);
+        } catch (\Throwable $exception) {
+            Storage::disk('local')->delete($path);
+            throw $exception;
+        }
+        $this->activityLog->recordForUser($request->user(), 'created', 'procurement', 'Uploaded supplier document for '.$supplier->supplier_code, $document);
+
+        return response()->json(['document' => [
+            'id' => $document->id,
+            'category' => $document->category,
+            'original_name' => $document->original_name,
+            'mime_type' => $document->mime_type,
+            'size' => $document->size,
+            'expires_at' => $document->expires_at?->toDateString(),
+            'created_at' => $document->created_at?->toISOString(),
+        ]], 201);
+    }
+
+    public function downloadSupplierDocument(Supplier $supplier, SupplierDocument $document): StreamedResponse
+    {
+        abort_unless($document->supplier_id === $supplier->id, 404);
+        abort_unless(
+            $document->disk === 'local'
+            && str_starts_with($document->path, 'procurement/suppliers/'.$supplier->id.'/')
+            && ! str_contains($document->path, '..')
+            && ! str_contains($document->path, '\\'),
+            404,
+        );
+        abort_unless(Storage::disk('local')->exists($document->path), 404, 'Supplier document not found.');
+
+        return Storage::disk('local')->download($document->path, $document->original_name);
+    }
+
+    public function deleteSupplierDocument(Request $request, Supplier $supplier, SupplierDocument $document): JsonResponse
+    {
+        abort_unless($document->supplier_id === $supplier->id, 404);
+        abort_unless(
+            $document->disk === 'local'
+            && str_starts_with($document->path, 'procurement/suppliers/'.$supplier->id.'/')
+            && ! str_contains($document->path, '..')
+            && ! str_contains($document->path, '\\'),
+            404,
+        );
+        $disk = Storage::disk('local');
+        if ($disk->exists($document->path) && ! $disk->delete($document->path)) {
+            abort(500, 'The supplier document could not be deleted. Its record was retained.');
+        }
+        $document->delete();
+        $this->activityLog->recordForUser($request->user(), 'deleted', 'procurement', 'Deleted supplier document for '.$supplier->supplier_code, $document);
+
+        return response()->json(['message' => 'Supplier document deleted.']);
     }
 
     public function storeSupplier(Request $request): JsonResponse
@@ -147,6 +330,28 @@ class ProcurementController extends Controller
         return response()->json(['requisition' => $requisition], 201);
     }
 
+    public function submitRequisition(Request $request, PurchaseRequisition $requisition): JsonResponse
+    {
+        $this->locationAccess->assertManage($request->user(), (int) $requisition->location_id);
+
+        return response()->json(['requisition' => $this->procurement->submitRequisition($requisition, $request->user())]);
+    }
+
+    public function rejectRequisition(Request $request, PurchaseRequisition $requisition): JsonResponse
+    {
+        $this->locationAccess->assertManage($request->user(), (int) $requisition->location_id);
+        $data = $request->validate(['reason' => ['required', 'string', 'min:3', 'max:2000']]);
+
+        return response()->json(['requisition' => $this->procurement->rejectRequisition($requisition, $data['reason'], $request->user())]);
+    }
+
+    public function cancelRequisition(Request $request, PurchaseRequisition $requisition): JsonResponse
+    {
+        $this->locationAccess->assertManage($request->user(), (int) $requisition->location_id);
+
+        return response()->json(['requisition' => $this->procurement->cancelRequisition($requisition, $request->user())]);
+    }
+
     public function approveRequisition(Request $request, PurchaseRequisition $requisition): JsonResponse
     {
         $this->locationAccess->assertManage($request->user(), (int) $requisition->location_id);
@@ -179,11 +384,79 @@ class ProcurementController extends Controller
         return response()->json(['purchase_order' => $po], 201);
     }
 
+    public function submitPurchaseOrder(Request $request, PurchaseOrder $purchaseOrder): JsonResponse
+    {
+        $this->locationAccess->assertManage($request->user(), (int) $purchaseOrder->location_id);
+
+        return response()->json(['purchase_order' => $this->procurement->submitPurchaseOrder($purchaseOrder, $request->user())]);
+    }
+
+    public function rejectPurchaseOrder(Request $request, PurchaseOrder $purchaseOrder): JsonResponse
+    {
+        $this->locationAccess->assertManage($request->user(), (int) $purchaseOrder->location_id);
+        $data = $request->validate(['reason' => ['required', 'string', 'min:3', 'max:2000']]);
+
+        return response()->json(['purchase_order' => $this->procurement->rejectPurchaseOrder($purchaseOrder, $data['reason'], $request->user())]);
+    }
+
+    public function cancelPurchaseOrder(Request $request, PurchaseOrder $purchaseOrder): JsonResponse
+    {
+        $this->locationAccess->assertManage($request->user(), (int) $purchaseOrder->location_id);
+
+        return response()->json(['purchase_order' => $this->procurement->cancelPurchaseOrder($purchaseOrder, $request->user())]);
+    }
+
     public function approvePurchaseOrder(Request $request, PurchaseOrder $purchaseOrder): JsonResponse
     {
         $this->locationAccess->assertManage($request->user(), (int) $purchaseOrder->location_id);
 
         return response()->json(['purchase_order' => $this->procurement->approvePurchaseOrder($purchaseOrder, $request->user())]);
+    }
+
+    public function requestPurchaseOrderRevision(Request $request, PurchaseOrder $purchaseOrder): JsonResponse
+    {
+        $this->locationAccess->assertManage($request->user(), (int) $purchaseOrder->location_id);
+        $data = $request->validate([
+            'reason' => ['required', 'string', 'min:5', 'max:2000'],
+            'order_date' => ['nullable', 'date'],
+            'expected_at' => ['nullable', 'date', 'after_or_equal:order_date'],
+            'currency' => ['nullable', 'string', 'size:3'],
+            'notes' => ['nullable', 'string', 'max:5000'],
+            'items' => ['required', 'array', 'min:1'],
+            'items.*.product_id' => ['nullable', 'integer', 'exists:products,id'],
+            'items.*.product_variant_id' => ['nullable', 'integer', 'exists:product_variants,id'],
+            'items.*.quantity' => ['required', 'regex:/^\\d{1,14}(?:\\.\\d{1,4})?$/'],
+            'items.*.unit_cost' => ['required', 'regex:/^\\d{1,14}(?:\\.\\d{1,2})?$/'],
+            'items.*.discount_amount' => ['nullable', 'regex:/^\\d{1,14}(?:\\.\\d{1,2})?$/'],
+            'items.*.tax_amount' => ['nullable', 'regex:/^\\d{1,14}(?:\\.\\d{1,2})?$/'],
+            'items.*.description' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        return response()->json([
+            'revision' => $this->procurement->requestPurchaseOrderRevision($purchaseOrder, $data, $request->user()),
+        ], 201);
+    }
+
+    public function approvePurchaseOrderRevision(Request $request, PurchaseOrderRevision $revision): JsonResponse
+    {
+        $revision->loadMissing('purchaseOrder');
+        $this->locationAccess->assertManage($request->user(), (int) $revision->purchaseOrder->location_id);
+
+        return response()->json([
+            'revision' => $this->procurement->approvePurchaseOrderRevision($revision, $request->user()),
+            'purchase_order' => $revision->purchaseOrder->fresh()->load(['supplier', 'items', 'revisions']),
+        ]);
+    }
+
+    public function rejectPurchaseOrderRevision(Request $request, PurchaseOrderRevision $revision): JsonResponse
+    {
+        $revision->loadMissing('purchaseOrder');
+        $this->locationAccess->assertManage($request->user(), (int) $revision->purchaseOrder->location_id);
+        $data = $request->validate(['reason' => ['required', 'string', 'min:3', 'max:2000']]);
+
+        return response()->json([
+            'revision' => $this->procurement->rejectPurchaseOrderRevision($revision, $data['reason'], $request->user()),
+        ]);
     }
 
     public function receiveGoods(Request $request, PurchaseOrder $purchaseOrder): JsonResponse

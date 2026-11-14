@@ -30,7 +30,8 @@ class PurchaseOrder extends Model
         'po_number', 'supplier_id', 'location_id', 'purchase_requisition_id',
         'status', 'order_date', 'expected_at', 'currency', 'subtotal',
         'discount_total', 'tax_total', 'grand_total', 'notes', 'created_by',
-        'approved_by', 'approved_at',
+        'submitted_by', 'submitted_at', 'approved_by', 'approved_at',
+        'rejected_by', 'rejected_at', 'rejection_reason', 'revision_no',
     ];
 
     protected function casts(): array
@@ -38,7 +39,9 @@ class PurchaseOrder extends Model
         return [
             'order_date' => 'date',
             'expected_at' => 'date',
+            'submitted_at' => 'datetime',
             'approved_at' => 'datetime',
+            'rejected_at' => 'datetime',
             'subtotal' => 'decimal:2',
             'discount_total' => 'decimal:2',
             'tax_total' => 'decimal:2',
@@ -68,6 +71,12 @@ class PurchaseOrder extends Model
     public function receipts(): HasMany
     {
         return $this->hasMany(GoodsReceipt::class);
+    }
+
+    /** @return HasMany<PurchaseOrderRevision, $this> */
+    public function revisions(): HasMany
+    {
+        return $this->hasMany(PurchaseOrderRevision::class)->orderByDesc('revision_number');
     }
 
     /** @return HasMany<SupplierInvoice, $this> */

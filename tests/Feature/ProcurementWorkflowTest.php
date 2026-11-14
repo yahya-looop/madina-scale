@@ -3,18 +3,24 @@
 use App\Models\FinancialAccount;
 use App\Models\GoodsReceipt;
 use App\Models\InventoryStock;
+use App\Models\JournalEntry;
 use App\Models\JournalEntryLine;
 use App\Models\Module;
 use App\Models\Permission;
 use App\Models\PurchaseOrder;
+use App\Models\PurchaseOrderRevision;
 use App\Models\PurchaseRequisition;
 use App\Models\Role;
+use App\Models\StockMovement;
 use App\Models\Supplier;
 use App\Models\SupplierInvoice;
 use App\Models\SupplierPayment;
 use App\Models\SupplierReturn;
 use App\Models\User;
+use App\Services\FinancialLedgerService;
 use App\Services\ProcurementService;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
@@ -86,6 +92,186 @@ function createApprovedPurchaseOrder(object $test, string $quantity = '10'): Pur
     return $test->service->approvePurchaseOrder($po, $test->approver);
 }
 
+it('rolls back stock, receipt and journal writes when GRN accounting posting fails', function (): void {
+    $po = createApprovedPurchaseOrder($this, '5');
+    $poItem = $po->items->firstOrFail();
+
+    $ledger = Mockery::mock(app(FinancialLedgerService::class))->makePartial();
+    $ledger->shouldReceive('post')->once()->andThrow(new RuntimeException('Simulated ledger posting failure.'));
+    app()->instance(FinancialLedgerService::class, $ledger);
+    $this->service = app(ProcurementService::class);
+
+    expect(fn () => $this->service->receiveGoods($po, [
+        'idempotency_key' => (string) Str::uuid(),
+        'items' => [[
+            'purchase_order_item_id' => $poItem->id,
+            'received_quantity' => '5',
+            'accepted_quantity' => '5',
+            'rejected_quantity' => '0',
+        ]],
+    ], $this->approver))->toThrow(RuntimeException::class);
+
+    expect(GoodsReceipt::query()->where('purchase_order_id', $po->id)->count())->toBe(0)
+        ->and(StockMovement::query()->where('reference_type', 'goods_receipt')->count())->toBe(0)
+        ->and(InventoryStock::query()->where('location_id', $this->location->id)->where('product_id', $this->product->id)->exists())->toBeFalse()
+        ->and(JournalEntry::query()->where('source', 'procurement_grn')->count())->toBe(0)
+        ->and($poItem->fresh()->received_quantity)->toBe('0.0000')
+        ->and($poItem->fresh()->accepted_quantity)->toBe('0.0000')
+        ->and($po->fresh()->status)->toBe('approved');
+});
+
+it('keeps a supplier invoice draft and removes its journal draft when invoice posting fails', function (): void {
+    $po = createApprovedPurchaseOrder($this, '5');
+    $poItem = $po->items->firstOrFail();
+    $this->service->receiveGoods($po, [
+        'idempotency_key' => (string) Str::uuid(),
+        'items' => [[
+            'purchase_order_item_id' => $poItem->id,
+            'received_quantity' => '5',
+            'accepted_quantity' => '5',
+            'rejected_quantity' => '0',
+        ]],
+    ], $this->approver);
+
+    $invoice = $this->service->createSupplierInvoice($po->fresh(), [
+        'invoice_number' => 'ROLLBACK-'.strtoupper(Str::random(8)),
+        'invoice_date' => now()->toDateString(),
+        'items' => [[
+            'purchase_order_item_id' => $poItem->id,
+            'quantity' => '5',
+            'unit_cost' => '100.00',
+        ]],
+        'tax_total' => '0',
+        'discount_total' => '0',
+    ], $this->requester);
+
+    $ledger = Mockery::mock(app(FinancialLedgerService::class))->makePartial();
+    $ledger->shouldReceive('post')->once()->andThrow(new RuntimeException('Simulated ledger posting failure.'));
+    app()->instance(FinancialLedgerService::class, $ledger);
+    $this->service = app(ProcurementService::class);
+
+    expect(fn () => $this->service->postSupplierInvoice($invoice, $this->approver))
+        ->toThrow(RuntimeException::class);
+
+    expect($invoice->fresh()->status)->toBe('draft')
+        ->and($invoice->fresh()->journal_entry_id)->toBeNull()
+        ->and(JournalEntry::query()->where('source', 'procurement_invoice')->count())->toBe(0);
+});
+
+it('prevents duplicate supplier invoice journal posting on repeated requests', function (): void {
+    $po = createApprovedPurchaseOrder($this, '3');
+    $poItem = $po->items->firstOrFail();
+    $this->service->receiveGoods($po, [
+        'idempotency_key' => (string) Str::uuid(),
+        'items' => [[
+            'purchase_order_item_id' => $poItem->id,
+            'received_quantity' => '3',
+            'accepted_quantity' => '3',
+            'rejected_quantity' => '0',
+        ]],
+    ], $this->approver);
+
+    $invoice = $this->service->createSupplierInvoice($po->fresh(), [
+        'invoice_number' => 'POST-ONCE-'.strtoupper(Str::random(8)),
+        'invoice_date' => now()->toDateString(),
+        'items' => [[
+            'purchase_order_item_id' => $poItem->id,
+            'quantity' => '3',
+            'unit_cost' => '100.00',
+        ]],
+        'tax_total' => '0',
+        'discount_total' => '0',
+    ], $this->requester);
+
+    $postedInvoice = $this->service->postSupplierInvoice($invoice, $this->approver);
+    expect($postedInvoice->status)->toBe('posted')
+        ->and($postedInvoice->journal_entry_id)->not->toBeNull();
+
+    expect(fn () => $this->service->postSupplierInvoice($invoice, $this->approver))
+        ->toThrow(ValidationException::class);
+
+    expect(JournalEntry::query()->where('source', 'procurement_invoice')->count())->toBe(1)
+        ->and($invoice->fresh()->status)->toBe('posted')
+        ->and($invoice->fresh()->journal_entry_id)->toBe($postedInvoice->journal_entry_id);
+});
+
+it('prevents duplicate supplier invoice numbers and reconciles multiple partial invoices against accepted receipts', function (): void {
+    $po = createApprovedPurchaseOrder($this, '10');
+    $poItem = $po->items->firstOrFail();
+
+    $this->service->receiveGoods($po, [
+        'idempotency_key' => (string) Str::uuid(),
+        'items' => [[
+            'purchase_order_item_id' => $poItem->id,
+            'received_quantity' => '4',
+            'accepted_quantity' => '4',
+            'rejected_quantity' => '0',
+        ]],
+    ], $this->approver);
+
+    $firstInvoice = $this->service->createSupplierInvoice($po->fresh(), [
+        'invoice_number' => 'SUP-INV-1001',
+        'invoice_date' => now()->toDateString(),
+        'items' => [[
+            'purchase_order_item_id' => $poItem->id,
+            'quantity' => '4',
+            'unit_cost' => '100.00',
+        ]],
+        'tax_total' => '0',
+        'discount_total' => '0',
+    ], $this->requester);
+
+    expect($firstInvoice->grand_total)->toBe('400.00');
+    expect(fn () => $this->service->createSupplierInvoice($po->fresh(), [
+        'invoice_number' => 'SUP-INV-1001',
+        'invoice_date' => now()->toDateString(),
+        'items' => [[
+            'purchase_order_item_id' => $poItem->id,
+            'quantity' => '1',
+            'unit_cost' => '100.00',
+        ]],
+        'tax_total' => '0',
+        'discount_total' => '0',
+    ], $this->requester))->toThrow(ValidationException::class);
+
+    $this->service->receiveGoods($po->fresh(), [
+        'idempotency_key' => (string) Str::uuid(),
+        'items' => [[
+            'purchase_order_item_id' => $poItem->id,
+            'received_quantity' => '6',
+            'accepted_quantity' => '6',
+            'rejected_quantity' => '0',
+        ]],
+    ], $this->approver);
+
+    $secondInvoice = $this->service->createSupplierInvoice($po->fresh(), [
+        'invoice_number' => 'SUP-INV-1002',
+        'invoice_date' => now()->toDateString(),
+        'items' => [[
+            'purchase_order_item_id' => $poItem->id,
+            'quantity' => '6',
+            'unit_cost' => '100.00',
+        ]],
+        'tax_total' => '0',
+        'discount_total' => '0',
+    ], $this->requester);
+
+    expect($secondInvoice->grand_total)->toBe('600.00')
+        ->and(SupplierInvoice::query()->where('supplier_id', $this->supplier->id)->count())->toBe(2);
+
+    expect(fn () => $this->service->createSupplierInvoice($po->fresh(), [
+        'invoice_number' => 'SUP-INV-1003',
+        'invoice_date' => now()->toDateString(),
+        'items' => [[
+            'purchase_order_item_id' => $poItem->id,
+            'quantity' => '0.01',
+            'unit_cost' => '100.00',
+        ]],
+        'tax_total' => '0',
+        'discount_total' => '0',
+    ], $this->requester))->toThrow(ValidationException::class);
+});
+
 it('completes requisition, purchase order, partial goods receipt, invoice, payment and supplier return atomically', function (): void {
     $requisition = $this->service->createRequisition([
         'location_id' => $this->location->id,
@@ -110,10 +296,9 @@ it('completes requisition, purchase order, partial goods receipt, invoice, payme
         'received_date' => now()->toDateString(),
         'items' => [[
             'purchase_order_item_id' => $po->items->first()->id,
-            'received_quantity' => '7',
+            'received_quantity' => '6',
             'accepted_quantity' => '6',
-            'rejected_quantity' => '1',
-            'rejection_reason' => 'Damaged packaging',
+            'rejected_quantity' => '0',
         ]],
     ];
     $firstReceipt = $this->service->receiveGoods($po, $receiptPayload, $this->approver);
@@ -150,7 +335,7 @@ it('completes requisition, purchase order, partial goods receipt, invoice, payme
     ], $this->approver);
 
     $poItem = $po->items()->firstOrFail()->fresh();
-    expect($poItem->received_quantity)->toBe('11.0000')
+    expect($poItem->received_quantity)->toBe('10.0000')
         ->and($poItem->accepted_quantity)->toBe('10.0000')
         ->and($po->fresh()->status)->toBe('received');
 
@@ -220,6 +405,19 @@ it('completes requisition, purchase order, partial goods receipt, invoice, payme
         'items' => [['purchase_order_item_id' => $poItem->id, 'quantity' => '9']],
     ], $this->approver))->toThrow(ValidationException::class);
 
+    expect(fn () => $this->service->paySupplierInvoice($invoice->fresh(), array_replace($paymentPayload, [
+        'amount' => '501.00',
+        'idempotency_key' => (string) Str::uuid(),
+    ]), $this->approver))->toThrow(ValidationException::class);
+
+    $netBalancePayment = $this->service->paySupplierInvoice($invoice->fresh(), array_replace($paymentPayload, [
+        'amount' => '500.00',
+        'idempotency_key' => (string) Str::uuid(),
+    ]), $this->approver);
+    expect($netBalancePayment->amount)->toBe('500.00')
+        ->and($invoice->fresh()->paid_total)->toBe('800.00')
+        ->and($invoice->fresh()->status)->toBe('paid');
+
     $payable = FinancialAccount::query()->where('code', '2000')->firstOrFail();
     $supplierPayable = (string) JournalEntryLine::query()
         ->where('account_id', $payable->id)
@@ -227,7 +425,7 @@ it('completes requisition, purchase order, partial goods receipt, invoice, payme
         ->whereHas('journalEntry', fn ($query) => $query->where('status', 'posted'))
         ->selectRaw('COALESCE(SUM(credit - debit), 0) AS balance')
         ->value('balance');
-    expect(bccomp($supplierPayable, '500.00', 2))->toBe(0);
+    expect(bccomp($supplierPayable, '0.00', 2))->toBe(0);
 });
 
 it('prevents a requester or purchase order creator from approving their own documents', function (): void {
@@ -247,6 +445,19 @@ it('prevents a requester or purchase order creator from approving their own docu
 
     expect(fn () => $this->service->approvePurchaseOrder($po, $this->requester))
         ->toThrow(ValidationException::class);
+});
+
+it('prevents approval of a purchase order when its supplier is inactive or blocked', function (): void {
+    $po = $this->service->createPurchaseOrder([
+        'supplier_id' => $this->supplier->id,
+        'location_id' => $this->location->id,
+        'items' => [['product_id' => $this->product->id, 'quantity' => '2', 'unit_cost' => '10.00']],
+    ], $this->requester);
+    $this->supplier->update(['status' => 'blocked']);
+
+    expect(fn () => $this->service->approvePurchaseOrder($po, $this->approver))
+        ->toThrow(ValidationException::class);
+    expect($po->fresh()->status)->toBe('draft');
 });
 
 it('rejects over-receipt and supplier invoices above accepted goods value', function (): void {
@@ -270,8 +481,30 @@ it('rejects over-receipt and supplier invoices above accepted goods value', func
             'received_quantity' => '5',
             'accepted_quantity' => '3',
             'rejected_quantity' => '2',
+            'rejection_reason' => 'Two units arrived damaged',
         ]],
     ], $this->approver);
+
+    expect(fn () => $this->service->receiveGoods($po, [
+        'idempotency_key' => (string) Str::uuid(),
+        'items' => [[
+            'purchase_order_item_id' => $poItem->id,
+            'received_quantity' => '1',
+            'accepted_quantity' => '0',
+            'rejected_quantity' => '1',
+            'rejection_reason' => 'Damaged packaging',
+        ]],
+    ], $this->approver))->toThrow(ValidationException::class);
+
+    expect(fn () => $this->service->receiveGoods($po, [
+        'idempotency_key' => (string) Str::uuid(),
+        'items' => [[
+            'purchase_order_item_id' => $poItem->id,
+            'received_quantity' => '1',
+            'accepted_quantity' => '0',
+            'rejected_quantity' => '1',
+        ]],
+    ], $this->approver))->toThrow(ValidationException::class);
 
     expect(fn () => $this->service->createSupplierInvoice($po, [
         'invoice_number' => 'OVER-'.strtoupper(Str::random(6)),
@@ -282,6 +515,32 @@ it('rejects over-receipt and supplier invoices above accepted goods value', func
             'unit_cost' => '100.00',
         ]],
     ], $this->requester))->toThrow(ValidationException::class);
+});
+
+it('requires rejection reasons and caps rejected quantities within the ordered balance', function (): void {
+    $po = createApprovedPurchaseOrder($this, '5');
+    $poItem = $po->items->firstOrFail();
+
+    expect(fn () => $this->service->receiveGoods($po, [
+        'idempotency_key' => (string) Str::uuid(),
+        'items' => [[
+            'purchase_order_item_id' => $poItem->id,
+            'received_quantity' => '1',
+            'accepted_quantity' => '0',
+            'rejected_quantity' => '1',
+        ]],
+    ], $this->approver))->toThrow(ValidationException::class);
+
+    expect(fn () => $this->service->receiveGoods($po, [
+        'idempotency_key' => (string) Str::uuid(),
+        'items' => [[
+            'purchase_order_item_id' => $poItem->id,
+            'received_quantity' => '6',
+            'accepted_quantity' => '0',
+            'rejected_quantity' => '6',
+            'rejection_reason' => 'Damaged packaging',
+        ]],
+    ], $this->approver))->toThrow(ValidationException::class);
 });
 
 it('rejects zero-quantity requisition and purchase order lines before database writes', function (): void {
@@ -475,4 +734,193 @@ it('does not allow view-only location access to approve procurement documents', 
 
     expect($purchaseOrder->fresh()->status)->toBe('draft')
         ->and($purchaseOrder->fresh()->approved_by)->toBeNull();
+});
+
+it('manages supplier profile contacts with a single primary contact', function (): void {
+    $actor = createProcurementApiUser(['system.procurement.view', 'system.procurement.suppliers.manage']);
+    $this->actingAs($actor);
+
+    $profile = $this->getJson('/api/v1/backend/procurement/suppliers/'.$this->supplier->id)
+        ->assertOk()
+        ->assertJsonPath('supplier.id', $this->supplier->id)
+        ->assertJsonStructure(['supplier' => ['contacts', 'documents', 'purchase_orders_count', 'invoices_count', 'purchase_orders', 'activity']]);
+
+    $first = $this->postJson('/api/v1/backend/procurement/suppliers/'.$this->supplier->id.'/contacts', [
+        'name' => 'Accounts Manager',
+        'designation' => 'Accounts',
+        'email' => 'accounts@example.test',
+        'is_primary' => true,
+    ])->assertCreated()->assertJsonPath('contact.is_primary', true);
+
+    $firstId = (int) $first->json('contact.id');
+    $second = $this->postJson('/api/v1/backend/procurement/suppliers/'.$this->supplier->id.'/contacts', [
+        'name' => 'Procurement Officer',
+        'designation' => 'Procurement',
+        'phone' => '+8801700000000',
+        'is_primary' => true,
+    ])->assertCreated()->assertJsonPath('contact.is_primary', true);
+
+    expect($this->supplier->contacts()->where('is_primary', true)->count())->toBe(1)
+        ->and($this->supplier->contacts()->whereKey($firstId)->firstOrFail()->is_primary)->toBeFalse();
+
+    $this->deleteJson('/api/v1/backend/procurement/suppliers/'.$this->supplier->id.'/contacts/'.$second->json('contact.id'))
+        ->assertOk();
+
+    $this->get('/api/v1/backend/procurement/suppliers/export')->assertOk()
+        ->assertHeader('content-type', 'text/csv; charset=UTF-8');
+});
+
+it('stores supplier documents privately and enforces supplier ownership on download and deletion', function (): void {
+    Storage::fake('local');
+    $actor = createProcurementApiUser(['system.procurement.view', 'system.procurement.suppliers.manage']);
+    $this->actingAs($actor);
+
+    $upload = $this->post('/api/v1/backend/procurement/suppliers/'.$this->supplier->id.'/documents', [
+        'file' => UploadedFile::fake()->create('trade-license.pdf', 120, 'application/pdf'),
+        'category' => 'trade_license',
+        'expires_at' => now()->addYear()->toDateString(),
+    ])->assertCreated();
+
+    $documentId = (int) $upload->json('document.id');
+    expect($upload->json('document'))->not->toHaveKey('path')
+        ->and($upload->json('document'))->not->toHaveKey('disk');
+
+    $document = $this->supplier->documents()->findOrFail($documentId);
+    expect($document->disk)->toBe('local')
+        ->and(str_starts_with($document->path, 'procurement/suppliers/'.$this->supplier->id.'/'))->toBeTrue();
+    Storage::disk('local')->assertExists($document->path);
+
+    $otherSupplier = Supplier::query()->create([
+        'supplier_code' => 'SUP-'.strtoupper(Str::random(8)),
+        'name' => 'Other Supplier',
+        'status' => 'active',
+        'created_by' => $this->requester->id,
+    ]);
+
+    $this->get('/api/v1/backend/procurement/suppliers/'.$otherSupplier->id.'/documents/'.$documentId.'/download')
+        ->assertNotFound();
+
+    $this->get('/api/v1/backend/procurement/suppliers/'.$this->supplier->id.'/documents/'.$documentId.'/download')
+        ->assertOk();
+
+    $this->deleteJson('/api/v1/backend/procurement/suppliers/'.$this->supplier->id.'/documents/'.$documentId)
+        ->assertOk();
+    Storage::disk('local')->assertMissing($document->path);
+});
+
+it('denies supplier profile and document access without procurement permissions', function (): void {
+    $actor = createProcurementApiUser([]);
+    $this->actingAs($actor)
+        ->getJson('/api/v1/backend/procurement/suppliers/'.$this->supplier->id)
+        ->assertForbidden();
+});
+
+it('supports maker-checker submission and rejection for requisitions', function (): void {
+    $requisition = $this->service->createRequisition([
+        'location_id' => $this->location->id,
+        'items' => [['product_id' => $this->product->id, 'quantity' => '3']],
+    ], $this->requester);
+
+    $submitted = $this->service->submitRequisition($requisition, $this->requester);
+    expect($submitted->status)->toBe('submitted')
+        ->and($submitted->submitted_by)->toBe($this->requester->id);
+
+    expect(fn () => $this->service->rejectRequisition($submitted, 'Requester cannot reject own request', $this->requester))
+        ->toThrow(ValidationException::class);
+
+    $rejected = $this->service->rejectRequisition($submitted, 'Quantity needs review', $this->approver);
+    expect($rejected->status)->toBe('rejected')
+        ->and($rejected->rejection_reason)->toBe('Quantity needs review');
+
+    $resubmitted = $this->service->submitRequisition($rejected, $this->requester);
+    expect($resubmitted->status)->toBe('submitted')
+        ->and($resubmitted->rejection_reason)->toBeNull();
+
+    $approved = $this->service->approveRequisition($resubmitted, $this->approver);
+    expect($approved->status)->toBe('approved');
+});
+
+it('supports maker-checker submission and rejection for purchase orders', function (): void {
+    $po = $this->service->createPurchaseOrder([
+        'supplier_id' => $this->supplier->id,
+        'location_id' => $this->location->id,
+        'items' => [['product_id' => $this->product->id, 'quantity' => '2', 'unit_cost' => '20.00']],
+    ], $this->requester);
+
+    $submitted = $this->service->submitPurchaseOrder($po, $this->requester);
+    expect($submitted->status)->toBe('submitted');
+    expect(fn () => $this->service->rejectPurchaseOrder($submitted, 'Self rejection', $this->requester))
+        ->toThrow(ValidationException::class);
+
+    $rejected = $this->service->rejectPurchaseOrder($submitted, 'Please revise price quote', $this->approver);
+    expect($rejected->status)->toBe('rejected')
+        ->and($rejected->rejection_reason)->toBe('Please revise price quote');
+
+    $resubmitted = $this->service->submitPurchaseOrder($rejected, $this->requester);
+    $approved = $this->service->approvePurchaseOrder($resubmitted, $this->approver);
+    expect($approved->status)->toBe('approved')
+        ->and($approved->approved_by)->toBe($this->approver->id);
+});
+
+it('allows creators to cancel only draft or rejected procurement documents', function (): void {
+    $requisition = $this->service->createRequisition([
+        'location_id' => $this->location->id,
+        'items' => [['product_id' => $this->product->id, 'quantity' => '1']],
+    ], $this->requester);
+    expect($this->service->cancelRequisition($requisition, $this->requester)->status)->toBe('cancelled');
+
+    $po = $this->service->createPurchaseOrder([
+        'supplier_id' => $this->supplier->id,
+        'location_id' => $this->location->id,
+        'items' => [['product_id' => $this->product->id, 'quantity' => '1', 'unit_cost' => '10.00']],
+    ], $this->requester);
+    expect($this->service->cancelPurchaseOrder($po, $this->requester)->status)->toBe('cancelled');
+});
+
+it('preserves approved purchase order revisions and applies them only after independent approval', function (): void {
+    $po = createApprovedPurchaseOrder($this);
+    $revision = $this->service->requestPurchaseOrderRevision($po, [
+        'reason' => 'Supplier confirmed revised commercial pricing',
+        'order_date' => now()->toDateString(),
+        'expected_at' => now()->addDays(7)->toDateString(),
+        'currency' => 'BDT',
+        'notes' => 'Updated delivery commitment',
+        'items' => [[
+            'product_id' => $this->product->id,
+            'quantity' => '12',
+            'unit_cost' => '110.00',
+            'discount_amount' => '0',
+            'tax_amount' => '0',
+        ]],
+    ], $this->requester);
+
+    expect($revision)->toBeInstanceOf(PurchaseOrderRevision::class)
+        ->and($revision->status)->toBe('submitted')
+        ->and($po->fresh()->grand_total)->toBe('1000.00');
+
+    $approved = $this->service->approvePurchaseOrderRevision($revision, $this->approver);
+    expect($approved->status)->toBe('approved')
+        ->and($po->fresh()->revision_no)->toBe(2)
+        ->and($po->fresh()->grand_total)->toBe('1320.00')
+        ->and($po->fresh()->items()->firstOrFail()->quantity)->toBe('12.0000');
+
+    $po = $po->fresh();
+    $this->service->receiveGoods($po, [
+        'idempotency_key' => (string) Str::uuid(),
+        'items' => [[
+            'purchase_order_item_id' => $po->items()->firstOrFail()->id,
+            'received_quantity' => '1',
+            'accepted_quantity' => '1',
+            'rejected_quantity' => '0',
+        ]],
+    ], $this->approver);
+
+    expect(fn () => $this->service->requestPurchaseOrderRevision($po->fresh(), [
+        'reason' => 'Attempt to revise after receiving started',
+        'items' => [[
+            'product_id' => $this->product->id,
+            'quantity' => '12',
+            'unit_cost' => '110.00',
+        ]],
+    ], $this->requester))->toThrow(ValidationException::class);
 });

@@ -23,12 +23,13 @@ class PurchaseRequisition extends Model
 {
     protected $fillable = [
         'requisition_number', 'location_id', 'status', 'purpose', 'required_by',
-        'requested_by', 'approved_by', 'approved_at', 'converted_purchase_order_id',
+        'requested_by', 'submitted_by', 'submitted_at', 'approved_by', 'approved_at',
+        'rejected_by', 'rejected_at', 'rejection_reason', 'converted_purchase_order_id',
     ];
 
     protected function casts(): array
     {
-        return ['required_by' => 'date', 'approved_at' => 'datetime'];
+        return ['required_by' => 'date', 'submitted_at' => 'datetime', 'approved_at' => 'datetime', 'rejected_at' => 'datetime'];
     }
 
     /** @return HasMany<PurchaseRequisitionItem, $this> */

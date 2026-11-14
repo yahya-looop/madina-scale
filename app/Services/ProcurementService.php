@@ -9,6 +9,7 @@ use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderItem;
+use App\Models\PurchaseOrderRevision;
 use App\Models\PurchaseRequisition;
 use App\Models\Supplier;
 use App\Models\SupplierInvoice;
@@ -59,6 +60,51 @@ class ProcurementService
 
             return $requisition->load('items');
         });
+    }
+
+    public function submitRequisition(PurchaseRequisition $requisition, User $actor): PurchaseRequisition
+    {
+        return DB::transaction(function () use ($requisition, $actor): PurchaseRequisition {
+            $locked = PurchaseRequisition::query()->lockForUpdate()->with('items')->findOrFail($requisition->id);
+            if (! in_array($locked->status, ['draft', 'rejected'], true) || (int) $locked->requested_by !== (int) $actor->id) {
+                throw ValidationException::withMessages(['status' => 'Only the requester can submit or resubmit their draft/rejected requisition.']);
+            }
+            if ($locked->items->isEmpty()) {
+                throw ValidationException::withMessages(['items' => 'A requisition must contain at least one item.']);
+            }
+            $locked->update(['status' => 'submitted', 'submitted_by' => $actor->id, 'submitted_at' => now(), 'rejected_by' => null, 'rejected_at' => null, 'rejection_reason' => null]);
+            $this->activityLog->recordForUser($actor, 'submitted', 'procurement', 'Submitted purchase requisition '.$locked->requisition_number, $locked);
+
+            return $locked->load('items');
+        }, 3);
+    }
+
+    public function rejectRequisition(PurchaseRequisition $requisition, string $reason, User $actor): PurchaseRequisition
+    {
+        return DB::transaction(function () use ($requisition, $reason, $actor): PurchaseRequisition {
+            $locked = PurchaseRequisition::query()->lockForUpdate()->findOrFail($requisition->id);
+            if (! in_array($locked->status, ['submitted', 'draft'], true) || (int) $locked->requested_by === (int) $actor->id) {
+                throw ValidationException::withMessages(['status' => 'This requisition cannot be rejected by its requester or in its current state.']);
+            }
+            $locked->update(['status' => 'rejected', 'rejected_by' => $actor->id, 'rejected_at' => now(), 'rejection_reason' => trim($reason)]);
+            $this->activityLog->recordForUser($actor, 'rejected', 'procurement', 'Rejected purchase requisition '.$locked->requisition_number, $locked);
+
+            return $locked->load('items');
+        }, 3);
+    }
+
+    public function cancelRequisition(PurchaseRequisition $requisition, User $actor): PurchaseRequisition
+    {
+        return DB::transaction(function () use ($requisition, $actor): PurchaseRequisition {
+            $locked = PurchaseRequisition::query()->lockForUpdate()->findOrFail($requisition->id);
+            if (! in_array($locked->status, ['draft', 'rejected'], true) || (int) $locked->requested_by !== (int) $actor->id) {
+                throw ValidationException::withMessages(['status' => 'Only the requester can cancel a draft or rejected requisition.']);
+            }
+            $locked->update(['status' => 'cancelled']);
+            $this->activityLog->recordForUser($actor, 'cancelled', 'procurement', 'Cancelled purchase requisition '.$locked->requisition_number, $locked);
+
+            return $locked;
+        }, 3);
     }
 
     public function approveRequisition(PurchaseRequisition $requisition, User $actor): PurchaseRequisition
@@ -182,12 +228,61 @@ class ProcurementService
         }, 3);
     }
 
+    public function submitPurchaseOrder(PurchaseOrder $purchaseOrder, User $actor): PurchaseOrder
+    {
+        return DB::transaction(function () use ($purchaseOrder, $actor): PurchaseOrder {
+            $po = PurchaseOrder::query()->lockForUpdate()->with('items')->findOrFail($purchaseOrder->id);
+            if (! in_array($po->status, ['draft', 'rejected'], true) || (int) $po->created_by !== (int) $actor->id) {
+                throw ValidationException::withMessages(['status' => 'Only the purchase order creator can submit or resubmit a draft/rejected order.']);
+            }
+            if ($po->items->isEmpty() || bccomp((string) $po->grand_total, '0', 2) <= 0) {
+                throw ValidationException::withMessages(['items' => 'A purchase order must contain items and a positive total.']);
+            }
+            $po->update(['status' => 'submitted', 'submitted_by' => $actor->id, 'submitted_at' => now(), 'rejected_by' => null, 'rejected_at' => null, 'rejection_reason' => null]);
+            $this->activityLog->recordForUser($actor, 'submitted', 'procurement', 'Submitted purchase order '.$po->po_number, $po);
+
+            return $po->load(['supplier', 'items']);
+        }, 3);
+    }
+
+    public function rejectPurchaseOrder(PurchaseOrder $purchaseOrder, string $reason, User $actor): PurchaseOrder
+    {
+        return DB::transaction(function () use ($purchaseOrder, $reason, $actor): PurchaseOrder {
+            $po = PurchaseOrder::query()->lockForUpdate()->findOrFail($purchaseOrder->id);
+            if (! in_array($po->status, ['submitted', 'draft'], true) || (int) $po->created_by === (int) $actor->id) {
+                throw ValidationException::withMessages(['status' => 'This purchase order cannot be rejected by its creator or in its current state.']);
+            }
+            $po->update(['status' => 'rejected', 'rejected_by' => $actor->id, 'rejected_at' => now(), 'rejection_reason' => trim($reason)]);
+            $this->activityLog->recordForUser($actor, 'rejected', 'procurement', 'Rejected purchase order '.$po->po_number, $po);
+
+            return $po->load(['supplier', 'items']);
+        }, 3);
+    }
+
+    public function cancelPurchaseOrder(PurchaseOrder $purchaseOrder, User $actor): PurchaseOrder
+    {
+        return DB::transaction(function () use ($purchaseOrder, $actor): PurchaseOrder {
+            $po = PurchaseOrder::query()->lockForUpdate()->findOrFail($purchaseOrder->id);
+            if (! in_array($po->status, ['draft', 'rejected'], true) || (int) $po->created_by !== (int) $actor->id) {
+                throw ValidationException::withMessages(['status' => 'Only the creator can cancel a draft or rejected purchase order.']);
+            }
+            $po->update(['status' => 'cancelled']);
+            $this->activityLog->recordForUser($actor, 'cancelled', 'procurement', 'Cancelled purchase order '.$po->po_number, $po);
+
+            return $po;
+        }, 3);
+    }
+
     public function approvePurchaseOrder(PurchaseOrder $purchaseOrder, User $actor): PurchaseOrder
     {
         return DB::transaction(function () use ($purchaseOrder, $actor): PurchaseOrder {
             $po = PurchaseOrder::query()->lockForUpdate()->findOrFail($purchaseOrder->id);
             if ($po->status !== 'draft' && $po->status !== 'submitted') {
                 throw ValidationException::withMessages(['status' => 'Only draft or submitted purchase orders can be approved.']);
+            }
+            $supplier = Supplier::query()->lockForUpdate()->findOrFail($po->supplier_id);
+            if ($supplier->status !== 'active') {
+                throw ValidationException::withMessages(['supplier_id' => 'This purchase order cannot be approved because the supplier is '.$supplier->status.'.']);
             }
             if ((int) $po->created_by === (int) $actor->id) {
                 throw ValidationException::withMessages(['status' => 'The creator cannot approve their own purchase order.']);
@@ -256,9 +351,13 @@ class ProcurementService
                 if (bccomp(bcadd($accepted, $rejected, 4), $received, 4) !== 0 || bccomp($accepted, '0', 4) < 0) {
                     throw ValidationException::withMessages(['items' => 'Received quantity must equal accepted plus rejected quantity.']);
                 }
+                $remainingOrdered = bcsub((string) $poItem->quantity, (string) $poItem->received_quantity, 4);
                 $remainingAcceptable = bcsub((string) $poItem->quantity, (string) $poItem->accepted_quantity, 4);
-                if (bccomp($received, '0', 4) <= 0 || bccomp($accepted, $remainingAcceptable, 4) > 0) {
-                    throw ValidationException::withMessages(['items' => 'Receipt must be positive and accepted quantity cannot exceed the outstanding ordered quantity.']);
+                if (bccomp($received, '0', 4) <= 0 || bccomp($received, $remainingOrdered, 4) > 0 || bccomp($accepted, $remainingAcceptable, 4) > 0) {
+                    throw ValidationException::withMessages(['items' => 'Receipt must be positive and total received quantity cannot exceed the outstanding ordered quantity.']);
+                }
+                if (bccomp($rejected, '0', 4) > 0 && trim((string) ($line['rejection_reason'] ?? '')) === '') {
+                    throw ValidationException::withMessages(['items' => 'A rejection reason is required when any received quantity is rejected.']);
                 }
 
                 $movement = null;
@@ -318,6 +417,150 @@ class ProcurementService
     }
 
     /** @param array<string,mixed> $data */
+
+    /**
+     * Submit a controlled change request for an approved PO.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    public function requestPurchaseOrderRevision(PurchaseOrder $purchaseOrder, array $data, User $actor): PurchaseOrderRevision
+    {
+        return DB::transaction(function () use ($purchaseOrder, $data, $actor): PurchaseOrderRevision {
+            $po = PurchaseOrder::query()->lockForUpdate()->with('items')->findOrFail($purchaseOrder->id);
+            if ($po->status !== 'approved') {
+                throw ValidationException::withMessages(['status' => 'Only approved purchase orders can enter the revision workflow.']);
+            }
+            if ($po->receipts()->exists() || $po->invoices()->exists()) {
+                throw ValidationException::withMessages(['purchase_order' => 'A purchase order cannot be revised after goods receipt or supplier invoicing has started.']);
+            }
+            if ($po->revisions()->where('status', 'submitted')->exists()) {
+                throw ValidationException::withMessages(['revision' => 'This purchase order already has a pending revision.']);
+            }
+
+            $lines = [];
+            foreach ($data['items'] as $item) {
+                $owner = $this->validateOwner($item);
+                $quantity = $this->quantity($item['quantity']);
+                $unitCost = $this->money($item['unit_cost']);
+                $discount = $this->money($item['discount_amount'] ?? '0');
+                $tax = $this->money($item['tax_amount'] ?? '0');
+                if (bccomp($quantity, '0', 4) <= 0 || bccomp($unitCost, '0', 2) <= 0) {
+                    throw ValidationException::withMessages(['items' => 'Revision quantities and unit costs must be greater than zero.']);
+                }
+                $gross = bcmul($quantity, $unitCost, 2);
+                if (bccomp($discount, $gross, 2) > 0) {
+                    throw ValidationException::withMessages(['items' => 'A revision line discount cannot exceed its gross value.']);
+                }
+                $lines[] = [
+                    'product_id' => $owner['product_id'],
+                    'product_variant_id' => $owner['variant_id'],
+                    'description' => $item['description'] ?? null,
+                    'quantity' => $quantity,
+                    'unit_cost' => $unitCost,
+                    'discount_amount' => $discount,
+                    'tax_amount' => $tax,
+                    'line_total' => bcadd(bcsub($gross, $discount, 2), $tax, 2),
+                ];
+            }
+            if ($lines === []) {
+                throw ValidationException::withMessages(['items' => 'A revision must contain at least one line.']);
+            }
+
+            $number = ((int) $po->revisions()->max('revision_number')) + 1;
+            $revision = $po->revisions()->create([
+                'revision_number' => $number,
+                'status' => 'submitted',
+                'reason' => trim((string) $data['reason']),
+                'proposed_data' => [
+                    'order_date' => $data['order_date'] ?? $po->order_date->toDateString(),
+                    'expected_at' => $data['expected_at'] ?? null,
+                    'currency' => strtoupper((string) ($data['currency'] ?? $po->currency)),
+                    'notes' => $data['notes'] ?? $po->notes,
+                    'items' => $lines,
+                ],
+                'created_by' => $actor->id,
+                'submitted_at' => now(),
+            ]);
+            $this->activityLog->recordForUser($actor, 'revision_submitted', 'procurement', 'Submitted revision '.$number.' for purchase order '.$po->po_number, $revision);
+
+            return $revision;
+        }, 3);
+    }
+
+    public function approvePurchaseOrderRevision(PurchaseOrderRevision $revision, User $actor): PurchaseOrderRevision
+    {
+        return DB::transaction(function () use ($revision, $actor): PurchaseOrderRevision {
+            $lockedRevision = PurchaseOrderRevision::query()->lockForUpdate()->findOrFail($revision->id);
+            $po = PurchaseOrder::query()->lockForUpdate()->with('items')->findOrFail($lockedRevision->purchase_order_id);
+            if ($lockedRevision->status !== 'submitted' || $po->status !== 'approved') {
+                throw ValidationException::withMessages(['revision' => 'Only pending revisions for approved purchase orders can be approved.']);
+            }
+            if ((int) $lockedRevision->created_by === (int) $actor->id) {
+                throw ValidationException::withMessages(['revision' => 'The revision requester cannot approve their own revision.']);
+            }
+            if ($po->receipts()->exists() || $po->invoices()->exists()) {
+                throw ValidationException::withMessages(['purchase_order' => 'This purchase order is no longer eligible for revision because receiving or invoicing has started.']);
+            }
+
+            $payload = $lockedRevision->proposed_data;
+            $items = $payload['items'] ?? [];
+            if ($items === []) {
+                throw ValidationException::withMessages(['items' => 'The approved revision must contain at least one item.']);
+            }
+            $po->items()->delete();
+            foreach ($items as $item) {
+                $po->items()->create($item);
+            }
+            $subtotal = '0.00';
+            $discountTotal = '0.00';
+            $taxTotal = '0.00';
+            foreach ($items as $item) {
+                /** @var numeric-string $quantity */
+                $quantity = (string) $item['quantity'];
+                /** @var numeric-string $unitCost */
+                $unitCost = (string) $item['unit_cost'];
+                /** @var numeric-string $discount */
+                $discount = (string) $item['discount_amount'];
+                /** @var numeric-string $tax */
+                $tax = (string) $item['tax_amount'];
+
+                $subtotal = bcadd($subtotal, bcmul($quantity, $unitCost, 2), 2);
+                $discountTotal = bcadd($discountTotal, $discount, 2);
+                $taxTotal = bcadd($taxTotal, $tax, 2);
+            }
+            $po->update([
+                'order_date' => $payload['order_date'],
+                'expected_at' => $payload['expected_at'],
+                'currency' => $payload['currency'],
+                'notes' => $payload['notes'],
+                'subtotal' => $subtotal,
+                'discount_total' => $discountTotal,
+                'tax_total' => $taxTotal,
+                'grand_total' => bcadd(bcsub($subtotal, $discountTotal, 2), $taxTotal, 2),
+                'revision_no' => $lockedRevision->revision_number + 1,
+            ]);
+            $lockedRevision->update(['status' => 'approved', 'reviewed_by' => $actor->id, 'reviewed_at' => now()]);
+            $this->activityLog->recordForUser($actor, 'revision_approved', 'procurement', 'Approved revision '.$lockedRevision->revision_number.' for purchase order '.$po->po_number, $lockedRevision);
+
+            return $lockedRevision->fresh();
+        }, 3);
+    }
+
+    public function rejectPurchaseOrderRevision(PurchaseOrderRevision $revision, string $reason, User $actor): PurchaseOrderRevision
+    {
+        return DB::transaction(function () use ($revision, $reason, $actor): PurchaseOrderRevision {
+            $locked = PurchaseOrderRevision::query()->lockForUpdate()->findOrFail($revision->id);
+            if ($locked->status !== 'submitted' || (int) $locked->created_by === (int) $actor->id) {
+                throw ValidationException::withMessages(['revision' => 'This revision cannot be rejected by its requester or in its current state.']);
+            }
+            $locked->update(['status' => 'rejected', 'reviewed_by' => $actor->id, 'reviewed_at' => now(), 'rejection_reason' => trim($reason)]);
+            $this->activityLog->recordForUser($actor, 'revision_rejected', 'procurement', 'Rejected revision '.$locked->revision_number, $locked);
+
+            return $locked;
+        }, 3);
+    }
+
+    /** @param array<string, mixed> $data */
     public function createSupplierInvoice(PurchaseOrder $purchaseOrder, array $data, User $actor): SupplierInvoice
     {
         return DB::transaction(function () use ($purchaseOrder, $data, $actor): SupplierInvoice {
@@ -379,6 +622,18 @@ class ProcurementService
                 throw ValidationException::withMessages(['grand_total' => 'Supplier invoice total must exactly match the approved purchase order tax/discount allocation for the invoiced quantities.']);
             }
 
+            $invoiceNumber = trim((string) $data['invoice_number']);
+            if ($invoiceNumber === '') {
+                throw ValidationException::withMessages(['invoice_number' => 'Supplier invoice number is required.']);
+            }
+            $duplicateInvoice = SupplierInvoice::query()
+                ->where('supplier_id', $po->supplier_id)
+                ->where('invoice_number', $invoiceNumber)
+                ->exists();
+            if ($duplicateInvoice) {
+                throw ValidationException::withMessages(['invoice_number' => 'This supplier invoice number has already been recorded.']);
+            }
+
             $supplier = Supplier::query()->findOrFail($po->supplier_id);
             $dueDate = $data['due_date'] ?? (
                 (int) $supplier->credit_days > 0
@@ -388,7 +643,7 @@ class ProcurementService
             $invoice = SupplierInvoice::query()->create([
                 'supplier_id' => $po->supplier_id,
                 'purchase_order_id' => $po->id,
-                'invoice_number' => trim($data['invoice_number']),
+                'invoice_number' => $invoiceNumber,
                 'invoice_date' => $data['invoice_date'],
                 'due_date' => $dueDate,
                 'subtotal' => $subtotal,
@@ -457,9 +712,17 @@ class ProcurementService
                 throw ValidationException::withMessages(['invoice' => 'Only posted unpaid supplier invoices can be paid.']);
             }
             $amount = $this->money($data['amount']);
-            $due = bcsub((string) $invoice->grand_total, (string) $invoice->paid_total, 2);
+            $returnCredits = $this->postedSupplierReturnTotal($invoice);
+            $due = bcsub(
+                bcsub((string) $invoice->grand_total, (string) $invoice->paid_total, 2),
+                $returnCredits,
+                2,
+            );
+            if (bccomp($due, '0.00', 2) < 0) {
+                $due = '0.00';
+            }
             if (bccomp($amount, '0', 2) <= 0 || bccomp($amount, $due, 2) > 0) {
-                throw ValidationException::withMessages(['amount' => 'Payment must be positive and cannot exceed the invoice outstanding balance.']);
+                throw ValidationException::withMessages(['amount' => 'Payment must be positive and cannot exceed the net invoice outstanding balance after supplier return credits.']);
             }
             $cash = FinancialAccount::query()->where('is_active', true)->where('is_cash_bank', true)->lockForUpdate()->findOrFail((int) $data['cash_account_id']);
             $payable = FinancialAccount::query()->where('code', '2000')->where('is_active', true)->firstOrFail();
@@ -491,7 +754,8 @@ class ProcurementService
                 'created_by' => $actor->id,
             ]);
             $newPaid = bcadd((string) $invoice->paid_total, $amount, 2);
-            $invoice->update(['paid_total' => $newPaid, 'status' => bccomp($newPaid, (string) $invoice->grand_total, 2) === 0 ? 'paid' : 'partially_paid']);
+            $invoice->update(['paid_total' => $newPaid]);
+            $this->syncSupplierInvoiceSettlementStatus($invoice);
             $this->activityLog->recordForUser($actor, 'paid', 'procurement', 'Recorded supplier payment '.$payment->payment_number, $payment);
 
             return $payment;
@@ -602,10 +866,36 @@ class ProcurementService
             ], $actor);
             $posted = $this->ledger->post($journal, $actor);
             $return->update(['total_amount' => $total, 'journal_entry_id' => $posted->id]);
+            $this->syncSupplierInvoiceSettlementStatus($invoice);
             $this->activityLog->recordForUser($actor, 'returned', 'procurement', 'Posted supplier return '.$return->return_number, $return);
 
             return $return->load(['items', 'journalEntry']);
         }, 3);
+    }
+
+    /** @return numeric-string */
+    private function postedSupplierReturnTotal(SupplierInvoice $invoice): string
+    {
+        $total = SupplierReturn::query()
+            ->where('supplier_invoice_id', $invoice->id)
+            ->where('status', 'posted')
+            ->sum('total_amount');
+
+        return bcadd((string) $total, '0', 2);
+    }
+
+    private function syncSupplierInvoiceSettlementStatus(SupplierInvoice $invoice): void
+    {
+        $settledValue = bcadd((string) $invoice->paid_total, $this->postedSupplierReturnTotal($invoice), 2);
+        $comparison = bccomp($settledValue, (string) $invoice->grand_total, 2);
+
+        $status = $comparison >= 0
+            ? 'paid'
+            : (bccomp((string) $invoice->paid_total, '0.00', 2) > 0 ? 'partially_paid' : 'posted');
+
+        if ($invoice->status !== $status) {
+            $invoice->update(['status' => $status]);
+        }
     }
 
     /** @return array{product_id:?int,variant_id:?int} */

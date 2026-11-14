@@ -41,4 +41,16 @@ class Supplier extends Model
     {
         return $this->hasMany(SupplierInvoice::class);
     }
+
+    /** @return HasMany<SupplierContact, $this> */
+    public function contacts(): HasMany
+    {
+        return $this->hasMany(SupplierContact::class)->orderByDesc('is_primary')->orderBy('name');
+    }
+
+    /** @return HasMany<SupplierDocument, $this> */
+    public function documents(): HasMany
+    {
+        return $this->hasMany(SupplierDocument::class)->latest();
+    }
 }
