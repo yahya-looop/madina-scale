@@ -1,10 +1,13 @@
 <?php
 
 use App\Models\InventoryTransfer;
+use App\Models\PurchaseOrder;
+use App\Models\SupplierInvoice;
 use App\Models\User;
 use App\Services\InventoryReservationService;
 use App\Services\InventoryService;
 use App\Services\InventoryTransferService;
+use App\Services\ProcurementService;
 use App\Services\SalesOrderService;
 use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Validation\ValidationException;
@@ -16,7 +19,8 @@ $app->make(Kernel::class)->bootstrap();
 $encoded = $argv[1] ?? '';
 $payload = json_decode((string) base64_decode($encoded, true), true);
 if (! is_array($payload)) {
-    fwrite(STDERR, "Invalid worker payload.\n");
+    fwrite(STDERR, 'Invalid worker payload.
+');
     exit(64);
 }
 
@@ -30,7 +34,8 @@ $readyFile = null;
 if (is_string($barrier) && $barrier !== '' && is_string($workerToken) && $workerToken !== '') {
     $readyFile = $barrier.'.'.$workerToken.'.ready';
     if (file_put_contents($readyFile, (string) getmypid(), LOCK_EX) === false) {
-        fwrite(STDERR, "Unable to report concurrency worker readiness.\n");
+        fwrite(STDERR, 'Unable to report concurrency worker readiness.
+');
         exit(66);
     }
 
@@ -40,11 +45,13 @@ if (is_string($barrier) && $barrier !== '' && is_string($workerToken) && $worker
     }
     @unlink($readyFile);
     if (! is_file($barrier)) {
-        fwrite(STDERR, "Timed out waiting for concurrency barrier.\n");
+        fwrite(STDERR, 'Timed out waiting for concurrency barrier.
+');
         exit(65);
     }
 } else {
-    fwrite(STDERR, "Missing concurrency barrier or worker token.\n");
+    fwrite(STDERR, 'Missing concurrency barrier or worker token.
+');
     exit(64);
 }
 
@@ -61,6 +68,20 @@ try {
         'receive_stock' => app(InventoryService::class)->receive($payload['data'], $actor),
         'reserve' => app(InventoryReservationService::class)->reserve($payload['data'], $actor),
         'b2b_order' => app(SalesOrderService::class)->create($payload['data'], $actor),
+        'procurement_receive' => app(ProcurementService::class)->receiveGoods(
+            PurchaseOrder::query()->findOrFail((int) $payload['purchase_order_id']),
+            $payload['data'] ?? [],
+            $actor,
+        ),
+        'procurement_invoice' => app(ProcurementService::class)->createSupplierInvoice(
+            PurchaseOrder::query()->findOrFail((int) $payload['purchase_order_id']),
+            $payload['data'] ?? [],
+            $actor,
+        ),
+        'procurement_post_invoice' => app(ProcurementService::class)->postSupplierInvoice(
+            SupplierInvoice::query()->findOrFail((int) $payload['invoice_id']),
+            $actor,
+        ),
         default => throw new InvalidArgumentException('Unsupported concurrency operation.'),
     };
 

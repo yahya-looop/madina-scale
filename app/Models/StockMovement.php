@@ -11,6 +11,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property int|null $product_variant_id
  * @property int $location_id
  * @property string $movement_type
+ * @property string|null $reference_type
+ * @property string|null $reference_id
  * @property numeric-string $quantity_delta
  * @property numeric-string $balance_before
  * @property numeric-string $balance_after

@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\FinancialAccount;
 use App\Models\InventoryStock;
+use App\Models\InventoryValuationMovement;
 use App\Models\Location;
 use App\Models\Product;
 use App\Models\ProductVariant;
@@ -189,7 +190,7 @@ class SalesReturnService
                 $after = bcadd($before, $line['quantity'], 4);
                 $stock->quantity = $after;
                 $stock->save();
-                StockMovement::query()->create([
+                $movement = StockMovement::query()->create([
                     'product_id' => $owner['product_id'], 'product_variant_id' => $owner['product_variant_id'],
                     'location_id' => $order->location_id, 'movement_type' => 'receipt',
                     'quantity_delta' => $line['quantity'], 'balance_before' => $before, 'balance_after' => $after,
@@ -198,6 +199,19 @@ class SalesReturnService
                     'idempotency_key' => (string) Str::uuid(), 'created_by' => $actor->id,
                     'metadata' => ['sales_order_id' => $order->id, 'sales_order_item_id' => $item->id, 'sales_return_id' => $return->id],
                 ]);
+                $originalCostQuantity = (string) ($item->fulfilled_cost_quantity ?? '0');
+                $hasOriginalCost = bccomp($originalCostQuantity, '0', 4) > 0;
+                $returnUnitCost = $hasOriginalCost
+                    ? bcdiv((string) $item->fulfilled_cost_value, $originalCostQuantity, 6)
+                    : (string) ($stock->average_unit_cost ?? '0');
+                app(InventoryValuationService::class)->apply(
+                    $stock,
+                    $movement,
+                    $returnUnitCost,
+                    $actor,
+                    null,
+                    ['sales_return_id' => $return->id, 'cost_basis' => $hasOriginalCost ? 'original_fulfillment_cogs' : 'current_moving_average_legacy_fallback'],
+                );
             }
 
             $returnAccount = FinancialAccount::query()->where('code', '4050')->where('is_active', true)->firstOrFail();
@@ -220,6 +234,17 @@ class SalesReturnService
                 $lines[] = ['account_id' => $advance->id, 'debit' => '0.00', 'credit' => $total, 'customer_id' => $order->customer_id];
             } else {
                 $lines[] = ['account_id' => $cash->id, 'debit' => '0.00', 'credit' => $total, 'customer_id' => $order->customer_id];
+            }
+            $restockedCarryingValue = (string) InventoryValuationMovement::query()
+                ->where('reference_type', SalesReturn::class)
+                ->where('reference_id', (string) $return->id)
+                ->where('value_delta', '>', 0)
+                ->sum('value_delta');
+            if (bccomp($restockedCarryingValue, '0', 2) > 0) {
+                $inventoryAccount = FinancialAccount::query()->where('code', '1200')->where('is_active', true)->firstOrFail();
+                $costOfGoodsSold = FinancialAccount::query()->where('code', '5000')->where('is_active', true)->firstOrFail();
+                $lines[] = ['account_id' => $inventoryAccount->id, 'debit' => $restockedCarryingValue, 'credit' => '0.00'];
+                $lines[] = ['account_id' => $costOfGoodsSold->id, 'debit' => '0.00', 'credit' => $restockedCarryingValue];
             }
             $journal = $this->ledger->createDraft([
                 'entry_date' => $data['return_date'],

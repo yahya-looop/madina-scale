@@ -9,6 +9,7 @@ use App\Models\Location;
 use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Models\StockMovement;
+use App\Models\SalesOrderItem;
 use App\Models\User;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -107,10 +108,11 @@ class InventoryReservationService
                     throw ValidationException::withMessages(['reservation' => 'On-hand stock is insufficient to fulfill this reservation.']);
                 }
                 $before = (string) $stock->quantity;
+                $fulfillmentUnitCost = (string) ($stock->average_unit_cost ?? '0');
                 $after = bcsub($before, $quantity, 4);
                 $stock->quantity = $after;
                 $stock->save();
-                StockMovement::query()->create([
+                $movement = StockMovement::query()->create([
                     'product_id' => $owner['product_id'],
                     'product_variant_id' => $owner['variant_id'],
                     'location_id' => $location->id,
@@ -125,6 +127,15 @@ class InventoryReservationService
                     'created_by' => $actor->id,
                     'metadata' => ['reservation_id' => $locked->id, 'purpose' => $locked->purpose, 'purpose_label' => $locked->purpose_label ?: $locked->purpose],
                 ]);
+                app(InventoryValuationService::class)->apply($stock, $movement, '0', $actor, null, ['reservation_id' => $locked->id]);
+                if ($locked->purpose === 'customer_order') {
+                    $orderItem = SalesOrderItem::query()->where('reservation_id', $locked->id)->lockForUpdate()->first();
+                    if ($orderItem) {
+                        $orderItem->fulfilled_cost_quantity = bcadd((string) $orderItem->fulfilled_cost_quantity, $quantity, 4);
+                        $orderItem->fulfilled_cost_value = bcadd((string) $orderItem->fulfilled_cost_value, bcmul($quantity, $fulfillmentUnitCost, 2), 2);
+                        $orderItem->save();
+                    }
+                }
                 $locked->status = 'fulfilled';
             } else {
                 $stock->save();
@@ -178,11 +189,12 @@ class InventoryReservationService
             }
 
             $before = (string) $stock->quantity;
+            $fulfillmentUnitCost = (string) ($stock->average_unit_cost ?? '0');
             $stock->quantity = bcsub($before, $requested, 4);
             $stock->reserved_quantity = bcsub((string) $stock->reserved_quantity, $requested, 4);
             $stock->save();
 
-            StockMovement::query()->create([
+            $movement = StockMovement::query()->create([
                 'product_id' => $owner['product_id'], 'product_variant_id' => $owner['variant_id'],
                 'location_id' => $locked->location_id, 'movement_type' => 'order_fulfillment',
                 'quantity_delta' => bcsub('0', $requested, 4), 'balance_before' => $before,
@@ -191,6 +203,15 @@ class InventoryReservationService
                 'idempotency_key' => (string) Str::uuid(), 'created_by' => $actor->id,
                 'metadata' => ['reservation_id' => $locked->id, 'partial' => true, 'fulfilled_quantity' => $requested],
             ]);
+            app(InventoryValuationService::class)->apply($stock, $movement, '0', $actor, null, ['reservation_id' => $locked->id, 'partial' => true]);
+            if ($locked->purpose === 'customer_order') {
+                $orderItem = SalesOrderItem::query()->where('reservation_id', $locked->id)->lockForUpdate()->first();
+                if ($orderItem) {
+                    $orderItem->fulfilled_cost_quantity = bcadd((string) $orderItem->fulfilled_cost_quantity, $requested, 4);
+                    $orderItem->fulfilled_cost_value = bcadd((string) $orderItem->fulfilled_cost_value, bcmul($requested, $fulfillmentUnitCost, 2), 2);
+                    $orderItem->save();
+                }
+            }
 
             $locked->quantity = bcsub((string) $locked->quantity, $requested, 4);
             $locked->save();

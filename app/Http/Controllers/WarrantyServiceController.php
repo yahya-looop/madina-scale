@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\InventoryStock;
 use App\Models\Customer;
 use App\Models\FinancialAccount;
 use App\Models\JournalEntry;
@@ -288,12 +289,16 @@ class WarrantyServiceController extends Controller
                 ]);
             }
 
-            // The project uses ProductVariant.cost_price as its existing unit-cost source.
-            // Never issue inventory or post an expense when that source is missing/zero.
-            $unitCost = bcadd((string) $variant->cost_price, '0', 2);
-            if (bccomp($unitCost, '0.00', 2) <= 0) {
+            // Expense the actual inventory carrying cost, not the editable catalog cost.
+            $stockValuation = InventoryStock::query()
+                ->where('product_variant_id', $variant->id)
+                ->where('location_id', $row->location_id)
+                ->lockForUpdate()
+                ->first();
+            $unitCost = (string) ($stockValuation?->average_unit_cost ?? '0');
+            if (! $stockValuation || $stockValuation->valuation_status !== 'valued' || bccomp($unitCost, '0', 6) <= 0) {
                 throw ValidationException::withMessages([
-                    'product_variant_id' => 'This spare part has no valid cost price. Set its existing product cost before issuing it.',
+                    'product_variant_id' => 'This spare part has no verified inventory carrying cost. Complete opening valuation or receive stock with a cost first.',
                 ]);
             }
             /** @var numeric-string $quantityInput */
@@ -310,6 +315,7 @@ class WarrantyServiceController extends Controller
                 'product_variant_id' => (int) $data['product_variant_id'],
                 'location_id' => (int) $row->location_id,
                 'quantity' => $quantity,
+                'unit_cost' => $unitCost,
                 'reason' => 'Service ticket parts usage',
                 'reference_type' => 'service_ticket',
                 'reference_id' => (string) $row->id,

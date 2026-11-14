@@ -14,6 +14,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property numeric-string $received_quantity
  * @property numeric-string $accepted_quantity
  * @property numeric-string $unit_cost
+ * @property numeric-string $discount_amount
+ * @property numeric-string $tax_amount
  * @property numeric-string $line_total
  */
 class PurchaseOrderItem extends Model

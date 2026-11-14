@@ -88,6 +88,8 @@ class InventoryTransferService
             }
 
             $transferUuid = (string) Str::uuid();
+            $transferUnitCost = (string) ($stock->average_unit_cost ?? '0');
+            $transferCarryingValue = bcdiv(bcmul($quantity, $transferUnitCost, 8), '1', 2);
             $transfer = InventoryTransfer::query()->create([
                 'transfer_uuid' => $transferUuid,
                 'idempotency_key' => $data['idempotency_key'] ?? null,
@@ -103,14 +105,14 @@ class InventoryTransferService
                 'reason' => $data['reason'] ?? null,
                 'dispatched_by' => $actor->id,
                 'dispatched_at' => now(),
-                'metadata' => $data['metadata'] ?? null,
+                'metadata' => array_merge($data['metadata'] ?? [], ['valuation_unit_cost' => $transferUnitCost, 'valuation_value_sent' => $transferCarryingValue, 'valuation_value_received' => '0.00']),
             ]);
 
             $before = $stock->quantity;
             $stock->quantity = $after;
             $stock->save();
 
-            StockMovement::query()->create([
+            $outMovement = StockMovement::query()->create([
                 'transfer_group_id' => $transferUuid,
                 'product_id' => $owner['product_id'],
                 'product_variant_id' => $owner['variant_id'],
@@ -126,6 +128,7 @@ class InventoryTransferService
                 'created_by' => $actor->id,
                 'metadata' => ['transfer_uuid' => $transferUuid, 'ip_address' => $ipAddress],
             ]);
+            app(InventoryValuationService::class)->apply($stock, $outMovement, $transferUnitCost, $actor, null, ['transfer_uuid' => $transferUuid]);
 
             $transfer = $transfer->load(['product', 'variant', 'sourceLocation', 'destinationLocation', 'dispatcher']);
             $this->recordNotificationOutbox($transfer, 'dispatched', $this->destinationRecipientIds($transfer));
@@ -212,7 +215,7 @@ class InventoryTransferService
             $stock->quantity = $after;
             $stock->save();
 
-            StockMovement::query()->create([
+            $inMovement = StockMovement::query()->create([
                 'transfer_group_id' => $locked->transfer_uuid,
                 'product_id' => $locked->product_id,
                 'product_variant_id' => $locked->product_variant_id,
@@ -230,6 +233,21 @@ class InventoryTransferService
             ]);
 
             $newReceived = bcadd($locked->quantity_received, $receiveQty, 4);
+            $transferMetadata = $locked->metadata ?? [];
+            if (! array_key_exists('valuation_value_sent', $transferMetadata)) {
+                throw ValidationException::withMessages(['transfer' => 'This transfer was dispatched before inventory valuation was enabled. Reconcile its carrying value before receiving it.']);
+            }
+            $totalCarryingValue = (string) $transferMetadata['valuation_value_sent'];
+            $previousCarryingValue = (string) ($transferMetadata['valuation_value_received'] ?? '0.00');
+            $cumulativeCarryingValue = bcmul($totalCarryingValue, bcdiv($newReceived, (string) $locked->quantity_sent, 8), 2);
+            if (bccomp($newReceived, (string) $locked->quantity_sent, 4) === 0) {
+                $cumulativeCarryingValue = $totalCarryingValue;
+            }
+            $receiptCarryingValue = bcsub($cumulativeCarryingValue, $previousCarryingValue, 2);
+            $receiptUnitCost = bccomp($receiveQty, '0', 4) > 0 ? bcdiv($receiptCarryingValue, $receiveQty, 6) : '0';
+            app(InventoryValuationService::class)->apply($stock, $inMovement, $receiptUnitCost, $actor, $idempotencyKey, ['transfer_uuid' => $locked->transfer_uuid, 'carrying_value' => $receiptCarryingValue]);
+            $transferMetadata['valuation_value_received'] = $cumulativeCarryingValue;
+            $locked->metadata = $transferMetadata;
             $isFullyReceived = bccomp($newReceived, $locked->quantity_sent, 4) === 0;
             $locked->quantity_received = $newReceived;
             $locked->status = $isFullyReceived ? 'received' : 'partially_received';
@@ -345,7 +363,7 @@ class InventoryTransferService
                 $stock->quantity = $after;
                 $stock->save();
 
-                StockMovement::query()->create([
+                $resolutionMovement = StockMovement::query()->create([
                     'transfer_group_id' => $locked->transfer_uuid,
                     'product_id' => $owner['product_id'],
                     'product_variant_id' => $owner['variant_id'],
@@ -365,6 +383,12 @@ class InventoryTransferService
                         'resolution_note' => $note,
                     ],
                 ]);
+                $transferMetadata = (array) ($locked->metadata ?? []);
+                if (! array_key_exists('valuation_unit_cost', $transferMetadata)) {
+                    throw ValidationException::withMessages(['transfer' => 'This pre-valuation transfer has no verified carrying-cost snapshot. Reconcile its valuation before resolving the discrepancy.']);
+                }
+                $unitCost = (string) $transferMetadata['valuation_unit_cost'];
+                app(InventoryValuationService::class)->apply($stock, $resolutionMovement, $unitCost, $actor, null, ['transfer_uuid' => $locked->transfer_uuid, 'resolution_action' => $action]);
             }
 
             if ($action === 'receive_remaining') {

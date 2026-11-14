@@ -20,6 +20,7 @@ use App\Models\User;
 use App\Services\FinancialLedgerService;
 use App\Services\ProcurementService;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -272,6 +273,59 @@ it('prevents duplicate supplier invoice numbers and reconciles multiple partial 
     ], $this->requester))->toThrow(ValidationException::class);
 });
 
+it('reconciles supplier invoice tax and discount components separately against partial PO quantities', function (): void {
+    $po = $this->service->createPurchaseOrder([
+        'supplier_id' => $this->supplier->id,
+        'location_id' => $this->location->id,
+        'order_date' => now()->toDateString(),
+        'items' => [[
+            'product_id' => $this->product->id,
+            'quantity' => '10',
+            'unit_cost' => '100.00',
+            'discount_amount' => '20.00',
+            'tax_amount' => '10.00',
+        ]],
+    ], $this->requester);
+    $po = $this->service->approvePurchaseOrder($po, $this->approver);
+    $poItem = $po->items->firstOrFail();
+
+    $this->service->receiveGoods($po, [
+        'idempotency_key' => (string) Str::uuid(),
+        'items' => [[
+            'purchase_order_item_id' => $poItem->id,
+            'received_quantity' => '5',
+            'accepted_quantity' => '5',
+            'rejected_quantity' => '0',
+        ]],
+    ], $this->approver);
+
+    $invoicePayload = [
+        'invoice_date' => now()->toDateString(),
+        'items' => [[
+            'purchase_order_item_id' => $poItem->id,
+            'quantity' => '5',
+            'unit_cost' => '100.00',
+        ]],
+    ];
+
+    expect(fn () => $this->service->createSupplierInvoice($po->fresh(), array_merge($invoicePayload, [
+        'invoice_number' => 'TAX-MISMATCH-'.strtoupper(Str::random(6)),
+        'tax_total' => '0.00',
+        'discount_total' => '5.00',
+    ]), $this->requester))->toThrow(ValidationException::class);
+
+    $invoice = $this->service->createSupplierInvoice($po->fresh(), array_merge($invoicePayload, [
+        'invoice_number' => 'TAX-MATCH-'.strtoupper(Str::random(6)),
+        'tax_total' => '5.00',
+        'discount_total' => '10.00',
+    ]), $this->requester);
+
+    expect($invoice->subtotal)->toBe('500.00')
+        ->and($invoice->discount_total)->toBe('10.00')
+        ->and($invoice->tax_total)->toBe('5.00')
+        ->and($invoice->grand_total)->toBe('495.00');
+});
+
 it('completes requisition, purchase order, partial goods receipt, invoice, payment and supplier return atomically', function (): void {
     $requisition = $this->service->createRequisition([
         'location_id' => $this->location->id,
@@ -484,6 +538,20 @@ it('rejects over-receipt and supplier invoices above accepted goods value', func
             'rejection_reason' => 'Two units arrived damaged',
         ]],
     ], $this->approver);
+
+    // Physical delivery is complete even though only accepted units are invoiceable.
+    expect($po->fresh()->status)->toBe('received');
+
+    $acceptedInvoice = $this->service->createSupplierInvoice($po->fresh(), [
+        'invoice_number' => 'ACCEPTED-'.strtoupper(Str::random(6)),
+        'invoice_date' => now()->toDateString(),
+        'items' => [[
+            'purchase_order_item_id' => $poItem->id,
+            'quantity' => '3',
+            'unit_cost' => '100.00',
+        ]],
+    ], $this->requester);
+    expect($acceptedInvoice->items->firstOrFail()->quantity)->toBe('3.0000');
 
     expect(fn () => $this->service->receiveGoods($po, [
         'idempotency_key' => (string) Str::uuid(),
@@ -923,4 +991,143 @@ it('preserves approved purchase order revisions and applies them only after inde
             'unit_cost' => '110.00',
         ]],
     ], $this->requester))->toThrow(ValidationException::class);
+});
+
+it('allocates GRNI rounding remainders consistently across partial receipts and invoices', function (): void {
+    $purchaseOrder = $this->service->createPurchaseOrder([
+        'supplier_id' => $this->supplier->id,
+        'location_id' => $this->location->id,
+        'order_date' => now()->toDateString(),
+        'items' => [[
+            'product_id' => $this->product->id,
+            'quantity' => '3',
+            'unit_cost' => '10.00',
+            'discount_amount' => '0.00',
+            'tax_amount' => '0.01',
+        ]],
+    ], $this->requester);
+    $purchaseOrder = $this->service->approvePurchaseOrder($purchaseOrder, $this->approver);
+    $purchaseOrderItem = $purchaseOrder->items->firstOrFail();
+
+    $invoiceTaxes = ['0.00', '0.00', '0.01'];
+    foreach ([0, 1, 2] as $index) {
+        $this->service->receiveGoods($purchaseOrder->fresh(), [
+            'idempotency_key' => (string) Str::uuid(),
+            'items' => [[
+                'purchase_order_item_id' => $purchaseOrderItem->id,
+                'received_quantity' => '1',
+                'accepted_quantity' => '1',
+                'rejected_quantity' => '0',
+            ]],
+        ], $this->approver);
+
+        $invoice = $this->service->createSupplierInvoice($purchaseOrder->fresh(), [
+            'invoice_number' => 'GRNI-ROUND-'.$index.'-'.strtoupper(Str::random(5)),
+            'invoice_date' => now()->toDateString(),
+            'items' => [[
+                'purchase_order_item_id' => $purchaseOrderItem->id,
+                'quantity' => '1',
+                'unit_cost' => '10.00',
+            ]],
+            'tax_total' => $invoiceTaxes[$index],
+            'discount_total' => '0.00',
+        ], $this->requester);
+
+        $this->service->postSupplierInvoice($invoice, $this->approver);
+    }
+
+    $grniAccountId = FinancialAccount::query()->where('code', '2050')->value('id');
+    $receiptJournalIds = GoodsReceipt::query()
+        ->where('purchase_order_id', $purchaseOrder->id)
+        ->whereNotNull('journal_entry_id')
+        ->pluck('journal_entry_id');
+    $invoiceJournalIds = SupplierInvoice::query()
+        ->where('purchase_order_id', $purchaseOrder->id)
+        ->whereNotNull('journal_entry_id')
+        ->pluck('journal_entry_id');
+
+    $receivedGrni = (string) DB::table('journal_entry_lines')
+        ->whereIn('journal_entry_id', $receiptJournalIds)
+        ->where('account_id', $grniAccountId)
+        ->sum('credit');
+    $clearedGrni = (string) DB::table('journal_entry_lines')
+        ->whereIn('journal_entry_id', $invoiceJournalIds)
+        ->where('account_id', $grniAccountId)
+        ->sum('debit');
+
+    expect(bcadd($receivedGrni, '0', 2))->toBe('30.01')
+        ->and(bcadd($clearedGrni, '0', 2))->toBe('30.01')
+        ->and(bcsub($receivedGrni, $clearedGrni, 2))->toBe('0.00');
+
+    $viewer = createProcurementApiUser(['system.procurement.view']);
+    $viewer->locations()->attach($this->location->id, ['access_level' => 'view']);
+    $report = $this->actingAs($viewer)
+        ->getJson('/api/v1/backend/procurement/overview')
+        ->assertOk()
+        ->json('grni_reconciliation');
+
+    $row = collect($report)->firstWhere('purchase_order_id', $purchaseOrder->id);
+    expect($row)->not->toBeNull()
+        ->and($row['received_value'])->toBe('30.01')
+        ->and($row['invoiced_value'])->toBe('30.01')
+        ->and($row['outstanding_value'])->toBe('0.00')
+        ->and($row['status'])->toBe('matched');
+});
+
+it('allocates supplier return rounding remainders across partial returns', function (): void {
+    $purchaseOrder = $this->service->createPurchaseOrder([
+        'supplier_id' => $this->supplier->id,
+        'location_id' => $this->location->id,
+        'order_date' => now()->toDateString(),
+        'items' => [[
+            'product_id' => $this->product->id,
+            'quantity' => '3',
+            'unit_cost' => '10.00',
+            'tax_amount' => '0.01',
+        ]],
+    ], $this->requester);
+    $purchaseOrder = $this->service->approvePurchaseOrder($purchaseOrder, $this->approver);
+    $purchaseOrderItem = $purchaseOrder->items->firstOrFail();
+
+    $this->service->receiveGoods($purchaseOrder, [
+        'idempotency_key' => (string) Str::uuid(),
+        'items' => [[
+            'purchase_order_item_id' => $purchaseOrderItem->id,
+            'received_quantity' => '3',
+            'accepted_quantity' => '3',
+            'rejected_quantity' => '0',
+        ]],
+    ], $this->approver);
+
+    $invoice = $this->service->createSupplierInvoice($purchaseOrder, [
+        'invoice_number' => 'INV-'.strtoupper(Str::random(8)),
+        'invoice_date' => now()->toDateString(),
+        'items' => [[
+            'purchase_order_item_id' => $purchaseOrderItem->id,
+            'quantity' => '3',
+            'unit_cost' => '10.00',
+        ]],
+        'tax_total' => '0.01',
+        'discount_total' => '0.00',
+    ], $this->requester);
+    $invoice = $this->service->postSupplierInvoice($invoice, $this->approver);
+
+    $returns = [];
+    foreach ([1, 2, 3] as $index) {
+        $returns[] = $this->service->returnToSupplier($invoice->fresh(), [
+            'return_date' => now()->toDateString(),
+            'reason' => 'Partial quality return '.$index,
+            'idempotency_key' => (string) Str::uuid(),
+            'items' => [[
+                'purchase_order_item_id' => $purchaseOrderItem->id,
+                'quantity' => '1',
+            ]],
+        ], $this->approver);
+    }
+
+    expect(array_map(fn (SupplierReturn $return): string => $return->total_amount, $returns))
+        ->toBe(['10.00', '10.00', '10.01'])
+        ->and((string) SupplierReturn::query()->where('supplier_invoice_id', $invoice->id)->sum('total_amount'))
+        ->toBe('30.01')
+        ->and($invoice->fresh()->status)->toBe('paid');
 });

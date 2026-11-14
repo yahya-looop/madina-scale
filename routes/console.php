@@ -6,6 +6,9 @@ use App\Models\CmsMedia;
 use App\Models\CmsPage;
 use App\Models\CmsPageRevision;
 use App\Models\InventoryTransferNotificationOutbox;
+use App\Models\InventoryStock;
+use App\Models\User;
+use App\Services\InventoryValuationService;
 use App\Models\ProductMedia;
 use App\Services\InventoryReservationService;
 use Illuminate\Foundation\Inspiring;
@@ -22,6 +25,56 @@ Artisan::command('inventory:expire-reservations', function (InventoryReservation
     $reservations->expireDue();
     $this->info('Expired inventory reservations reconciled.');
 })->purpose('Release stock held by expired inventory reservations');
+
+
+Artisan::command('inventory:valuation:open {stock_id} {total_value} {--actor=} {--reason=}', function (InventoryValuationService $valuation): int {
+    $stock = InventoryStock::query()->find((int) $this->argument('stock_id'));
+    if (! $stock) {
+        $this->error('Inventory stock row was not found.');
+        return 1;
+    }
+    $actor = User::query()->find((int) $this->option('actor'));
+    if (! $actor) {
+        $this->error('A valid --actor user ID is required for audit attribution.');
+        return 1;
+    }
+    $reason = trim((string) $this->option('reason'));
+    if ($reason === '') {
+        $this->error('A non-empty --reason is required.');
+        return 1;
+    }
+    $entry = $valuation->setOpeningValue($stock, (string) $this->argument('total_value'), $actor, $reason);
+    $this->info('Opening valuation recorded. Ledger entry ID: '.$entry->id);
+    return 0;
+})->purpose('Record a verified opening inventory value for one legacy stock row');
+
+Artisan::command('inventory:valuation:reconcile', function (): int {
+    $summary = DB::selectOne(<<<'SQL'
+        WITH latest AS (
+            SELECT DISTINCT ON (inventory_stock_id)
+                inventory_stock_id, quantity_after, value_after
+            FROM inventory_valuation_movements
+            ORDER BY inventory_stock_id, id DESC
+        )
+        SELECT COUNT(*) AS mismatch_count
+        FROM inventory_stocks AS stock
+        LEFT JOIN latest ON latest.inventory_stock_id = stock.id
+        WHERE stock.valuation_status = 'valued'
+          AND (
+            latest.inventory_stock_id IS NULL
+            OR stock.quantity <> latest.quantity_after
+            OR stock.inventory_value <> latest.value_after
+          )
+    SQL);
+    $count = (int) ($summary->mismatch_count ?? 0);
+    $this->line('Valued stock rows without matching valuation-ledger balance: '.$count);
+    if ($count > 0) {
+        $this->error('Valuation inconsistencies detected. No records were changed.');
+        return 1;
+    }
+    $this->info('Valuation ledger balances are consistent for all valued stock rows.');
+    return 0;
+})->purpose('Read-only reconciliation of inventory carrying values against the valuation ledger');
 
 Artisan::command('inventory:dispatch-transfer-notifications {--limit=100}', function (): void {
     $limit = max(1, min(500, (int) $this->option('limit')));

@@ -406,3 +406,59 @@ test('database prevents soft deleting a variant with on-hand stock', function ()
 
     expect(ProductVariant::query()->whereKey($variant->id)->exists())->toBeTrue();
 });
+
+test('inventory valuation uses moving weighted average and preserves carrying value on issue', function () {
+    $product = inventoryTestProduct();
+    $location = inventoryTestLocation();
+    $service = app(InventoryService::class);
+
+    $service->receive([
+        'product_id' => $product->id,
+        'location_id' => $location->id,
+        'quantity' => '10.0000',
+        'unit_cost' => '10.00',
+    ]);
+    $service->receive([
+        'product_id' => $product->id,
+        'location_id' => $location->id,
+        'quantity' => '10.0000',
+        'unit_cost' => '20.00',
+    ]);
+
+    $stock = InventoryStock::query()->where('product_id', $product->id)->where('location_id', $location->id)->firstOrFail();
+    expect((string) $stock->inventory_value)->toBe('300.00')
+        ->and((string) $stock->average_unit_cost)->toBe('15.000000');
+
+    $service->issue([
+        'product_id' => $product->id,
+        'location_id' => $location->id,
+        'quantity' => '4.0000',
+    ]);
+
+    $stock->refresh();
+    expect((string) $stock->quantity)->toBe('16.0000')
+        ->and((string) $stock->inventory_value)->toBe('240.00')
+        ->and((string) $stock->average_unit_cost)->toBe('15.000000');
+
+    $this->assertDatabaseCount('inventory_valuation_movements', 3);
+});
+
+test('existing positive stock requires a verified opening valuation before it can be issued', function () {
+    $product = inventoryTestProduct();
+    $location = inventoryTestLocation();
+    $stock = InventoryStock::query()->create([
+        'product_id' => $product->id,
+        'location_id' => $location->id,
+        'quantity' => '5.0000',
+        'reserved_quantity' => '0.0000',
+        'valuation_status' => 'pending_opening',
+    ]);
+
+    expect(fn () => app(InventoryService::class)->issue([
+        'product_id' => $product->id,
+        'location_id' => $location->id,
+        'quantity' => '1.0000',
+    ]))->toThrow(ValidationException::class);
+
+    expect((string) $stock->fresh()->quantity)->toBe('5.0000');
+});

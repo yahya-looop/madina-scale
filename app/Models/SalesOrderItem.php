@@ -17,6 +17,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property numeric-string $quantity
  * @property numeric-string $unit_price
  * @property numeric-string $line_total
+ * @property numeric-string $fulfilled_cost_quantity
+ * @property numeric-string $fulfilled_cost_value
  * @property array<string, mixed>|null $pricing_snapshot
  * @property-read ProductVariant|null $variant
  * @property-read InventoryReservation|null $reservation
@@ -27,12 +29,12 @@ class SalesOrderItem extends Model
     protected $fillable = [
         'sales_order_id', 'product_id', 'product_variant_id',
         'product_name', 'variant_name', 'sku', 'quantity', 'unit_price',
-        'line_total', 'reservation_id', 'pricing_snapshot',
+        'line_total', 'reservation_id', 'pricing_snapshot', 'fulfilled_cost_quantity', 'fulfilled_cost_value',
     ];
 
     protected function casts(): array
     {
-        return ['quantity' => 'decimal:4', 'unit_price' => 'decimal:2', 'line_total' => 'decimal:2', 'pricing_snapshot' => 'array'];
+        return ['quantity' => 'decimal:4', 'unit_price' => 'decimal:2', 'line_total' => 'decimal:2', 'fulfilled_cost_quantity' => 'decimal:4', 'fulfilled_cost_value' => 'decimal:2', 'pricing_snapshot' => 'array'];
     }
 
     /** @return BelongsTo<SalesOrder, $this> */

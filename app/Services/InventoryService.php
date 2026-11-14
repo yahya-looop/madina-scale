@@ -238,9 +238,8 @@ class InventoryService
             $destinationAfter = bcadd($destinationBefore, $quantity, 4);
 
             $source->quantity = $sourceAfter;
-            $source->save();
-
             $destination->quantity = $destinationAfter;
+            $source->save();
             $destination->save();
 
             $transferGroupId = (string) Str::uuid();
@@ -276,6 +275,11 @@ class InventoryService
                 'balance_before' => $destinationBefore,
                 'balance_after' => $destinationAfter,
             ]);
+
+            $valuation = app(InventoryValuationService::class);
+            $carryingCost = (string) ($source->average_unit_cost ?? '0');
+            $valuation->apply($source, $outgoing, $carryingCost, $actor, null, ['transfer_group_id' => $transferGroupId]);
+            $valuation->apply($destination, $incoming, $carryingCost, $actor, null, ['transfer_group_id' => $transferGroupId]);
 
             return [
                 'transfer_group_id' => $transferGroupId,
@@ -445,7 +449,7 @@ class InventoryService
             $stock->quantity = $after;
             $stock->save();
 
-            return StockMovement::query()->create([
+            $movement = StockMovement::query()->create([
                 'product_id' => $owner['product_id'],
                 'product_variant_id' => $owner['variant_id'],
                 'location_id' => $locationId,
@@ -463,6 +467,18 @@ class InventoryService
                 'ip_address' => $data['ip_address'] ?? null,
                 'metadata' => $data['metadata'] ?? null,
             ]);
+
+            $unitCost = isset($data['unit_cost']) ? (string) $data['unit_cost'] : '0';
+            app(InventoryValuationService::class)->apply(
+                $stock,
+                $movement,
+                $unitCost,
+                $actor,
+                $idempotencyKey,
+                ['reason' => $data['reason'] ?? null],
+            );
+
+            return $movement;
         }, 3);
     }
 

@@ -41,6 +41,70 @@ class ProcurementController extends Controller
         $user = $request->user();
         $locations = $this->locationAccess->viewableLocations($user);
         $locationIds = $locations->pluck('id')->all();
+        $grniAccountId = FinancialAccount::query()->where('code', '2050')->value('id');
+        $grniReconciliation = collect();
+        if ($grniAccountId !== null && $locationIds !== []) {
+            $receiptValues = DB::table('goods_receipts as gr')
+                ->join('journal_entries as je', 'je.id', '=', 'gr.journal_entry_id')
+                ->join('journal_entry_lines as jel', 'jel.journal_entry_id', '=', 'je.id')
+                ->where('je.status', 'posted')
+                ->where('jel.account_id', $grniAccountId)
+                ->groupBy('gr.purchase_order_id')
+                ->selectRaw('gr.purchase_order_id, SUM(jel.credit - jel.debit) AS amount');
+
+            $invoiceValues = DB::table('supplier_invoices as si')
+                ->join('journal_entries as je', 'je.id', '=', 'si.journal_entry_id')
+                ->join('journal_entry_lines as jel', 'jel.journal_entry_id', '=', 'je.id')
+                ->where('je.status', 'posted')
+                ->where('jel.account_id', $grniAccountId)
+                ->whereIn('si.status', ['posted', 'partially_paid', 'paid'])
+                ->groupBy('si.purchase_order_id')
+                ->selectRaw('si.purchase_order_id, SUM(jel.debit - jel.credit) AS amount');
+
+            $grniReconciliation = DB::table('purchase_orders')
+                ->leftJoinSub($receiptValues, 'grni_receipts', fn ($join) => $join->on('grni_receipts.purchase_order_id', '=', 'purchase_orders.id'))
+                ->leftJoinSub($invoiceValues, 'grni_invoices', fn ($join) => $join->on('grni_invoices.purchase_order_id', '=', 'purchase_orders.id'))
+                ->join('suppliers', 'suppliers.id', '=', 'purchase_orders.supplier_id')
+                ->join('locations', 'locations.id', '=', 'purchase_orders.location_id')
+                ->whereIn('purchase_orders.location_id', $locationIds)
+                ->where(function ($query): void {
+                    $query->whereRaw('COALESCE(grni_receipts.amount, 0) <> 0')
+                        ->orWhereRaw('COALESCE(grni_invoices.amount, 0) <> 0');
+                })
+                ->orderBy('purchase_orders.order_date')
+                ->get([
+                    'purchase_orders.id',
+                    'purchase_orders.po_number',
+                    'purchase_orders.currency',
+                    'suppliers.name as supplier_name',
+                    'locations.name as location_name',
+                    DB::raw('COALESCE(grni_receipts.amount, 0) AS received_value'),
+                    DB::raw('COALESCE(grni_invoices.amount, 0) AS invoiced_value'),
+                ])
+                ->map(function (object $row): array {
+                    /** @var numeric-string $receivedRaw */
+                    $receivedRaw = (string) ($row->received_value ?? '0');
+                    /** @var numeric-string $invoicedRaw */
+                    $invoicedRaw = (string) ($row->invoiced_value ?? '0');
+
+                    $received = bcadd($receivedRaw, '0', 2);
+                    $invoiced = bcadd($invoicedRaw, '0', 2);
+                    $outstanding = bcsub($received, $invoiced, 2);
+                    $comparison = bccomp($outstanding, '0.00', 2);
+
+                    return [
+                        'purchase_order_id' => (int) $row->id,
+                        'po_number' => (string) $row->po_number,
+                        'currency' => (string) $row->currency,
+                        'supplier_name' => (string) $row->supplier_name,
+                        'location_name' => (string) $row->location_name,
+                        'received_value' => $received,
+                        'invoiced_value' => $invoiced,
+                        'outstanding_value' => $outstanding,
+                        'status' => $comparison === 0 ? 'matched' : ($comparison > 0 ? 'unbilled' : 'over_invoiced'),
+                    ];
+                })->values();
+        }
         $payableAccountId = FinancialAccount::query()->where('code', '2000')->value('id');
         $supplierBalances = $payableAccountId
             ? DB::table('journal_entry_lines')
@@ -78,6 +142,7 @@ class ProcurementController extends Controller
             'variants' => ProductVariant::query()->where('status', 'active')->with('product:id,name')->orderBy('sku')->get(['id', 'product_id', 'name', 'sku']),
             'cash_accounts' => FinancialAccount::query()->where('is_active', true)->where('is_cash_bank', true)->orderBy('code')->get(['id', 'code', 'name']),
             'supplier_balances' => $supplierBalances,
+            'grni_reconciliation' => $grniReconciliation,
             'summary' => [
                 'active_suppliers' => Supplier::query()->where('status', 'active')->count(),
                 'open_purchase_orders' => PurchaseOrder::query()->whereIn('location_id', $locationIds)->whereIn('status', ['approved', 'partially_received'])->count(),

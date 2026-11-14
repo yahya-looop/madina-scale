@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\InventoryValuationMovement;
 use App\Models\FinancialAccount;
 use App\Models\GoodsReceipt;
 use App\Models\Location;
@@ -362,22 +363,28 @@ class ProcurementService
 
                 $movement = null;
                 if (bccomp($accepted, '0', 4) > 0) {
+                    // Cumulative allocation keeps partial receipt cents exact.
+                    $previousAccepted = (string) $poItem->accepted_quantity;
+                    $cumulativeAccepted = bcadd($previousAccepted, $accepted, 4);
+                    $previousReceiptValue = bcmul((string) $poItem->line_total, bcdiv($previousAccepted, (string) $poItem->quantity, 8), 2);
+                    $cumulativeReceiptValue = bcmul((string) $poItem->line_total, bcdiv($cumulativeAccepted, (string) $poItem->quantity, 8), 2);
+                    $receiptLineValue = bcsub($cumulativeReceiptValue, $previousReceiptValue, 2);
+                    $receiptValue = bcadd($receiptValue, $receiptLineValue, 2);
+                    $unitCost = bcdiv($receiptLineValue, $accepted, 6);
                     $movement = $this->inventory->receive([
                         'location_id' => $po->location_id,
                         'product_id' => $poItem->product_id,
                         'product_variant_id' => $poItem->product_variant_id,
                         'quantity' => $accepted,
+                        'unit_cost' => $unitCost,
                         'reason' => 'Purchase receipt '.$receipt->grn_number,
                         'reference_type' => 'goods_receipt',
                         'reference_id' => (string) $receipt->id,
                         'idempotency_key' => (string) Str::uuid(),
-                        'metadata' => ['purchase_order_id' => $po->id, 'purchase_order_item_id' => $poItem->id],
+                        'metadata' => ['purchase_order_id' => $po->id, 'purchase_order_item_id' => $poItem->id, 'receipt_line_value' => $receiptLineValue],
                     ], $actor);
                 }
-                if (bccomp($accepted, '0', 4) > 0) {
-                    $landedUnitValue = bcdiv((string) $poItem->line_total, (string) $poItem->quantity, 6);
-                    $receiptValue = bcadd($receiptValue, bcmul($accepted, $landedUnitValue, 2), 2);
-                }
+
                 $receipt->items()->create([
                     'purchase_order_item_id' => $poItem->id,
                     'received_quantity' => $received,
@@ -408,7 +415,11 @@ class ProcurementService
                 $receipt->update(['journal_entry_id' => $posted->id]);
             }
             $po->refresh()->load('items');
-            $fullyReceived = $po->items->every(fn (PurchaseOrderItem $item): bool => bccomp((string) $item->accepted_quantity, (string) $item->quantity, 4) >= 0);
+            // PO fulfillment tracks physical delivery. Rejected units are recorded separately
+            // and are excluded from invoicing, but they still complete this delivery.
+            // Replacement goods require a separate PO because total physical receipts
+            // are capped at the ordered quantity.
+            $fullyReceived = $po->items->every(fn (PurchaseOrderItem $item): bool => bccomp((string) $item->received_quantity, (string) $item->quantity, 4) >= 0);
             $po->update(['status' => $fullyReceived ? 'received' : 'partially_received']);
             $this->activityLog->recordForUser($actor, 'received', 'procurement', 'Posted goods receipt '.$receipt->grn_number, $receipt);
 
@@ -571,6 +582,8 @@ class ProcurementService
 
             $subtotal = '0.00';
             $expectedTotal = '0.00';
+            $expectedDiscountTotal = '0.00';
+            $expectedTaxTotal = '0.00';
             $validatedLines = [];
             $seenPurchaseOrderItems = [];
             foreach ($data['items'] as $line) {
@@ -592,13 +605,61 @@ class ProcurementService
                     ->where('supplier_invoice_items.purchase_order_item_id', $poItem->id)
                     ->whereIn('supplier_invoices.status', ['draft', 'posted', 'partially_paid', 'paid'])
                     ->sum('supplier_invoice_items.quantity'));
+                $alreadyAllocated = (string) (DB::table('supplier_invoice_items')
+                    ->join('supplier_invoices', 'supplier_invoices.id', '=', 'supplier_invoice_items.supplier_invoice_id')
+                    ->where('supplier_invoice_items.purchase_order_item_id', $poItem->id)
+                    ->whereIn('supplier_invoices.status', ['draft', 'posted', 'partially_paid', 'paid'])
+                    ->sum('supplier_invoice_items.line_total'));
                 $remaining = bcsub((string) $poItem->accepted_quantity, $alreadyBilled, 4);
                 if (bccomp($quantity, '0', 4) <= 0 || bccomp($quantity, $remaining, 4) > 0) {
                     throw ValidationException::withMessages(['items' => 'Invoice quantity exceeds accepted goods not already invoiced.']);
                 }
                 $lineSubtotal = bcmul($quantity, $unitCost, 2);
-                $poLineUnitTotal = bcdiv((string) $poItem->line_total, (string) $poItem->quantity, 6);
-                $matchedLineTotal = bcmul($quantity, $poLineUnitTotal, 2);
+                // Match invoice value cumulatively per PO line so partial
+                // invoices consume the same 2-decimal cumulative allocation as GRNs.
+                $cumulativeBilled = bcadd($alreadyBilled, $quantity, 4);
+                $cumulativeAllocated = bcmul(
+                    (string) $poItem->line_total,
+                    bcdiv($cumulativeBilled, (string) $poItem->quantity, 8),
+                    2,
+                );
+                $matchedLineTotal = bcsub($cumulativeAllocated, $alreadyAllocated, 2);
+
+                // Reconcile PO discount and tax components independently.
+                // Derive each partial invoice allocation from cumulative billed
+                // quantity so rounding remainders land on the final invoice.
+                $cumulativeDiscount = bcmul(
+                    (string) $poItem->discount_amount,
+                    bcdiv($cumulativeBilled, (string) $poItem->quantity, 8),
+                    2,
+                );
+                $previousDiscount = bcmul(
+                    (string) $poItem->discount_amount,
+                    bcdiv($alreadyBilled, (string) $poItem->quantity, 8),
+                    2,
+                );
+                $expectedDiscountTotal = bcadd(
+                    $expectedDiscountTotal,
+                    bcsub($cumulativeDiscount, $previousDiscount, 2),
+                    2,
+                );
+
+                $cumulativeTax = bcmul(
+                    (string) $poItem->tax_amount,
+                    bcdiv($cumulativeBilled, (string) $poItem->quantity, 8),
+                    2,
+                );
+                $previousTax = bcmul(
+                    (string) $poItem->tax_amount,
+                    bcdiv($alreadyBilled, (string) $poItem->quantity, 8),
+                    2,
+                );
+                $expectedTaxTotal = bcadd(
+                    $expectedTaxTotal,
+                    bcsub($cumulativeTax, $previousTax, 2),
+                    2,
+                );
+
                 $subtotal = bcadd($subtotal, $lineSubtotal, 2);
                 $expectedTotal = bcadd($expectedTotal, $matchedLineTotal, 2);
                 $validatedLines[] = [
@@ -614,6 +675,12 @@ class ProcurementService
             if (bccomp($discount, $subtotal, 2) > 0) {
                 throw ValidationException::withMessages(['discount_total' => 'Invoice discount cannot exceed its subtotal.']);
             }
+            if (bccomp($discount, $expectedDiscountTotal, 2) !== 0) {
+                throw ValidationException::withMessages(['discount_total' => 'Supplier invoice discount must match the approved purchase order discount allocation for the invoiced quantities.']);
+            }
+            if (bccomp($tax, $expectedTaxTotal, 2) !== 0) {
+                throw ValidationException::withMessages(['tax_total' => 'Supplier invoice tax must match the approved purchase order tax allocation for the invoiced quantities.']);
+            }
             $grand = bcadd(bcsub($subtotal, $discount, 2), $tax, 2);
             if (bccomp($grand, '0', 2) <= 0) {
                 throw ValidationException::withMessages(['grand_total' => 'Invoice total must be positive.']);
@@ -626,15 +693,20 @@ class ProcurementService
             if ($invoiceNumber === '') {
                 throw ValidationException::withMessages(['invoice_number' => 'Supplier invoice number is required.']);
             }
+
+            // Different purchase orders can be invoiced concurrently for the
+            // same supplier. Lock the shared supplier row before checking the
+            // supplier-scoped invoice number; the unique index remains the
+            // final database-level safeguard.
+            $supplier = Supplier::query()->lockForUpdate()->findOrFail($po->supplier_id);
             $duplicateInvoice = SupplierInvoice::query()
-                ->where('supplier_id', $po->supplier_id)
+                ->where('supplier_id', $supplier->id)
                 ->where('invoice_number', $invoiceNumber)
                 ->exists();
             if ($duplicateInvoice) {
                 throw ValidationException::withMessages(['invoice_number' => 'This supplier invoice number has already been recorded.']);
             }
 
-            $supplier = Supplier::query()->findOrFail($po->supplier_id);
             $dueDate = $data['due_date'] ?? (
                 (int) $supplier->credit_days > 0
                     ? Carbon::parse($data['invoice_date'])->addDays((int) $supplier->credit_days)->toDateString()
@@ -804,6 +876,7 @@ class ProcurementService
             ]);
             $total = '0.00';
             $returnQuantities = [];
+            $returnLineValues = [];
             foreach ($data['items'] as $line) {
                 $item = $po->items->firstWhere('id', (int) $line['purchase_order_item_id']);
                 if (! $item) {
@@ -826,6 +899,24 @@ class ProcurementService
                 if (bccomp($qty, '0', 4) <= 0 || bccomp($returnQuantities[$returnKey], $available, 4) > 0) {
                     throw ValidationException::withMessages(['items' => 'Return quantity exceeds invoiced quantity not already returned.']);
                 }
+                $alreadyAllocatedValue = DB::table('supplier_return_items')
+                    ->join('supplier_returns', 'supplier_returns.id', '=', 'supplier_return_items.supplier_return_id')
+                    ->where('supplier_returns.supplier_invoice_id', $invoice->id)
+                    ->where('supplier_return_items.purchase_order_item_id', $item->id)
+                    ->sum('supplier_return_items.line_total');
+                $allocatedBefore = bcadd(
+                    (string) $alreadyAllocatedValue,
+                    $returnLineValues[$returnKey] ?? '0.00',
+                    2,
+                );
+                $cumulativeReturned = bcadd($previous, $returnQuantities[$returnKey], 4);
+                $cumulativeReturnValue = bcmul(
+                    (string) $invoiceLine->line_total,
+                    bcdiv($cumulativeReturned, (string) $invoiceLine->quantity, 8),
+                    2,
+                );
+                $lineTotal = bcsub($cumulativeReturnValue, $allocatedBefore, 2);
+                $returnLineValues[$returnKey] = bcadd($returnLineValues[$returnKey] ?? '0.00', $lineTotal, 2);
                 $movement = $this->inventory->issue([
                     'location_id' => $po->location_id,
                     'product_id' => $item->product_id,
@@ -836,8 +927,7 @@ class ProcurementService
                     'reference_id' => (string) $return->id,
                     'idempotency_key' => (string) Str::uuid(),
                 ], $actor);
-                $returnUnitCost = bcdiv((string) $invoiceLine->line_total, (string) $invoiceLine->quantity, 6);
-                $lineTotal = bcmul($qty, $returnUnitCost, 2);
+                $returnUnitCost = bcdiv($lineTotal, $qty, 6);
                 $return->items()->create([
                     'purchase_order_item_id' => $item->id,
                     'quantity' => $qty,
@@ -853,16 +943,33 @@ class ProcurementService
             if (bccomp(bcadd($priorCredits, $total, 2), (string) $invoice->grand_total, 2) > 0) {
                 throw ValidationException::withMessages(['items' => 'Supplier return credit cannot exceed the invoice total.']);
             }
+            // Inventory is relieved at its moving-average carrying value. The
+            // supplier credit can differ (invoice discount/tax/price changes),
+            // so post the difference to a dedicated purchase-price variance.
+            $carryingValueRaw = InventoryValuationMovement::query()
+                ->where('reference_type', 'supplier_return')
+                ->where('reference_id', (string) $return->id)
+                ->sum(DB::raw('ABS(value_delta)'));
+            $carryingValue = bcadd((string) $carryingValueRaw, '0', 2);
+            $variance = bcsub($total, $carryingValue, 2);
+            $lines = [
+                ['account_id' => $payable->id, 'debit' => $total, 'credit' => '0', 'supplier_id' => $invoice->supplier_id],
+                ['account_id' => $inventory->id, 'debit' => '0', 'credit' => $carryingValue, 'supplier_id' => $invoice->supplier_id],
+            ];
+            if (bccomp($variance, '0', 2) > 0) {
+                $varianceAccount = FinancialAccount::query()->where('code', '5100')->where('is_active', true)->firstOrFail();
+                $lines[] = ['account_id' => $varianceAccount->id, 'debit' => $variance, 'credit' => '0'];
+            } elseif (bccomp($variance, '0', 2) < 0) {
+                $varianceAccount = FinancialAccount::query()->where('code', '5100')->where('is_active', true)->firstOrFail();
+                $lines[] = ['account_id' => $varianceAccount->id, 'debit' => '0', 'credit' => bcmul($variance, '-1', 2)];
+            }
             $journal = $this->ledger->createDraft([
                 'source' => 'procurement_return',
                 'entry_date' => $return->return_date->toDateString(),
                 'description' => 'Supplier return '.$return->return_number,
                 'reference' => $return->return_number,
                 'location_id' => $po->location_id,
-                'lines' => [
-                    ['account_id' => $payable->id, 'debit' => $total, 'credit' => '0', 'supplier_id' => $invoice->supplier_id],
-                    ['account_id' => $inventory->id, 'debit' => '0', 'credit' => $total, 'supplier_id' => $invoice->supplier_id],
-                ],
+                'lines' => $lines,
             ], $actor);
             $posted = $this->ledger->post($journal, $actor);
             $return->update(['total_amount' => $total, 'journal_entry_id' => $posted->id]);

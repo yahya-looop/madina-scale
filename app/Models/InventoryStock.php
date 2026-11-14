@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * @property int $id
@@ -13,6 +14,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property numeric-string $quantity
  * @property numeric-string $reserved_quantity
  * @property numeric-string|null $low_stock_threshold
+ * @property numeric-string|null $average_unit_cost
+ * @property numeric-string|null $inventory_value
+ * @property string $valuation_status
  * @property-read Product|null $product
  * @property-read ProductVariant|null $variant
  * @property-read Location $location
@@ -20,6 +24,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class InventoryStock extends Model
 {
     protected $fillable = [
+        'average_unit_cost',
+        'inventory_value',
+        'valuation_status',
         'product_id',
         'product_variant_id',
         'location_id',
@@ -37,7 +44,15 @@ class InventoryStock extends Model
             'quantity' => 'decimal:4',
             'reserved_quantity' => 'decimal:4',
             'low_stock_threshold' => 'decimal:4',
+            'average_unit_cost' => 'decimal:6',
+            'inventory_value' => 'decimal:2',
         ];
+    }
+
+    /** @return HasMany<InventoryValuationMovement, $this> */
+    public function valuationMovements(): HasMany
+    {
+        return $this->hasMany(InventoryValuationMovement::class);
     }
 
     /** @return BelongsTo<Product, $this> */
