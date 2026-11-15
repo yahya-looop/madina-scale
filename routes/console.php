@@ -5,12 +5,12 @@ use App\Models\CmsContentSection;
 use App\Models\CmsMedia;
 use App\Models\CmsPage;
 use App\Models\CmsPageRevision;
-use App\Models\InventoryTransferNotificationOutbox;
 use App\Models\InventoryStock;
-use App\Models\User;
-use App\Services\InventoryValuationService;
+use App\Models\InventoryTransferNotificationOutbox;
 use App\Models\ProductMedia;
+use App\Models\User;
 use App\Services\InventoryReservationService;
+use App\Services\InventoryValuationService;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
@@ -26,55 +26,120 @@ Artisan::command('inventory:expire-reservations', function (InventoryReservation
     $this->info('Expired inventory reservations reconciled.');
 })->purpose('Release stock held by expired inventory reservations');
 
-
 Artisan::command('inventory:valuation:open {stock_id} {total_value} {--actor=} {--reason=}', function (InventoryValuationService $valuation): int {
     $stock = InventoryStock::query()->find((int) $this->argument('stock_id'));
     if (! $stock) {
         $this->error('Inventory stock row was not found.');
+
         return 1;
     }
-    $actor = User::query()->find((int) $this->option('actor'));
+    $actorOption = $this->option('actor');
+    $actorId = is_string($actorOption) || is_int($actorOption) ? (int) $actorOption : 0;
+    $actor = User::query()->find($actorId);
     if (! $actor) {
         $this->error('A valid --actor user ID is required for audit attribution.');
+
         return 1;
     }
-    $reason = trim((string) $this->option('reason'));
+    $reasonOption = $this->option('reason');
+    $reason = is_string($reasonOption) ? trim($reasonOption) : '';
     if ($reason === '') {
         $this->error('A non-empty --reason is required.');
+
         return 1;
     }
-    $entry = $valuation->setOpeningValue($stock, (string) $this->argument('total_value'), $actor, $reason);
+    $totalValue = $this->argument('total_value');
+    if (! is_string($totalValue) && ! is_int($totalValue)) {
+        $this->error('A valid total value is required.');
+
+        return 1;
+    }
+    $entry = $valuation->setOpeningValue($stock, (string) $totalValue, $actor, $reason);
     $this->info('Opening valuation recorded. Ledger entry ID: '.$entry->id);
+
     return 0;
 })->purpose('Record a verified opening inventory value for one legacy stock row');
 
 Artisan::command('inventory:valuation:reconcile', function (): int {
     $summary = DB::selectOne(<<<'SQL'
-        WITH latest AS (
+        WITH ordered AS (
+            SELECT
+                inventory_stock_id,
+                id,
+                quantity_before,
+                quantity_after,
+                value_before,
+                value_after,
+                movement_type,
+                LAG(quantity_after) OVER (PARTITION BY inventory_stock_id ORDER BY id) AS previous_quantity_after,
+                LAG(value_after) OVER (PARTITION BY inventory_stock_id ORDER BY id) AS previous_value_after,
+                ROW_NUMBER() OVER (PARTITION BY inventory_stock_id ORDER BY id) AS sequence_number
+            FROM inventory_valuation_movements
+        ),
+        latest AS (
             SELECT DISTINCT ON (inventory_stock_id)
                 inventory_stock_id, quantity_after, value_after
             FROM inventory_valuation_movements
             ORDER BY inventory_stock_id, id DESC
+        ),
+        chain_mismatches AS (
+            SELECT COUNT(*) AS total
+            FROM ordered
+            WHERE (
+                sequence_number = 1
+                AND (value_before <> 0 OR (movement_type <> 'opening' AND quantity_before <> 0))
+            ) OR (
+                sequence_number > 1
+                AND (
+                    quantity_before IS DISTINCT FROM previous_quantity_after
+                    OR value_before IS DISTINCT FROM previous_value_after
+                )
+            )
+        ),
+        movement_mismatches AS (
+            SELECT COUNT(*) AS total
+            FROM inventory_valuation_movements AS valuation
+            JOIN stock_movements AS movement ON movement.id = valuation.stock_movement_id
+            WHERE valuation.quantity_delta <> movement.quantity_delta
+               OR valuation.quantity_before <> movement.balance_before
+               OR valuation.quantity_after <> movement.balance_after
+        ),
+        stock_mismatches AS (
+            SELECT COUNT(*) AS total
+            FROM inventory_stocks AS stock
+            LEFT JOIN latest ON latest.inventory_stock_id = stock.id
+            WHERE stock.valuation_status = 'valued'
+              AND (
+                latest.inventory_stock_id IS NULL
+                OR stock.quantity <> latest.quantity_after
+                OR stock.inventory_value <> latest.value_after
+              )
         )
-        SELECT COUNT(*) AS mismatch_count
-        FROM inventory_stocks AS stock
-        LEFT JOIN latest ON latest.inventory_stock_id = stock.id
-        WHERE stock.valuation_status = 'valued'
-          AND (
-            latest.inventory_stock_id IS NULL
-            OR stock.quantity <> latest.quantity_after
-            OR stock.inventory_value <> latest.value_after
-          )
+        SELECT
+            (SELECT total FROM chain_mismatches) AS chain_mismatches,
+            (SELECT total FROM movement_mismatches) AS movement_mismatches,
+            (SELECT total FROM stock_mismatches) AS stock_mismatches
     SQL);
-    $count = (int) ($summary->mismatch_count ?? 0);
-    $this->line('Valued stock rows without matching valuation-ledger balance: '.$count);
-    if ($count > 0) {
-        $this->error('Valuation inconsistencies detected. No records were changed.');
+
+    $chain = (int) ($summary->chain_mismatches ?? 0);
+    $movement = (int) ($summary->movement_mismatches ?? 0);
+    $stock = (int) ($summary->stock_mismatches ?? 0);
+    $total = $chain + $movement + $stock;
+
+    $this->line('Historical valuation chain mismatches: '.$chain);
+    $this->line('Valuation-to-stock-movement mismatches: '.$movement);
+    $this->line('Valuation-to-current-stock mismatches: '.$stock);
+
+    if ($total > 0) {
+        $this->error('Inventory valuation inconsistencies detected. No records were changed.');
+
         return 1;
     }
-    $this->info('Valuation ledger balances are consistent for all valued stock rows.');
+
+    $this->info('Historical valuation chain, stock movements and current carrying values are consistent.');
+
     return 0;
-})->purpose('Read-only reconciliation of inventory carrying values against the valuation ledger');
+})->purpose('Read-only reconciliation of valuation history, stock movements and current inventory carrying values');
 
 Artisan::command('inventory:dispatch-transfer-notifications {--limit=100}', function (): void {
     $limit = max(1, min(500, (int) $this->option('limit')));

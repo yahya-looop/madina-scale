@@ -46,7 +46,8 @@ const props = withDefaults(defineProps<Props>(), {
 });
 
 const locationId = Number(
-    window.location.pathname.match(/\/backend\/locations\/(\d+)\/edit/)?.[1] ?? 0,
+    window.location.pathname.match(/\/backend\/locations\/(\d+)\/edit/)?.[1] ??
+        0,
 );
 
 const locationTypes = [
@@ -304,13 +305,16 @@ async function loadLocation(): Promise<void> {
     }
 
     try {
-        const response = await fetch(`/api/v1/backend/locations/${locationId}`, {
-            headers: {
-                Accept: 'application/json',
-                'X-Requested-With': 'XMLHttpRequest',
+        const response = await fetch(
+            `/api/v1/backend/locations/${locationId}`,
+            {
+                headers: {
+                    Accept: 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                credentials: 'same-origin',
             },
-            credentials: 'same-origin',
-        });
+        );
 
         const payload = (await response.json()) as ApiPayload<Location>;
 
@@ -359,34 +363,37 @@ async function save(): Promise<void> {
     clearMessages();
 
     try {
-        const response = await fetch(`/api/v1/backend/locations/${locationId}`, {
-            method: 'PUT',
-            headers: {
-                Accept: 'application/json',
-                'Content-Type': 'application/json',
-                'X-Requested-With': 'XMLHttpRequest',
-                'X-CSRF-TOKEN':
-                    document.querySelector<HTMLMetaElement>(
-                        'meta[name="csrf-token"]',
-                    )?.content ?? '',
+        const response = await fetch(
+            `/api/v1/backend/locations/${locationId}`,
+            {
+                method: 'PUT',
+                headers: {
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN':
+                        document.querySelector<HTMLMetaElement>(
+                            'meta[name="csrf-token"]',
+                        )?.content ?? '',
+                },
+                credentials: 'same-origin',
+                body: JSON.stringify({
+                    name: form.name.trim(),
+                    code: form.code.trim().toUpperCase(),
+                    type: form.type,
+                    is_active: form.is_active,
+                    is_primary: form.is_primary,
+                    country_code: form.country_code.trim().toUpperCase(),
+                    division: form.division.trim() || null,
+                    district: form.district.trim() || null,
+                    postal_code: form.postal_code.trim() || null,
+                    address: form.address.trim() || null,
+                    phone: form.phone.trim() || null,
+                    email: form.email.trim() || null,
+                    business_hours: form.business_hours,
+                }),
             },
-            credentials: 'same-origin',
-            body: JSON.stringify({
-                name: form.name.trim(),
-                code: form.code.trim().toUpperCase(),
-                type: form.type,
-                is_active: form.is_active,
-                is_primary: form.is_primary,
-                country_code: form.country_code.trim().toUpperCase(),
-                division: form.division.trim() || null,
-                district: form.district.trim() || null,
-                postal_code: form.postal_code.trim() || null,
-                address: form.address.trim() || null,
-                phone: form.phone.trim() || null,
-                email: form.email.trim() || null,
-                business_hours: form.business_hours,
-            }),
-        });
+        );
 
         const payload = (await response.json()) as ApiPayload<Location>;
 

@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\InventoryStock;
+use App\Models\InventoryValuationMovement;
 use App\Models\Location;
 use App\Models\Product;
 use App\Models\ProductVariant;
@@ -334,6 +335,26 @@ class InventoryService
             ),
         };
 
+        // A positive adjustment increases the asset balance. Unlike a receipt
+        // with a known supplier cost, its carrying cost must be explicitly
+        // verified by the operator rather than silently defaulting to zero.
+        $adjustmentUnitCost = null;
+        if ($type === 'adjustment' && bccomp($signedDelta, '0', 4) > 0) {
+            $unitCost = $data['unit_cost'] ?? null;
+            if (! is_string($unitCost) && ! is_int($unitCost) && ! is_float($unitCost)) {
+                throw ValidationException::withMessages([
+                    'unit_cost' => 'A verified unit cost is required for a positive stock adjustment.',
+                ]);
+            }
+            $unitCost = (string) $unitCost;
+            if (! preg_match('/^\d{1,12}(?:\.\d{1,6})?$/', $unitCost) || ! is_numeric($unitCost)) {
+                throw ValidationException::withMessages([
+                    'unit_cost' => 'Enter a valid non-negative unit cost with up to six decimal places.',
+                ]);
+            }
+            $adjustmentUnitCost = $unitCost;
+        }
+
         $idempotencyKey = $data['idempotency_key'] ?? null;
 
         if (
@@ -352,6 +373,7 @@ class InventoryService
             $data,
             $type,
             $signedDelta,
+            $adjustmentUnitCost,
             $idempotencyKey,
             $actor,
         ): StockMovement {
@@ -385,13 +407,22 @@ class InventoryService
                                 ? (string) $data['reference_id']
                                 : null
                         )
-                        && $existing->metadata === ($data['metadata'] ?? null)
+                        && $existing->metadata === ($data['metadata'] ?? null);
 
-                        && bccomp(
-                            $existing->quantity_delta,
-                            $signedDelta,
-                            4,
-                        ) === 0;
+                    if ($sameRequest && $type === 'adjustment' && bccomp($signedDelta, '0', 4) > 0) {
+                        $existingValuation = InventoryValuationMovement::query()
+                            ->where('stock_movement_id', $existing->id)
+                            ->first();
+                        $sameRequest = $existingValuation !== null
+                            && is_string($adjustmentUnitCost)
+                            && bccomp((string) $existingValuation->unit_cost, $adjustmentUnitCost, 6) === 0;
+                    }
+
+                    $sameRequest = $sameRequest && bccomp(
+                        $existing->quantity_delta,
+                        $signedDelta,
+                        4,
+                    ) === 0;
 
                     if (! $sameRequest) {
                         throw ValidationException::withMessages([
@@ -606,6 +637,9 @@ class InventoryService
             'location_id' => $locationId,
             'quantity' => '0.0000',
             'reserved_quantity' => '0.0000',
+            'average_unit_cost' => '0.000000',
+            'inventory_value' => '0.00',
+            'valuation_status' => 'valued',
         ]);
     }
 

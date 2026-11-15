@@ -405,14 +405,17 @@ function hasSnapshot(
 
 function exportAuditLogs(): void {
     if (!fromDate.value || !toDate.value) {
-        operationMessage.value = 'Choose both date boundaries before exporting (maximum 90 days).';
+        operationMessage.value =
+            'Choose both date boundaries before exporting (maximum 90 days).';
         operationMessageType.value = 'error';
         return;
     }
     const params = new URLSearchParams(buildQuery());
     params.delete('page');
     params.delete('per_page');
-    window.location.assign(`/api/v1/backend/activity-logs/export?${params.toString()}`);
+    window.location.assign(
+        `/api/v1/backend/activity-logs/export?${params.toString()}`,
+    );
 }
 
 /*
@@ -763,8 +766,18 @@ onMounted(() => {
                     </label>
 
                     <div class="activity-toolbar-actions">
-                        <input v-model="fromDate" class="activity-select" type="date" aria-label="From date" />
-                        <input v-model="toDate" class="activity-select" type="date" aria-label="To date" />
+                        <input
+                            v-model="fromDate"
+                            class="activity-select"
+                            type="date"
+                            aria-label="From date"
+                        />
+                        <input
+                            v-model="toDate"
+                            class="activity-select"
+                            type="date"
+                            aria-label="To date"
+                        />
                         <select
                             v-model="moduleFilter"
                             class="activity-select"
@@ -807,7 +820,11 @@ onMounted(() => {
 
                             Apply
                         </button>
-                        <button class="activity-btn" type="button" @click="exportAuditLogs">
+                        <button
+                            class="activity-btn"
+                            type="button"
+                            @click="exportAuditLogs"
+                        >
                             Export CSV
                         </button>
                     </div>
@@ -823,7 +840,13 @@ onMounted(() => {
                     </span>
 
                     <button
-                        v-if="search || moduleFilter || actorFilter || fromDate || toDate"
+                        v-if="
+                            search ||
+                            moduleFilter ||
+                            actorFilter ||
+                            fromDate ||
+                            toDate
+                        "
                         class="toolbar-text-btn"
                         type="button"
                         @click="resetFilters"
@@ -878,7 +901,13 @@ onMounted(() => {
                     </p>
 
                     <button
-                        v-if="search || moduleFilter || actorFilter || fromDate || toDate"
+                        v-if="
+                            search ||
+                            moduleFilter ||
+                            actorFilter ||
+                            fromDate ||
+                            toDate
+                        "
                         class="activity-btn activity-btn-secondary"
                         type="button"
                         @click="resetFilters"

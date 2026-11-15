@@ -330,7 +330,9 @@ async function loadProducts(): Promise<void> {
     errorMessage.value = '';
 
     try {
-        products.value = await apiRequest<Product[]>('/api/v1/backend/products');
+        products.value = await apiRequest<Product[]>(
+            '/api/v1/backend/products',
+        );
     } catch (error) {
         errorMessage.value =
             error instanceof Error ? error.message : 'Unable to load products.';

@@ -19,8 +19,16 @@ interface Role {
     isActive: boolean;
 }
 
-interface LocationOption { id: number; name: string; code: string; type: string; }
-interface LocationAssignment { location_id: number; access_level: 'view' | 'receive' | 'manage'; }
+interface LocationOption {
+    id: number;
+    name: string;
+    code: string;
+    type: string;
+}
+interface LocationAssignment {
+    location_id: number;
+    access_level: 'view' | 'receive' | 'manage';
+}
 
 interface RoleApiPayload {
     id: number;
@@ -59,7 +67,13 @@ interface UserApiPayload {
 
     roles?: Role[];
     designation?: string | null;
-    locations?: Array<{ id: number; name: string; code: string; type: string; access_level: LocationAssignment['access_level'] }>;
+    locations?: Array<{
+        id: number;
+        name: string;
+        code: string;
+        type: string;
+        access_level: LocationAssignment['access_level'];
+    }>;
 }
 
 interface User {
@@ -91,7 +105,13 @@ interface User {
 
     designation: string;
 
-    locations: Array<{ id: number; name: string; code: string; type: string; access_level: LocationAssignment['access_level'] }>;
+    locations: Array<{
+        id: number;
+        name: string;
+        code: string;
+        type: string;
+        access_level: LocationAssignment['access_level'];
+    }>;
 }
 
 interface AuthUser {
@@ -157,7 +177,9 @@ const authUser = computed<AuthUser>(() => {
 });
 
 const userId = Number(
-    window.location.pathname.match(/\/backend\/users\/(\d+)(?:\/edit|\/|$)/)?.[1] ?? 0,
+    window.location.pathname.match(
+        /\/backend\/users\/(\d+)(?:\/edit|\/|$)/,
+    )?.[1] ?? 0,
 );
 
 const user = ref<User | null>(null);
@@ -373,7 +395,10 @@ async function loadRoles(): Promise<void> {
 function syncFormFromUser(currentUser: User): void {
     form.name = currentUser.name;
     form.designation = currentUser.designation ?? '';
-    locationAssignments.value = (currentUser.locations ?? []).map((item) => ({ location_id: item.id, access_level: item.access_level }));
+    locationAssignments.value = (currentUser.locations ?? []).map((item) => ({
+        location_id: item.id,
+        access_level: item.access_level,
+    }));
 
     form.email = currentUser.email;
 
@@ -429,20 +454,37 @@ async function loadUser(): Promise<void> {
 
 async function loadLocations(): Promise<void> {
     try {
-        const response = await apiRequest<LocationOption[] | { data: LocationOption[] }>('/api/v1/backend/users/options/locations', 'GET');
+        const response = await apiRequest<
+            LocationOption[] | { data: LocationOption[] }
+        >('/api/v1/backend/users/options/locations', 'GET');
         locations.value = Array.isArray(response) ? response : response.data;
     } catch {
         locations.value = [];
     }
 }
 
-function setLocationAccess(locationId: number, accessLevel: LocationAssignment['access_level'] | ''): void {
-    locationAssignments.value = locationAssignments.value.filter((item) => item.location_id !== locationId);
-    if (accessLevel) locationAssignments.value.push({ location_id: locationId, access_level: accessLevel });
+function setLocationAccess(
+    locationId: number,
+    accessLevel: LocationAssignment['access_level'] | '',
+): void {
+    locationAssignments.value = locationAssignments.value.filter(
+        (item) => item.location_id !== locationId,
+    );
+    if (accessLevel)
+        locationAssignments.value.push({
+            location_id: locationId,
+            access_level: accessLevel,
+        });
 }
 
-function locationAccess(locationId: number): LocationAssignment['access_level'] | '' {
-    return locationAssignments.value.find((item) => item.location_id === locationId)?.access_level ?? '';
+function locationAccess(
+    locationId: number,
+): LocationAssignment['access_level'] | '' {
+    return (
+        locationAssignments.value.find(
+            (item) => item.location_id === locationId,
+        )?.access_level ?? ''
+    );
 }
 
 function toggleRole(roleId: number): void {
@@ -1026,8 +1068,6 @@ onMounted(() => {
                             </div>
                         </section>
 
-
-
                         <section class="panel panel-role-access">
                             <header class="panel-heading role-access-heading">
                                 <div>
@@ -1144,18 +1184,87 @@ onMounted(() => {
                                 </span>
                             </div>
                         </section>
-                        <section class="panel panel-location-scope" aria-labelledby="location-access-title">
-                            <header class="panel-heading location-scope-heading"><div><span class="section-kicker">Operational scope</span><h2 id="location-access-title">Location access</h2><p>Choose which locations this user can access.</p></div><span class="scope-count">{{ locations.filter((location) => !!locationAccess(location.id)).length }} assigned</span></header>
-                            <div v-if="locations.length === 0" class="empty-state"><strong>No locations available</strong><span>Ensure you have Location Management permission and active locations exist.</span></div>
+                        <section
+                            class="panel panel-location-scope"
+                            aria-labelledby="location-access-title"
+                        >
+                            <header
+                                class="panel-heading location-scope-heading"
+                            >
+                                <div>
+                                    <span class="section-kicker"
+                                        >Operational scope</span
+                                    >
+                                    <h2 id="location-access-title">
+                                        Location access
+                                    </h2>
+                                    <p>
+                                        Choose which locations this user can
+                                        access.
+                                    </p>
+                                </div>
+                                <span class="scope-count"
+                                    >{{
+                                        locations.filter(
+                                            (location) =>
+                                                !!locationAccess(location.id),
+                                        ).length
+                                    }}
+                                    assigned</span
+                                >
+                            </header>
+                            <div
+                                v-if="locations.length === 0"
+                                class="empty-state"
+                            >
+                                <strong>No locations available</strong
+                                ><span
+                                    >Ensure you have Location Management
+                                    permission and active locations exist.</span
+                                >
+                            </div>
                             <div v-else class="form-grid location-access-grid">
-                                <label v-for="location in locations" :key="location.id" class="field full location-access-field">
-                                    <span class="location-label"><strong>{{ location.name }}</strong><small>{{ location.code }} · {{ location.type }}</small></span>
-                                    <select :value="locationAccess(location.id)" @change="setLocationAccess(location.id, ($event.target as HTMLSelectElement).value as LocationAssignment['access_level'] | '')">
-                                        <option value="">No access</option><option value="view">View only</option><option value="receive">Receive transfers</option><option value="manage">Manage &amp; receive</option>
+                                <label
+                                    v-for="location in locations"
+                                    :key="location.id"
+                                    class="field full location-access-field"
+                                >
+                                    <span class="location-label"
+                                        ><strong>{{ location.name }}</strong
+                                        ><small
+                                            >{{ location.code }} ·
+                                            {{ location.type }}</small
+                                        ></span
+                                    >
+                                    <select
+                                        :value="locationAccess(location.id)"
+                                        @change="
+                                            setLocationAccess(
+                                                location.id,
+                                                (
+                                                    $event.target as HTMLSelectElement
+                                                ).value as
+                                                    | LocationAssignment['access_level']
+                                                    | '',
+                                            )
+                                        "
+                                    >
+                                        <option value="">No access</option>
+                                        <option value="view">View only</option>
+                                        <option value="receive">
+                                            Receive transfers
+                                        </option>
+                                        <option value="manage">
+                                            Manage &amp; receive
+                                        </option>
                                     </select>
                                 </label>
                             </div>
-                            <small v-if="formErrors.location_assignments" class="form-error">{{ formErrors.location_assignments }}</small>
+                            <small
+                                v-if="formErrors.location_assignments"
+                                class="form-error"
+                                >{{ formErrors.location_assignments }}</small
+                            >
                         </section>
                     </form>
 
@@ -2348,10 +2457,17 @@ h1 {
 .panel-location-scope,
 .panel-role-access {
     position: relative;
-    border: 1px solid color-mix(in srgb, var(--border, #e7ebf0) 58%, #10b981 42%);
+    border: 1px solid
+        color-mix(in srgb, var(--border, #e7ebf0) 58%, #10b981 42%);
     border-radius: 17px;
-    background: linear-gradient(155deg, var(--surface, #fff) 0%, color-mix(in srgb, var(--surface, #fff) 96%, #10b981 4%) 100%);
-    box-shadow: 0 10px 28px rgba(20, 40, 60, 0.055), 0 1px 0 rgba(255, 255, 255, 0.75) inset;
+    background: linear-gradient(
+        155deg,
+        var(--surface, #fff) 0%,
+        color-mix(in srgb, var(--surface, #fff) 96%, #10b981 4%) 100%
+    );
+    box-shadow:
+        0 10px 28px rgba(20, 40, 60, 0.055),
+        0 1px 0 rgba(255, 255, 255, 0.75) inset;
 }
 
 /* The role card occupies the second column; location scope spans the full row below. */
@@ -2370,8 +2486,14 @@ h1 {
 .role-access-heading {
     align-items: center;
     padding: 16px 18px;
-    border-bottom: 1px solid color-mix(in srgb, var(--border, #e7ebf0) 68%, #10b981 32%);
-    background: linear-gradient(112deg, rgba(16, 185, 129, 0.12), rgba(20, 184, 166, 0.045) 52%, rgba(99, 102, 241, 0.035));
+    border-bottom: 1px solid
+        color-mix(in srgb, var(--border, #e7ebf0) 68%, #10b981 32%);
+    background: linear-gradient(
+        112deg,
+        rgba(16, 185, 129, 0.12),
+        rgba(20, 184, 166, 0.045) 52%,
+        rgba(99, 102, 241, 0.035)
+    );
 }
 
 .location-scope-heading h2,
@@ -2399,7 +2521,11 @@ h1 {
     border: 1px solid rgba(16, 185, 129, 0.2);
     border-radius: 999px;
     color: #087f5b;
-    background: linear-gradient(135deg, rgba(16, 185, 129, 0.14), rgba(20, 184, 166, 0.07));
+    background: linear-gradient(
+        135deg,
+        rgba(16, 185, 129, 0.14),
+        rgba(20, 184, 166, 0.07)
+    );
     box-shadow: 0 2px 8px rgba(16, 185, 129, 0.07);
     font-size: 11px;
     font-weight: 750;
@@ -2415,17 +2541,32 @@ h1 {
     min-width: 0;
     gap: 8px;
     padding: 12px;
-    border: 1px solid color-mix(in srgb, var(--border, #e7ebf0) 76%, #10b981 24%);
+    border: 1px solid
+        color-mix(in srgb, var(--border, #e7ebf0) 76%, #10b981 24%);
     border-radius: 13px;
-    background: linear-gradient(145deg, var(--surface, #fff), color-mix(in srgb, var(--surface, #fff) 97%, #10b981 3%));
+    background: linear-gradient(
+        145deg,
+        var(--surface, #fff),
+        color-mix(in srgb, var(--surface, #fff) 97%, #10b981 3%)
+    );
     box-shadow: 0 2px 7px rgba(24, 45, 62, 0.025);
-    transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease, background 160ms ease;
+    transition:
+        border-color 160ms ease,
+        box-shadow 160ms ease,
+        transform 160ms ease,
+        background 160ms ease;
 }
 
 .location-access-field:hover {
     border-color: rgba(16, 185, 129, 0.58);
-    background: linear-gradient(145deg, var(--surface, #fff), rgba(16, 185, 129, 0.045));
-    box-shadow: 0 8px 20px rgba(16, 80, 60, 0.075), 0 0 0 2px rgba(16, 185, 129, 0.045);
+    background: linear-gradient(
+        145deg,
+        var(--surface, #fff),
+        rgba(16, 185, 129, 0.045)
+    );
+    box-shadow:
+        0 8px 20px rgba(16, 80, 60, 0.075),
+        0 0 0 2px rgba(16, 185, 129, 0.045);
     transform: translateY(-1px);
 }
 
@@ -2460,29 +2601,45 @@ h1 {
 
 .panel-role-access .selection-count {
     padding: 5px 9px;
-    border: 1px solid color-mix(in srgb, var(--border, #e7ebf0) 65%, #10b981 35%);
+    border: 1px solid
+        color-mix(in srgb, var(--border, #e7ebf0) 65%, #10b981 35%);
     border-radius: 999px;
-    background: linear-gradient(135deg, var(--surface, #fff), rgba(16, 185, 129, 0.055));
+    background: linear-gradient(
+        135deg,
+        var(--surface, #fff),
+        rgba(16, 185, 129, 0.055)
+    );
     color: var(--text-primary, #17202a);
 }
 
 .panel-role-access .role-row {
     padding: 11px 16px;
-    transition: background 150ms ease, box-shadow 150ms ease;
+    transition:
+        background 150ms ease,
+        box-shadow 150ms ease;
 }
 
-.panel-role-access .role-row[aria-pressed="true"] {
+.panel-role-access .role-row[aria-pressed='true'] {
     background: rgba(16, 185, 129, 0.055);
 }
 
 @media (max-width: 1100px) {
-    .location-access-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .location-access-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
 }
 
 @media (max-width: 640px) {
-    .location-access-grid { grid-template-columns: 1fr; padding: 12px; }
-    .location-scope-heading, .role-access-heading { padding: 14px; }
-    .scope-count { font-size: 10px; }
+    .location-access-grid {
+        grid-template-columns: 1fr;
+        padding: 12px;
+    }
+    .location-scope-heading,
+    .role-access-heading {
+        padding: 14px;
+    }
+    .scope-count {
+        font-size: 10px;
+    }
 }
-
 </style>

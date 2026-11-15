@@ -121,13 +121,16 @@ async function loadReservationPurposes(): Promise<void> {
     reservationPurposesLoading.value = true;
     reservationPurposesError.value = '';
     try {
-        const response = await fetch('/api/v1/backend/inventory/reservation-purposes', {
-            credentials: 'same-origin',
-            headers: {
-                Accept: 'application/json',
-                'X-Requested-With': 'XMLHttpRequest',
+        const response = await fetch(
+            '/api/v1/backend/inventory/reservation-purposes',
+            {
+                credentials: 'same-origin',
+                headers: {
+                    Accept: 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
             },
-        });
+        );
         const payload = await response.json();
         if (!response.ok)
             throw new Error(

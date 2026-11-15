@@ -162,7 +162,9 @@ async function save(): Promise<void> {
     };
     try {
         const r = await fetch(
-            editing.value ? `/api/v1/backend/brands/${editing.value.id}` : '/api/v1/backend/brands',
+            editing.value
+                ? `/api/v1/backend/brands/${editing.value.id}`
+                : '/api/v1/backend/brands',
             {
                 method: editing.value ? 'PUT' : 'POST',
                 headers: csrfHeaders(),

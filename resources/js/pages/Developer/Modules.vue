@@ -68,7 +68,9 @@ const showModal = ref(false);
 const editingModule = ref<Module | null>(null);
 
 const searchQuery = ref('');
-const statusFilter = ref<'all' | 'enabled' | 'disabled' | 'locked' | 'hidden'>('all');
+const statusFilter = ref<'all' | 'enabled' | 'disabled' | 'locked' | 'hidden'>(
+    'all',
+);
 
 const operationMessage = ref('');
 const operationMessageType = ref<'success' | 'error'>('success');
@@ -518,25 +520,36 @@ async function fetchModules(): Promise<void> {
     }
 }
 
-async function changeModuleState(module: Module, state: Module['state']): Promise<void> {
+async function changeModuleState(
+    module: Module,
+    state: Module['state'],
+): Promise<void> {
     clearOperationMessage();
     try {
-        const response = await fetch(`/api/v1/backend/modules/${module.id}/state`, {
-            method: 'PATCH',
-            headers: buildHeaders(),
-            credentials: 'same-origin',
-            body: JSON.stringify({ state }),
-        });
+        const response = await fetch(
+            `/api/v1/backend/modules/${module.id}/state`,
+            {
+                method: 'PATCH',
+                headers: buildHeaders(),
+                credentials: 'same-origin',
+                body: JSON.stringify({ state }),
+            },
+        );
         const payload = await readJsonResponse<Module>(response);
         if (!response.ok) {
-            throw new Error(getApiErrorMessage(payload, 'Unable to change module state.'));
+            throw new Error(
+                getApiErrorMessage(payload, 'Unable to change module state.'),
+            );
         }
         operationMessageType.value = 'success';
         operationMessage.value = `${module.name} state updated.`;
         await fetchModules();
     } catch (error) {
         operationMessageType.value = 'error';
-        operationMessage.value = error instanceof Error ? error.message : 'Unable to change module state.';
+        operationMessage.value =
+            error instanceof Error
+                ? error.message
+                : 'Unable to change module state.';
         await fetchModules();
     }
 }
@@ -679,7 +692,10 @@ const inactiveModules = computed<number>(
 );
 
 const restrictedModules = computed<number>(
-    () => modules.value.filter((module) => ['locked', 'hidden'].includes(module.state)).length,
+    () =>
+        modules.value.filter((module) =>
+            ['locked', 'hidden'].includes(module.state),
+        ).length,
 );
 
 const filteredModules = computed<Module[]>(() => {
@@ -1109,22 +1125,52 @@ onBeforeUnmount(() => {
                                 <td>
                                     <select
                                         v-if="isDeveloper"
-                                        :value="module.state || (module.is_active ? 'enabled' : 'disabled')"
+                                        :value="
+                                            module.state ||
+                                            (module.is_active
+                                                ? 'enabled'
+                                                : 'disabled')
+                                        "
                                         class="rounded-md border border-[var(--border)] bg-[var(--surface)] px-2 py-1 text-xs"
-                                        :disabled="['system', 'modules', 'settings', 'dashboard'].includes(module.slug)"
+                                        :disabled="
+                                            [
+                                                'system',
+                                                'modules',
+                                                'settings',
+                                                'dashboard',
+                                            ].includes(module.slug)
+                                        "
                                         :aria-label="`Change ${module.name} state`"
-                                        @change="changeModuleState(module, ($event.target as HTMLSelectElement).value as Module['state'])"
+                                        @change="
+                                            changeModuleState(
+                                                module,
+                                                (
+                                                    $event.target as HTMLSelectElement
+                                                ).value as Module['state'],
+                                            )
+                                        "
                                     >
                                         <option value="enabled">Enabled</option>
-                                        <option value="disabled">Disabled</option>
-                                        <option value="locked">Locked (read-only)</option>
-                                        <option value="hidden">Hidden from navigation</option>
+                                        <option value="disabled">
+                                            Disabled
+                                        </option>
+                                        <option value="locked">
+                                            Locked (read-only)
+                                        </option>
+                                        <option value="hidden">
+                                            Hidden from navigation
+                                        </option>
                                     </select>
                                     <span
                                         v-else
                                         class="rounded-md border border-[var(--border)] px-2 py-1 text-xs text-[var(--text-secondary)]"
                                     >
-                                        {{ module.state || (module.is_active ? 'enabled' : 'disabled') }}
+                                        {{
+                                            module.state ||
+                                            (module.is_active
+                                                ? 'enabled'
+                                                : 'disabled')
+                                        }}
                                     </span>
                                 </td>
 
@@ -1627,7 +1673,9 @@ onBeforeUnmount(() => {
                             <div class="form-field full">
                                 <span class="field-label">Lifecycle state</span>
                                 <p class="field-hint">
-                                    Change Enabled, Disabled, Locked or Hidden from the module registry table. Lifecycle controls are restricted to Developer.
+                                    Change Enabled, Disabled, Locked or Hidden
+                                    from the module registry table. Lifecycle
+                                    controls are restricted to Developer.
                                 </p>
                             </div>
 

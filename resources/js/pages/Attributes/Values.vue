@@ -238,7 +238,10 @@ async function confirmDelete(): Promise<void> {
     errorMessage.value = '';
     successMessage.value = '';
     try {
-        await apiRequest(`/api/v1/backend/attribute-values/${item.id}`, 'DELETE');
+        await apiRequest(
+            `/api/v1/backend/attribute-values/${item.id}`,
+            'DELETE',
+        );
         values.value = values.value.filter((value) => value.id !== item.id);
         deleteTarget.value = null;
         successMessage.value = `"${item.name}" deleted successfully.`;

@@ -141,7 +141,9 @@ async function loadAttributes(): Promise<void> {
     isLoading.value = true;
     errorMessage.value = '';
     try {
-        attributes.value = await apiRequest<Attribute[]>('/api/v1/backend/attributes');
+        attributes.value = await apiRequest<Attribute[]>(
+            '/api/v1/backend/attributes',
+        );
     } catch (error) {
         errorMessage.value =
             error instanceof Error
@@ -243,7 +245,10 @@ async function confirmDelete(): Promise<void> {
     errorMessage.value = '';
     successMessage.value = '';
     try {
-        await apiRequest(`/api/v1/backend/attributes/${attribute.id}`, 'DELETE');
+        await apiRequest(
+            `/api/v1/backend/attributes/${attribute.id}`,
+            'DELETE',
+        );
         attributes.value = attributes.value.filter(
             (item) => item.id !== attribute.id,
         );

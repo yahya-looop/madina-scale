@@ -166,7 +166,6 @@ export const primaryNavigation: NavigationItem[] = [
         permission: 'system.pricing.view',
     },
 
-
     {
         label: 'Accounts & Finance',
         icon: 'wallet',
@@ -188,7 +187,12 @@ export const primaryNavigation: NavigationItem[] = [
         expandable: true,
         permission: 'system.procurement.view',
         children: [
-            { label: 'Procurement Overview', href: '/backend/procurement', icon: 'layout-dashboard', permission: 'system.procurement.view' },
+            {
+                label: 'Procurement Overview',
+                href: '/backend/procurement',
+                icon: 'layout-dashboard',
+                permission: 'system.procurement.view',
+            },
         ],
     },
 
@@ -198,7 +202,12 @@ export const primaryNavigation: NavigationItem[] = [
         expandable: true,
         permission: 'system.shipping.view',
         children: [
-            { label: 'Delivery Dashboard', href: '/backend/shipping-delivery', icon: 'truck', permission: 'system.shipping.view' },
+            {
+                label: 'Delivery Dashboard',
+                href: '/backend/shipping-delivery',
+                icon: 'truck',
+                permission: 'system.shipping.view',
+            },
         ],
     },
 
@@ -222,11 +231,36 @@ export const primaryNavigation: NavigationItem[] = [
         expandable: true,
         permission: 'system.content.view',
         children: [
-            { label: 'Content Pages', href: '/backend/content/pages', icon: 'cms', permission: 'system.content.view' },
-            { label: 'Media Library', href: '/backend/content/media', icon: 'image', permission: 'system.content.view' },
-            { label: 'Banner Management', href: '/backend/content/banners', icon: 'image', permission: 'system.content.view' },
-            { label: 'Reusable Sections', href: '/backend/content/sections', icon: 'layout', permission: 'system.content.view' },
-            { label: 'SEO Management', href: '/backend/seo', icon: 'seo', permission: 'system.seo.view' },
+            {
+                label: 'Content Pages',
+                href: '/backend/content/pages',
+                icon: 'cms',
+                permission: 'system.content.view',
+            },
+            {
+                label: 'Media Library',
+                href: '/backend/content/media',
+                icon: 'image',
+                permission: 'system.content.view',
+            },
+            {
+                label: 'Banner Management',
+                href: '/backend/content/banners',
+                icon: 'image',
+                permission: 'system.content.view',
+            },
+            {
+                label: 'Reusable Sections',
+                href: '/backend/content/sections',
+                icon: 'layout',
+                permission: 'system.content.view',
+            },
+            {
+                label: 'SEO Management',
+                href: '/backend/seo',
+                icon: 'seo',
+                permission: 'system.seo.view',
+            },
         ],
     },
     {
@@ -235,9 +269,24 @@ export const primaryNavigation: NavigationItem[] = [
         expandable: true,
         permission: 'system.marketing.view',
         children: [
-            { label: 'Marketing Overview', href: '/backend/marketing', icon: 'dashboard', permission: 'system.marketing.view' },
-            { label: 'Campaigns', href: '/backend/marketing/campaigns', icon: 'target', permission: 'system.marketing.view' },
-            { label: 'Coupons & Offers', href: '/backend/marketing/coupons', icon: 'tag', permission: 'system.marketing.view' },
+            {
+                label: 'Marketing Overview',
+                href: '/backend/marketing',
+                icon: 'dashboard',
+                permission: 'system.marketing.view',
+            },
+            {
+                label: 'Campaigns',
+                href: '/backend/marketing/campaigns',
+                icon: 'target',
+                permission: 'system.marketing.view',
+            },
+            {
+                label: 'Coupons & Offers',
+                href: '/backend/marketing/coupons',
+                icon: 'tag',
+                permission: 'system.marketing.view',
+            },
         ],
     },
     {
@@ -246,11 +295,36 @@ export const primaryNavigation: NavigationItem[] = [
         expandable: true,
         permission: 'system.analytics.view',
         children: [
-            { label: 'Analytics Overview', href: '/backend/analytics', icon: 'chart-column', permission: 'system.analytics.view' },
-            { label: 'Sales Analytics', href: '/backend/analytics/sales', icon: 'sales', permission: 'system.analytics.view' },
-            { label: 'Website Analytics', href: '/backend/analytics/website', icon: 'globe', permission: 'system.analytics.view' },
-            { label: 'Marketing Analytics', href: '/backend/analytics/marketing', icon: 'megaphone', permission: 'system.analytics.view' },
-            { label: 'Reports', href: '/backend/reports', icon: 'reports', permission: 'system.reports.view' },
+            {
+                label: 'Analytics Overview',
+                href: '/backend/analytics',
+                icon: 'chart-column',
+                permission: 'system.analytics.view',
+            },
+            {
+                label: 'Sales Analytics',
+                href: '/backend/analytics/sales',
+                icon: 'sales',
+                permission: 'system.analytics.view',
+            },
+            {
+                label: 'Website Analytics',
+                href: '/backend/analytics/website',
+                icon: 'globe',
+                permission: 'system.analytics.view',
+            },
+            {
+                label: 'Marketing Analytics',
+                href: '/backend/analytics/marketing',
+                icon: 'megaphone',
+                permission: 'system.analytics.view',
+            },
+            {
+                label: 'Reports',
+                href: '/backend/reports',
+                icon: 'reports',
+                permission: 'system.reports.view',
+            },
         ],
     },
 

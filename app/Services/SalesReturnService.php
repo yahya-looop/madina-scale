@@ -184,7 +184,14 @@ class SalesReturnService
                     : $stockQuery->where('product_variant_id', $owner['product_variant_id'])->whereNull('product_id');
                 $stock = $stockQuery->lockForUpdate()->first();
                 if (! $stock) {
-                    $stock = InventoryStock::query()->create($owner + ['location_id' => $order->location_id, 'quantity' => '0.0000', 'reserved_quantity' => '0.0000']);
+                    $stock = InventoryStock::query()->create($owner + [
+                        'location_id' => $order->location_id,
+                        'quantity' => '0.0000',
+                        'reserved_quantity' => '0.0000',
+                        'average_unit_cost' => '0.000000',
+                        'inventory_value' => '0.00',
+                        'valuation_status' => 'valued',
+                    ]);
                 }
                 $before = (string) $stock->quantity;
                 $after = bcadd($before, $line['quantity'], 4);

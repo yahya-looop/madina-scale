@@ -28,6 +28,7 @@ class InventoryValuationService
             if ((int) $existing->stock_movement_id !== (int) $movement->id) {
                 throw ValidationException::withMessages(['idempotency_key' => 'Valuation key is already linked to another stock movement.']);
             }
+
             return $existing;
         }
 
@@ -37,12 +38,14 @@ class InventoryValuationService
             ]);
         }
 
-        $qtyDelta = (string) $movement->quantity_delta;
-        $qtyBefore = (string) $movement->balance_before;
-        $qtyAfter = (string) $movement->balance_after;
-        $valueBefore = (string) $stock->inventory_value;
-        $average = (string) ($stock->average_unit_cost ?? '0');
-
+        $qtyDelta = $movement->quantity_delta;
+        $qtyBefore = $movement->balance_before;
+        $qtyAfter = $movement->balance_after;
+        $valueBefore = $stock->inventory_value;
+        $average = $stock->average_unit_cost ?? '0.000000';
+        if (! preg_match('/^\\d{1,12}(?:\\.\\d{1,6})?$/', $unitCost) || ! is_numeric($unitCost)) {
+            throw ValidationException::withMessages(['unit_cost' => 'Receipt unit cost must be a valid non-negative decimal.']);
+        }
         if (bccomp($qtyDelta, '0', 4) > 0) {
             if (bccomp($unitCost, '0', 6) < 0) {
                 throw ValidationException::withMessages(['unit_cost' => 'Receipt unit cost cannot be negative.']);
@@ -101,27 +104,43 @@ class InventoryValuationService
         return DB::transaction(function () use ($stock, $totalValue, $actor, $reason): InventoryValuationMovement {
             /** @var InventoryStock $locked */
             $locked = InventoryStock::query()->whereKey($stock->id)->lockForUpdate()->firstOrFail();
-            if ($locked->valuation_status === 'valued' || bccomp((string) $locked->quantity, '0', 4) <= 0) {
+            if ($locked->valuation_status === 'valued' || bccomp($locked->quantity, '0', 4) <= 0) {
                 throw ValidationException::withMessages(['valuation' => 'Opening valuation applies only to positive stock awaiting valuation.']);
             }
-            if (bccomp($totalValue, '0', 2) <= 0 || trim($reason) === '') {
+            $normalizedTotalValue = trim($totalValue);
+
+            if (! $this->isNumericString($normalizedTotalValue) || ! preg_match('/^\\d{1,14}(?:\\.\\d{1,2})?$/', $normalizedTotalValue) || trim($reason) === '') {
                 throw ValidationException::withMessages(['total_value' => 'Enter a positive verified value and an audit reason.']);
             }
-            $average = bcdiv($totalValue, (string) $locked->quantity, 6);
+
+            if (bccomp($normalizedTotalValue, '0', 2) <= 0) {
+                throw ValidationException::withMessages(['total_value' => 'Enter a positive verified value and an audit reason.']);
+            }
+
+            $average = bcdiv($normalizedTotalValue, $locked->quantity, 6);
             $entry = InventoryValuationMovement::query()->create([
                 'inventory_stock_id' => $locked->id, 'movement_type' => 'opening',
                 'quantity_delta' => '0.0000', 'unit_cost' => $average,
-                'value_delta' => $totalValue, 'quantity_before' => $locked->quantity,
+                'value_delta' => $normalizedTotalValue, 'quantity_before' => $locked->quantity,
                 'quantity_after' => $locked->quantity, 'value_before' => '0.00',
-                'value_after' => $totalValue, 'reference_type' => 'opening_valuation',
+                'value_after' => $normalizedTotalValue, 'reference_type' => 'opening_valuation',
                 'reference_id' => (string) $locked->id, 'idempotency_key' => (string) Str::uuid(),
                 'created_by' => $actor->id, 'metadata' => ['reason' => $reason],
             ]);
-            $locked->inventory_value = $totalValue;
+            $locked->inventory_value = $normalizedTotalValue;
             $locked->average_unit_cost = $average;
             $locked->valuation_status = 'valued';
             $locked->save();
+
             return $entry;
         }, 3);
+    }
+
+    /**
+     * @phpstan-assert-if-true numeric-string $value
+     */
+    private function isNumericString(string $value): bool
+    {
+        return is_numeric($value);
     }
 }

@@ -33,6 +33,46 @@ test('receipt increases stock and records a ledger movement', function () {
     $this->assertDatabaseCount('stock_movements', 1);
 });
 
+test('positive stock adjustment requires and records a verified unit cost', function () {
+    $product = inventoryTestProduct();
+    $location = inventoryTestLocation();
+    $service = app(InventoryService::class);
+
+    expect(fn () => $service->adjust([
+        'product_id' => $product->id,
+        'location_id' => $location->id,
+        'quantity' => '3.0000',
+    ]))->toThrow(ValidationException::class);
+
+    $key = (string) Str::uuid();
+    $movement = $service->adjust([
+        'product_id' => $product->id,
+        'location_id' => $location->id,
+        'quantity' => '3.0000',
+        'unit_cost' => '8.500000',
+        'idempotency_key' => $key,
+        'reason' => 'Verified stock count gain',
+    ]);
+
+    $stock = InventoryStock::query()
+        ->where('product_id', $product->id)
+        ->where('location_id', $location->id)
+        ->firstOrFail();
+
+    expect((string) $stock->quantity)->toBe('3.0000')
+        ->and((string) $stock->inventory_value)->toBe('25.50')
+        ->and((string) $stock->average_unit_cost)->toBe('8.500000');
+
+    expect(fn () => $service->adjust([
+        'product_id' => $product->id,
+        'location_id' => $location->id,
+        'quantity' => '3.0000',
+        'unit_cost' => '9.000000',
+        'idempotency_key' => $key,
+        'reason' => 'Verified stock count gain',
+    ]))->toThrow(ValidationException::class);
+});
+
 test('issue decreases stock without allowing a negative available balance', function () {
     $product = inventoryTestProduct();
     $location = inventoryTestLocation();

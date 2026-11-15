@@ -218,6 +218,7 @@ test('issue and adjustment APIs write request IP address during immutable ledger
         'product_id' => $product->id,
         'location_id' => $location->id,
         'quantity' => '1.0000',
+        'unit_cost' => '8.500000',
         'reason' => 'Ledger IP regression test',
     ])->assertOk();
 

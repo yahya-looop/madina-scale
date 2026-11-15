@@ -5,11 +5,13 @@ namespace Tests\Feature;
 use App\Models\B2BAccount;
 use App\Models\B2BQuote;
 use App\Models\Customer;
+use App\Models\FinancialAccount;
 use App\Models\FlashSale;
 use App\Models\FlashSaleItem;
 use App\Models\InventoryReservation;
 use App\Models\InventoryReservationPurpose;
 use App\Models\InventoryStock;
+use App\Models\JournalEntry;
 use App\Models\Location;
 use App\Models\Module;
 use App\Models\Permission;
@@ -18,8 +20,10 @@ use App\Models\ProductVariant;
 use App\Models\Role;
 use App\Models\SalesOrder;
 use App\Models\SalesOrderFlashSaleAllocation;
+use App\Models\SalesOrderFulfillment;
 use App\Models\User;
 use App\Services\CommercialPricingService;
+use App\Services\InventoryValuationService;
 use App\Services\SalesOrderService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
@@ -421,6 +425,66 @@ class SalesOrderWorkflowTest extends TestCase
             'quantity' => '8.0000', 'reserved_quantity' => '0.0000',
         ]);
         $this->assertDatabaseCount('sales_order_fulfillments', 2);
+    }
+
+    public function test_fulfillment_posts_cogs_against_inventory_and_replays_without_duplicate_journal(): void
+    {
+        [$location, $variant] = $this->orderFixture();
+        $user = $this->orderUser($location);
+        $stock = InventoryStock::query()
+            ->where('product_variant_id', $variant->id)
+            ->where('location_id', $location->id)
+            ->firstOrFail();
+        $stock->update([
+            'average_unit_cost' => null,
+            'inventory_value' => null,
+            'valuation_status' => 'pending_opening',
+        ]);
+        app(InventoryValuationService::class)->setOpeningValue(
+            $stock,
+            '125.00',
+            $user,
+            'Verified opening cost for fulfillment COGS regression test',
+        );
+
+        $this->actingAs($user)->postJson('/api/v1/backend/orders', [
+            'location_id' => $location->id,
+            'customer_name' => 'COGS Buyer',
+            'items' => [['product_variant_id' => $variant->id, 'quantity' => 2]],
+        ])->assertCreated();
+        $order = SalesOrder::query()->firstOrFail();
+        $this->postJson("/api/v1/backend/orders/{$order->id}/confirm", [])->assertOk();
+        $item = $order->items()->firstOrFail();
+        $key = (string) Str::uuid();
+        $payload = [
+            'idempotency_key' => $key,
+            'items' => [['sales_order_item_id' => $item->id, 'quantity' => 1]],
+        ];
+
+        $this->postJson("/api/v1/backend/orders/{$order->id}/fulfill", $payload)->assertOk();
+        $fulfillment = SalesOrderFulfillment::query()->firstOrFail();
+        $journal = JournalEntry::query()->findOrFail($fulfillment->journal_entry_id);
+
+        expect($journal->status)->toBe('posted')
+            ->and($journal->source)->toBe('sales_fulfillment_cogs')
+            ->and((string) $fulfillment->cogs_amount)->toBe('12.50');
+
+        $this->assertDatabaseHas('journal_entry_lines', [
+            'journal_entry_id' => $journal->id,
+            'account_id' => FinancialAccount::query()->where('code', '5000')->value('id'),
+            'debit' => '12.50',
+            'credit' => '0.00',
+        ]);
+        $this->assertDatabaseHas('journal_entry_lines', [
+            'journal_entry_id' => $journal->id,
+            'account_id' => FinancialAccount::query()->where('code', '1200')->value('id'),
+            'debit' => '0.00',
+            'credit' => '12.50',
+        ]);
+
+        $this->postJson("/api/v1/backend/orders/{$order->id}/fulfill", $payload)->assertOk();
+        $this->assertDatabaseCount('journal_entries', 1);
+        $this->assertDatabaseCount('sales_order_fulfillments', 1);
     }
 
     public function test_fulfillment_idempotency_replays_only_the_identical_payload_even_after_completion(): void

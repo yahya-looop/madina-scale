@@ -50,10 +50,10 @@ return new class extends Migration
             $table->index(['reference_type', 'reference_id']);
         });
 
-        DB::statement("ALTER TABLE inventory_valuation_movements ADD CONSTRAINT inventory_valuation_movements_quantity_check CHECK (quantity_after = quantity_before + quantity_delta)");
-        DB::statement("ALTER TABLE inventory_valuation_movements ADD CONSTRAINT inventory_valuation_movements_value_check CHECK (value_after = value_before + value_delta AND value_after >= 0)");
+        DB::statement('ALTER TABLE inventory_valuation_movements ADD CONSTRAINT inventory_valuation_movements_quantity_check CHECK (quantity_after = quantity_before + quantity_delta)');
+        DB::statement('ALTER TABLE inventory_valuation_movements ADD CONSTRAINT inventory_valuation_movements_value_check CHECK (value_after = value_before + value_delta AND value_after >= 0)');
         DB::statement("ALTER TABLE inventory_stocks ADD CONSTRAINT inventory_stocks_valuation_status_check CHECK (valuation_status IN ('pending_opening', 'valued'))");
-        DB::statement("ALTER TABLE inventory_stocks ADD CONSTRAINT inventory_stocks_valuation_nonnegative_check CHECK ((inventory_value IS NULL OR inventory_value >= 0) AND (average_unit_cost IS NULL OR average_unit_cost >= 0))");
+        DB::statement('ALTER TABLE inventory_stocks ADD CONSTRAINT inventory_stocks_valuation_nonnegative_check CHECK ((inventory_value IS NULL OR inventory_value >= 0) AND (average_unit_cost IS NULL OR average_unit_cost >= 0))');
 
         DB::table('financial_accounts')->updateOrInsert(
             ['code' => '5100'],

@@ -118,13 +118,16 @@ const locationTypeMap: Record<LocationSuggestionKey, string> = {
 };
 async function loadCustomLocationSuggestions() {
     try {
-        const response = await fetch('/api/v1/backend/customer-location-suggestions', {
-            headers: {
-                Accept: 'application/json',
-                'X-Requested-With': 'XMLHttpRequest',
+        const response = await fetch(
+            '/api/v1/backend/customer-location-suggestions',
+            {
+                headers: {
+                    Accept: 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                credentials: 'same-origin',
             },
-            credentials: 'same-origin',
-        });
+        );
         if (!response.ok) return;
         const payload = await response.json();
         for (const key of Object.keys(
@@ -149,12 +152,18 @@ async function rememberLocationSuggestion(
     const current = customLocationSuggestions[key];
     if (current.some((item) => item.toLowerCase() === cleanValue.toLowerCase()))
         return;
-    const response = await fetch('/api/v1/backend/customer-location-suggestions', {
-        method: 'POST',
-        headers: { ...headers(), Accept: 'application/json' },
-        credentials: 'same-origin',
-        body: JSON.stringify({ type: locationTypeMap[key], name: cleanValue }),
-    });
+    const response = await fetch(
+        '/api/v1/backend/customer-location-suggestions',
+        {
+            method: 'POST',
+            headers: { ...headers(), Accept: 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({
+                type: locationTypeMap[key],
+                name: cleanValue,
+            }),
+        },
+    );
     if (!response.ok)
         throw new Error(
             await errorText(
@@ -413,11 +422,14 @@ async function showCustomer(c: Customer) {
 async function removeCustomer() {
     if (!deleteTarget.value) return;
     try {
-        const r = await fetch(`/api/v1/backend/customers/${deleteTarget.value.id}`, {
-            method: 'DELETE',
-            headers: headers(),
-            credentials: 'same-origin',
-        });
+        const r = await fetch(
+            `/api/v1/backend/customers/${deleteTarget.value.id}`,
+            {
+                method: 'DELETE',
+                headers: headers(),
+                credentials: 'same-origin',
+            },
+        );
         if (!r.ok)
             throw new Error(await errorText(r, 'Could not delete customer.'));
         deleteTarget.value = null;
@@ -456,7 +468,9 @@ const initials = (c: Customer) =>
 onMounted(() => {
     loadCustomLocationSuggestions();
     load();
-    const customerId = new URLSearchParams(window.location.search).get('customer_id');
+    const customerId = new URLSearchParams(window.location.search).get(
+        'customer_id',
+    );
     if (customerId && /^\d+$/.test(customerId)) {
         void showCustomer({ id: Number(customerId) } as Customer);
     }

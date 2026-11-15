@@ -409,7 +409,10 @@ async function deleteProduct(): Promise<void> {
     errorMessage.value = '';
 
     try {
-        await apiRequest(`/api/v1/backend/products/${product.value.id}`, 'DELETE');
+        await apiRequest(
+            `/api/v1/backend/products/${product.value.id}`,
+            'DELETE',
+        );
 
         router.visit('/backend/products');
     } catch (error) {

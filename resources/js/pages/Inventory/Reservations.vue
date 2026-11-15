@@ -164,13 +164,16 @@ async function loadAllPurposes(): Promise<void> {
 }
 async function loadPurposes(): Promise<void> {
     try {
-        const response = await fetch('/api/v1/backend/inventory/reservation-purposes', {
-            credentials: 'same-origin',
-            headers: {
-                Accept: 'application/json',
-                'X-Requested-With': 'XMLHttpRequest',
+        const response = await fetch(
+            '/api/v1/backend/inventory/reservation-purposes',
+            {
+                credentials: 'same-origin',
+                headers: {
+                    Accept: 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
             },
-        });
+        );
         const payload = await response.json();
         if (response.ok)
             purposes.value = Array.isArray(payload.data) ? payload.data : [];
@@ -317,13 +320,16 @@ async function load(target = page.value): Promise<void> {
         if (statusFilter.value !== 'all') p.set('status', statusFilter.value);
         if (purposeFilter.value !== 'all')
             p.set('purpose', purposeFilter.value);
-        const response = await fetch(`/api/v1/backend/inventory/reservations?${p}`, {
-            credentials: 'same-origin',
-            headers: {
-                Accept: 'application/json',
-                'X-Requested-With': 'XMLHttpRequest',
+        const response = await fetch(
+            `/api/v1/backend/inventory/reservations?${p}`,
+            {
+                credentials: 'same-origin',
+                headers: {
+                    Accept: 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
             },
-        });
+        );
         const payload = (await response.json()) as PageResponse;
         if (!response.ok)
             throw new Error(
@@ -660,7 +666,7 @@ onMounted(() => {
                         ><Icon name="search" :size="16" /><input
                             v-model="search"
                             type="search"
-                            placeholder="Search this page: product, reference or location…" 
+                            placeholder="Search this page: product, reference or location…"
                             aria-label="Search reservations"
                     /></label>
                     <div class="reservation-filter-group">
@@ -814,7 +820,10 @@ onMounted(() => {
                                 </td>
                                 <td>
                                     <div
-                                        v-if="r.status === 'active' && props.canManageReservations"
+                                        v-if="
+                                            r.status === 'active' &&
+                                            props.canManageReservations
+                                        "
                                         class="reservation-row-actions"
                                     >
                                         <button
@@ -841,8 +850,15 @@ onMounted(() => {
                                             Cancel
                                         </button>
                                     </div>
-                                    <small v-else-if="r.status === 'active' && !props.canManageReservations" class="reservation-readonly-note">
-                                        Read-only · management permission required
+                                    <small
+                                        v-else-if="
+                                            r.status === 'active' &&
+                                            !props.canManageReservations
+                                        "
+                                        class="reservation-readonly-note"
+                                    >
+                                        Read-only · management permission
+                                        required
                                     </small>
                                     <small v-else>{{
                                         r.resolver?.name

@@ -8,8 +8,8 @@ use App\Models\InventoryStock;
 use App\Models\Location;
 use App\Models\Product;
 use App\Models\ProductVariant;
-use App\Models\StockMovement;
 use App\Models\SalesOrderItem;
+use App\Models\StockMovement;
 use App\Models\User;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -296,7 +296,16 @@ class InventoryReservationService
             return $stock;
         }
 
-        return InventoryStock::query()->create(['product_id' => $owner['product_id'], 'product_variant_id' => $owner['variant_id'], 'location_id' => $locationId, 'quantity' => '0.0000', 'reserved_quantity' => '0.0000']);
+        return InventoryStock::query()->create([
+            'product_id' => $owner['product_id'],
+            'product_variant_id' => $owner['variant_id'],
+            'location_id' => $locationId,
+            'quantity' => '0.0000',
+            'reserved_quantity' => '0.0000',
+            'average_unit_cost' => '0.000000',
+            'inventory_value' => '0.00',
+            'valuation_status' => 'valued',
+        ]);
     }
 
     /** @return numeric-string */

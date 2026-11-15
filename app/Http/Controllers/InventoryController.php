@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class InventoryController extends Controller
 {
@@ -229,8 +230,11 @@ class InventoryController extends Controller
 
     public function receive(Request $request): JsonResponse
     {
+        $location = $request->validate([
+            'location_id' => ['required', 'integer', 'min:1'],
+        ]);
+        $this->locationAccess->assertReceive($request->user(), (int) $location['location_id']);
         $data = $this->validateMovement($request, true);
-        $this->locationAccess->assertReceive($request->user(), (int) $data['location_id']);
 
         // Capture request metadata before the immutable ledger row is inserted.
         // Never update a stock movement after creation.
@@ -254,8 +258,11 @@ class InventoryController extends Controller
 
     public function issue(Request $request): JsonResponse
     {
+        $location = $request->validate([
+            'location_id' => ['required', 'integer', 'min:1'],
+        ]);
+        $this->locationAccess->assertManage($request->user(), (int) $location['location_id']);
         $data = $this->validateMovement($request, true);
-        $this->locationAccess->assertManage($request->user(), (int) $data['location_id']);
 
         // Capture request metadata before the immutable ledger row is inserted.
         $data['ip_address'] = $request->ip();
@@ -278,8 +285,11 @@ class InventoryController extends Controller
 
     public function adjust(Request $request): JsonResponse
     {
-        $data = $this->validateMovement($request, true);
-        $this->locationAccess->assertManage($request->user(), (int) $data['location_id']);
+        $location = $request->validate([
+            'location_id' => ['required', 'integer', 'min:1'],
+        ]);
+        $this->locationAccess->assertManage($request->user(), (int) $location['location_id']);
+        $data = $this->validateMovement($request, true, true);
 
         // Capture request metadata before the immutable ledger row is inserted.
         $data['ip_address'] = $request->ip();
@@ -312,6 +322,7 @@ class InventoryController extends Controller
             'source_location_id' => ['required', 'integer', 'min:1', 'different:destination_location_id'],
             'destination_location_id' => ['required', 'integer', 'min:1'],
             'quantity' => ['required', 'numeric', 'gt:0', 'regex:/^\d{1,14}(?:\.\d{1,4})?$/'],
+            'unit_cost' => ['nullable', 'numeric', 'regex:/^\d{1,12}(?:\.\d{1,6})?$/'],
             'reason' => ['nullable', 'string', 'max:255'],
             'reference_type' => ['nullable', 'string', 'max:100'],
             'reference_id' => ['nullable', 'string', 'max:100'],
@@ -355,6 +366,7 @@ class InventoryController extends Controller
             'source_location_id' => ['required', 'integer', 'min:1', 'different:destination_location_id'],
             'destination_location_id' => ['required', 'integer', 'min:1'],
             'quantity' => ['required', 'numeric', 'gt:0', 'regex:/^\d{1,14}(?:\.\d{1,4})?$/'],
+            'unit_cost' => ['nullable', 'numeric', 'regex:/^\d{1,12}(?:\.\d{1,6})?$/'],
             'reason' => ['nullable', 'string', 'max:255'],
             'reference_type' => ['nullable', 'string', 'max:100'],
             'reference_id' => ['nullable', 'string', 'max:100'],
@@ -445,8 +457,9 @@ class InventoryController extends Controller
     private function validateMovement(
         Request $request,
         bool $allowIdempotencyKey,
+        bool $requirePositiveAdjustmentCost = false,
     ): array {
-        return $request->validate([
+        $data = $request->validate([
             'product_id' => [
                 'nullable',
                 'integer',
@@ -468,6 +481,7 @@ class InventoryController extends Controller
                 'not_in:0',
                 'regex:/^-?\d{1,14}(?:\.\d{1,4})?$/',
             ],
+            'unit_cost' => ['nullable', 'numeric', 'regex:/^\d{1,12}(?:\.\d{1,6})?$/'],
             'reason' => ['nullable', 'string', 'max:255'],
             'reference_type' => ['nullable', 'string', 'max:100'],
             'reference_id' => ['nullable', 'string', 'max:100'],
@@ -477,5 +491,22 @@ class InventoryController extends Controller
             ],
             'metadata' => ['nullable', 'array'],
         ]);
+
+        $validatedQuantity = (string) $data['quantity'];
+        if (! is_numeric($validatedQuantity)) {
+            throw ValidationException::withMessages([
+                'quantity' => 'Enter a valid quantity.',
+            ]);
+        }
+
+        if ($requirePositiveAdjustmentCost
+            && bccomp($validatedQuantity, '0', 4) > 0
+            && ! array_key_exists('unit_cost', $data)) {
+            throw ValidationException::withMessages([
+                'unit_cost' => 'A verified unit cost is required for a positive stock adjustment.',
+            ]);
+        }
+
+        return $data;
     }
 }

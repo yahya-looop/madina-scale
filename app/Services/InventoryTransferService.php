@@ -206,6 +206,9 @@ class InventoryTransferService
                     'quantity' => '0',
                     'reserved_quantity' => '0',
                     'low_stock_threshold' => '0',
+                    'average_unit_cost' => '0.000000',
+                    'inventory_value' => '0.00',
+                    'valuation_status' => 'valued',
                 ]);
                 $stock = InventoryStock::query()->whereKey($stock->id)->lockForUpdate()->firstOrFail();
             }
@@ -237,10 +240,11 @@ class InventoryTransferService
             if (! array_key_exists('valuation_value_sent', $transferMetadata)) {
                 throw ValidationException::withMessages(['transfer' => 'This transfer was dispatched before inventory valuation was enabled. Reconcile its carrying value before receiving it.']);
             }
-            $totalCarryingValue = (string) $transferMetadata['valuation_value_sent'];
-            $previousCarryingValue = (string) ($transferMetadata['valuation_value_received'] ?? '0.00');
-            $cumulativeCarryingValue = bcmul($totalCarryingValue, bcdiv($newReceived, (string) $locked->quantity_sent, 8), 2);
-            if (bccomp($newReceived, (string) $locked->quantity_sent, 4) === 0) {
+            $totalCarryingValue = $this->numericMetadataValue($transferMetadata['valuation_value_sent'], 'valuation_value_sent');
+            $previousCarryingValue = $this->numericMetadataValue($transferMetadata['valuation_value_received'] ?? '0.00', 'valuation_value_received');
+            $quantitySent = $this->numericMetadataValue($locked->quantity_sent, 'quantity_sent');
+            $cumulativeCarryingValue = bcmul($totalCarryingValue, bcdiv($newReceived, $quantitySent, 8), 2);
+            if (bccomp($newReceived, $quantitySent, 4) === 0) {
                 $cumulativeCarryingValue = $totalCarryingValue;
             }
             $receiptCarryingValue = bcsub($cumulativeCarryingValue, $previousCarryingValue, 2);
@@ -355,6 +359,9 @@ class InventoryTransferService
                         'location_id' => $locationId,
                         'quantity' => '0.0000',
                         'reserved_quantity' => '0.0000',
+                        'average_unit_cost' => '0.000000',
+                        'inventory_value' => '0.00',
+                        'valuation_status' => 'valued',
                     ]);
                 }
 
@@ -427,6 +434,24 @@ class InventoryTransferService
     }
 
     /**
+     * Compare only metadata supplied by the caller. Dispatch adds immutable
+     * valuation snapshots to stored metadata after validating the request.
+     *
+     * @param  array<string, mixed>  $stored
+     * @param  array<string, mixed>  $requested
+     */
+    private function matchesRequestedMetadata(array $stored, array $requested): bool
+    {
+        foreach ($requested as $key => $value) {
+            if (! array_key_exists($key, $stored) || $stored[$key] != $value) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
      * @param  numeric-string  $quantity
      * @param  array<string, mixed>  $data
      */
@@ -452,7 +477,10 @@ class InventoryTransferService
             && $existing->reason === ($data['reason'] ?? null)
             && $existing->reference_type === ($data['reference_type'] ?? null)
             && $existing->reference_id === (isset($data['reference_id']) ? (string) $data['reference_id'] : null)
-            && ($existing->metadata ?? null) == ($data['metadata'] ?? null);
+            && $this->matchesRequestedMetadata(
+                (array) ($existing->metadata ?? []),
+                (array) ($data['metadata'] ?? []),
+            );
 
         if (! $same) {
             throw ValidationException::withMessages(['idempotency_key' => 'This key was already used for a different transfer.']);
@@ -541,6 +569,32 @@ class InventoryTransferService
         }
 
         return ['product_id' => null, 'variant_id' => (int) $variant->id];
+    }
+
+    /**
+     * @return numeric-string
+     */
+    private function numericMetadataValue(mixed $value, string $field): string
+    {
+        if (! is_string($value) && ! is_int($value)) {
+            throw ValidationException::withMessages([$field => 'The stored transfer valuation snapshot is invalid.']);
+        }
+
+        $normalized = (string) $value;
+
+        if (! $this->isNumericString($normalized) || ! preg_match('/^\\d{1,14}(?:\\.\\d{1,8})?$/', $normalized)) {
+            throw ValidationException::withMessages([$field => 'The stored transfer valuation snapshot is invalid.']);
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * @phpstan-assert-if-true numeric-string $value
+     */
+    private function isNumericString(string $value): bool
+    {
+        return is_numeric($value);
     }
 
     /**

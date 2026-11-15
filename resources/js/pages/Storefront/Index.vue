@@ -176,7 +176,12 @@ function pageLabel(label: string): string {
                     </span>
                 </Link>
                 <nav class="flex shrink-0 items-center gap-2 sm:gap-3">
-                    <Link href="/cart" class="inline-flex items-center gap-1 rounded-lg border border-emerald-200 px-3 py-2 text-sm font-bold text-emerald-700 hover:bg-emerald-50"><Icon name="shopping-cart" :size="16" /> {{ language === 'bn' ? 'কার্ট' : 'Cart' }}</Link>
+                    <Link
+                        href="/cart"
+                        class="inline-flex items-center gap-1 rounded-lg border border-emerald-200 px-3 py-2 text-sm font-bold text-emerald-700 hover:bg-emerald-50"
+                        ><Icon name="shopping-cart" :size="16" />
+                        {{ language === 'bn' ? 'কার্ট' : 'Cart' }}</Link
+                    >
                     <button
                         type="button"
                         class="rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
@@ -204,8 +209,14 @@ function pageLabel(label: string): string {
                 :key="banner.id"
                 :href="banner.link_url || undefined"
                 class="group block overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
-                :target="banner.link_url?.startsWith('http') ? '_blank' : undefined"
-                :rel="banner.link_url?.startsWith('http') ? 'noopener noreferrer' : undefined"
+                :target="
+                    banner.link_url?.startsWith('http') ? '_blank' : undefined
+                "
+                :rel="
+                    banner.link_url?.startsWith('http')
+                        ? 'noopener noreferrer'
+                        : undefined
+                "
             >
                 <img
                     :src="banner.image_url"
@@ -373,8 +384,12 @@ function pageLabel(label: string): string {
                                 <span
                                     v-if="product.has_flash_sale"
                                     class="mb-2 inline-flex rounded-full bg-rose-50 px-2 py-1 text-[10px] font-bold text-rose-700"
-                                >FLASH SALE</span>
-                                <div v-if="product.has_flash_sale" class="mb-1 text-xs text-slate-400 line-through">
+                                    >FLASH SALE</span
+                                >
+                                <div
+                                    v-if="product.has_flash_sale"
+                                    class="mb-1 text-xs text-slate-400 line-through"
+                                >
                                     {{ formatPrice(product.regular_price) }}
                                 </div>
                                 <p
@@ -394,11 +409,35 @@ function pageLabel(label: string): string {
                                     {{ copy.wholesale }}
                                 </p>
                                 <div class="mt-4 grid grid-cols-2 gap-2">
-                                    <Link :href="`/products/${product.slug}`" class="inline-flex items-center justify-center gap-1 rounded-xl border border-emerald-600 px-2 py-2.5 text-xs font-bold text-emerald-700 transition hover:bg-emerald-50">
-                                        {{ copy.view }} <Icon name="arrow-right" :size="14" />
+                                    <Link
+                                        :href="`/products/${product.slug}`"
+                                        class="inline-flex items-center justify-center gap-1 rounded-xl border border-emerald-600 px-2 py-2.5 text-xs font-bold text-emerald-700 transition hover:bg-emerald-50"
+                                    >
+                                        {{ copy.view }}
+                                        <Icon name="arrow-right" :size="14" />
                                     </Link>
-                                    <button v-if="product.default_variant_id" type="button" class="inline-flex items-center justify-center gap-1 rounded-xl bg-emerald-700 px-2 py-2.5 text-xs font-bold text-white transition hover:bg-emerald-800" @click="router.post('/cart/items', { product_variant_id: product.default_variant_id, quantity: 1 }, { preserveScroll: true })">
-                                        <Icon name="shopping-cart" :size="14" /> {{ language === 'bn' ? 'কার্টে যোগ' : 'Add to cart' }}
+                                    <button
+                                        v-if="product.default_variant_id"
+                                        type="button"
+                                        class="inline-flex items-center justify-center gap-1 rounded-xl bg-emerald-700 px-2 py-2.5 text-xs font-bold text-white transition hover:bg-emerald-800"
+                                        @click="
+                                            router.post(
+                                                '/cart/items',
+                                                {
+                                                    product_variant_id:
+                                                        product.default_variant_id,
+                                                    quantity: 1,
+                                                },
+                                                { preserveScroll: true },
+                                            )
+                                        "
+                                    >
+                                        <Icon name="shopping-cart" :size="14" />
+                                        {{
+                                            language === 'bn'
+                                                ? 'কার্টে যোগ'
+                                                : 'Add to cart'
+                                        }}
                                     </button>
                                 </div>
                             </div>

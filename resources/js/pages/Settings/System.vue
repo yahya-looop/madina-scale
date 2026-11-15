@@ -463,7 +463,8 @@ const definitions: SettingDefinition[] = [
     {
         key: 'crm.default_follow_up_hours',
         label: 'Default Lead Follow-up (Hours)',
-        description: 'Default time from lead creation to the next follow-up. Use 24 for one day; allowed range is 1–8760 hours.',
+        description:
+            'Default time from lead creation to the next follow-up. Use 24 for one day; allowed range is 1–8760 hours.',
         group: 'crm',
         type: 'integer',
         icon: 'clock',
@@ -2629,633 +2630,674 @@ onMounted(() => {
                                 v-if="activeCategory === 'security'"
                                 class="security-section"
                             >
-                                <p v-if="!isDeveloper" class="security-policy-note">
-                                    Security policy changes are restricted to the Developer role. You can review the current policy, but editing is disabled.
-                                </p>
-                                <fieldset :disabled="!isDeveloper" class="contents">
-                                <div
-                                    class="settings-card setting-group-card security-policy-card"
+                                <p
+                                    v-if="!isDeveloper"
+                                    class="security-policy-note"
                                 >
-                                    <div class="security-section-heading">
-                                        <div
-                                            class="security-section-heading-copy"
-                                        >
-                                            <div class="security-section-icon">
-                                                <Icon
-                                                    name="security"
-                                                    :size="17"
-                                                />
+                                    Security policy changes are restricted to
+                                    the Developer role. You can review the
+                                    current policy, but editing is disabled.
+                                </p>
+                                <fieldset
+                                    :disabled="!isDeveloper"
+                                    class="contents"
+                                >
+                                    <div
+                                        class="settings-card setting-group-card security-policy-card"
+                                    >
+                                        <div class="security-section-heading">
+                                            <div
+                                                class="security-section-heading-copy"
+                                            >
+                                                <div
+                                                    class="security-section-icon"
+                                                >
+                                                    <Icon
+                                                        name="security"
+                                                        :size="17"
+                                                    />
+                                                </div>
+
+                                                <div>
+                                                    <strong
+                                                        >Login
+                                                        Protection</strong
+                                                    >
+                                                    <span>
+                                                        Configure account
+                                                        lockout and session
+                                                        protection policies.
+                                                    </span>
+                                                </div>
                                             </div>
+
+                                            <div class="security-status-badge">
+                                                <span
+                                                    class="security-status-dot"
+                                                ></span>
+                                                <span>Protected</span>
+                                            </div>
+                                        </div>
+
+                                        <div class="security-policy-grid">
+                                            <div class="security-policy-field">
+                                                <label
+                                                    for="security-login-max-attempts"
+                                                >
+                                                    Maximum Login Attempts
+                                                </label>
+
+                                                <div
+                                                    class="security-input-wrapper"
+                                                >
+                                                    <input
+                                                        id="security-login-max-attempts"
+                                                        :value="
+                                                            numberValue(
+                                                                'security.login_max_attempts',
+                                                                5,
+                                                            )
+                                                        "
+                                                        type="number"
+                                                        min="1"
+                                                        max="20"
+                                                        step="1"
+                                                        @input="
+                                                            setValue(
+                                                                'security.login_max_attempts',
+                                                                Number(
+                                                                    (
+                                                                        $event.target as HTMLInputElement
+                                                                    ).value,
+                                                                ),
+                                                            )
+                                                        "
+                                                    />
+
+                                                    <span>attempts</span>
+                                                </div>
+
+                                                <small>
+                                                    Failed attempts allowed
+                                                    before temporary lockout.
+                                                </small>
+                                            </div>
+
+                                            <div class="security-policy-field">
+                                                <label
+                                                    for="security-lockout-duration"
+                                                >
+                                                    Lockout Duration
+                                                </label>
+
+                                                <div
+                                                    class="security-input-wrapper"
+                                                >
+                                                    <input
+                                                        id="security-lockout-duration"
+                                                        :value="
+                                                            numberValue(
+                                                                'security.lockout_duration_minutes',
+                                                                15,
+                                                            )
+                                                        "
+                                                        type="number"
+                                                        min="1"
+                                                        max="1440"
+                                                        step="1"
+                                                        @input="
+                                                            setValue(
+                                                                'security.lockout_duration_minutes',
+                                                                Number(
+                                                                    (
+                                                                        $event.target as HTMLInputElement
+                                                                    ).value,
+                                                                ),
+                                                            )
+                                                        "
+                                                    />
+
+                                                    <span>minutes</span>
+                                                </div>
+
+                                                <small>
+                                                    Duration of the temporary
+                                                    account lockout.
+                                                </small>
+                                            </div>
+
+                                            <div class="security-policy-field">
+                                                <label
+                                                    for="security-session-timeout"
+                                                >
+                                                    Session Timeout
+                                                </label>
+
+                                                <div
+                                                    class="security-input-wrapper"
+                                                >
+                                                    <input
+                                                        id="security-session-timeout"
+                                                        :value="
+                                                            numberValue(
+                                                                'security.session_timeout_minutes',
+                                                                120,
+                                                            )
+                                                        "
+                                                        type="number"
+                                                        min="5"
+                                                        max="10080"
+                                                        step="5"
+                                                        @input="
+                                                            setValue(
+                                                                'security.session_timeout_minutes',
+                                                                Number(
+                                                                    (
+                                                                        $event.target as HTMLInputElement
+                                                                    ).value,
+                                                                ),
+                                                            )
+                                                        "
+                                                    />
+
+                                                    <span>minutes</span>
+                                                </div>
+
+                                                <small>
+                                                    Maximum inactive session
+                                                    lifetime.
+                                                </small>
+                                            </div>
+                                        </div>
+
+                                        <div class="security-policy-note">
+                                            <Icon name="activity" :size="14" />
 
                                             <div>
                                                 <strong
-                                                    >Login Protection</strong
+                                                    >Account protection</strong
                                                 >
                                                 <span>
-                                                    Configure account lockout
-                                                    and session protection
-                                                    policies.
+                                                    These controls define the
+                                                    baseline protection applied
+                                                    to authentication attempts
+                                                    and inactive sessions.
                                                 </span>
                                             </div>
                                         </div>
-
-                                        <div class="security-status-badge">
-                                            <span
-                                                class="security-status-dot"
-                                            ></span>
-                                            <span>Protected</span>
-                                        </div>
                                     </div>
 
-                                    <div class="security-policy-grid">
-                                        <div class="security-policy-field">
-                                            <label
-                                                for="security-login-max-attempts"
+                                    <div
+                                        class="settings-card setting-group-card security-policy-card"
+                                    >
+                                        <div class="security-section-heading">
+                                            <div
+                                                class="security-section-heading-copy"
                                             >
-                                                Maximum Login Attempts
-                                            </label>
-
-                                            <div class="security-input-wrapper">
-                                                <input
-                                                    id="security-login-max-attempts"
-                                                    :value="
-                                                        numberValue(
-                                                            'security.login_max_attempts',
-                                                            5,
-                                                        )
-                                                    "
-                                                    type="number"
-                                                    min="1"
-                                                    max="20"
-                                                    step="1"
-                                                    @input="
-                                                        setValue(
-                                                            'security.login_max_attempts',
-                                                            Number(
-                                                                (
-                                                                    $event.target as HTMLInputElement
-                                                                ).value,
-                                                            ),
-                                                        )
-                                                    "
-                                                />
-
-                                                <span>attempts</span>
-                                            </div>
-
-                                            <small>
-                                                Failed attempts allowed before
-                                                temporary lockout.
-                                            </small>
-                                        </div>
-
-                                        <div class="security-policy-field">
-                                            <label
-                                                for="security-lockout-duration"
-                                            >
-                                                Lockout Duration
-                                            </label>
-
-                                            <div class="security-input-wrapper">
-                                                <input
-                                                    id="security-lockout-duration"
-                                                    :value="
-                                                        numberValue(
-                                                            'security.lockout_duration_minutes',
-                                                            15,
-                                                        )
-                                                    "
-                                                    type="number"
-                                                    min="1"
-                                                    max="1440"
-                                                    step="1"
-                                                    @input="
-                                                        setValue(
-                                                            'security.lockout_duration_minutes',
-                                                            Number(
-                                                                (
-                                                                    $event.target as HTMLInputElement
-                                                                ).value,
-                                                            ),
-                                                        )
-                                                    "
-                                                />
-
-                                                <span>minutes</span>
-                                            </div>
-
-                                            <small>
-                                                Duration of the temporary
-                                                account lockout.
-                                            </small>
-                                        </div>
-
-                                        <div class="security-policy-field">
-                                            <label
-                                                for="security-session-timeout"
-                                            >
-                                                Session Timeout
-                                            </label>
-
-                                            <div class="security-input-wrapper">
-                                                <input
-                                                    id="security-session-timeout"
-                                                    :value="
-                                                        numberValue(
-                                                            'security.session_timeout_minutes',
-                                                            120,
-                                                        )
-                                                    "
-                                                    type="number"
-                                                    min="5"
-                                                    max="10080"
-                                                    step="5"
-                                                    @input="
-                                                        setValue(
-                                                            'security.session_timeout_minutes',
-                                                            Number(
-                                                                (
-                                                                    $event.target as HTMLInputElement
-                                                                ).value,
-                                                            ),
-                                                        )
-                                                    "
-                                                />
-
-                                                <span>minutes</span>
-                                            </div>
-
-                                            <small>
-                                                Maximum inactive session
-                                                lifetime.
-                                            </small>
-                                        </div>
-                                    </div>
-
-                                    <div class="security-policy-note">
-                                        <Icon name="activity" :size="14" />
-
-                                        <div>
-                                            <strong>Account protection</strong>
-                                            <span>
-                                                These controls define the
-                                                baseline protection applied to
-                                                authentication attempts and
-                                                inactive sessions.
-                                            </span>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div
-                                    class="settings-card setting-group-card security-policy-card"
-                                >
-                                    <div class="security-section-heading">
-                                        <div
-                                            class="security-section-heading-copy"
-                                        >
-                                            <div class="security-section-icon">
-                                                <Icon
-                                                    name="security"
-                                                    :size="17"
-                                                />
-                                            </div>
-
-                                            <div>
-                                                <strong>Password Policy</strong>
-                                                <span>
-                                                    Establish baseline password
-                                                    complexity and lifecycle
-                                                    rules.
-                                                </span>
-                                            </div>
-                                        </div>
-
-                                        <div class="security-status-badge">
-                                            <span
-                                                class="security-status-dot"
-                                            ></span>
-                                            <span>Policy</span>
-                                        </div>
-                                    </div>
-
-                                    <div class="security-password-grid">
-                                        <div class="security-policy-field">
-                                            <label
-                                                for="security-password-min-length"
-                                            >
-                                                Minimum Password Length
-                                            </label>
-
-                                            <div class="security-input-wrapper">
-                                                <input
-                                                    id="security-password-min-length"
-                                                    :value="
-                                                        numberValue(
-                                                            'security.password_min_length',
-                                                            12,
-                                                        )
-                                                    "
-                                                    type="number"
-                                                    min="8"
-                                                    max="128"
-                                                    step="1"
-                                                    @input="
-                                                        setValue(
-                                                            'security.password_min_length',
-                                                            Number(
-                                                                (
-                                                                    $event.target as HTMLInputElement
-                                                                ).value,
-                                                            ),
-                                                        )
-                                                    "
-                                                />
-
-                                                <span>characters</span>
-                                            </div>
-
-                                            <small>
-                                                Minimum number of password
-                                                characters.
-                                            </small>
-                                        </div>
-
-                                        <div class="security-policy-field">
-                                            <label
-                                                for="security-password-expiry"
-                                            >
-                                                Password Expiry
-                                            </label>
-
-                                            <div class="security-input-wrapper">
-                                                <input
-                                                    id="security-password-expiry"
-                                                    :value="
-                                                        numberValue(
-                                                            'security.password_expiry_days',
-                                                            0,
-                                                        )
-                                                    "
-                                                    type="number"
-                                                    min="0"
-                                                    max="3650"
-                                                    step="1"
-                                                    @input="
-                                                        setValue(
-                                                            'security.password_expiry_days',
-                                                            Number(
-                                                                (
-                                                                    $event.target as HTMLInputElement
-                                                                ).value,
-                                                            ),
-                                                        )
-                                                    "
-                                                />
-
-                                                <span>days</span>
-                                            </div>
-
-                                            <small>
-                                                Use 0 to keep password expiry
-                                                disabled.
-                                            </small>
-                                        </div>
-                                    </div>
-
-                                    <div class="security-control-list">
-                                        <div class="security-control-row">
-                                            <div class="security-control-info">
                                                 <div
-                                                    class="security-control-icon"
+                                                    class="security-section-icon"
                                                 >
                                                     <Icon
                                                         name="security"
-                                                        :size="15"
+                                                        :size="17"
                                                     />
                                                 </div>
 
                                                 <div>
                                                     <strong
-                                                        >Require Mixed
-                                                        Case</strong
+                                                        >Password Policy</strong
                                                     >
                                                     <span>
-                                                        Require both uppercase
-                                                        and lowercase
-                                                        characters.
+                                                        Establish baseline
+                                                        password complexity and
+                                                        lifecycle rules.
                                                     </span>
-                                                    <small
-                                                        >security.password_require_mixed_case</small
-                                                    >
                                                 </div>
                                             </div>
 
-                                            <label class="security-switch">
-                                                <input
-                                                    :checked="
-                                                        booleanValue(
-                                                            'security.password_require_mixed_case',
-                                                        )
-                                                    "
-                                                    type="checkbox"
-                                                    @change="
-                                                        setValue(
-                                                            'security.password_require_mixed_case',
-                                                            (
-                                                                $event.target as HTMLInputElement
-                                                            ).checked,
-                                                        )
-                                                    "
-                                                />
-
+                                            <div class="security-status-badge">
                                                 <span
-                                                    class="security-switch-track"
-                                                >
-                                                    <span
-                                                        class="security-switch-thumb"
-                                                    ></span>
-                                                </span>
-
-                                                <span
-                                                    class="security-switch-text"
-                                                >
-                                                    {{
-                                                        booleanValue(
-                                                            'security.password_require_mixed_case',
-                                                        )
-                                                            ? 'Required'
-                                                            : 'Optional'
-                                                    }}
-                                                </span>
-                                            </label>
+                                                    class="security-status-dot"
+                                                ></span>
+                                                <span>Policy</span>
+                                            </div>
                                         </div>
 
-                                        <div class="security-control-row">
-                                            <div class="security-control-info">
-                                                <div
-                                                    class="security-control-icon"
+                                        <div class="security-password-grid">
+                                            <div class="security-policy-field">
+                                                <label
+                                                    for="security-password-min-length"
                                                 >
-                                                    <Icon
-                                                        name="security"
-                                                        :size="15"
+                                                    Minimum Password Length
+                                                </label>
+
+                                                <div
+                                                    class="security-input-wrapper"
+                                                >
+                                                    <input
+                                                        id="security-password-min-length"
+                                                        :value="
+                                                            numberValue(
+                                                                'security.password_min_length',
+                                                                12,
+                                                            )
+                                                        "
+                                                        type="number"
+                                                        min="8"
+                                                        max="128"
+                                                        step="1"
+                                                        @input="
+                                                            setValue(
+                                                                'security.password_min_length',
+                                                                Number(
+                                                                    (
+                                                                        $event.target as HTMLInputElement
+                                                                    ).value,
+                                                                ),
+                                                            )
+                                                        "
                                                     />
+
+                                                    <span>characters</span>
                                                 </div>
 
-                                                <div>
-                                                    <strong
-                                                        >Require Numbers</strong
-                                                    >
-                                                    <span>
-                                                        Require at least one
-                                                        numeric character.
-                                                    </span>
-                                                    <small
-                                                        >security.password_require_numbers</small
-                                                    >
-                                                </div>
+                                                <small>
+                                                    Minimum number of password
+                                                    characters.
+                                                </small>
                                             </div>
 
-                                            <label class="security-switch">
-                                                <input
-                                                    :checked="
-                                                        booleanValue(
-                                                            'security.password_require_numbers',
-                                                        )
-                                                    "
-                                                    type="checkbox"
-                                                    @change="
-                                                        setValue(
-                                                            'security.password_require_numbers',
-                                                            (
-                                                                $event.target as HTMLInputElement
-                                                            ).checked,
-                                                        )
-                                                    "
-                                                />
-
-                                                <span
-                                                    class="security-switch-track"
+                                            <div class="security-policy-field">
+                                                <label
+                                                    for="security-password-expiry"
                                                 >
-                                                    <span
-                                                        class="security-switch-thumb"
-                                                    ></span>
-                                                </span>
+                                                    Password Expiry
+                                                </label>
 
-                                                <span
-                                                    class="security-switch-text"
+                                                <div
+                                                    class="security-input-wrapper"
                                                 >
-                                                    {{
-                                                        booleanValue(
-                                                            'security.password_require_numbers',
-                                                        )
-                                                            ? 'Required'
-                                                            : 'Optional'
-                                                    }}
-                                                </span>
-                                            </label>
+                                                    <input
+                                                        id="security-password-expiry"
+                                                        :value="
+                                                            numberValue(
+                                                                'security.password_expiry_days',
+                                                                0,
+                                                            )
+                                                        "
+                                                        type="number"
+                                                        min="0"
+                                                        max="3650"
+                                                        step="1"
+                                                        @input="
+                                                            setValue(
+                                                                'security.password_expiry_days',
+                                                                Number(
+                                                                    (
+                                                                        $event.target as HTMLInputElement
+                                                                    ).value,
+                                                                ),
+                                                            )
+                                                        "
+                                                    />
+
+                                                    <span>days</span>
+                                                </div>
+
+                                                <small>
+                                                    Use 0 to keep password
+                                                    expiry disabled.
+                                                </small>
+                                            </div>
                                         </div>
 
-                                        <div class="security-control-row">
-                                            <div class="security-control-info">
+                                        <div class="security-control-list">
+                                            <div class="security-control-row">
                                                 <div
-                                                    class="security-control-icon"
+                                                    class="security-control-info"
                                                 >
-                                                    <Icon
-                                                        name="security"
-                                                        :size="15"
-                                                    />
+                                                    <div
+                                                        class="security-control-icon"
+                                                    >
+                                                        <Icon
+                                                            name="security"
+                                                            :size="15"
+                                                        />
+                                                    </div>
+
+                                                    <div>
+                                                        <strong
+                                                            >Require Mixed
+                                                            Case</strong
+                                                        >
+                                                        <span>
+                                                            Require both
+                                                            uppercase and
+                                                            lowercase
+                                                            characters.
+                                                        </span>
+                                                        <small
+                                                            >security.password_require_mixed_case</small
+                                                        >
+                                                    </div>
                                                 </div>
 
-                                                <div>
-                                                    <strong
-                                                        >Require Symbols</strong
+                                                <label class="security-switch">
+                                                    <input
+                                                        :checked="
+                                                            booleanValue(
+                                                                'security.password_require_mixed_case',
+                                                            )
+                                                        "
+                                                        type="checkbox"
+                                                        @change="
+                                                            setValue(
+                                                                'security.password_require_mixed_case',
+                                                                (
+                                                                    $event.target as HTMLInputElement
+                                                                ).checked,
+                                                            )
+                                                        "
+                                                    />
+
+                                                    <span
+                                                        class="security-switch-track"
                                                     >
-                                                    <span>
-                                                        Require at least one
-                                                        symbol character.
+                                                        <span
+                                                            class="security-switch-thumb"
+                                                        ></span>
                                                     </span>
-                                                    <small
-                                                        >security.password_require_symbols</small
+
+                                                    <span
+                                                        class="security-switch-text"
                                                     >
-                                                </div>
+                                                        {{
+                                                            booleanValue(
+                                                                'security.password_require_mixed_case',
+                                                            )
+                                                                ? 'Required'
+                                                                : 'Optional'
+                                                        }}
+                                                    </span>
+                                                </label>
                                             </div>
 
-                                            <label class="security-switch">
-                                                <input
-                                                    :checked="
-                                                        booleanValue(
-                                                            'security.password_require_symbols',
-                                                        )
-                                                    "
-                                                    type="checkbox"
-                                                    @change="
-                                                        setValue(
-                                                            'security.password_require_symbols',
-                                                            (
-                                                                $event.target as HTMLInputElement
-                                                            ).checked,
-                                                        )
-                                                    "
-                                                />
-
-                                                <span
-                                                    class="security-switch-track"
-                                                >
-                                                    <span
-                                                        class="security-switch-thumb"
-                                                    ></span>
-                                                </span>
-
-                                                <span
-                                                    class="security-switch-text"
-                                                >
-                                                    {{
-                                                        booleanValue(
-                                                            'security.password_require_symbols',
-                                                        )
-                                                            ? 'Required'
-                                                            : 'Optional'
-                                                    }}
-                                                </span>
-                                            </label>
-                                        </div>
-
-                                        <div class="security-control-row">
-                                            <div class="security-control-info">
+                                            <div class="security-control-row">
                                                 <div
-                                                    class="security-control-icon"
+                                                    class="security-control-info"
                                                 >
-                                                    <Icon
-                                                        name="security"
-                                                        :size="15"
-                                                    />
+                                                    <div
+                                                        class="security-control-icon"
+                                                    >
+                                                        <Icon
+                                                            name="security"
+                                                            :size="15"
+                                                        />
+                                                    </div>
+
+                                                    <div>
+                                                        <strong
+                                                            >Require
+                                                            Numbers</strong
+                                                        >
+                                                        <span>
+                                                            Require at least one
+                                                            numeric character.
+                                                        </span>
+                                                        <small
+                                                            >security.password_require_numbers</small
+                                                        >
+                                                    </div>
                                                 </div>
 
-                                                <div>
-                                                    <strong
-                                                        >Force Password
-                                                        Change</strong
+                                                <label class="security-switch">
+                                                    <input
+                                                        :checked="
+                                                            booleanValue(
+                                                                'security.password_require_numbers',
+                                                            )
+                                                        "
+                                                        type="checkbox"
+                                                        @change="
+                                                            setValue(
+                                                                'security.password_require_numbers',
+                                                                (
+                                                                    $event.target as HTMLInputElement
+                                                                ).checked,
+                                                            )
+                                                        "
+                                                    />
+
+                                                    <span
+                                                        class="security-switch-track"
                                                     >
-                                                    <span>
-                                                        Require users to change
-                                                        their password when
-                                                        enabled.
+                                                        <span
+                                                            class="security-switch-thumb"
+                                                        ></span>
                                                     </span>
-                                                    <small
-                                                        >security.force_password_change</small
+
+                                                    <span
+                                                        class="security-switch-text"
                                                     >
-                                                </div>
+                                                        {{
+                                                            booleanValue(
+                                                                'security.password_require_numbers',
+                                                            )
+                                                                ? 'Required'
+                                                                : 'Optional'
+                                                        }}
+                                                    </span>
+                                                </label>
                                             </div>
 
-                                            <label class="security-switch">
-                                                <input
-                                                    :checked="
-                                                        booleanValue(
-                                                            'security.force_password_change',
-                                                        )
-                                                    "
-                                                    type="checkbox"
-                                                    @change="
-                                                        setValue(
-                                                            'security.force_password_change',
-                                                            (
-                                                                $event.target as HTMLInputElement
-                                                            ).checked,
-                                                        )
-                                                    "
-                                                />
-
-                                                <span
-                                                    class="security-switch-track"
-                                                >
-                                                    <span
-                                                        class="security-switch-thumb"
-                                                    ></span>
-                                                </span>
-
-                                                <span
-                                                    class="security-switch-text"
-                                                >
-                                                    {{
-                                                        booleanValue(
-                                                            'security.force_password_change',
-                                                        )
-                                                            ? 'Enabled'
-                                                            : 'Disabled'
-                                                    }}
-                                                </span>
-                                            </label>
-                                        </div>
-
-                                        <div class="security-control-row">
-                                            <div class="security-control-info">
+                                            <div class="security-control-row">
                                                 <div
-                                                    class="security-control-icon"
+                                                    class="security-control-info"
                                                 >
-                                                    <Icon
-                                                        name="security"
-                                                        :size="15"
-                                                    />
+                                                    <div
+                                                        class="security-control-icon"
+                                                    >
+                                                        <Icon
+                                                            name="security"
+                                                            :size="15"
+                                                        />
+                                                    </div>
+
+                                                    <div>
+                                                        <strong
+                                                            >Require
+                                                            Symbols</strong
+                                                        >
+                                                        <span>
+                                                            Require at least one
+                                                            symbol character.
+                                                        </span>
+                                                        <small
+                                                            >security.password_require_symbols</small
+                                                        >
+                                                    </div>
                                                 </div>
 
-                                                <div>
-                                                    <strong
-                                                        >Require Email
-                                                        Verification</strong
+                                                <label class="security-switch">
+                                                    <input
+                                                        :checked="
+                                                            booleanValue(
+                                                                'security.password_require_symbols',
+                                                            )
+                                                        "
+                                                        type="checkbox"
+                                                        @change="
+                                                            setValue(
+                                                                'security.password_require_symbols',
+                                                                (
+                                                                    $event.target as HTMLInputElement
+                                                                ).checked,
+                                                            )
+                                                        "
+                                                    />
+
+                                                    <span
+                                                        class="security-switch-track"
                                                     >
-                                                    <span>
-                                                        Require verified email
-                                                        addresses for normal
-                                                        access.
+                                                        <span
+                                                            class="security-switch-thumb"
+                                                        ></span>
                                                     </span>
-                                                    <small
-                                                        >security.require_email_verification</small
+
+                                                    <span
+                                                        class="security-switch-text"
                                                     >
-                                                </div>
+                                                        {{
+                                                            booleanValue(
+                                                                'security.password_require_symbols',
+                                                            )
+                                                                ? 'Required'
+                                                                : 'Optional'
+                                                        }}
+                                                    </span>
+                                                </label>
                                             </div>
 
-                                            <label class="security-switch">
-                                                <input
-                                                    :checked="
-                                                        booleanValue(
-                                                            'security.require_email_verification',
-                                                        )
-                                                    "
-                                                    type="checkbox"
-                                                    @change="
-                                                        setValue(
-                                                            'security.require_email_verification',
-                                                            (
-                                                                $event.target as HTMLInputElement
-                                                            ).checked,
-                                                        )
-                                                    "
-                                                />
-
-                                                <span
-                                                    class="security-switch-track"
+                                            <div class="security-control-row">
+                                                <div
+                                                    class="security-control-info"
                                                 >
+                                                    <div
+                                                        class="security-control-icon"
+                                                    >
+                                                        <Icon
+                                                            name="security"
+                                                            :size="15"
+                                                        />
+                                                    </div>
+
+                                                    <div>
+                                                        <strong
+                                                            >Force Password
+                                                            Change</strong
+                                                        >
+                                                        <span>
+                                                            Require users to
+                                                            change their
+                                                            password when
+                                                            enabled.
+                                                        </span>
+                                                        <small
+                                                            >security.force_password_change</small
+                                                        >
+                                                    </div>
+                                                </div>
+
+                                                <label class="security-switch">
+                                                    <input
+                                                        :checked="
+                                                            booleanValue(
+                                                                'security.force_password_change',
+                                                            )
+                                                        "
+                                                        type="checkbox"
+                                                        @change="
+                                                            setValue(
+                                                                'security.force_password_change',
+                                                                (
+                                                                    $event.target as HTMLInputElement
+                                                                ).checked,
+                                                            )
+                                                        "
+                                                    />
+
                                                     <span
-                                                        class="security-switch-thumb"
-                                                    ></span>
-                                                </span>
+                                                        class="security-switch-track"
+                                                    >
+                                                        <span
+                                                            class="security-switch-thumb"
+                                                        ></span>
+                                                    </span>
 
-                                                <span
-                                                    class="security-switch-text"
+                                                    <span
+                                                        class="security-switch-text"
+                                                    >
+                                                        {{
+                                                            booleanValue(
+                                                                'security.force_password_change',
+                                                            )
+                                                                ? 'Enabled'
+                                                                : 'Disabled'
+                                                        }}
+                                                    </span>
+                                                </label>
+                                            </div>
+
+                                            <div class="security-control-row">
+                                                <div
+                                                    class="security-control-info"
                                                 >
-                                                    {{
-                                                        booleanValue(
-                                                            'security.require_email_verification',
-                                                        )
-                                                            ? 'Required'
-                                                            : 'Optional'
-                                                    }}
-                                                </span>
-                                            </label>
+                                                    <div
+                                                        class="security-control-icon"
+                                                    >
+                                                        <Icon
+                                                            name="security"
+                                                            :size="15"
+                                                        />
+                                                    </div>
+
+                                                    <div>
+                                                        <strong
+                                                            >Require Email
+                                                            Verification</strong
+                                                        >
+                                                        <span>
+                                                            Require verified
+                                                            email addresses for
+                                                            normal access.
+                                                        </span>
+                                                        <small
+                                                            >security.require_email_verification</small
+                                                        >
+                                                    </div>
+                                                </div>
+
+                                                <label class="security-switch">
+                                                    <input
+                                                        :checked="
+                                                            booleanValue(
+                                                                'security.require_email_verification',
+                                                            )
+                                                        "
+                                                        type="checkbox"
+                                                        @change="
+                                                            setValue(
+                                                                'security.require_email_verification',
+                                                                (
+                                                                    $event.target as HTMLInputElement
+                                                                ).checked,
+                                                            )
+                                                        "
+                                                    />
+
+                                                    <span
+                                                        class="security-switch-track"
+                                                    >
+                                                        <span
+                                                            class="security-switch-thumb"
+                                                        ></span>
+                                                    </span>
+
+                                                    <span
+                                                        class="security-switch-text"
+                                                    >
+                                                        {{
+                                                            booleanValue(
+                                                                'security.require_email_verification',
+                                                            )
+                                                                ? 'Required'
+                                                                : 'Optional'
+                                                        }}
+                                                    </span>
+                                                </label>
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
                                 </fieldset>
                             </div>
                             <div

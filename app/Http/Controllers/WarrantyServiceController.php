@@ -2,9 +2,9 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\InventoryStock;
 use App\Models\Customer;
 use App\Models\FinancialAccount;
+use App\Models\InventoryStock;
 use App\Models\JournalEntry;
 use App\Models\Location;
 use App\Models\Product;
@@ -295,7 +295,7 @@ class WarrantyServiceController extends Controller
                 ->where('location_id', $row->location_id)
                 ->lockForUpdate()
                 ->first();
-            $unitCost = (string) ($stockValuation?->average_unit_cost ?? '0');
+            $unitCost = (string) ($stockValuation->average_unit_cost ?? '0');
             if (! $stockValuation || $stockValuation->valuation_status !== 'valued' || bccomp($unitCost, '0', 6) <= 0) {
                 throw ValidationException::withMessages([
                     'product_variant_id' => 'This spare part has no verified inventory carrying cost. Complete opening valuation or receive stock with a cost first.',

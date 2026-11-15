@@ -202,49 +202,52 @@ test('inventory view permission alone cannot perform stock mutations', function 
     ])->assertForbidden();
 });
 
-test('receive endpoint validates required stock movement fields', function () {
-    $user = createInventoryApiUser([
-        'system.inventory.receive',
-    ]);
+test('receive endpoint validates location access before required stock movement fields', function () {
+    $user = createInventoryApiUser(['system.inventory.receive']);
+    $location = inventoryApiCreateLocation();
+    $user->locations()->attach($location->id, ['access_level' => 'receive']);
 
     $this->actingAs($user);
 
     $this->postJson('/api/v1/backend/inventory/receive', [])
         ->assertUnprocessable()
-        ->assertJsonValidationErrors([
-            'location_id',
-            'quantity',
-        ]);
+        ->assertJsonValidationErrors(['location_id']);
+
+    $this->postJson('/api/v1/backend/inventory/receive', ['location_id' => $location->id])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['product_id', 'quantity']);
 });
 
-test('issue endpoint validates required stock movement fields', function () {
-    $user = createInventoryApiUser([
-        'system.inventory.issue',
-    ]);
+test('issue endpoint validates location access before required stock movement fields', function () {
+    $user = createInventoryApiUser(['system.inventory.issue']);
+    $location = inventoryApiCreateLocation();
+    $user->locations()->attach($location->id, ['access_level' => 'manage']);
 
     $this->actingAs($user);
 
     $this->postJson('/api/v1/backend/inventory/issue', [])
         ->assertUnprocessable()
-        ->assertJsonValidationErrors([
-            'location_id',
-            'quantity',
-        ]);
+        ->assertJsonValidationErrors(['location_id']);
+
+    $this->postJson('/api/v1/backend/inventory/issue', ['location_id' => $location->id])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['product_id', 'quantity']);
 });
 
-test('adjust endpoint validates required stock movement fields', function () {
-    $user = createInventoryApiUser([
-        'system.inventory.adjust',
-    ]);
+test('adjust endpoint validates location access before required stock movement fields', function () {
+    $user = createInventoryApiUser(['system.inventory.adjust']);
+    $location = inventoryApiCreateLocation();
+    $user->locations()->attach($location->id, ['access_level' => 'manage']);
 
     $this->actingAs($user);
 
     $this->postJson('/api/v1/backend/inventory/adjust', [])
         ->assertUnprocessable()
-        ->assertJsonValidationErrors([
-            'location_id',
-            'quantity',
-        ]);
+        ->assertJsonValidationErrors(['location_id']);
+
+    $this->postJson('/api/v1/backend/inventory/adjust', ['location_id' => $location->id])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['product_id', 'quantity']);
 });
 
 test('transfer endpoint validates required transfer fields', function () {

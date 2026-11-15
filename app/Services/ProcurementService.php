@@ -2,9 +2,9 @@
 
 namespace App\Services;
 
-use App\Models\InventoryValuationMovement;
 use App\Models\FinancialAccount;
 use App\Models\GoodsReceipt;
+use App\Models\InventoryValuationMovement;
 use App\Models\Location;
 use App\Models\Product;
 use App\Models\ProductVariant;
@@ -957,11 +957,15 @@ class ProcurementService
                 ['account_id' => $inventory->id, 'debit' => '0', 'credit' => $carryingValue, 'supplier_id' => $invoice->supplier_id],
             ];
             if (bccomp($variance, '0', 2) > 0) {
+                // Supplier credit exceeds the inventory carrying value:
+                // debit the payable and credit inventory plus the variance.
                 $varianceAccount = FinancialAccount::query()->where('code', '5100')->where('is_active', true)->firstOrFail();
-                $lines[] = ['account_id' => $varianceAccount->id, 'debit' => $variance, 'credit' => '0'];
+                $lines[] = ['account_id' => $varianceAccount->id, 'debit' => '0', 'credit' => $variance];
             } elseif (bccomp($variance, '0', 2) < 0) {
+                // Inventory carrying value exceeds the supplier credit:
+                // debit the payable plus variance and credit inventory.
                 $varianceAccount = FinancialAccount::query()->where('code', '5100')->where('is_active', true)->firstOrFail();
-                $lines[] = ['account_id' => $varianceAccount->id, 'debit' => '0', 'credit' => bcmul($variance, '-1', 2)];
+                $lines[] = ['account_id' => $varianceAccount->id, 'debit' => bcmul($variance, '-1', 2), 'credit' => '0'];
             }
             $journal = $this->ledger->createDraft([
                 'source' => 'procurement_return',

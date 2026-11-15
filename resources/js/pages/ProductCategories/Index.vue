@@ -225,11 +225,14 @@ async function confirmDelete(): Promise<void> {
     if (!item || deleting.value) return;
     deleting.value = true;
     try {
-        const response = await fetch(`/api/v1/backend/product-categories/${item.id}`, {
-            method: 'DELETE',
-            headers: csrfHeaders(),
-            credentials: 'same-origin',
-        });
+        const response = await fetch(
+            `/api/v1/backend/product-categories/${item.id}`,
+            {
+                method: 'DELETE',
+                headers: csrfHeaders(),
+                credentials: 'same-origin',
+            },
+        );
         if (!response.ok)
             throw new Error(
                 await readError(response, 'Could not delete category.'),

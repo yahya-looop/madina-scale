@@ -315,14 +315,17 @@ async function load(targetPage = page.value): Promise<void> {
             per_page: String(perPage.value),
         });
 
-        const response = await fetch(`/api/v1/backend/inventory/movements?${params}`, {
-            credentials: 'same-origin',
+        const response = await fetch(
+            `/api/v1/backend/inventory/movements?${params}`,
+            {
+                credentials: 'same-origin',
 
-            headers: {
-                Accept: 'application/json',
-                'X-Requested-With': 'XMLHttpRequest',
+                headers: {
+                    Accept: 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
             },
-        });
+        );
 
         const payload = (await response.json()) as ApiResponse;
 

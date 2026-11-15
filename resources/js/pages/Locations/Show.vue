@@ -174,13 +174,16 @@ async function loadLocation(): Promise<void> {
     errorMessage.value = '';
 
     try {
-        const response = await fetch(`/api/v1/backend/locations/${locationId}`, {
-            headers: {
-                Accept: 'application/json',
-                'X-Requested-With': 'XMLHttpRequest',
+        const response = await fetch(
+            `/api/v1/backend/locations/${locationId}`,
+            {
+                headers: {
+                    Accept: 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                credentials: 'same-origin',
             },
-            credentials: 'same-origin',
-        });
+        );
 
         const payload = (await response.json()) as ApiPayload<Location>;
 
@@ -217,13 +220,16 @@ async function loadAssignments(): Promise<void> {
     assignmentLoading.value = true;
     assignmentError.value = '';
     try {
-        const response = await fetch(`/api/v1/backend/locations/${locationId}/users`, {
-            headers: {
-                Accept: 'application/json',
-                'X-Requested-With': 'XMLHttpRequest',
+        const response = await fetch(
+            `/api/v1/backend/locations/${locationId}/users`,
+            {
+                headers: {
+                    Accept: 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                credentials: 'same-origin',
             },
-            credentials: 'same-origin',
-        });
+        );
         const payload = (await response.json()) as LocationAssignmentsPayload;
         if (!response.ok) {
             if (response.status === 403) {
@@ -274,24 +280,27 @@ async function saveAssignments(): Promise<void> {
         const token = document.querySelector<HTMLMetaElement>(
             'meta[name="csrf-token"]',
         )?.content;
-        const response = await fetch(`/api/v1/backend/locations/${locationId}/users`, {
-            method: 'PUT',
-            headers: {
-                Accept: 'application/json',
-                'Content-Type': 'application/json',
-                'X-Requested-With': 'XMLHttpRequest',
-                ...(token ? { 'X-CSRF-TOKEN': token } : {}),
+        const response = await fetch(
+            `/api/v1/backend/locations/${locationId}/users`,
+            {
+                method: 'PUT',
+                headers: {
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    ...(token ? { 'X-CSRF-TOKEN': token } : {}),
+                },
+                credentials: 'same-origin',
+                body: JSON.stringify({
+                    assignments: Object.entries(assignmentDraft.value).map(
+                        ([userId, accessLevel]) => ({
+                            user_id: Number(userId),
+                            access_level: accessLevel,
+                        }),
+                    ),
+                }),
             },
-            credentials: 'same-origin',
-            body: JSON.stringify({
-                assignments: Object.entries(assignmentDraft.value).map(
-                    ([userId, accessLevel]) => ({
-                        user_id: Number(userId),
-                        access_level: accessLevel,
-                    }),
-                ),
-            }),
-        });
+        );
         const payload = (await response.json()) as LocationAssignmentsPayload;
         if (!response.ok)
             throw new Error(

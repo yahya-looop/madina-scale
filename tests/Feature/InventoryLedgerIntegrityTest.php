@@ -141,7 +141,7 @@ test('inventory reconciliation detects a non-zero opening ledger balance', funct
         ->assertExitCode(1);
 });
 
-test('inventory reconciliation detects a missing stock row even when the ledger ends at zero', function (): void {
+test('inventory stock rows referenced by valuation history cannot be deleted', function (): void {
     $product = inventoryTestProduct();
     $location = inventoryTestLocation();
     $inventory = app(InventoryService::class);
@@ -158,15 +158,29 @@ test('inventory reconciliation detects a missing stock row even when the ledger 
         'quantity' => '5.0000',
     ]);
 
-    DB::table('inventory_stocks')
+    $stockId = DB::table('inventory_stocks')
         ->where('product_id', $product->id)
         ->where('location_id', $location->id)
-        ->delete();
+        ->value('id');
+
+    try {
+        DB::transaction(function () use ($stockId): void {
+            DB::table('inventory_stocks')
+                ->where('id', $stockId)
+                ->delete();
+        });
+
+        test()->fail('The database deleted a stock row referenced by immutable valuation history.');
+    } catch (QueryException) {
+        // The valuation ledger intentionally restricts deletion of its stock owner.
+    }
+
+    expect(DB::table('inventory_stocks')->where('id', $stockId)->exists())
+        ->toBeTrue();
 
     $this->artisan('inventory:reconcile')
         ->expectsOutput('Stock balance mismatches: 0')
-        ->expectsOutput('Ledger balances without matching stock rows: 1')
+        ->expectsOutput('Ledger balances without matching stock rows: 0')
         ->expectsOutput('Broken movement balance chains: 0')
-        ->expectsOutput('Inventory inconsistencies detected. No records were changed.')
-        ->assertExitCode(1);
+        ->assertExitCode(0);
 });

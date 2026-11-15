@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\B2BAccount;
+use App\Models\FinancialAccount;
 use App\Models\InventoryReservation;
 use App\Models\InventoryReservationPurpose;
 use App\Models\InventoryStock;
@@ -26,6 +27,7 @@ class SalesOrderService
         private readonly OrderRiskService $risk,
         private readonly CommercialPricingService $commercialPricing,
         private readonly B2BCreditService $b2bCredit,
+        private readonly FinancialLedgerService $ledger,
     ) {}
 
     /** Resolve the actual inventory owner used by this location for an order line. */
@@ -647,6 +649,7 @@ class SalesOrderService
                 'fulfilled_at' => now(),
                 'idempotency_key' => $data['idempotency_key'] ?? null,
             ]);
+            $fulfillmentCogs = '0.00';
 
             foreach ($requested as $itemId => $line) {
                 /** @var SalesOrderItem|null $item */
@@ -668,13 +671,44 @@ class SalesOrderService
                 if (! $reservation || $reservation->status !== 'active') {
                     throw ValidationException::withMessages(['items' => 'A stock reservation is no longer active. Review or re-reserve stock before fulfillment.']);
                 }
+                $costBefore = (string) $item->fulfilled_cost_value;
                 $this->reservations->fulfillPartial($reservation, $qty, $actor);
+                $item->refresh();
+                $costAfter = (string) $item->fulfilled_cost_value;
+                $lineCogs = bcsub($costAfter, $costBefore, 2);
+                if (bccomp($lineCogs, '0.00', 2) < 0) {
+                    throw ValidationException::withMessages(['valuation' => 'Fulfillment cost snapshot cannot decrease during stock issue.']);
+                }
+                $fulfillmentCogs = bcadd($fulfillmentCogs, $lineCogs, 2);
+
                 SalesOrderFulfillmentItem::query()->create([
                     'sales_order_fulfillment_id' => $fulfillment->id,
                     'sales_order_item_id' => $item->id,
                     'quantity' => $qty,
                 ]);
             }
+
+            $fulfillmentUpdates = ['cogs_amount' => $fulfillmentCogs];
+            if (bccomp($fulfillmentCogs, '0.00', 2) > 0) {
+                $inventoryAccount = FinancialAccount::query()
+                    ->where('code', '1200')->where('is_active', true)->firstOrFail();
+                $cogsAccount = FinancialAccount::query()
+                    ->where('code', '5000')->where('is_active', true)->firstOrFail();
+                $journal = $this->ledger->createDraft([
+                    'entry_date' => now()->toDateString(),
+                    'description' => 'Cost of goods sold for fulfillment '.$fulfillment->fulfillment_number,
+                    'source' => 'sales_fulfillment_cogs',
+                    'reference' => $fulfillment->fulfillment_number,
+                    'location_id' => $locked->location_id,
+                    'lines' => [
+                        ['account_id' => $cogsAccount->id, 'debit' => $fulfillmentCogs, 'credit' => '0.00'],
+                        ['account_id' => $inventoryAccount->id, 'debit' => '0.00', 'credit' => $fulfillmentCogs],
+                    ],
+                ], $actor);
+                $this->ledger->post($journal, $actor);
+                $fulfillmentUpdates['journal_entry_id'] = $journal->id;
+            }
+            SalesOrderFulfillment::query()->whereKey($fulfillment->id)->update($fulfillmentUpdates);
 
             $allFulfilled = true;
             $anyFulfilled = false;

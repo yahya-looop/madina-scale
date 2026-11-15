@@ -104,13 +104,16 @@ async function load(targetPage = page.value): Promise<void> {
             page: String(targetPage),
             per_page: String(perPage.value),
         });
-        const response = await fetch(`/api/v1/backend/inventory/low-stock?${params}`, {
-            credentials: 'same-origin',
-            headers: {
-                Accept: 'application/json',
-                'X-Requested-With': 'XMLHttpRequest',
+        const response = await fetch(
+            `/api/v1/backend/inventory/low-stock?${params}`,
+            {
+                credentials: 'same-origin',
+                headers: {
+                    Accept: 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
             },
-        });
+        );
         const payload = (await response.json()) as ApiResponse<StockRecord>;
         if (!response.ok)
             throw new Error(

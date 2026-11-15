@@ -94,7 +94,9 @@ const productId = computed<number>(() => {
         return Number(props.productId);
     }
 
-    const match = window.location.pathname.match(/\/backend\/products\/(\d+)\/edit/);
+    const match = window.location.pathname.match(
+        /\/backend\/products\/(\d+)\/edit/,
+    );
 
     return Number(match?.[1] ?? 0);
 });
@@ -675,7 +677,10 @@ async function saveMediaAltText(media: ProductMedia): Promise<void> {
     }
 }
 
-async function moveGalleryMedia(media: ProductMedia, direction: -1 | 1): Promise<void> {
+async function moveGalleryMedia(
+    media: ProductMedia,
+    direction: -1 | 1,
+): Promise<void> {
     if (!product.value || mediaActionId.value !== null) {
         return;
     }
@@ -709,7 +714,9 @@ async function moveGalleryMedia(media: ProductMedia, direction: -1 | 1): Promise
             {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ media_ids: ordered.map((item) => item.id) }),
+                body: JSON.stringify({
+                    media_ids: ordered.map((item) => item.id),
+                }),
             },
         );
         await refreshProductMedia();
@@ -1078,26 +1085,39 @@ onBeforeUnmount(() => {
                                         </div>
 
                                         <div class="primary-media-actions">
-                                            <span class="image-status">Primary Image</span>
+                                            <span class="image-status"
+                                                >Primary Image</span
+                                            >
                                             <button
                                                 v-if="primaryMedia"
                                                 type="button"
-                                                :disabled="mediaActionId !== null"
+                                                :disabled="
+                                                    mediaActionId !== null
+                                                "
                                                 class="remove-primary-media"
-                                                @click="deleteProductMedia(primaryMedia)"
+                                                @click="
+                                                    deleteProductMedia(
+                                                        primaryMedia,
+                                                    )
+                                                "
                                             >
                                                 Remove image
                                             </button>
                                         </div>
                                     </div>
-                                    <label v-if="primaryMedia" class="primary-alt-field">
+                                    <label
+                                        v-if="primaryMedia"
+                                        class="primary-alt-field"
+                                    >
                                         Image alternative text
                                         <input
                                             v-model="primaryMedia.alt_text"
                                             type="text"
                                             maxlength="255"
                                             placeholder="Describe the product image"
-                                            @change="saveMediaAltText(primaryMedia)"
+                                            @change="
+                                                saveMediaAltText(primaryMedia)
+                                            "
                                         />
                                     </label>
                                 </div>
@@ -1130,59 +1150,111 @@ onBeforeUnmount(() => {
                                     >
                                     <div class="gallery-preview-grid">
                                         <div
-                                            v-for="(media, index) in existingGalleryMedia"
+                                            v-for="(
+                                                media, index
+                                            ) in existingGalleryMedia"
                                             :key="media.id"
                                             class="gallery-preview-item existing-gallery-item"
                                         >
                                             <img
                                                 :src="productMediaUrl(media)"
-                                                :alt="media.alt_text || media.original_name || product.name"
+                                                :alt="
+                                                    media.alt_text ||
+                                                    media.original_name ||
+                                                    product.name
+                                                "
                                                 loading="lazy"
                                             />
-                                            <small>{{ media.original_name || 'Product image' }}</small>
+                                            <small>{{
+                                                media.original_name ||
+                                                'Product image'
+                                            }}</small>
                                             <input
                                                 v-model="media.alt_text"
                                                 type="text"
                                                 maxlength="255"
                                                 aria-label="Image alternative text"
                                                 placeholder="Image alt text"
-                                                @change="saveMediaAltText(media)"
+                                                @change="
+                                                    saveMediaAltText(media)
+                                                "
                                             />
                                             <div class="existing-media-actions">
                                                 <button
                                                     type="button"
-                                                    :disabled="mediaActionId !== null || index === 0"
+                                                    :disabled="
+                                                        mediaActionId !==
+                                                            null || index === 0
+                                                    "
                                                     aria-label="Move image earlier"
                                                     title="Move earlier"
-                                                    @click="moveGalleryMedia(media, -1)"
+                                                    @click="
+                                                        moveGalleryMedia(
+                                                            media,
+                                                            -1,
+                                                        )
+                                                    "
                                                 >
-                                                    <Icon name="chevron-left" :size="13" />
+                                                    <Icon
+                                                        name="chevron-left"
+                                                        :size="13"
+                                                    />
                                                 </button>
                                                 <button
                                                     type="button"
-                                                    :disabled="mediaActionId !== null"
+                                                    :disabled="
+                                                        mediaActionId !== null
+                                                    "
                                                     title="Make primary image"
-                                                    @click="setPrimaryMedia(media)"
+                                                    @click="
+                                                        setPrimaryMedia(media)
+                                                    "
                                                 >
-                                                    <Icon name="star" :size="13" />
+                                                    <Icon
+                                                        name="star"
+                                                        :size="13"
+                                                    />
                                                 </button>
                                                 <button
                                                     type="button"
-                                                    :disabled="mediaActionId !== null || index === existingGalleryMedia.length - 1"
+                                                    :disabled="
+                                                        mediaActionId !==
+                                                            null ||
+                                                        index ===
+                                                            existingGalleryMedia.length -
+                                                                1
+                                                    "
                                                     aria-label="Move image later"
                                                     title="Move later"
-                                                    @click="moveGalleryMedia(media, 1)"
+                                                    @click="
+                                                        moveGalleryMedia(
+                                                            media,
+                                                            1,
+                                                        )
+                                                    "
                                                 >
-                                                    <Icon name="chevron-right" :size="13" />
+                                                    <Icon
+                                                        name="chevron-right"
+                                                        :size="13"
+                                                    />
                                                 </button>
                                                 <button
                                                     type="button"
-                                                    :disabled="mediaActionId !== null"
+                                                    :disabled="
+                                                        mediaActionId !== null
+                                                    "
                                                     class="danger"
                                                     title="Remove image"
-                                                    @click="deleteProductMedia(media)"
+                                                    @click="
+                                                        deleteProductMedia(
+                                                            media,
+                                                        )
+                                                    "
                                                 >
-                                                    <Icon name="trash" :size="13" />
+                                                    <Icon
+                                                        name="trash"
+                                                        :size="13"
+                                                    />
                                                 </button>
                                             </div>
                                         </div>
@@ -2300,7 +2372,8 @@ onBeforeUnmount(() => {
     gap: 8px;
 }
 .remove-primary-media {
-    border: 1px solid color-mix(in srgb, var(--danger, #dc2626) 35%, transparent);
+    border: 1px solid
+        color-mix(in srgb, var(--danger, #dc2626) 35%, transparent);
     border-radius: 7px;
     padding: 5px 8px;
     background: color-mix(in srgb, var(--danger, #dc2626) 9%, transparent);
@@ -2355,7 +2428,7 @@ onBeforeUnmount(() => {
 }
 .existing-media-actions button:disabled,
 .remove-primary-media:disabled {
-    opacity: .45;
+    opacity: 0.45;
     cursor: not-allowed;
 }
 

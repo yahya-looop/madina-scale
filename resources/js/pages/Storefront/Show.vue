@@ -72,7 +72,11 @@ const displayedPrice = computed(
 
 function addToCart(): void {
     if (!selectedVariant.value) return;
-    router.post('/cart/items', { product_variant_id: selectedVariant.value.id, quantity: 1 }, { preserveScroll: true });
+    router.post(
+        '/cart/items',
+        { product_variant_id: selectedVariant.value.id, quantity: 1 },
+        { preserveScroll: true },
+    );
 }
 
 function formatPrice(value: string | null): string {
@@ -243,10 +247,26 @@ function formatPrice(value: string | null): string {
                         </select>
                     </div>
                     <div class="mt-7 flex flex-wrap gap-3">
-                        <button type="button" :disabled="!selectedVariant" @click="addToCart" class="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-emerald-700 px-6 py-3.5 text-sm font-bold text-white shadow-lg shadow-emerald-900/10 transition hover:bg-emerald-800 disabled:opacity-50">
-                            <Icon name="shopping-cart" :size="18" /> {{ language === 'bn' ? 'কার্টে যোগ করুন' : 'Add to cart' }}
+                        <button
+                            type="button"
+                            :disabled="!selectedVariant"
+                            @click="addToCart"
+                            class="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-emerald-700 px-6 py-3.5 text-sm font-bold text-white shadow-lg shadow-emerald-900/10 transition hover:bg-emerald-800 disabled:opacity-50"
+                        >
+                            <Icon name="shopping-cart" :size="18" />
+                            {{
+                                language === 'bn'
+                                    ? 'কার্টে যোগ করুন'
+                                    : 'Add to cart'
+                            }}
                         </button>
-                        <Link href="/cart" class="inline-flex items-center justify-center rounded-xl border border-slate-200 px-5 py-3.5 text-sm font-bold text-slate-700 hover:bg-slate-50">{{ language === 'bn' ? 'কার্ট দেখুন' : 'View cart' }}</Link>
+                        <Link
+                            href="/cart"
+                            class="inline-flex items-center justify-center rounded-xl border border-slate-200 px-5 py-3.5 text-sm font-bold text-slate-700 hover:bg-slate-50"
+                            >{{
+                                language === 'bn' ? 'কার্ট দেখুন' : 'View cart'
+                            }}</Link
+                        >
                     </div>
                     <div v-if="product.description" class="mt-7">
                         <h2 class="text-base font-bold text-slate-900">
