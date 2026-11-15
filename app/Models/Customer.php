@@ -3,16 +3,29 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Notifications\Notifiable;
 
-class Customer extends Model
+class Customer extends Authenticatable
 {
+    use Notifiable;
+
     protected $fillable = [
-        'customer_code', 'name', 'phone', 'email', 'company_name',
-        'address_line', 'area', 'district', 'division', 'postal_code',
-        'notes', 'status',
+        'customer_code', 'name', 'phone', 'email', 'password', 'phone_verified_at',
+        'company_name', 'address_line', 'area', 'district', 'division',
+        'postal_code', 'notes', 'status',
     ];
+
+    protected $hidden = ['password', 'remember_token'];
+
+    protected function casts(): array
+    {
+        return [
+            'password' => 'hashed',
+            'phone_verified_at' => 'datetime',
+        ];
+    }
 
     /** @return HasMany<SalesOrder, $this> */
     public function orders(): HasMany
@@ -20,9 +33,8 @@ class Customer extends Model
         return $this->hasMany(SalesOrder::class, 'customer_id');
     }
 
-    /**
-     * @param  Builder<Customer>  $query
-     * @return Builder<Customer>
+    /** @param Builder<Customer> $query
+     *  @return Builder<Customer>
      */
     public function scopeSearch(Builder $query, ?string $term): Builder
     {

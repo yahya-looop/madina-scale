@@ -68,11 +68,31 @@ class StorefrontController extends Controller
         $products->through(fn (Product $product): array => $this->presentProduct($product));
 
         $categories = ProductCategory::query()
+            ->whereNull('parent_id')
             ->where('status', 'active')
             ->where('visibility', 'visible')
+            ->with(['children' => function ($query): void {
+                $query->where('status', 'active')
+                    ->where('visibility', 'visible')
+                    ->orderBy('sort_order')
+                    ->orderBy('name');
+            }])
             ->orderBy('sort_order')
             ->orderBy('name')
-            ->get(['id', 'name', 'slug']);
+            ->get(['id', 'name', 'slug', 'image_path'])
+            ->map(fn (ProductCategory $category): array => [
+                'id' => $category->id,
+                'name' => $category->name,
+                'slug' => $category->slug,
+                'image_url' => $category->image_path ? Storage::disk('public')->url($category->image_path) : null,
+                'children' => $category->children->map(fn (ProductCategory $child): array => [
+                    'id' => $child->id,
+                    'name' => $child->name,
+                    'slug' => $child->slug,
+                    'image_url' => $child->image_path ? Storage::disk('public')->url($child->image_path) : null,
+                    'children' => [],
+                ])->values()->all(),
+            ])->values();
 
         $now = now();
         $banners = CmsBanner::query()

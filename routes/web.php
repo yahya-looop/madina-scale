@@ -54,6 +54,7 @@ Route::get('/shop/{slug}', fn (string $slug) => redirect()->route('storefront.sh
 */
 
 require __DIR__.'/backend.php';
+require __DIR__.'/customer-auth.php';
 
 // -------------------------------------------------------------------------
 // Legacy URL compatibility and public CMS slugs
@@ -111,15 +112,6 @@ foreach ($legacyBackendPages as $legacy => $backend) {
 Route::get('/products/{product}/edit', fn (string $product) => redirect('/backend/products/'.$product.'/edit', 301))
     ->whereNumber('product');
 
-// Legacy staff authentication URLs. The named login/dashboard routes now
-// generate the /backend URLs; these aliases preserve existing bookmarks.
-Route::get('/login', fn () => redirect()->route('login', [], 302))->name('login.legacy');
-Route::post('/login', [LoginController::class, 'store'])
-    ->middleware(['guest', 'throttle:5,1'])
-    ->name('login.store.legacy');
-Route::post('/logout', [LoginController::class, 'destroy'])
-    ->middleware('auth')
-    ->name('logout.legacy');
 
 // Legacy nested staff page URLs.
 Route::get('/marketing/{view}', fn (string $view) => redirect('/backend/marketing/'.$view, 301))
@@ -142,5 +134,5 @@ Route::get('/users/{user}', fn (string $user) => redirect('/backend/users/'.$use
 // Root-level public CMS slugs. Reserved application paths are excluded so
 // CMS content cannot shadow backend, API, commerce or infrastructure routes.
 Route::get('/{slug}', [PublicCmsPageController::class, 'show'])
-    ->where('slug', '(?!(?:backend|api|up|images|storage|build|assets|fonts|products|cart|checkout|account|shop|pages|order-success|flash-sales|login|logout|dashboard|content|seo|marketing|analytics|reports|product-categories|brands|units|attributes|sales-crm|b2b|pricing|customers|orders|sales-returns|shipping-delivery|warranty-service|payments|procurement|finance|inventory|locations|developer|settings|users|robots\\.txt|sitemap\\.xml)$)[A-Za-z0-9-]+')
+    ->where('slug', '(?!(?:backend|api|up|images|storage|build|assets|fonts|products|cart|checkout|account|shop|pages|order-success|flash-sales|login|register|customer|logout|dashboard|content|seo|marketing|analytics|reports|product-categories|brands|units|attributes|sales-crm|b2b|pricing|customers|orders|sales-returns|shipping-delivery|warranty-service|payments|procurement|finance|inventory|locations|developer|settings|users|robots\\.txt|sitemap\\.xml)$)[A-Za-z0-9-]+')
     ->name('storefront.pages.show');
