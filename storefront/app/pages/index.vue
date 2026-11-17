@@ -78,10 +78,9 @@ const [bannerResponse, categoryResponse, productResponse, flashSaleResponse] = a
 ])
 
 const banners = computed(() => bannerResponse.data.value?.data || [])
+const categories = computed(() => categoryResponse.data.value?.data || [])
 const products = computed(() => productResponse.data.value?.data || [])
 const flashSales = computed(() => flashSaleResponse.data.value?.data || [])
-// Derive category-based collections from the same API response fetched above.
-const categories = computed<Category[]>(() => categoryResponse.data.value?.data ?? [])
 const powerToolsCategory = computed(() => categories.value.find(category => /power[- ]?tools/i.test(`${category.name} ${category.slug}`)))
 const ladderCategory = computed(() => categories.value.find(category => /ladder/i.test(`${category.name} ${category.slug}`)))
 const productBySlug = computed(() => new Map(products.value.map(product => [product.slug, product])))
@@ -102,6 +101,31 @@ const activeBanner = computed(() => banners.value[activeBannerIndex.value] || nu
 const trackingPrefill = useState<{ reference: string; phone: string }>('madina-track-order-prefill', () => ({ reference: '', phone: '' }))
 const trackingReference = ref('')
 const trackingPhone = ref('')
+const newsletterContact = ref('')
+const newsletterMessage = ref('')
+async function requestUpdates() {
+  const value = newsletterContact.value.trim()
+  if (!value) return
+  try {
+    const response = await $fetch<{ data: { phone: string | null; email: string | null; channels: string[] } }>(`${config.public.apiBase}/support/contact`)
+    const support = response.data
+    const digits = (support.phone || '').replace(/\D/g, '')
+    const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
+    const isPhone = /^(?:\+?88)?01[3-9]\d{8}$/.test(value.replace(/[\s-]/g, ''))
+    const message = `Please add me to MADINA product and offer updates. My preferred contact is: ${value}`
+    if (isEmail && support.email && support.channels.includes('email')) {
+      window.location.href = `mailto:${support.email}?subject=${encodeURIComponent('MADINA updates request')}&body=${encodeURIComponent(message)}`
+      newsletterMessage.value = 'Your email app is ready. Send the message to complete your request.'
+    } else if (isPhone && digits && support.channels.includes('chat')) {
+      window.location.href = `https://wa.me/${digits}?text=${encodeURIComponent(message)}`
+      newsletterMessage.value = 'WhatsApp is ready. Send the message to complete your request.'
+    } else {
+      newsletterMessage.value = 'Please enter a valid email or Bangladesh mobile number. If support contact is not configured, use Live Chat.'
+    }
+  } catch {
+    newsletterMessage.value = 'Update requests are not connected yet. Please contact MADINA through Live Chat.'
+  }
+}
 
 async function submitTracking() {
   trackingPrefill.value = { reference: trackingReference.value.trim(), phone: trackingPhone.value.trim() }
@@ -364,6 +388,29 @@ useSeoMeta({
       </NuxtLink>
     </section>
 
+    <!-- Premium value proposition: placed before order tracking for a clearer page flow. -->
+    <section class="value-section">
+      <div class="container">
+        <div class="value-section__intro">
+          <p class="section-kicker">THE MADINA EXPERIENCE</p>
+          <div class="section-heading">
+            <div class="section-heading__title">
+              <h2>Why Choose MADINA™?</h2>
+              <span aria-hidden="true" />
+            </div>
+            <p>Everything you need to choose with confidence, from catalogue discovery to checkout.</p>
+          </div>
+        </div>
+        <div class="value-grid">
+          <article><span class="value-card__number">01</span><UiIcon name="target" :size="25" /><div><h3>Find the right solution</h3><p>Explore weighing equipment through clear product categories.</p></div><UiIcon class="value-card__arrow" name="arrow-up-right" :size="17" /></article>
+          <article><span class="value-card__number">02</span><UiIcon name="layers" :size="25" /><div><h3>Compare product options</h3><p>Review published specifications, variants and pricing.</p></div><UiIcon class="value-card__arrow" name="arrow-up-right" :size="17" /></article>
+          <article><span class="value-card__number">03</span><UiIcon name="shopping-cart" :size="25" /><div><h3>A simpler buying journey</h3><p>Keep selected products together in your online cart.</p></div><UiIcon class="value-card__arrow" name="arrow-up-right" :size="17" /></article>
+          <article><span class="value-card__number">04</span><UiIcon name="headset" :size="25" /><div><h3>Support when you need it</h3><p>Find order tracking and customer support from one place.</p></div><UiIcon class="value-card__arrow" name="arrow-up-right" :size="17" /></article>
+        </div>
+      </div>
+    </section>
+
+
     <section class="container home-track-panel" aria-labelledby="home-track-title">
       <div class="home-track-panel__intro">
         <div class="home-track-panel__icon"><UiIcon name="package-search" :size="28" /></div>
@@ -387,32 +434,26 @@ useSeoMeta({
       <p class="home-track-panel__privacy">Your mobile number is used only to verify the order reference. It is not shown in tracking results.</p>
     </section>
 
+
+
     <section class="container home-newsletter" aria-labelledby="home-newsletter-title">
-      <div class="home-newsletter__icon"><UiIcon name="mail" :size="29" /></div>
-      <div>
-        <h2 id="home-newsletter-title">Stay Updated</h2>
-        <p>Product news and offers will appear here when newsletter subscription is enabled.</p>
+      <div class="home-newsletter__intro">
+        <div class="home-newsletter__icon"><UiIcon name="send" :size="25" /></div>
+        <div>
+          <p class="section-kicker">MADINA UPDATES</p>
+          <h2 id="home-newsletter-title">Stay in the loop</h2>
+          <p>Leave your email or mobile number and request product and offer updates.</p>
+        </div>
       </div>
-      <span class="home-newsletter__status">Coming soon</span>
+      <form class="home-newsletter__form" @submit.prevent="requestUpdates">
+        <label class="sr-only" for="newsletter-contact">Email address or mobile number</label>
+        <input id="newsletter-contact" v-model="newsletterContact" type="text" autocomplete="email" placeholder="Email address or mobile number" required minlength="6" maxlength="190">
+        <button type="submit">Request updates <UiIcon name="arrow-right" :size="16" /></button>
+        <p v-if="newsletterMessage" class="home-newsletter__message" role="status">{{ newsletterMessage }}</p>
+      </form>
     </section>
 
-    <!-- Value propositions are descriptive, not unsupported certification claims. -->
-    <section class="value-section">
-      <div class="container">
-        <div class="section-heading">
-          <div class="section-heading__title">
-            <h2>Why Choose MADINA™?</h2>
-            <span aria-hidden="true" />
-          </div>
-        </div>
-        <div class="value-grid">
-          <article><UiIcon name="target" :size="28" /><div><h3>Find the right product</h3><p>Browse the catalogue by product category.</p></div></article>
-          <article><UiIcon name="layers" :size="28" /><div><h3>Review product options</h3><p>Check the variants and details published for each product.</p></div></article>
-          <article><UiIcon name="shopping-cart" :size="28" /><div><h3>Convenient online cart</h3><p>Review selected items before proceeding to checkout.</p></div></article>
-          <article><UiIcon name="search" :size="28" /><div><h3>Clear product information</h3><p>Use the published catalogue details to compare options.</p></div></article>
-        </div>
-      </div>
-    </section>
+
 
     <div v-if="hasHomeDataError" class="container home-data-notice" role="status">
       <span>Some storefront content could not be loaded.</span>

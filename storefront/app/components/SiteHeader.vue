@@ -7,10 +7,16 @@ type Category = {
   children: Category[]
 }
 
-defineProps<{ categories: Category[] }>()
-
+const props = defineProps<{ categories: Category[] }>()
 const route = useRoute()
 const search = ref(String(route.query.q || ''))
+type SearchProduct = { id: number; name: string; slug: string; image_url: string | null; price: number | string | null; regular_price: number | string | null }
+const searchResults = ref<SearchProduct[]>([])
+const searchLoading = ref(false)
+const searchOpen = ref(false)
+const searchCategories = computed(() => props.categories.filter(category => search.value.trim().length > 1 && category.name.toLowerCase().includes(search.value.trim().toLowerCase())).slice(0, 3))
+let searchTimer: ReturnType<typeof setTimeout> | undefined
+const config = useRuntimeConfig()
 const mobileOpen = ref(false)
 const categoriesOpen = ref(false)
 const { locale, t } = useStorefrontLocale()
@@ -18,6 +24,24 @@ const { itemCount, refresh } = useStorefrontCart()
 
 watch(() => route.query.q, value => {
   search.value = String(value || '')
+})
+
+watch(search, value => {
+  if (searchTimer) clearTimeout(searchTimer)
+  const query = value.trim()
+  searchResults.value = []
+  if (query.length < 2) { searchLoading.value = false; return }
+  searchLoading.value = true
+  searchTimer = setTimeout(async () => {
+    try {
+      const response = await $fetch<{ data: SearchProduct[] }>(`${config.public.apiBase}/products`, { query: { q: query, page: 1 } })
+      if (search.value.trim() === query) searchResults.value = response.data || []
+    } catch {
+      searchResults.value = []
+    } finally {
+      if (search.value.trim() === query) searchLoading.value = false
+    }
+  }, 260)
 })
 
 watch(() => route.fullPath, () => {
@@ -30,12 +54,13 @@ onMounted(() => {
   document.addEventListener('keydown', handleEscape)
 })
 
-onBeforeUnmount(() => document.removeEventListener('keydown', handleEscape))
+onBeforeUnmount(() => { document.removeEventListener('keydown', handleEscape); if (searchTimer) clearTimeout(searchTimer) })
 
 function handleEscape(event: KeyboardEvent) {
   if (event.key === 'Escape') {
     categoriesOpen.value = false
     mobileOpen.value = false
+    searchOpen.value = false
   }
 }
 
@@ -43,7 +68,16 @@ async function submitSearch() {
   const q = search.value.trim()
   mobileOpen.value = false
   categoriesOpen.value = false
+  searchOpen.value = false
   await navigateTo(q ? { path: '/products', query: { q } } : '/products')
+}
+
+async function openProduct(product: SearchProduct) {
+  // Navigate explicitly on selection so the input blur timer cannot swallow the result click.
+  searchOpen.value = false
+  mobileOpen.value = false
+  categoriesOpen.value = false
+  await navigateTo({ path: `/products/${encodeURIComponent(product.slug)}` })
 }
 
 function categoryUrl(category: Category) {
@@ -55,6 +89,10 @@ function closeMenus() {
   mobileOpen.value = false
 }
 
+function closeSearch() {
+  setTimeout(() => { searchOpen.value = false }, 180)
+}
+
 function setLocale(value: 'en' | 'bn') {
   locale.value = value
 }
@@ -64,16 +102,13 @@ function setLocale(value: 'en' | 'bn') {
   <header class="site-header">
     <div class="utility-bar">
       <div class="container utility-bar__inner">
-        <span class="utility-bar__brand">MADINA™ Weighing Solutions</span>
-        <div class="utility-bar__actions">
-          <NuxtLink to="/track-order" class="utility-track-link">
-            <UiIcon name="package-search" :size="15" />
-            {{ t('Track Order', 'অর্ডার ট্র্যাক') }}
-          </NuxtLink>
-          <div class="language-switcher" role="group" :aria-label="t('Choose language', 'ভাষা নির্বাচন করুন')">
-            <button type="button" :class="{ 'is-active': locale === 'en' }" :aria-pressed="locale === 'en'" @click="setLocale('en')">EN</button>
-            <button type="button" :class="{ 'is-active': locale === 'bn' }" :aria-pressed="locale === 'bn'" @click="setLocale('bn')">বাংলা</button>
-          </div>
+        <NuxtLink to="/track-order" class="utility-track-link">
+          <UiIcon name="package-search" :size="15" />
+          {{ t('Track Order', 'অর্ডার ট্র্যাক') }}
+        </NuxtLink>
+        <div class="language-switcher" role="group" :aria-label="t('Choose language', 'ভাষা নির্বাচন করুন')">
+          <button type="button" :class="{ 'is-active': locale === 'en' }" :aria-pressed="locale === 'en'" @click="setLocale('en')">EN</button>
+          <button type="button" :class="{ 'is-active': locale === 'bn' }" :aria-pressed="locale === 'bn'" @click="setLocale('bn')">বাংলা</button>
         </div>
       </div>
     </div>
@@ -95,10 +130,14 @@ function setLocale(value: 'en' | 'bn') {
           <span class="brand-lockup__text">MADINA<span>SCALE</span></span>
         </NuxtLink>
 
+        <div class="header-search-wrap">
         <form class="header-search" role="search" @submit.prevent="submitSearch">
           <label class="sr-only" for="storefront-search">{{ t('Search products by name', 'পণ্যের নাম দিয়ে খুঁজুন') }}</label>
           <input
             id="storefront-search"
+            @focus="searchOpen = true"
+            @input="searchOpen = true"
+            @keydown.esc="searchOpen = false" @blur="closeSearch"
             v-model="search"
             type="search"
             autocomplete="off"
@@ -108,6 +147,28 @@ function setLocale(value: 'en' | 'bn') {
             <UiIcon name="search" :size="21" />
           </button>
         </form>
+        <div v-if="searchOpen && search.trim().length > 1" class="search-suggestions">
+          <div class="search-suggestions__top"><span>{{ t('Live catalogue results', 'লাইভ ক্যাটালগ ফলাফল') }}</span><small v-if="searchLoading">{{ t('Searching…', 'খোঁজা হচ্ছে…') }}</small><small v-else>{{ searchResults.length }} {{ t('products', 'টি পণ্য') }}</small></div>
+          <NuxtLink v-for="product in searchResults.slice(0, 6)" :key="product.id" :to="`/products/${product.slug}`" class="search-suggestion" @mousedown.prevent @click.prevent="openProduct(product)">
+            <span class="search-suggestion__image"><img v-if="product.image_url" :src="product.image_url" :alt="''" loading="lazy"><UiIcon v-else name="scale" :size="20" /></span>
+            <span class="search-suggestion__copy"><strong>{{ product.name }}</strong><small>{{ product.price != null ? `৳${Number(product.price).toLocaleString('en-BD')}` : t('View product details', 'পণ্যের বিস্তারিত দেখুন') }}</small></span>
+            <UiIcon name="arrow-up-right" :size="16" />
+          </NuxtLink>
+          <NuxtLink v-for="category in searchCategories" :key="`category-${category.id}`" :to="categoryUrl(category)" class="search-suggestion search-suggestion--category" @mousedown.prevent @click="searchOpen = false"><span class="search-suggestion__image"><UiIcon name="layout-grid" :size="18" /></span><span class="search-suggestion__copy"><strong>{{ category.name }}</strong><small>{{ t('Category', 'ক্যাটাগরি') }}</small></span></NuxtLink>
+          <div v-if="!searchLoading && !searchResults.length && !searchCategories.length" class="search-suggestions__empty">{{ t('No matching products found.', 'মিল পাওয়া যায়নি।') }}</div>
+          <button type="button" class="search-suggestions__all" @click="submitSearch">{{ t('View all search results', 'সব ফলাফল দেখুন') }} →</button>
+        </div>
+        </div>
+
+        <NuxtLink
+          to="/login"
+          class="header-login-link header-login-link--icon"
+          :aria-label="t('Customer sign in', 'কাস্টমার লগইন')"
+          :title="t('Customer sign in', 'কাস্টমার লগইন')"
+        >
+          <UiIcon name="user-round" :size="19" />
+          <span class="sr-only">{{ t('Sign in', 'লগইন') }}</span>
+        </NuxtLink>
 
         <NuxtLink to="/cart" class="header-cart" :aria-label="`${t('Shopping cart', 'শপিং কার্ট')}${itemCount ? `, ${itemCount} items` : ''}`">
           <span class="header-cart__icon"><UiIcon name="shopping-cart" :size="25" /></span>

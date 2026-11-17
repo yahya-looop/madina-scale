@@ -582,3 +582,214 @@ button,input,textarea,select{font:inherit}
 }
 @media(min-width:768px){.footer-grid{grid-template-columns:1.35fr repeat(4,minmax(0,1fr));gap:22px}}
 @media(max-width:1100px) and (min-width:768px){.footer-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:20px}.footer-brand{grid-column:span 1}}
+
+/* Phase 6 — premium homepage value cards, live search and customer access. */
+.utility-login-link{display:inline-flex;align-items:center;gap:7px;color:#e5f4e9!important;font-size:11px;font-weight:800}
+.utility-login-link:hover{color:#fff!important}
+.header-search-wrap{position:relative;min-width:0;width:100%}
+.search-suggestions{position:absolute;z-index:90;top:calc(100% + 9px);left:0;right:0;max-height:min(520px,70vh);overflow:auto;padding:9px;border:1px solid #e5ece7;border-radius:15px;background:#fff;box-shadow:0 22px 55px #10231820}
+.search-suggestions__top{display:flex;align-items:center;justify-content:space-between;padding:7px 9px 10px;color:#657469;font-size:10px;font-weight:850;letter-spacing:.04em;text-transform:uppercase}
+.search-suggestions__top small{color:var(--brand-700);font-size:10px;font-weight:750;text-transform:none;letter-spacing:0}
+.search-suggestion{display:flex;align-items:center;gap:11px;padding:9px;border-radius:10px;color:var(--ink-900);transition:background .15s ease}
+.search-suggestion:hover{background:#f2f8f4}
+.search-suggestion>svg{margin-left:auto;color:#789183}
+.search-suggestion__image{width:48px;height:48px;display:grid;place-items:center;flex:none;overflow:hidden;border:1px solid #edf1ee;border-radius:9px;background:#f6faf7;color:var(--brand-700)}
+.search-suggestion__image img{width:100%;height:100%;object-fit:contain}
+.search-suggestion__copy{display:grid;gap:4px;min-width:0}
+.search-suggestion__copy strong{overflow:hidden;color:var(--ink-900);font-size:12px;font-weight:800;text-overflow:ellipsis;white-space:nowrap}
+.search-suggestion__copy small{color:var(--brand-700);font-size:10px;font-weight:750}
+.search-suggestion--category{border-top:1px solid #f0f3f1;border-radius:0}
+.search-suggestions__empty{padding:18px 10px;color:var(--ink-500);font-size:12px;text-align:center}
+.search-suggestions__all{width:100%;margin-top:6px;padding:11px;border:0;border-top:1px solid #edf1ee;border-radius:0 0 9px 9px;background:#f8fbf9;color:var(--brand-800);font-size:11px;font-weight:850;cursor:pointer}
+.main-nav__link{position:relative;min-height:42px;padding:0 11px;border-radius:8px;transition:background .16s ease,color .16s ease}
+.main-nav__link:hover{background:#f1f8f3}
+.main-nav__link.router-link-exact-active{background:#edf7f0;color:var(--brand-800)!important}
+.main-nav__link.router-link-exact-active:after{position:absolute;right:11px;bottom:3px;left:11px;height:2px;border-radius:2px;background:var(--brand-700);content:""}
+.value-section{padding:35px 0 39px;background:linear-gradient(180deg,#f7faf8 0%,#fff 100%)}
+.value-section__intro>.section-kicker{margin:0 0 7px;color:var(--brand-700);font-size:9px;font-weight:900;letter-spacing:.17em}
+.value-section .section-heading{align-items:flex-end;margin-bottom:17px}
+.value-section .section-heading__title h2{font-size:25px;letter-spacing:-.8px}
+.value-section .section-heading>p{max-width:390px;margin:0;color:var(--ink-500);font-size:11px;line-height:1.6}
+.value-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.value-grid article{position:relative;min-height:142px;display:grid;grid-template-columns:32px 1fr 18px;grid-template-rows:auto 1fr;align-items:start;gap:12px;padding:17px;border:1px solid #e5ece7;border-radius:13px;background:#fff;box-shadow:0 5px 16px #10231806;transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease}
+.value-grid article:hover{transform:translateY(-3px);border-color:#b9d8c2;box-shadow:0 13px 26px #1023180d}
+.value-card__number{grid-column:1/-1;color:#9aafa1;font-size:9px;font-weight:900;letter-spacing:.12em}
+.value-grid article>svg:not(.value-card__arrow){grid-column:1;grid-row:2;color:var(--brand-700)}
+.value-grid article>div{grid-column:2;grid-row:2}
+.value-grid h3{margin:1px 0 6px;color:var(--ink-900);font-size:12px;font-weight:850}
+.value-grid p{margin:0;color:var(--ink-500);font-size:10px;line-height:1.55}
+.value-card__arrow{grid-column:3;grid-row:2;color:#a5b7aa;transition:transform .18s ease,color .18s ease}
+.value-grid article:hover .value-card__arrow{transform:translate(2px,-2px);color:var(--brand-700)}
+.home-track-panel{margin-top:22px}
+.home-newsletter{display:grid;grid-template-columns:minmax(0,1fr) minmax(340px,.85fr);align-items:center;gap:22px;margin-top:18px;padding:20px 23px;border-color:#dcebe1;background:linear-gradient(110deg,#f0f8f2,#f9fcfa)}
+.home-newsletter__intro{display:flex;align-items:center;gap:14px;min-width:0}
+.home-newsletter__intro .section-kicker{margin:0 0 4px;color:var(--brand-700);font-size:9px;font-weight:900;letter-spacing:.14em}
+.home-newsletter__intro h2{margin:0 0 4px;font-size:17px}
+.home-newsletter__intro p:last-child{margin:0;color:var(--ink-500);font-size:11px;line-height:1.5}
+.home-newsletter__form{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:7px}
+.home-newsletter__form input{height:42px;min-width:0;padding:0 13px;border:1px solid #dbe7de;border-radius:8px;background:#fff;color:var(--ink-900);font:inherit;font-size:11px;outline:none}
+.home-newsletter__form input:focus{border-color:#82b795;box-shadow:0 0 0 3px #087a3212}
+.home-newsletter__form button{height:42px;display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:0 13px;border:0;border-radius:8px;background:var(--brand-700);color:#fff;font-size:10px;font-weight:850;white-space:nowrap;cursor:pointer}
+.home-newsletter__form button:hover{background:var(--brand-900)}
+.home-newsletter__message{grid-column:1/-1;margin:2px 0 0;color:var(--brand-800);font-size:10px;line-height:1.45}
+.customer-login-page{min-height:calc(100vh - 250px);display:grid;place-items:center;padding-block:48px}
+.customer-login-card{width:min(100%,470px);padding:32px;border:1px solid #e3ebe5;border-radius:18px;background:#fff;box-shadow:0 18px 50px #1023180c}
+.customer-login-card__mark{width:52px;height:52px;display:grid;place-items:center;margin-bottom:18px;border-radius:14px;background:#edf7f0;color:var(--brand-700)}
+.customer-login-card>.section-kicker{margin:0 0 7px;color:var(--brand-700);font-size:9px;font-weight:900;letter-spacing:.15em}
+.customer-login-card h1{margin:0 0 8px;color:var(--ink-900);font-size:29px;letter-spacing:-.9px}
+.customer-login-card__intro{margin:0 0 22px;color:var(--ink-500);font-size:12px;line-height:1.6}
+.customer-login-form{display:grid;gap:14px}
+.customer-login-form label{display:grid;gap:7px}
+.customer-login-form label span{color:var(--ink-700);font-size:11px;font-weight:800}
+.customer-login-form input{height:44px;padding:0 13px;border:1px solid #dfe8e2;border-radius:8px;font:inherit;font-size:12px;outline:none}
+.customer-login-form input:focus{border-color:#82b795;box-shadow:0 0 0 3px #087a3212}
+.customer-login-form button{height:45px;display:flex;align-items:center;justify-content:center;gap:9px;border:0;border-radius:8px;background:var(--brand-700);color:#fff;font-size:12px;font-weight:850;cursor:pointer}
+.customer-login-form button:disabled{opacity:.65;cursor:wait}
+.customer-login-form__error,.customer-login-form__success{margin:0;padding:10px;border-radius:8px;font-size:11px}
+.customer-login-form__error{background:#fff2f1;color:#b42318}.customer-login-form__success{background:#edf8f0;color:var(--brand-800)}
+.customer-login-card__foot{margin:18px 0 0;color:var(--ink-500);font-size:10px;line-height:1.6}.customer-login-card__foot a{color:var(--brand-700);font-weight:800}
+@media(max-width:1100px){.value-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.home-newsletter{grid-template-columns:1fr}.home-newsletter__form{max-width:620px;width:100%}}
+@media(max-width:767px){.utility-login-link{font-size:9px}.utility-login-link svg{width:13px;height:13px}.header-search-wrap{grid-column:1/-1;grid-row:2;margin-bottom:10px}.header-search{margin:0!important}.search-suggestions{top:calc(100% + 7px);max-height:62vh}.value-section{padding:27px 0}.value-section .section-heading{display:block}.value-section .section-heading__title h2{font-size:21px}.value-section .section-heading>p{margin-top:7px;font-size:10px}.value-grid{grid-template-columns:1fr 1fr;gap:8px}.value-grid article{min-height:130px;grid-template-columns:25px 1fr 14px;gap:8px;padding:12px}.value-grid article>svg:not(.value-card__arrow){width:22px;height:22px}.value-grid h3{font-size:10px}.value-grid p{font-size:9px}.value-card__arrow{width:14px;height:14px}.home-newsletter{gap:13px;padding:15px}.home-newsletter__intro{align-items:flex-start}.home-newsletter__icon{width:39px;height:39px}.home-newsletter__intro h2{font-size:15px}.home-newsletter__intro p:last-child{font-size:10px}.home-newsletter__form{grid-template-columns:1fr}.home-newsletter__form button{width:100%}.customer-login-page{min-height:calc(100vh - 190px);padding-block:28px}.customer-login-card{padding:23px;border-radius:14px}}
+
+
+/* Phase 7: persistent navigation, compact menu rhythm, and deterministic search UX. */
+.site-header{position:sticky;top:0;z-index:120;isolation:isolate;box-shadow:0 5px 20px rgba(12,35,22,.045)}
+.utility-bar{position:relative;z-index:3}
+.header-main{position:relative;z-index:2}
+.main-nav{position:relative;z-index:4}
+.main-nav__inner{justify-content:flex-start;gap:clamp(5px,.75vw,12px)}
+.main-nav__inner>a{flex:1 1 0;justify-content:center;min-width:0;padding-inline:clamp(5px,.8vw,12px);font-size:12px;letter-spacing:-.01em}
+.main-nav__inner>.category-toggle{flex:0 0 auto;margin-right:clamp(5px,.8vw,12px)}
+.main-nav__link{min-height:40px;padding-inline:9px}
+.header-main__inner{grid-template-columns:auto minmax(220px,1fr) auto auto;gap:clamp(12px,1.8vw,24px)}
+.header-login-link{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:40px;padding:0 10px;border:1px solid #e2ebe5;border-radius:9px;color:var(--ink-700);font-size:12px;font-weight:800;white-space:nowrap;transition:background .16s ease,border-color .16s ease,color .16s ease}
+.header-login-link:hover{border-color:#c8dfd0;background:#f2f8f4;color:var(--brand-800)}
+.header-login-link svg{color:var(--brand-700)}
+.header-search-wrap{position:relative;min-width:0}
+.search-suggestions{z-index:150;overscroll-behavior:contain}
+.search-suggestion{cursor:pointer;user-select:none}
+.search-suggestion:focus-visible{outline:2px solid var(--brand-700);outline-offset:-2px;background:#f2f8f4}
+.search-suggestion__image img{pointer-events:none}
+@media(max-width:1100px){
+ .header-main__inner{gap:12px}
+ .header-login-link{padding-inline:8px;font-size:11px}
+ .main-nav__inner{gap:4px}
+ .main-nav__inner>a{padding-inline:6px;font-size:11px}
+}
+@media(max-width:767px){
+ .site-header{top:0}
+ .utility-bar__inner{justify-content:space-between;min-height:34px}
+ .utility-track-link{display:inline-flex;align-items:center;min-height:28px;font-size:10px}
+ .language-switcher{margin-left:4px}
+ .header-main__inner{grid-template-columns:34px minmax(0,1fr) auto auto;grid-template-rows:48px 42px;gap:0 8px;padding-top:5px}
+ .mobile-menu-button{grid-column:1;grid-row:1;display:grid}
+ .brand-lockup{grid-column:2;grid-row:1}
+ .header-login-link{grid-column:3;grid-row:1;min-height:34px;padding-inline:8px;font-size:10px}
+ .header-login-link svg{width:15px;height:15px}
+ .header-cart{grid-column:4;grid-row:1;min-width:36px;justify-content:center}
+ .header-search-wrap{grid-column:1/-1;grid-row:2;width:100%;margin:0 0 8px}
+ .header-search{height:38px;margin:0!important}
+ .header-search input{font-size:11px}
+ .search-suggestions{top:calc(100% + 6px);max-height:58vh}
+ .main-nav{display:none}
+ .mobile-navigation{position:relative;z-index:5}
+}
+
+/* Phase 8: icon-first customer sign-in and GSAP-driven compact navigation. */
+.header-login-link--icon{width:40px;min-width:40px;height:40px;padding:0;border-radius:11px;background:#fff}
+.header-login-link--icon svg{width:19px;height:19px;stroke-width:2}
+.header-login-link--icon:hover{transform:translateY(-1px);box-shadow:0 5px 14px rgba(8,122,50,.09)}
+.main-nav__inner{gap:clamp(4px,.58vw,9px)}
+.main-nav__inner>a{font-size:11px;letter-spacing:0;padding-inline:clamp(4px,.55vw,8px)}
+.main-nav__link{min-height:37px;padding-inline:7px}
+.main-nav__inner>.category-toggle{padding:10px 15px;gap:9px;font-size:12px}
+.site-header .utility-bar,.site-header .header-main{transform:translateZ(0)}
+.site-header .main-nav__inner,.site-header .category-toggle{transform-origin:left center;will-change:min-height,transform}
+@media(max-width:1100px){.header-login-link--icon{width:36px;min-width:36px;height:36px}.main-nav__inner>a{font-size:10px;padding-inline:4px}.main-nav__inner>.category-toggle{padding:9px 12px}}
+@media(max-width:767px){.header-login-link--icon{width:34px;min-width:34px;height:34px;padding:0}.header-login-link--icon svg{width:17px;height:17px}}
+@media(prefers-reduced-motion:reduce){.header-login-link--icon:hover{transform:none;box-shadow:none}}
+
+
+/* Phase 8.1 — stable sticky navigation and compact header */
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  isolation: isolate;
+  background: #fff;
+}
+
+.site-header .utility-bar,
+.site-header .header-main {
+  position: relative;
+  max-height: none;
+  overflow: visible;
+  flex: 0 0 auto;
+}
+
+.site-header .main-nav {
+  position: relative;
+  z-index: 30;
+  background: #fff;
+}
+
+.site-header .main-nav__inner {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: space-between;
+  min-width: 0;
+  white-space: nowrap;
+  gap: clamp(8px, 1.35vw, 20px);
+}
+
+.site-header .main-nav__link {
+  flex: 0 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.site-header .category-toggle {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  gap: 8px;
+  padding: 10px 14px;
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.site-header .main-nav__deals {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.site-header .mega-menu {
+  z-index: 50;
+}
+
+@media (max-width: 1024px) and (min-width: 768px) {
+  .site-header .main-nav__inner {
+    gap: 7px;
+  }
+  .site-header .main-nav__link {
+    font-size: 11px;
+  }
+  .site-header .category-toggle {
+    gap: 6px;
+    padding: 9px 10px;
+    font-size: 11px;
+  }
+}
+
+@media (max-width: 767px) {
+  .site-header {
+    position: sticky;
+    top: 0;
+  }
+  .site-header .main-nav__inner {
+    flex-wrap: wrap;
+  }
+}
