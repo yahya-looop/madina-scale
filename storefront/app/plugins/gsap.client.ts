@@ -15,13 +15,14 @@ export default defineNuxtPlugin((nuxtApp) => {
   let resizeHandler: (() => void) | undefined
   let headerElements: {
     utility: HTMLElement
-    headerMain: HTMLElement
+    utilityInner: HTMLElement
     navInner: HTMLElement
     categoryButton: HTMLElement | null
   } | undefined
+  let isCompact = false
 
   const clearHeaderMotion = () => {
-    compactTimeline?.progress(0).kill()
+    compactTimeline?.kill()
     compactTimeline = undefined
 
     if (scrollHandler) window.removeEventListener('scroll', scrollHandler)
@@ -30,16 +31,14 @@ export default defineNuxtPlugin((nuxtApp) => {
     resizeHandler = undefined
 
     if (headerElements) {
-      const { utility, headerMain, navInner, categoryButton } = headerElements
-      gsap.set([utility, headerMain], {
-        clearProps: 'maxHeight,overflow,opacity,visibility,transform,willChange,pointerEvents',
-      })
+      const { utility, utilityInner, navInner, categoryButton } = headerElements
+      gsap.set(utility, { clearProps: 'height,maxHeight,overflow,willChange,pointerEvents' })
+      gsap.set(utilityInner, { clearProps: 'height,minHeight,opacity,transform,willChange' })
       gsap.set(navInner, { clearProps: 'minHeight,willChange' })
-      if (categoryButton) {
-        gsap.set(categoryButton, { clearProps: 'padding,fontSize,willChange' })
-      }
+      if (categoryButton) gsap.set(categoryButton, { clearProps: 'padding,fontSize,willChange' })
     }
     headerElements = undefined
+    isCompact = false
   }
 
   const setupHeaderMotion = () => {
@@ -47,76 +46,82 @@ export default defineNuxtPlugin((nuxtApp) => {
 
     const header = document.querySelector<HTMLElement>('.site-header')
     const utility = header?.querySelector<HTMLElement>('.utility-bar')
-    const headerMain = header?.querySelector<HTMLElement>('.header-main')
+    const utilityInner = utility?.querySelector<HTMLElement>('.utility-bar__inner')
     const navInner = header?.querySelector<HTMLElement>('.main-nav__inner')
-    const categoryButton = header?.querySelector<HTMLElement>('.category-toggle')
+    const categoryButton = navInner?.querySelector<HTMLElement>('.category-toggle') ?? null
 
-    if (!header || !utility || !headerMain || !navInner) return
+    if (!header || !utility || !utilityInner || !navInner) return
 
-    const isMobile = window.matchMedia('(max-width: 767px)').matches
     const utilityHeight = Math.ceil(utility.getBoundingClientRect().height)
-    const headerMainHeight = Math.ceil(headerMain.getBoundingClientRect().height)
     const navHeight = Math.ceil(navInner.getBoundingClientRect().height)
 
-    // Keep the header in normal document flow and sticky as one unit.
-    // Only collapse the upper rows; the navigation row remains visible.
+    // Animate both the wrapper and its min-height-constrained inner row.
+    // This prevents the inner min-height from keeping the utility bar open
+    // until GSAP suddenly toggles visibility at the end of the tween.
     gsap.set(utility, {
+      height: utilityHeight,
       maxHeight: utilityHeight,
       overflow: 'hidden',
-      willChange: 'max-height, opacity',
+      willChange: 'height',
     })
-
-    if (!isMobile) {
-      gsap.set(headerMain, {
-        maxHeight: headerMainHeight,
-        overflow: 'hidden',
-        willChange: 'max-height, opacity',
-      })
-    }
+    gsap.set(utilityInner, {
+      height: utilityHeight,
+      minHeight: utilityHeight,
+      overflow: 'hidden',
+      willChange: 'height, opacity, transform',
+      transformOrigin: 'top center',
+    })
 
     compactTimeline = gsap.timeline({
       paused: true,
       defaults: { ease: 'power2.inOut' },
     })
 
+    compactTimeline.to(utilityInner, {
+      height: 0,
+      minHeight: 0,
+      opacity: 0,
+      y: -10,
+      duration: 0.38,
+      ease: 'power2.inOut',
+    }, 0)
+
     compactTimeline.to(utility, {
+      height: 0,
       maxHeight: 0,
-      autoAlpha: 0,
-      duration: 0.24,
+      duration: 0.38,
+      ease: 'power2.inOut',
       pointerEvents: 'none',
     }, 0)
 
-    if (!isMobile) {
-      compactTimeline.to(headerMain, {
-        maxHeight: 0,
-        autoAlpha: 0,
-        duration: 0.28,
-        pointerEvents: 'none',
-      }, 0)
-    }
-
     compactTimeline.to(navInner, {
-      minHeight: Math.max(44, navHeight - 7),
-      duration: 0.24,
+      minHeight: Math.max(42, navHeight - 7),
+      duration: 0.38,
     }, 0)
 
     if (categoryButton) {
       compactTimeline.to(categoryButton, {
-        padding: '8px 12px',
-        fontSize: '11.5px',
-        duration: 0.24,
+        padding: '8px 11px',
+        fontSize: '11px',
+        duration: 0.38,
       }, 0)
     }
 
-    headerElements = { utility, headerMain, navInner, categoryButton }
+    headerElements = { utility, utilityInner, navInner, categoryButton }
 
+    // Hysteresis prevents flicker around the threshold.
     scrollHandler = () => {
-      if (window.scrollY > 90) compactTimeline?.play()
-      else compactTimeline?.reverse()
+      const y = window.scrollY
+      if (!isCompact && y >= 100) {
+        isCompact = true
+        compactTimeline?.play()
+      } else if (isCompact && y <= 55) {
+        isCompact = false
+        compactTimeline?.reverse()
+      }
     }
 
     resizeHandler = () => setupHeaderMotion()
-
     window.addEventListener('scroll', scrollHandler, { passive: true })
     window.addEventListener('resize', resizeHandler, { passive: true })
     scrollHandler()
@@ -185,9 +190,13 @@ export default defineNuxtPlugin((nuxtApp) => {
     })
   })
 
-  nuxtApp.hook('app:beforeUnmount', () => {
-    pageContext?.revert()
+  const cleanupPlugin = () => {
     clearHeaderMotion()
-    ScrollTrigger.getAll().forEach(trigger => trigger.kill())
-  })
+    pageContext?.revert()
+    pageContext = undefined
+    ScrollTrigger.getAll().forEach((trigger) => trigger.kill())
+    window.removeEventListener('pagehide', cleanupPlugin)
+  }
+
+  window.addEventListener('pagehide', cleanupPlugin, { once: true })
 })

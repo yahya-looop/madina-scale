@@ -1,3 +1,5 @@
+
+
 <script setup lang="ts">
 type Category = {
   id: number
@@ -16,11 +18,13 @@ const searchLoading = ref(false)
 const searchOpen = ref(false)
 const searchCategories = computed(() => props.categories.filter(category => search.value.trim().length > 1 && category.name.toLowerCase().includes(search.value.trim().toLowerCase())).slice(0, 3))
 let searchTimer: ReturnType<typeof setTimeout> | undefined
+let searchRequestId = 0
 const config = useRuntimeConfig()
 const mobileOpen = ref(false)
 const categoriesOpen = ref(false)
 const { locale, t } = useStorefrontLocale()
 const { itemCount, refresh } = useStorefrontCart()
+const { customer, refreshCustomer, firstName } = useStorefrontCustomer()
 
 watch(() => route.query.q, value => {
   search.value = String(value || '')
@@ -29,19 +33,25 @@ watch(() => route.query.q, value => {
 watch(search, value => {
   if (searchTimer) clearTimeout(searchTimer)
   const query = value.trim()
+  const normalizedQuery = query.toLocaleLowerCase()
+  const requestId = ++searchRequestId
   searchResults.value = []
   if (query.length < 2) { searchLoading.value = false; return }
   searchLoading.value = true
   searchTimer = setTimeout(async () => {
     try {
+      // The Laravel catalogue uses case-insensitive matching (ILIKE).
+      // Keep a normalized key for stale-response checks regardless of input casing.
       const response = await $fetch<{ data: SearchProduct[] }>(`${config.public.apiBase}/products`, { query: { q: query, page: 1 } })
-      if (search.value.trim() === query) searchResults.value = response.data || []
+      if (requestId === searchRequestId && search.value.trim().toLocaleLowerCase() === normalizedQuery) {
+        searchResults.value = response.data || []
+      }
     } catch {
-      searchResults.value = []
+      if (requestId === searchRequestId) searchResults.value = []
     } finally {
-      if (search.value.trim() === query) searchLoading.value = false
+      if (requestId === searchRequestId) searchLoading.value = false
     }
-  }, 260)
+  }, 180)
 })
 
 watch(() => route.fullPath, () => {
@@ -51,6 +61,7 @@ watch(() => route.fullPath, () => {
 
 onMounted(() => {
   if (!['/cart', '/checkout'].includes(route.path)) refresh().catch(() => undefined)
+  refreshCustomer().catch(() => undefined)
   document.addEventListener('keydown', handleEscape)
 })
 
@@ -149,7 +160,7 @@ function setLocale(value: 'en' | 'bn') {
         </form>
         <div v-if="searchOpen && search.trim().length > 1" class="search-suggestions">
           <div class="search-suggestions__top"><span>{{ t('Live catalogue results', 'লাইভ ক্যাটালগ ফলাফল') }}</span><small v-if="searchLoading">{{ t('Searching…', 'খোঁজা হচ্ছে…') }}</small><small v-else>{{ searchResults.length }} {{ t('products', 'টি পণ্য') }}</small></div>
-          <NuxtLink v-for="product in searchResults.slice(0, 6)" :key="product.id" :to="`/products/${product.slug}`" class="search-suggestion" @mousedown.prevent @click.prevent="openProduct(product)">
+          <NuxtLink v-for="product in searchResults.slice(0, 6)" :key="product.id" :to="`/products/${product.slug}`" class="search-suggestion" @pointerdown.prevent @click.prevent.stop="openProduct(product)">
             <span class="search-suggestion__image"><img v-if="product.image_url" :src="product.image_url" :alt="''" loading="lazy"><UiIcon v-else name="scale" :size="20" /></span>
             <span class="search-suggestion__copy"><strong>{{ product.name }}</strong><small>{{ product.price != null ? `৳${Number(product.price).toLocaleString('en-BD')}` : t('View product details', 'পণ্যের বিস্তারিত দেখুন') }}</small></span>
             <UiIcon name="arrow-up-right" :size="16" />
@@ -161,13 +172,13 @@ function setLocale(value: 'en' | 'bn') {
         </div>
 
         <NuxtLink
-          to="/login"
-          class="header-login-link header-login-link--icon"
-          :aria-label="t('Customer sign in', 'কাস্টমার লগইন')"
-          :title="t('Customer sign in', 'কাস্টমার লগইন')"
+          :to="customer ? '/account' : '/login'"
+          class="header-login-link header-login-link--account"
+          :aria-label="customer ? `${t('Customer account', 'কাস্টমার অ্যাকাউন্ট')}: ${customer.name}` : t('Sign in or sign up', 'সাইন ইন অথবা সাইন আপ')"
+          :title="customer ? customer.name : t('Sign in or sign up', 'সাইন ইন অথবা সাইন আপ')"
         >
           <UiIcon name="user-round" :size="19" />
-          <span class="sr-only">{{ t('Sign in', 'লগইন') }}</span>
+          <span>{{ customer ? firstName : t('Sign In / Sign Up', 'সাইন ইন / সাইন আপ') }}</span>
         </NuxtLink>
 
         <NuxtLink to="/cart" class="header-cart" :aria-label="`${t('Shopping cart', 'শপিং কার্ট')}${itemCount ? `, ${itemCount} items` : ''}`">
@@ -265,3 +276,5 @@ function setLocale(value: 'en' | 'bn') {
     </div>
   </header>
 </template>
+
+

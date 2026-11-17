@@ -793,3 +793,360 @@ button,input,textarea,select{font:inherit}
     flex-wrap: wrap;
   }
 }
+
+
+/* Header scroll behaviour: keep the search row visible; GSAP collapses utility only. */
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  isolation: isolate;
+  background: #fff;
+}
+.site-header .utility-bar {
+  position: relative;
+  z-index: 4;
+  flex: 0 0 auto;
+}
+.site-header .header-main {
+  position: relative;
+  z-index: 3;
+  flex: 0 0 auto;
+  overflow: visible;
+}
+.site-header .header-search-wrap,
+.site-header .header-search,
+.site-header .header-login-link,
+.site-header .header-cart {
+  visibility: visible;
+  opacity: 1;
+}
+.site-header .main-nav {
+  position: relative;
+  z-index: 5;
+  background: #fff;
+}
+.site-header .main-nav__inner {
+  flex-wrap: nowrap;
+  white-space: nowrap;
+  transform-origin: center top;
+}
+.site-header .header-login-link--icon,
+.site-header .header-login-link--icon svg {
+  color: var(--brand-700);
+}
+.site-header .header-login-link--icon svg {
+  display: block;
+  stroke: var(--brand-700);
+  stroke-width: 2.1;
+}
+.search-suggestions {
+  z-index: 1100;
+}
+.search-suggestion {
+  position: relative;
+  z-index: 1;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.search-suggestion__image img {
+  pointer-events: none;
+}
+@media (max-width: 767px) {
+  .site-header .header-main {
+    overflow: visible;
+  }
+  .site-header .header-search-wrap {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+  .site-header .header-login-link--icon svg {
+    width: 18px;
+    height: 18px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .site-header *,
+  .site-header *::before,
+  .site-header *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+
+/* Phase 9 — animated compact header and customer identity */
+.header-login-link--account {
+  width: auto;
+  min-width: 40px;
+  min-height: 40px;
+  padding: 0 11px;
+  gap: 8px;
+  color: var(--ink-700);
+  background: #fff;
+  border: 1px solid #e2ebe5;
+}
+.header-login-link--account svg {
+  flex: 0 0 auto;
+  color: var(--brand-700);
+  stroke: var(--brand-700);
+}
+.header-login-link--account span {
+  display: inline-block;
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.header-login-link--account:hover {
+  color: var(--brand-800);
+  border-color: #c8dfd0;
+  background: #f2f8f4;
+}
+.site-header .main-nav__inner {
+  gap: clamp(3px, .42vw, 7px);
+}
+.site-header .main-nav__inner > a {
+  padding-inline: clamp(3px, .38vw, 6px);
+}
+.site-header .main-nav__inner > .category-toggle {
+  margin-right: clamp(2px, .35vw, 6px);
+}
+.site-header.is-compact .main-nav__inner {
+  gap: 3px;
+}
+.site-header.is-compact .main-nav__inner > a {
+  padding-inline: 4px;
+}
+.site-header.is-compact .header-main {
+  box-shadow: 0 3px 12px rgba(12,35,22,.035);
+}
+.customer-register-resend {
+  display: inline !important;
+  width: auto !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  color: var(--brand-700) !important;
+  font: inherit !important;
+  font-weight: 800 !important;
+  cursor: pointer;
+}
+.customer-register-resend:disabled {
+  opacity: .6;
+  cursor: wait;
+}
+.customer-account-details {
+  display: grid;
+  gap: 0;
+  margin: 22px 0;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.customer-account-details p,
+.customer-account-order {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin: 0;
+  padding: 13px 15px;
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+}
+.customer-account-details p:last-child,
+.customer-account-order:last-child {
+  border-bottom: 0;
+}
+.customer-account-details strong,
+.customer-account-order strong {
+  color: var(--ink-800);
+}
+.customer-account-details span {
+  color: var(--ink-600);
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+.customer-account-orders {
+  margin-top: 24px;
+}
+.customer-account-orders h2 {
+  margin: 0 0 12px;
+  font-size: 17px;
+  font-weight: 850;
+  color: var(--ink-900);
+}
+.customer-account-order small {
+  display: block;
+  margin-top: 4px;
+  color: var(--ink-500);
+  font-size: 11px;
+}
+.customer-account-order > div:last-child {
+  text-align: right;
+}
+.customer-account-logout {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  margin-top: 22px;
+  padding: 0 20px;
+  border: 0;
+  border-radius: 9px;
+  background: var(--brand-700);
+  color: #fff;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.customer-account-logout:disabled {
+  opacity: .65;
+  cursor: wait;
+}
+@media (max-width: 1100px) {
+  .header-login-link--account {
+    padding-inline: 8px;
+    gap: 6px;
+    font-size: 10px;
+  }
+  .header-login-link--account span {
+    max-width: 112px;
+  }
+  .site-header .main-nav__inner {
+    gap: 3px;
+  }
+  .site-header .main-nav__inner > a {
+    padding-inline: 3px;
+    font-size: 10px !important;
+  }
+}
+@media (max-width: 767px) {
+  .header-login-link--account {
+    width: auto;
+    min-width: 34px;
+    max-width: 126px;
+    min-height: 34px;
+    padding-inline: 7px;
+    gap: 5px;
+    font-size: 9px;
+  }
+  .header-login-link--account svg {
+    width: 16px;
+    height: 16px;
+  }
+  .header-login-link--account span {
+    max-width: 76px;
+  }
+  .site-header.is-compact .header-login-link--account {
+    min-height: 31px;
+  }
+  .customer-account-details p,
+  .customer-account-order {
+    align-items: flex-start;
+    padding: 11px 12px;
+    font-size: 12px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .site-header .header-main,
+  .site-header .main-nav,
+  .site-header .utility-bar {
+    transition: none !important;
+  }
+}
+
+
+/* Phase 9 — smooth utility collapse, search overlay priority, compact left-aligned nav and hover motion. */
+.site-header .utility-bar {
+  overflow: hidden;
+  will-change: height;
+}
+.site-header .utility-bar__inner {
+  overflow: hidden;
+  will-change: height, opacity, transform;
+}
+.site-header .header-main {
+  position: relative;
+  z-index: 6;
+  overflow: visible;
+}
+.site-header .header-search-wrap {
+  z-index: 8;
+}
+.site-header .search-suggestions {
+  position: absolute;
+  z-index: 1200;
+  isolation: isolate;
+}
+.site-header .main-nav {
+  position: relative;
+  z-index: 4;
+}
+.site-header .mega-menu {
+  z-index: 10;
+}
+
+/* Keep the existing category-to-first-link breathing room, but remove
+   the flex distribution that creates oversized gaps between later links. */
+@media (min-width: 768px) {
+  .site-header .main-nav__inner {
+    justify-content: flex-start;
+    gap: 12px;
+  }
+  .site-header .main-nav__inner > .category-toggle {
+    flex: 0 0 auto;
+    margin-right: clamp(70px, 9vw, 130px);
+  }
+  .site-header .main-nav__inner > .main-nav__link {
+    flex: 0 0 auto;
+    margin: 0;
+    padding-inline: 4px;
+    justify-content: flex-start;
+  }
+}
+@media (min-width: 1101px) {
+  .site-header .main-nav__inner {
+    gap: 14px;
+  }
+}
+@media (max-width: 1100px) and (min-width: 768px) {
+  .site-header .main-nav__inner > .category-toggle {
+    margin-right: clamp(36px, 6vw, 70px);
+  }
+  .site-header .main-nav__inner {
+    gap: 8px;
+  }
+}
+
+/* Small directional feedback for category and subcategory links. */
+.site-header .mega-category__title,
+.site-header .mega-category__children a,
+.site-header .mega-category__browse {
+  transition:
+    color .18s ease,
+    transform .2s cubic-bezier(.2,.75,.25,1),
+    background-color .18s ease;
+  transform: translateX(0);
+}
+.site-header .mega-category__title:hover,
+.site-header .mega-category__children a:hover,
+.site-header .mega-category__browse:hover,
+.site-header .mega-category__title:focus-visible,
+.site-header .mega-category__children a:focus-visible,
+.site-header .mega-category__browse:focus-visible {
+  transform: translateX(5px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .site-header .utility-bar,
+  .site-header .utility-bar__inner,
+  .site-header .mega-category__title,
+  .site-header .mega-category__children a,
+  .site-header .mega-category__browse {
+    transition: none !important;
+  }
+}

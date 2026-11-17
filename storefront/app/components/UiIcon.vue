@@ -1,9 +1,11 @@
+
+
 <script setup lang="ts">
 withDefaults(defineProps<{
   name:
     | 'search' | 'shopping-cart' | 'menu' | 'x' | 'layout-grid' | 'scale'
     | 'zap' | 'arrow-right' | 'chevron-down' | 'truck' | 'shield-check'
-    | 'target' | 'layers' | 'headset' | 'package-search' | 'mail' | 'message-circle' | 'phone'
+    | 'target' | 'layers' | 'headset' | 'package-search' | 'mail' | 'message-circle' | 'phone' | 'user-round' | 'arrow-up-right' | 'send'
   size?: number
 }>(), { size: 20 })
 </script>
@@ -75,5 +77,10 @@ withDefaults(defineProps<{
     <template v-else-if="name === 'phone'">
       <path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.4 19.4 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 2 .7 2.9a2 2 0 0 1-.5 2.1L8 10a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.5c.9.3 1.9.6 2.9.7a2 2 0 0 1 1.7 2Z" />
     </template>
+    <template v-else-if="name === 'user-round'">
+      <circle cx="12" cy="8" r="4" /><path d="M5 21a7 7 0 0 1 14 0" />
+    </template>
   </svg>
 </template>
+
+
