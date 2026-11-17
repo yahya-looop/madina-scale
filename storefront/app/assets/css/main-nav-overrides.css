@@ -1,0 +1,28 @@
+
+
+/* Phase 12 — left-aligned primary navigation directly after All Categories. */
+@media (min-width: 768px) {
+  .site-header .main-nav__inner {
+    justify-content: flex-start !important;
+    gap: 22px !important;
+  }
+  .site-header .main-nav__inner > .category-toggle {
+    flex: 0 0 auto;
+    margin: 0 8px 0 0;
+  }
+  .site-header .main-nav__inner > .main-nav__link {
+    flex: 0 0 auto;
+    margin: 0;
+    padding-inline: 3px;
+    font-size: 14px !important;
+    justify-content: flex-start;
+  }
+}
+@media (min-width: 768px) and (max-width: 1100px) {
+  .site-header .main-nav__inner {
+    gap: 14px !important;
+  }
+  .site-header .main-nav__inner > .main-nav__link {
+    font-size: 13px !important;
+  }
+}

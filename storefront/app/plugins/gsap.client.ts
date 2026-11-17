@@ -9,17 +9,30 @@ export default defineNuxtPlugin((nuxtApp) => {
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
   if (reduceMotion) return
 
+  // One shared timeline controls all three header bands.
+  const HEADER_DURATION = 0.24
+  const HEADER_EASE = 'power2.inOut'
+
   let pageContext: gsap.Context | undefined
   let compactTimeline: gsap.core.Timeline | undefined
   let scrollHandler: (() => void) | undefined
   let resizeHandler: (() => void) | undefined
+  let isCompact = false
+
   let headerElements: {
     utility: HTMLElement
     utilityInner: HTMLElement
-    navInner: HTMLElement
+    headerMain: HTMLElement
+    headerMainInner: HTMLElement
+    brand: HTMLElement | null
+    search: HTMLElement | null
+    searchButton: HTMLElement | null
+    account: HTMLElement | null
+    cart: HTMLElement | null
+    mainNav: HTMLElement | null
+    navInner: HTMLElement | null
     categoryButton: HTMLElement | null
   } | undefined
-  let isCompact = false
 
   const clearHeaderMotion = () => {
     compactTimeline?.kill()
@@ -31,12 +44,24 @@ export default defineNuxtPlugin((nuxtApp) => {
     resizeHandler = undefined
 
     if (headerElements) {
-      const { utility, utilityInner, navInner, categoryButton } = headerElements
-      gsap.set(utility, { clearProps: 'height,maxHeight,overflow,willChange,pointerEvents' })
+      const {
+        utility, utilityInner, headerMain, headerMainInner, brand, search,
+        searchButton, account, cart, mainNav, navInner, categoryButton,
+      } = headerElements
+
+      gsap.set(utility, { clearProps: 'height,maxHeight,overflow,willChange' })
       gsap.set(utilityInner, { clearProps: 'height,minHeight,opacity,transform,willChange' })
-      gsap.set(navInner, { clearProps: 'minHeight,willChange' })
+      gsap.set(headerMain, { clearProps: 'height,willChange' })
+      gsap.set(headerMainInner, { clearProps: 'height,minHeight,gridTemplateRows,willChange' })
+      if (mainNav) gsap.set(mainNav, { clearProps: 'height,willChange' })
+      if (navInner) gsap.set(navInner, { clearProps: 'height,minHeight,willChange' })
+
+      ;[brand, search, searchButton, account, cart].forEach((element) => {
+        if (element) gsap.set(element, { clearProps: 'height,width,minWidth,scale,transform,willChange' })
+      })
       if (categoryButton) gsap.set(categoryButton, { clearProps: 'padding,fontSize,willChange' })
     }
+
     headerElements = undefined
     isCompact = false
   }
@@ -45,19 +70,36 @@ export default defineNuxtPlugin((nuxtApp) => {
     clearHeaderMotion()
 
     const header = document.querySelector<HTMLElement>('.site-header')
-    const utility = header?.querySelector<HTMLElement>('.utility-bar')
-    const utilityInner = utility?.querySelector<HTMLElement>('.utility-bar__inner')
-    const navInner = header?.querySelector<HTMLElement>('.main-nav__inner')
+    const utility = header?.querySelector<HTMLElement>('.utility-bar') ?? null
+    const utilityInner = utility?.querySelector<HTMLElement>('.utility-bar__inner') ?? null
+    const headerMain = header?.querySelector<HTMLElement>('.header-main') ?? null
+    const headerMainInner = headerMain?.querySelector<HTMLElement>('.header-main__inner') ?? null
+    const brand = header?.querySelector<HTMLElement>('.brand-lockup') ?? null
+    const search = header?.querySelector<HTMLElement>('.header-search') ?? null
+    const searchButton = search?.querySelector<HTMLElement>('button') ?? null
+    const account = header?.querySelector<HTMLElement>('.header-login-link') ?? null
+    const cart = header?.querySelector<HTMLElement>('.header-cart') ?? null
+    const mainNav = header?.querySelector<HTMLElement>('.main-nav') ?? null
+    const navInner = mainNav?.querySelector<HTMLElement>('.main-nav__inner') ?? null
     const categoryButton = navInner?.querySelector<HTMLElement>('.category-toggle') ?? null
 
-    if (!header || !utility || !utilityInner || !navInner) return
+    if (!utility || !utilityInner || !headerMain || !headerMainInner) return
 
     const utilityHeight = Math.ceil(utility.getBoundingClientRect().height)
-    const navHeight = Math.ceil(navInner.getBoundingClientRect().height)
+    const mainHeight = Math.ceil(headerMain.getBoundingClientRect().height)
+    const mainInnerHeight = Math.ceil(headerMainInner.getBoundingClientRect().height)
+    const navHeight = mainNav && window.getComputedStyle(mainNav).display !== 'none'
+      ? Math.ceil(mainNav.getBoundingClientRect().height)
+      : 0
+    const navInnerHeight = navInner && navHeight > 0
+      ? Math.ceil(navInner.getBoundingClientRect().height)
+      : 0
+    const isMobile = window.matchMedia('(max-width: 767px)').matches
 
-    // Animate both the wrapper and its min-height-constrained inner row.
-    // This prevents the inner min-height from keeping the utility bar open
-    // until GSAP suddenly toggles visibility at the end of the tween.
+    if (utilityHeight <= 0 || mainHeight <= 0) return
+
+    // Set measurable starting heights. The outer and inner rows animate together,
+    // so min-height constraints cannot hold the top bar open until the last frame.
     gsap.set(utility, {
       height: utilityHeight,
       maxHeight: utilityHeight,
@@ -68,54 +110,98 @@ export default defineNuxtPlugin((nuxtApp) => {
       height: utilityHeight,
       minHeight: utilityHeight,
       overflow: 'hidden',
-      willChange: 'height, opacity, transform',
+      willChange: 'height, min-height, opacity, transform',
       transformOrigin: 'top center',
     })
+    gsap.set(headerMain, { height: mainHeight, willChange: 'height' })
+    gsap.set(headerMainInner, {
+      height: mainInnerHeight,
+      minHeight: mainInnerHeight,
+      willChange: 'height, min-height',
+    })
+
+    if (mainNav && navHeight > 0 && navInner && navInnerHeight > 0) {
+      gsap.set(mainNav, { height: navHeight, willChange: 'height' })
+      gsap.set(navInner, {
+        height: navInnerHeight,
+        minHeight: navInnerHeight,
+        willChange: 'height, min-height',
+      })
+    }
 
     compactTimeline = gsap.timeline({
       paused: true,
-      defaults: { ease: 'power2.inOut' },
+      defaults: { duration: HEADER_DURATION, ease: HEADER_EASE },
     })
 
+    // Band 1: utility/top bar smoothly collapses to zero.
     compactTimeline.to(utilityInner, {
       height: 0,
       minHeight: 0,
       opacity: 0,
-      y: -10,
-      duration: 0.38,
-      ease: 'power2.inOut',
+      y: -7,
     }, 0)
-
     compactTimeline.to(utility, {
       height: 0,
       maxHeight: 0,
-      duration: 0.38,
-      ease: 'power2.inOut',
-      pointerEvents: 'none',
     }, 0)
 
-    compactTimeline.to(navInner, {
-      minHeight: Math.max(42, navHeight - 7),
-      duration: 0.38,
+    // Band 2: logo + search row becomes shorter, but search stays available.
+    const compactMainHeight = isMobile
+      ? Math.max(70, mainHeight - 18)
+      : Math.max(66, mainHeight - 18)
+    const compactInnerHeight = isMobile
+      ? Math.max(70, mainInnerHeight - 18)
+      : Math.max(66, mainInnerHeight - 18)
+
+    compactTimeline.to(headerMain, { height: compactMainHeight }, 0)
+    compactTimeline.to(headerMainInner, {
+      height: compactInnerHeight,
+      minHeight: compactInnerHeight,
+      gridTemplateRows: isMobile ? '42px 34px' : undefined,
     }, 0)
 
-    if (categoryButton) {
-      compactTimeline.to(categoryButton, {
+    if (brand) compactTimeline.to(brand, {
+      scale: 0.86,
+      transformOrigin: 'left center',
+    }, 0)
+    if (search) compactTimeline.to(search, {
+      height: isMobile ? 34 : 37,
+    }, 0)
+    if (searchButton) compactTimeline.to(searchButton, {
+      width: isMobile ? 38 : 41,
+      minWidth: isMobile ? 38 : 41,
+    }, 0)
+    if (account) compactTimeline.to(account, { scale: 0.9 }, 0)
+    if (cart) compactTimeline.to(cart, { scale: 0.9 }, 0)
+
+    // Band 3: navigation row compacts on the exact same timeline.
+    if (mainNav && navHeight > 0 && navInner && navInnerHeight > 0) {
+      const compactNavHeight = Math.max(44, navHeight - 10)
+      const compactNavInnerHeight = Math.max(42, navInnerHeight - 10)
+      compactTimeline.to(mainNav, { height: compactNavHeight }, 0)
+      compactTimeline.to(navInner, {
+        height: compactNavInnerHeight,
+        minHeight: compactNavInnerHeight,
+      }, 0)
+      if (categoryButton) compactTimeline.to(categoryButton, {
         padding: '8px 11px',
         fontSize: '11px',
-        duration: 0.38,
       }, 0)
     }
 
-    headerElements = { utility, utilityInner, navInner, categoryButton }
+    headerElements = {
+      utility, utilityInner, headerMain, headerMainInner, brand, search,
+      searchButton, account, cart, mainNav, navInner, categoryButton,
+    }
 
-    // Hysteresis prevents flicker around the threshold.
+    // Hysteresis avoids flicker. Reverse uses the same timeline and easing.
     scrollHandler = () => {
-      const y = window.scrollY
-      if (!isCompact && y >= 100) {
+      const scrollY = window.scrollY
+      if (!isCompact && scrollY >= 100) {
         isCompact = true
         compactTimeline?.play()
-      } else if (isCompact && y <= 55) {
+      } else if (isCompact && scrollY <= 55) {
         isCompact = false
         compactTimeline?.reverse()
       }
@@ -183,8 +269,10 @@ export default defineNuxtPlugin((nuxtApp) => {
   }
 
   void boot()
+
   nuxtApp.hook('page:finish', () => {
     void nextTick().then(() => {
+      setupHeaderMotion()
       animatePage()
       ScrollTrigger.refresh()
     })

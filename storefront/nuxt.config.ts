@@ -1,18 +1,11 @@
-const laravelProxyTarget = process.env.NUXT_LARAVEL_PROXY_TARGET || 'http://127.0.0.1:8001'
-
 export default defineNuxtConfig({
   compatibilityDate: '2026-11-15',
   devtools: { enabled: false },
   modules: ['@nuxtjs/tailwindcss'],
-  postcss: {
-    plugins: {
-      'tailwindcss/nesting': false,
-    },
-  },
   css: ['~/assets/css/main.css'],
   runtimeConfig: {
     public: {
-      // Keep this same-origin. Laravel credentials must never be exposed here.
+      // Same-origin URL: Nuxt proxies these requests to Laravel.
       apiBase: process.env.NUXT_PUBLIC_API_BASE || '/api/v1/storefront',
     },
   },
@@ -22,17 +15,17 @@ export default defineNuxtConfig({
       meta: [{ name: 'theme-color', content: '#123f32' }],
     },
   },
-  // Nuxt owns public pages; Laravel remains the API and staff ERP.
+  // Local and production routing: Nuxt serves the storefront while Laravel
+  // remains responsible for ERP, APIs, uploaded files and admin routes.
   routeRules: {
-    '/api/**': { proxy: `${laravelProxyTarget}/api/**` },
-    '/backend': { proxy: `${laravelProxyTarget}/backend` },
-    '/backend/**': { proxy: `${laravelProxyTarget}/backend/**` },
-    '/build/**': { proxy: `${laravelProxyTarget}/build/**` },
-    '/storage/**': { proxy: `${laravelProxyTarget}/storage/**` },
-    '/robots.txt': { proxy: `${laravelProxyTarget}/robots.txt` },
-    '/sitemap.xml': { proxy: `${laravelProxyTarget}/sitemap.xml` },
-    '/': { swr: 60 },
+    '/api/**': { proxy: 'http://127.0.0.1:8001/api/**' },
+    '/backend': { proxy: 'http://127.0.0.1:8001/backend' },
+    '/backend/**': { proxy: 'http://127.0.0.1:8001/backend/**' },
+    '/build/**': { proxy: 'http://127.0.0.1:8001/build/**' },
+    '/storage/**': { proxy: 'http://127.0.0.1:8001/storage/**' },
+    '/robots.txt': { proxy: 'http://127.0.0.1:8001/robots.txt' },
+    '/sitemap.xml': { proxy: 'http://127.0.0.1:8001/sitemap.xml' },
     '/products/**': { swr: 60 },
     '/categories/**': { swr: 60 },
   },
-})
+});

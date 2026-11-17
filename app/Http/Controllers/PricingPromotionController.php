@@ -157,7 +157,11 @@ class PricingPromotionController extends Controller
     {
         $sales = FlashSale::query()
             ->where('status', 'active')->where('show_on_storefront', true)
-            ->where('starts_at', '<=', now())->where('ends_at', '>=', now())
+            // Compare timestamptz columns against PostgreSQL's timezone-aware clock.
+            // Laravel's default date binding formats Carbon as a timezone-less string,
+            // which PostgreSQL interprets in the DB session timezone (not app UTC).
+            ->whereRaw('starts_at <= CURRENT_TIMESTAMP')
+            ->whereRaw('ends_at >= CURRENT_TIMESTAMP')
             ->with(['items.variant.product' => fn ($q) => $q
                 ->where('status', 'active')
                 ->where('visibility', 'visible')
@@ -169,24 +173,20 @@ class PricingPromotionController extends Controller
                 'banner_image' => $sale->banner_image, 'accent_color' => $sale->accent_color,
                 'starts_at' => $sale->starts_at->toIso8601String(), 'ends_at' => $sale->ends_at->toIso8601String(),
                 'items' => $sale->items->filter(fn (FlashSaleItem $item) => $item->variant !== null && $item->variant->getRelation('product') !== null && ($item->quantity_limit === null || $item->quantity_sold < $item->quantity_limit))->map(fn (FlashSaleItem $item): array => [
-                    'id' => $item->id,
-                    'product_name' => $item->variant->product->name,
-                    'product_slug' => $item->variant->product->slug,
-                    'product_variant_id' => $item->variant->id,
+                    'id' => $item->id, 'product_name' => $item->variant->product->name,
+                    'product_slug' => $item->variant->product->slug, 'variant_name' => $item->variant->name,
+                    'sku' => $item->variant->sku,
                     'image_url' => $item->variant->product->primaryMedia
                         ? (preg_match('/^https?:\\/\\//i', $item->variant->product->primaryMedia->path) === 1
                             ? $item->variant->product->primaryMedia->path
                             : Storage::disk($item->variant->product->primaryMedia->disk ?: 'public')->url($item->variant->product->primaryMedia->path))
                         : null,
-                    'variant_name' => $item->variant->name,
-                    'sku' => $item->variant->sku,
                     'regular_price' => $item->regular_price,
-                    'sale_price' => $item->sale_price,
-                    'quantity_remaining' => $item->remainingQuantity(),
+                    'sale_price' => $item->sale_price, 'quantity_remaining' => $item->remainingQuantity(),
                 ])->values(),
             ])->values();
 
-        return response()->json(['data' => $sales]);
+        return response()->json(['data' => $sales])->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
     }
 
     /** @return array<string, mixed> */

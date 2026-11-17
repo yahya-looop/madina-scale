@@ -1,5 +1,3 @@
-
-
 <script setup lang="ts">
 type Category = {
   id: number
@@ -18,13 +16,11 @@ const searchLoading = ref(false)
 const searchOpen = ref(false)
 const searchCategories = computed(() => props.categories.filter(category => search.value.trim().length > 1 && category.name.toLowerCase().includes(search.value.trim().toLowerCase())).slice(0, 3))
 let searchTimer: ReturnType<typeof setTimeout> | undefined
-let searchRequestId = 0
 const config = useRuntimeConfig()
 const mobileOpen = ref(false)
 const categoriesOpen = ref(false)
 const { locale, t } = useStorefrontLocale()
 const { itemCount, refresh } = useStorefrontCart()
-const { customer, refreshCustomer, firstName } = useStorefrontCustomer()
 
 watch(() => route.query.q, value => {
   search.value = String(value || '')
@@ -33,25 +29,19 @@ watch(() => route.query.q, value => {
 watch(search, value => {
   if (searchTimer) clearTimeout(searchTimer)
   const query = value.trim()
-  const normalizedQuery = query.toLocaleLowerCase()
-  const requestId = ++searchRequestId
   searchResults.value = []
   if (query.length < 2) { searchLoading.value = false; return }
   searchLoading.value = true
   searchTimer = setTimeout(async () => {
     try {
-      // The Laravel catalogue uses case-insensitive matching (ILIKE).
-      // Keep a normalized key for stale-response checks regardless of input casing.
       const response = await $fetch<{ data: SearchProduct[] }>(`${config.public.apiBase}/products`, { query: { q: query, page: 1 } })
-      if (requestId === searchRequestId && search.value.trim().toLocaleLowerCase() === normalizedQuery) {
-        searchResults.value = response.data || []
-      }
+      if (search.value.trim() === query) searchResults.value = response.data || []
     } catch {
-      if (requestId === searchRequestId) searchResults.value = []
+      searchResults.value = []
     } finally {
-      if (requestId === searchRequestId) searchLoading.value = false
+      if (search.value.trim() === query) searchLoading.value = false
     }
-  }, 180)
+  }, 260)
 })
 
 watch(() => route.fullPath, () => {
@@ -61,7 +51,6 @@ watch(() => route.fullPath, () => {
 
 onMounted(() => {
   if (!['/cart', '/checkout'].includes(route.path)) refresh().catch(() => undefined)
-  refreshCustomer().catch(() => undefined)
   document.addEventListener('keydown', handleEscape)
 })
 
@@ -81,14 +70,6 @@ async function submitSearch() {
   categoriesOpen.value = false
   searchOpen.value = false
   await navigateTo(q ? { path: '/products', query: { q } } : '/products')
-}
-
-async function openProduct(product: SearchProduct) {
-  // Navigate explicitly on selection so the input blur timer cannot swallow the result click.
-  searchOpen.value = false
-  mobileOpen.value = false
-  categoriesOpen.value = false
-  await navigateTo({ path: `/products/${encodeURIComponent(product.slug)}` })
 }
 
 function categoryUrl(category: Category) {
@@ -113,13 +94,16 @@ function setLocale(value: 'en' | 'bn') {
   <header class="site-header">
     <div class="utility-bar">
       <div class="container utility-bar__inner">
-        <NuxtLink to="/track-order" class="utility-track-link">
-          <UiIcon name="package-search" :size="15" />
-          {{ t('Track Order', 'অর্ডার ট্র্যাক') }}
-        </NuxtLink>
-        <div class="language-switcher" role="group" :aria-label="t('Choose language', 'ভাষা নির্বাচন করুন')">
-          <button type="button" :class="{ 'is-active': locale === 'en' }" :aria-pressed="locale === 'en'" @click="setLocale('en')">EN</button>
-          <button type="button" :class="{ 'is-active': locale === 'bn' }" :aria-pressed="locale === 'bn'" @click="setLocale('bn')">বাংলা</button>
+        <NuxtLink to="/login" class="utility-login-link"><UiIcon name="user-round" :size="15" /> {{ t('Customer Login', 'কাস্টমার লগইন') }}</NuxtLink>
+        <div class="utility-bar__actions">
+          <NuxtLink to="/track-order" class="utility-track-link">
+            <UiIcon name="package-search" :size="15" />
+            {{ t('Track Order', 'অর্ডার ট্র্যাক') }}
+          </NuxtLink>
+          <div class="language-switcher" role="group" :aria-label="t('Choose language', 'ভাষা নির্বাচন করুন')">
+            <button type="button" :class="{ 'is-active': locale === 'en' }" :aria-pressed="locale === 'en'" @click="setLocale('en')">EN</button>
+            <button type="button" :class="{ 'is-active': locale === 'bn' }" :aria-pressed="locale === 'bn'" @click="setLocale('bn')">বাংলা</button>
+          </div>
         </div>
       </div>
     </div>
@@ -160,26 +144,16 @@ function setLocale(value: 'en' | 'bn') {
         </form>
         <div v-if="searchOpen && search.trim().length > 1" class="search-suggestions">
           <div class="search-suggestions__top"><span>{{ t('Live catalogue results', 'লাইভ ক্যাটালগ ফলাফল') }}</span><small v-if="searchLoading">{{ t('Searching…', 'খোঁজা হচ্ছে…') }}</small><small v-else>{{ searchResults.length }} {{ t('products', 'টি পণ্য') }}</small></div>
-          <NuxtLink v-for="product in searchResults.slice(0, 6)" :key="product.id" :to="`/products/${product.slug}`" class="search-suggestion" @pointerdown.prevent @click.prevent.stop="openProduct(product)">
+          <NuxtLink v-for="product in searchResults.slice(0, 6)" :key="product.id" :to="`/products/${product.slug}`" class="search-suggestion" @click="searchOpen = false">
             <span class="search-suggestion__image"><img v-if="product.image_url" :src="product.image_url" :alt="''" loading="lazy"><UiIcon v-else name="scale" :size="20" /></span>
             <span class="search-suggestion__copy"><strong>{{ product.name }}</strong><small>{{ product.price != null ? `৳${Number(product.price).toLocaleString('en-BD')}` : t('View product details', 'পণ্যের বিস্তারিত দেখুন') }}</small></span>
             <UiIcon name="arrow-up-right" :size="16" />
           </NuxtLink>
-          <NuxtLink v-for="category in searchCategories" :key="`category-${category.id}`" :to="categoryUrl(category)" class="search-suggestion search-suggestion--category" @mousedown.prevent @click="searchOpen = false"><span class="search-suggestion__image"><UiIcon name="layout-grid" :size="18" /></span><span class="search-suggestion__copy"><strong>{{ category.name }}</strong><small>{{ t('Category', 'ক্যাটাগরি') }}</small></span></NuxtLink>
+          <NuxtLink v-for="category in searchCategories" :key="`category-${category.id}`" :to="categoryUrl(category)" class="search-suggestion search-suggestion--category" @click="searchOpen = false"><span class="search-suggestion__image"><UiIcon name="layout-grid" :size="18" /></span><span class="search-suggestion__copy"><strong>{{ category.name }}</strong><small>{{ t('Category', 'ক্যাটাগরি') }}</small></span></NuxtLink>
           <div v-if="!searchLoading && !searchResults.length && !searchCategories.length" class="search-suggestions__empty">{{ t('No matching products found.', 'মিল পাওয়া যায়নি।') }}</div>
           <button type="button" class="search-suggestions__all" @click="submitSearch">{{ t('View all search results', 'সব ফলাফল দেখুন') }} →</button>
         </div>
         </div>
-
-        <NuxtLink
-          :to="customer ? '/account' : '/login'"
-          class="header-login-link header-login-link--account"
-          :aria-label="customer ? `${t('Customer account', 'কাস্টমার অ্যাকাউন্ট')}: ${customer.name}` : t('Sign in or sign up', 'সাইন ইন অথবা সাইন আপ')"
-          :title="customer ? customer.name : t('Sign in or sign up', 'সাইন ইন অথবা সাইন আপ')"
-        >
-          <UiIcon name="user-round" :size="19" />
-          <span>{{ customer ? firstName : t('Sign In / Sign Up', 'সাইন ইন / সাইন আপ') }}</span>
-        </NuxtLink>
 
         <NuxtLink to="/cart" class="header-cart" :aria-label="`${t('Shopping cart', 'শপিং কার্ট')}${itemCount ? `, ${itemCount} items` : ''}`">
           <span class="header-cart__icon"><UiIcon name="shopping-cart" :size="25" /></span>
@@ -202,14 +176,14 @@ function setLocale(value: 'en' | 'bn') {
           <span>{{ t('All Categories', 'সকল ক্যাটাগরি') }}</span>
           <UiIcon name="chevron-down" :size="15" />
         </button>
-        <NuxtLink to="/" class="main-nav__link">{{ t('Home', 'হোম') }}</NuxtLink>
-        <NuxtLink to="/products" class="main-nav__link">{{ t('Products', 'পণ্যসমূহ') }}</NuxtLink>
-        <NuxtLink to="/pages/special-offers" class="main-nav__link">{{ t('Special Offers', 'বিশেষ অফার') }}</NuxtLink>
-        <NuxtLink to="/#flash-deals" class="main-nav__link main-nav__deals">
+        <NuxtLink to="/" class="main-nav__link" :class="{ 'is-active': route.path === '/' && route.hash !== '#flash-deals' }">{{ t('Home', 'হোম') }}</NuxtLink>
+        <NuxtLink to="/products" class="main-nav__link" :class="{ 'is-active': route.path === '/products' }">{{ t('Products', 'পণ্যসমূহ') }}</NuxtLink>
+        <NuxtLink to="/pages/special-offers" class="main-nav__link" :class="{ 'is-active': route.path === '/pages/special-offers' }">{{ t('Special Offers', 'বিশেষ অফার') }}</NuxtLink>
+        <NuxtLink to="/#flash-deals" class="main-nav__link main-nav__deals" :class="{ 'is-active': route.path === '/' && route.hash === '#flash-deals' }">
           <UiIcon name="zap" :size="16" /> {{ t('Flash Sales', 'ফ্ল্যাশ সেল') }}
         </NuxtLink>
-        <NuxtLink to="/pages/warranty" class="main-nav__link">{{ t('Warranty', 'ওয়ারেন্টি') }}</NuxtLink>
-        <NuxtLink to="/pages/contact" class="main-nav__link">{{ t('Contact', 'যোগাযোগ') }}</NuxtLink>
+        <NuxtLink to="/pages/warranty" class="main-nav__link" :class="{ 'is-active': route.path === '/pages/warranty' }">{{ t('Warranty', 'ওয়ারেন্টি') }}</NuxtLink>
+        <NuxtLink to="/pages/contact" class="main-nav__link" :class="{ 'is-active': route.path === '/pages/contact' }">{{ t('Contact', 'যোগাযোগ') }}</NuxtLink>
       </div>
 
       <template v-if="categoriesOpen">
@@ -276,5 +250,3 @@ function setLocale(value: 'en' | 'bn') {
     </div>
   </header>
 </template>
-
-
