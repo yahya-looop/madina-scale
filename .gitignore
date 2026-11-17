@@ -41,3 +41,11 @@ yarn-error.log
 /boost.json
 /opencode.json
 /opencode.jsonc
+
+/storefront/node_modules/
+/storefront/.nuxt/
+/storefront/.output/
+/storefront/.env
+
+# Temporary migration patch payloads (not application source)
+/madina-nuxt-cutover-cleanup/

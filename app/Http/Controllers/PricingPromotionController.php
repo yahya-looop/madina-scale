@@ -11,6 +11,7 @@ use App\Models\ProductVariant;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -157,7 +158,10 @@ class PricingPromotionController extends Controller
         $sales = FlashSale::query()
             ->where('status', 'active')->where('show_on_storefront', true)
             ->where('starts_at', '<=', now())->where('ends_at', '>=', now())
-            ->with(['items.variant.product' => fn ($q) => $q->where('status', 'active')->where('visibility', 'visible')])
+            ->with(['items.variant.product' => fn ($q) => $q
+                ->where('status', 'active')
+                ->where('visibility', 'visible')
+                ->with('primaryMedia')])
             ->orderBy('priority')->orderBy('ends_at')->get()
             ->map(fn (FlashSale $sale): array => [
                 'id' => $sale->id, 'title' => $sale->title, 'slug' => $sale->slug,
@@ -165,10 +169,20 @@ class PricingPromotionController extends Controller
                 'banner_image' => $sale->banner_image, 'accent_color' => $sale->accent_color,
                 'starts_at' => $sale->starts_at->toIso8601String(), 'ends_at' => $sale->ends_at->toIso8601String(),
                 'items' => $sale->items->filter(fn (FlashSaleItem $item) => $item->variant !== null && $item->variant->getRelation('product') !== null && ($item->quantity_limit === null || $item->quantity_sold < $item->quantity_limit))->map(fn (FlashSaleItem $item): array => [
-                    'id' => $item->id, 'product_name' => $item->variant->product->name,
-                    'product_slug' => $item->variant->product->slug, 'variant_name' => $item->variant->name,
-                    'sku' => $item->variant->sku, 'regular_price' => $item->regular_price,
-                    'sale_price' => $item->sale_price, 'quantity_remaining' => $item->remainingQuantity(),
+                    'id' => $item->id,
+                    'product_name' => $item->variant->product->name,
+                    'product_slug' => $item->variant->product->slug,
+                    'product_variant_id' => $item->variant->id,
+                    'image_url' => $item->variant->product->primaryMedia
+                        ? (preg_match('/^https?:\\/\\//i', $item->variant->product->primaryMedia->path) === 1
+                            ? $item->variant->product->primaryMedia->path
+                            : Storage::disk($item->variant->product->primaryMedia->disk ?: 'public')->url($item->variant->product->primaryMedia->path))
+                        : null,
+                    'variant_name' => $item->variant->name,
+                    'sku' => $item->variant->sku,
+                    'regular_price' => $item->regular_price,
+                    'sale_price' => $item->sale_price,
+                    'quantity_remaining' => $item->remainingQuantity(),
                 ])->values(),
             ])->values();
 

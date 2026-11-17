@@ -2,9 +2,8 @@
 
 use App\Models\CmsBanner;
 use App\Models\CmsPage;
-use Inertia\Testing\AssertableInertia as Assert;
 
-it('renders only active homepage banners on the public storefront', function (): void {
+it('serves only active homepage banners through the storefront API', function (): void {
     CmsBanner::create([
         'title' => 'Homepage promotion',
         'image_url' => 'https://example.com/promo.webp',
@@ -22,13 +21,10 @@ it('renders only active homepage banners on the public storefront', function ():
         'sort_order' => 2,
     ]);
 
-    $this->get('/')
+    $this->getJson('/api/v1/storefront/cms/banners?placement=homepage')
         ->assertOk()
-        ->assertInertia(fn (Assert $page) => $page
-            ->component('Storefront/Index')
-            ->has('banners', 1)
-            ->where('banners.0.title', 'Homepage promotion')
-        );
+        ->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0.title', 'Homepage promotion');
 });
 
 it('publishes only live CMS pages in the XML sitemap', function (): void {
@@ -56,10 +52,10 @@ it('exposes a robots file that points to the sitemap', function (): void {
 
 it('does not expose a scheduled CMS page before its publication time', function (): void {
     CmsPage::create(['title' => 'Future announcement', 'slug' => 'future-announcement', 'status' => 'scheduled', 'published_at' => now()->addDay()]);
-    $this->get('/pages/future-announcement')->assertNotFound();
+    $this->getJson('/api/v1/storefront/cms/pages/future-announcement')->assertNotFound();
 });
 
-it('renders an already due scheduled CMS page publicly', function (): void {
+it('serves an already due scheduled CMS page through the Nuxt API', function (): void {
     CmsPage::create([
         'title' => 'Published announcement',
         'slug' => 'published-announcement',
@@ -69,12 +65,10 @@ it('renders an already due scheduled CMS page publicly', function (): void {
         'robots_follow' => false,
     ]);
 
-    $this->get('/pages/published-announcement')
+    $this->getJson('/api/v1/storefront/cms/pages/published-announcement')
         ->assertOk()
-        ->assertInertia(fn (Assert $page) => $page
-            ->component('Storefront/CmsPage')
-            ->where('page.title', 'Published announcement')
-            ->where('page.seo.index', false)
-            ->where('page.seo.follow', false)
-        );
+        ->assertJsonPath('data.page.title', 'Published announcement')
+        ->assertJsonPath('data.page.seo.canonical', url('/published-announcement'))
+        ->assertJsonPath('data.page.seo.index', false)
+        ->assertJsonPath('data.page.seo.follow', false);
 });

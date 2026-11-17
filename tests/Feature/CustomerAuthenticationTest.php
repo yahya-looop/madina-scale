@@ -2,13 +2,11 @@
 
 use App\Models\Customer;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\DB;
 
-it('keeps staff login separate and serves customer login at the public login URL', function (): void {
+it('keeps staff login separate and retires the Laravel customer login page', function (): void {
     $this->get('/backend/login')->assertOk();
-    $this->get('/login')->assertOk()
-        ->assertInertia(fn ($page) => $page->component('Storefront/Auth/CustomerLogin'));
+    $this->get('/login')->assertNotFound();
+    $this->get('/account')->assertNotFound();
 });
 
 it('allows a customer to sign in with a password without authenticating a staff user', function (): void {
@@ -21,10 +19,11 @@ it('allows a customer to sign in with a password without authenticating a staff 
         'status' => 'active',
     ]);
 
-    $this->post('/login/password', [
+    $this->postJson('/api/v1/storefront/auth/login/password', [
         'identity' => '01712345678',
         'password' => 'customer-password',
-    ])->assertRedirect('/account');
+    ])->assertOk()
+        ->assertJsonPath('data.customer.phone', '01712345678');
 
     $this->assertAuthenticatedAs($customer, 'customer');
     $this->assertGuest('web');
@@ -54,22 +53,25 @@ it('sends and verifies a customer login OTP using the configured SMS gateway', f
         return Http::response(['message_id' => 'test-message'], 200);
     });
 
-    $this->post('/login/otp', ['phone' => $customer->phone])
+    $this->postJson('/api/v1/storefront/auth/login/otp', ['phone' => $customer->phone])
+        ->assertOk()
         ->assertSessionHas('customer_otp_phone', $customer->phone);
 
     expect($sentCode)->not->toBeNull();
 
-    $this->post('/login/otp/verify', [
+    $this->postJson('/api/v1/storefront/auth/login/otp/verify', [
         'phone' => $customer->phone,
         'code' => $sentCode,
-    ])->assertRedirect('/account');
+    ])->assertOk()
+        ->assertJsonPath('data.customer.phone', $customer->phone);
 
     $this->assertAuthenticatedAs($customer, 'customer');
     expect($customer->fresh()->phone_verified_at)->not->toBeNull();
 });
 
-it('does not expose customer account pages to guests', function (): void {
-    $this->get('/account')->assertRedirect('/login');
+it('does not expose customer account data to guests', function (): void {
+    $this->getJson('/api/v1/storefront/account')->assertUnauthorized();
+    $this->getJson('/api/v1/storefront/auth/me')->assertUnauthorized();
 });
 
 it('allows a new customer to register only after phone OTP verification', function (): void {
@@ -89,17 +91,20 @@ it('allows a new customer to register only after phone OTP verification', functi
         return Http::response(['message_id' => 'test-message'], 200);
     });
 
-    $this->post('/register/otp', ['phone' => '01712345680'])->assertSessionHas('customer_registration_phone', '01712345680');
+    $this->postJson('/api/v1/storefront/auth/register/otp', ['phone' => '01712345680'])
+        ->assertOk()
+        ->assertSessionHas('customer_registration_phone', '01712345680');
     expect($sentCode)->not->toBeNull();
 
-    $this->post('/register', [
+    $this->postJson('/api/v1/storefront/auth/register', [
         'name' => 'New Customer',
         'phone' => '01712345680',
         'email' => 'new@example.test',
         'password' => 'customer-password',
         'password_confirmation' => 'customer-password',
         'code' => $sentCode,
-    ])->assertRedirect('/account');
+    ])->assertCreated()
+        ->assertJsonPath('data.customer.phone', '01712345680');
 
     $this->assertAuthenticated('customer');
     expect(Customer::query()->where('phone', '01712345680')->exists())->toBeTrue();

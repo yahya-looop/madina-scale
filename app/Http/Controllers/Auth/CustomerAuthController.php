@@ -6,32 +6,30 @@ use App\Http\Controllers\Controller;
 use App\Models\Customer;
 use App\Services\CustomerOtpService;
 use App\Services\CustomerIdentityService;
-use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
-use Inertia\Inertia;
-use Inertia\Response;
 use Throwable;
 
 class CustomerAuthController extends Controller
 {
-    public function showLogin(Request $request): Response|RedirectResponse
+    public function me(): JsonResponse
     {
-        if (Auth::guard('customer')->check()) {
-            return to_route('customer.account');
+        if (! Auth::guard('customer')->check()) {
+            return response()->json(['message' => 'Unauthenticated.'], 401);
         }
 
-        return Inertia::render('Storefront/Auth/CustomerLogin', [
-            'mode' => $request->query('mode') === 'register' ? 'register' : 'login',
-            'canUseOtp' => true,
-        ]);
+        /** @var Customer $customer */
+        $customer = Auth::guard('customer')->user();
+
+        return response()->json(['data' => $this->customerData($customer)]);
     }
 
-    public function passwordLogin(Request $request): RedirectResponse
+    public function passwordLogin(Request $request): JsonResponse
     {
         $data = $request->validate([
             'identity' => ['required', 'string', 'max:190'],
@@ -57,10 +55,13 @@ class CustomerAuthController extends Controller
         Auth::guard('customer')->login($customer, (bool) ($data['remember'] ?? false));
         $request->session()->regenerate();
 
-        return redirect()->intended(route('customer.account'));
+        return response()->json([
+            'message' => 'Signed in successfully.',
+            'data' => ['customer' => $this->customerData($customer)],
+        ]);
     }
 
-    public function sendLoginOtp(Request $request, CustomerOtpService $otp): RedirectResponse
+    public function sendLoginOtp(Request $request, CustomerOtpService $otp): JsonResponse
     {
         $data = $request->validate([
             'phone' => ['required', 'string', 'max:40', 'regex:/^(?:\+?88)?01[3-9]\d{8}$/'],
@@ -68,7 +69,7 @@ class CustomerAuthController extends Controller
         $phone = $this->normalizePhone($data['phone']);
         $customer = Customer::query()->where('phone', $phone)->where('status', 'active')->first();
 
-        // Use the same response for known and unknown phone numbers to reduce account enumeration.
+        // Keep the response identical for known and unknown numbers.
         if ($customer) {
             try {
                 $otp->send($phone, 'login', $request->ip());
@@ -83,10 +84,12 @@ class CustomerAuthController extends Controller
 
         $request->session()->put('customer_otp_phone', $phone);
 
-        return back()->with('otp_sent', 'If an account exists for this number, a verification code has been sent.');
+        return response()->json([
+            'message' => 'If an account exists for this number, a verification code has been sent.',
+        ]);
     }
 
-    public function verifyLoginOtp(Request $request, CustomerOtpService $otp): RedirectResponse
+    public function verifyLoginOtp(Request $request, CustomerOtpService $otp): JsonResponse
     {
         $data = $request->validate([
             'phone' => ['required', 'string', 'max:40', 'regex:/^(?:\+?88)?01[3-9]\d{8}$/'],
@@ -106,10 +109,13 @@ class CustomerAuthController extends Controller
         $request->session()->forget('customer_otp_phone');
         $request->session()->regenerate();
 
-        return redirect()->intended(route('customer.account'));
+        return response()->json([
+            'message' => 'Signed in successfully.',
+            'data' => ['customer' => $this->customerData($customer)],
+        ]);
     }
 
-    public function sendRegistrationOtp(Request $request, CustomerOtpService $otp): RedirectResponse
+    public function sendRegistrationOtp(Request $request, CustomerOtpService $otp): JsonResponse
     {
         $data = $request->validate([
             'phone' => ['required', 'string', 'max:40', 'regex:/^(?:\+?88)?01[3-9]\d{8}$/'],
@@ -134,10 +140,10 @@ class CustomerAuthController extends Controller
 
         $request->session()->put('customer_registration_phone', $phone);
 
-        return back()->with('otp_sent', 'A verification code has been sent to your phone.');
+        return response()->json(['message' => 'A verification code has been sent to your phone.']);
     }
 
-    public function register(Request $request, CustomerOtpService $otp): RedirectResponse
+    public function register(Request $request, CustomerOtpService $otp): JsonResponse
     {
         $data = $request->validate([
             'name' => ['required', 'string', 'max:160'],
@@ -184,41 +190,50 @@ class CustomerAuthController extends Controller
         $request->session()->forget('customer_registration_phone');
         $request->session()->regenerate();
 
-        return to_route('customer.account');
+        return response()->json([
+            'message' => 'Your account has been created.',
+            'data' => ['customer' => $this->customerData($customer)],
+        ], 201);
     }
 
-    public function account(): Response|RedirectResponse
+    public function account(): JsonResponse
     {
         if (! Auth::guard('customer')->check()) {
-            return redirect('/login');
+            return response()->json(['message' => 'Unauthenticated.'], 401);
         }
 
         /** @var Customer $customer */
         $customer = Auth::guard('customer')->user();
 
-        return Inertia::render('Storefront/Account/Index', [
-            'customer' => [
-                'name' => $customer->name,
-                'phone' => $customer->phone,
-                'email' => $customer->email,
+        return response()->json([
+            'data' => [
+                'customer' => $this->customerData($customer),
+                'orders' => $customer->orders()->latest()->limit(10)->get([
+                    'id', 'order_number', 'status', 'grand_total', 'created_at',
+                ]),
             ],
-            'orders' => $customer->orders()->latest()->limit(10)->get([
-                'id', 'order_number', 'status', 'grand_total', 'created_at',
-            ]),
         ]);
     }
 
-    public function logout(Request $request): RedirectResponse
+    public function logout(Request $request): JsonResponse
     {
-        if (! Auth::guard('customer')->check()) {
-            return redirect('/login');
-        }
-
         Auth::guard('customer')->logout();
         $request->session()->regenerate();
         $request->session()->regenerateToken();
 
-        return to_route('storefront.home');
+        return response()->json(['message' => 'Signed out successfully.']);
+    }
+
+    /** @return array<string, mixed> */
+    private function customerData(Customer $customer): array
+    {
+        return [
+            'id' => $customer->id,
+            'name' => $customer->name,
+            'phone' => $customer->phone,
+            'email' => $customer->email,
+            'phone_verified_at' => $customer->phone_verified_at?->toISOString(),
+        ];
     }
 
     private function normalizePhone(string $phone): string

@@ -1,0 +1,5 @@
+<script setup lang="ts">
+const route = useRoute()
+useSeoMeta({ title: 'Order received | MADINA Scale', robots: 'noindex, nofollow' })
+</script>
+<template><main class="container py-16"><section class="surface mx-auto max-w-xl p-8 text-center md:p-12"><div class="mx-auto grid size-16 place-items-center rounded-full bg-emerald-100 text-3xl text-emerald-800">✓</div><p class="mt-6 text-sm font-bold uppercase tracking-widest text-emerald-800">Order received</p><h1 class="mt-2 text-3xl font-extrabold">Thank you for your order!</h1><p class="mt-3 muted">Your order has been submitted. Our team will contact you to confirm delivery details.</p><p v-if="route.query.order" class="mt-6 rounded-xl bg-slate-50 p-4 font-bold">Order number: {{ route.query.order }}</p><NuxtLink to="/products" class="btn-primary mt-7 inline-flex">Continue shopping</NuxtLink></section></main></template>

@@ -1,68 +1,31 @@
 <?php
 
-use App\Http\Controllers\Auth\LoginController;
-use App\Http\Controllers\PublicCmsPageController;
 use App\Http\Controllers\PublicSeoController;
-use App\Http\Controllers\StorefrontCartController;
-use App\Http\Controllers\StorefrontController;
 use Illuminate\Support\Facades\Route;
-use Inertia\Inertia;
 
 /*
 |--------------------------------------------------------------------------
-| Public Storefront
+| Public infrastructure routes
 |--------------------------------------------------------------------------
 |
-| Public storefront catalogue, session cart and phone-first order placement.
-| Orders remain pending until an official executive confirms them.
+| The customer-facing storefront is served by Nuxt. Laravel retains SEO
+| endpoints and the staff ERP route surface.
 |
 */
 
 Route::get('/robots.txt', [PublicSeoController::class, 'robots'])->name('seo.robots');
 Route::get('/sitemap.xml', [PublicSeoController::class, 'sitemap'])->name('seo.sitemap');
 
-Route::get('/', [StorefrontController::class, 'index'])->name('storefront.home');
-Route::get('/products', [StorefrontController::class, 'index'])->name('storefront.products.index');
-Route::get('/shop', [StorefrontController::class, 'legacyIndex'])->name('storefront.index');
-Route::get('/cart', [StorefrontCartController::class, 'show'])->name('storefront.cart');
-Route::post('/cart/items', [StorefrontCartController::class, 'add'])->middleware('throttle:60,1')->name('storefront.cart.add');
-Route::patch('/cart/items/{variant}', [StorefrontCartController::class, 'update'])->whereNumber('variant')->name('storefront.cart.update');
-Route::delete('/cart/items/{variant}', [StorefrontCartController::class, 'remove'])->whereNumber('variant')->name('storefront.cart.remove');
-Route::post('/checkout', [StorefrontCartController::class, 'checkout'])->middleware('throttle:10,1')->name('storefront.checkout');
-Route::get('/order-success', [StorefrontCartController::class, 'success'])->name('storefront.order-success');
-Route::get('/shop/flash-sales', fn () => Inertia::render('Storefront/FlashSales'))
-    ->name('storefront.flash-sales');
-Route::get('/pages/{slug}', [PublicCmsPageController::class, 'show'])->where('slug', '[A-Za-z0-9\-]+')->name('storefront.pages.legacy');
-// Keep the static legacy backend-create URL ahead of the dynamic public slug route.
+require __DIR__.'/backend.php';
+
 Route::redirect('/products/create', '/backend/products/create', 301);
 
-Route::get('/products/{slug}', [StorefrontController::class, 'show'])
-    ->where('slug', '[A-Za-z0-9\-]+')
-    ->name('storefront.show');
-
-Route::get('/shop/{slug}', fn (string $slug) => redirect()->route('storefront.show', ['slug' => $slug], 301))
-    ->where('slug', '[A-Za-z0-9\-]+')
-    ->name('storefront.legacy-show');
-
-/*
-|--------------------------------------------------------------------------
-| Guest Routes
-|--------------------------------------------------------------------------
-|
-| Routes available only to unauthenticated users.
-|
-*/
-
-require __DIR__.'/backend.php';
-require __DIR__.'/customer-auth.php';
-
 // -------------------------------------------------------------------------
-// Legacy URL compatibility and public CMS slugs
+// Legacy ERP URL compatibility
 // -------------------------------------------------------------------------
 
-// Safe, non-conflicting legacy staff page URLs. The conflicting /products
-// path is intentionally owned by the public storefront and is never
-// redirected to backend product management.
+// Legacy staff page aliases remain for compatibility; the canonical ERP
+// routes live under /backend.
 $legacyBackendPages = [
     '/dashboard' => '/backend/dashboard',
     '/content/pages' => '/backend/content/pages',
@@ -131,8 +94,3 @@ Route::get('/users/{user}/edit', fn (string $user) => redirect('/backend/users/'
 Route::get('/users/{user}', fn (string $user) => redirect('/backend/users/'.$user, 301))
     ->whereNumber('user');
 
-// Root-level public CMS slugs. Reserved application paths are excluded so
-// CMS content cannot shadow backend, API, commerce or infrastructure routes.
-Route::get('/{slug}', [PublicCmsPageController::class, 'show'])
-    ->where('slug', '(?!(?:backend|api|up|images|storage|build|assets|fonts|products|cart|checkout|account|shop|pages|order-success|flash-sales|login|register|customer|logout|dashboard|content|seo|marketing|analytics|reports|product-categories|brands|units|attributes|sales-crm|b2b|pricing|customers|orders|sales-returns|shipping-delivery|warranty-service|payments|procurement|finance|inventory|locations|developer|settings|users|robots\\.txt|sitemap\\.xml)$)[A-Za-z0-9-]+')
-    ->name('storefront.pages.show');

@@ -9,12 +9,10 @@ use App\Models\User;
 use App\Services\FeatureFlagService;
 use App\Services\PricingEngine;
 use App\Services\SalesOrderService;
-use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
-use Inertia\Inertia;
-use Inertia\Response;
 
 class StorefrontCartController extends Controller
 {
@@ -35,74 +33,7 @@ class StorefrontCartController extends Controller
         );
     }
 
-    public function show(Request $request): Response
-    {
-        $this->ensureStorefrontEnabled($request);
-        $cart = $this->resolvedCart($request);
-
-        return Inertia::render('Storefront/Cart', [
-            'items' => $cart,
-            'subtotal' => collect($cart)->sum(fn (array $item): float => (float) $item['price'] * $item['quantity']),
-        ]);
-    }
-
-    public function add(Request $request): RedirectResponse
-    {
-        $this->ensureStorefrontEnabled($request);
-        $data = $request->validate([
-            'product_variant_id' => ['required', 'integer', 'exists:product_variants,id'],
-            'quantity' => ['nullable', 'integer', 'min:1', 'max:99'],
-        ]);
-        $variant = ProductVariant::query()
-            ->where('status', 'active')
-            ->whereKey((int) $data['product_variant_id'])
-            ->whereHas('product', function ($query): void {
-                $query->where('status', 'active')
-                    ->where('visibility', 'visible');
-            })
-            ->first();
-
-        abort_unless($variant instanceof ProductVariant, 404);
-
-        $cart = $request->session()->get('storefront_cart', []);
-        $cart = is_array($cart) ? $cart : [];
-        $key = (string) $variant->id;
-
-        if (! array_key_exists($key, $cart) && count($cart) >= 100) {
-            throw ValidationException::withMessages([
-                'cart' => 'Your cart can contain up to 100 different items. Remove an item before adding another.',
-            ]);
-        }
-
-        $cart[$key] = min(99, (int) ($cart[$key] ?? 0) + (int) ($data['quantity'] ?? 1));
-        $request->session()->put('storefront_cart', $cart);
-
-        return back()->with('success', 'পণ্যটি আপনার কার্টে যোগ হয়েছে।');
-    }
-
-    public function update(Request $request, int $variant): RedirectResponse
-    {
-        $this->ensureStorefrontEnabled($request);
-        $data = $request->validate(['quantity' => ['required', 'integer', 'min:1', 'max:99']]);
-        $cart = $request->session()->get('storefront_cart', []);
-        abort_unless(array_key_exists((string) $variant, $cart), 404);
-        $cart[(string) $variant] = (int) $data['quantity'];
-        $request->session()->put('storefront_cart', $cart);
-
-        return back();
-    }
-
-    public function remove(Request $request, int $variant): RedirectResponse
-    {
-        $this->ensureStorefrontEnabled($request);
-        $cart = $request->session()->get('storefront_cart', []);
-        unset($cart[(string) $variant]);
-        $request->session()->put('storefront_cart', $cart);
-
-        return back();
-    }
-
-    public function checkout(Request $request, SalesOrderService $orders): RedirectResponse
+    public function checkout(Request $request, SalesOrderService $orders): JsonResponse
     {
         $this->ensureStorefrontEnabled($request);
         $phoneInput = (string) $request->input('customer_phone', '');
@@ -124,7 +55,7 @@ class StorefrontCartController extends Controller
         if ($cart === []) {
             $lastOrder = $request->session()->get('storefront_last_order');
             if (is_array($lastOrder) && ($lastOrder['idempotency_key'] ?? null) === $data['idempotency_key']) {
-                return to_route('storefront.order-success');
+                return response()->json(['message' => 'Order already placed.', 'data' => $lastOrder]);
             }
             throw ValidationException::withMessages(['cart' => 'আপনার কার্টে কোনো পণ্য নেই।']);
         }
@@ -187,18 +118,11 @@ class StorefrontCartController extends Controller
             'idempotency_key' => $data['idempotency_key'],
         ]);
 
-        return to_route('storefront.order-success');
-    }
-
-    public function success(Request $request): Response|RedirectResponse
-    {
-        $this->ensureStorefrontEnabled($request);
-        $order = $request->session()->get('storefront_last_order');
-        if (! $order) {
-            return to_route('storefront.products.index');
-        }
-
-        return Inertia::render('Storefront/OrderSuccess', ['order' => $order]);
+        return response()->json(['message' => 'Your order has been placed.', 'data' => [
+            'order_number' => $order->order_number,
+            'customer_phone' => $phone,
+            'grand_total' => $order->grand_total,
+        ]], 201);
     }
 
     /** @return array<int, array<string, mixed>> */

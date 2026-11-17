@@ -1,6 +1,12 @@
 <?php
 
 use App\Http\Controllers\Api\V1\HeadOfficeController;
+use App\Http\Controllers\Api\V1\Storefront\CatalogController;
+use App\Http\Controllers\Api\V1\Storefront\PublicOrderTrackingController;
+use App\Http\Controllers\Api\V1\Storefront\PublicStorefrontSupportController;
+use App\Http\Controllers\Api\V1\Storefront\CartController as StorefrontCartApiController;
+use App\Http\Controllers\Auth\CustomerAuthController;
+use App\Http\Controllers\PublicCmsPageController;
 use App\Http\Controllers\CmsContentController;
 use App\Http\Controllers\OrderOperationsController;
 use App\Http\Controllers\PricingPromotionController;
@@ -8,19 +14,46 @@ use Illuminate\Support\Facades\Route;
 
 /*
 |--------------------------------------------------------------------------
-| Storefront API — public, read-only endpoints
+| Storefront API — public catalogue and session-backed customer endpoints
 |--------------------------------------------------------------------------
 |
-| The /api/public/* endpoints remain as compatibility aliases. New clients
-| should use /api/v1/storefront/*.
+| The /api/public/* endpoints remain as compatibility aliases. Nuxt uses
+| the versioned /api/v1/storefront/* session-backed API.
 |
 */
 Route::middleware('web')->get('/public/flash-sales', [PricingPromotionController::class, 'publicFlashSales']);
 Route::middleware('web')->get('/public/cms/banners', [CmsContentController::class, 'publicBanners']);
 
 Route::prefix('v1/storefront')->middleware('web')->group(function (): void {
+    Route::get('/csrf-token', fn (\Illuminate\Http\Request $request) => response()->json(['token' => csrf_token()]));
+    Route::get('/categories', [CatalogController::class, 'categories']);
+    Route::get('/products', [CatalogController::class, 'products']);
+    Route::get('/products/{slug}', [CatalogController::class, 'product'])->where('slug', '[A-Za-z0-9-]+');
     Route::get('/flash-sales', [PricingPromotionController::class, 'publicFlashSales']);
     Route::get('/cms/banners', [CmsContentController::class, 'publicBanners']);
+    Route::get('/cms/pages/{slug}', [PublicCmsPageController::class, 'show'])->where('slug', '[A-Za-z0-9-]+');
+    Route::get('/support/contact', [PublicStorefrontSupportController::class, 'contact']);
+    Route::post('/orders/track', [PublicOrderTrackingController::class, 'track'])->middleware('throttle:5,1');
+
+    // Customer session authentication for the Nuxt storefront.
+    Route::prefix('auth')->group(function (): void {
+        Route::get('/me', [CustomerAuthController::class, 'me']);
+        Route::post('/login/password', [CustomerAuthController::class, 'passwordLogin'])->middleware('throttle:5,1');
+        Route::post('/login/otp', [CustomerAuthController::class, 'sendLoginOtp'])->middleware('throttle:3,1');
+        Route::post('/login/otp/verify', [CustomerAuthController::class, 'verifyLoginOtp'])->middleware('throttle:8,1');
+        Route::post('/register/otp', [CustomerAuthController::class, 'sendRegistrationOtp'])->middleware('throttle:3,1');
+        Route::post('/register', [CustomerAuthController::class, 'register'])->middleware('throttle:5,1');
+        Route::post('/logout', [CustomerAuthController::class, 'logout']);
+    });
+    Route::get('/account', [CustomerAuthController::class, 'account']);
+
+    // Session-backed guest cart API for the Nuxt storefront. The web middleware
+    // intentionally preserves Laravel session and CSRF behavior.
+    Route::get('/cart', [StorefrontCartApiController::class, 'show']);
+    Route::post('/cart/items', [StorefrontCartApiController::class, 'add'])->middleware('throttle:60,1');
+    Route::patch('/cart/items/{variant}', [StorefrontCartApiController::class, 'update'])->whereNumber('variant');
+    Route::delete('/cart/items/{variant}', [StorefrontCartApiController::class, 'remove'])->whereNumber('variant');
+    Route::post('/checkout', [\App\Http\Controllers\StorefrontCartController::class, 'checkout'])->middleware('throttle:10,1');
 });
 
 /*
