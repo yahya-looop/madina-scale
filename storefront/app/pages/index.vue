@@ -73,7 +73,8 @@ const [bannerResponse, categoryResponse, productResponse, flashSaleResponse] = a
   }),
   useFetch<{ data: FlashSale[] }>(`${config.public.apiBase}/flash-sales`, {
     key: 'storefront-home-flash-sales',
-    getCachedData: () => undefined,
+    // Keep Nuxt's SSR payload hydration cache enabled. The API sends no-store
+    // headers, so this avoids a duplicate hydration request without persisting stale offers.
     default: () => ({ data: [] }),
   }),
 ])
@@ -108,6 +109,16 @@ const hasHomeDataError = computed(() => Boolean(
 ))
 const activeBannerIndex = ref(0)
 const activeBanner = computed(() => banners.value[activeBannerIndex.value] || null)
+
+/**
+ * Recover from a transient empty SSR response once the page is mounted.
+ * The endpoint is no-store, and this runs only when no flash-deal items arrived.
+ */
+onMounted(() => {
+  if (!flashDealEntries.value.length && !flashSaleResponse.error.value) {
+    void flashSaleResponse.refresh()
+  }
+})
 const trackingPrefill = useState<{ reference: string; phone: string }>('madina-track-order-prefill', () => ({ reference: '', phone: '' }))
 const trackingReference = ref('')
 const trackingPhone = ref('')
@@ -287,7 +298,18 @@ useSeoMeta({
           <span class="flash-deals-section__note">Offer end times are shown in Bangladesh time</span>
         </div>
 
-        <div v-if="flashDealEntries.length" class="flash-deal-grid">
+        <div
+          v-if="flashSaleResponse.pending.value && !flashDealEntries.length"
+          class="home-empty-state"
+          role="status"
+        >
+          <UiIcon name="zap" :size="27" />
+          <div>
+            <strong>Loading current Flash Deals…</strong>
+            <p>Checking the latest approved offers.</p>
+          </div>
+        </div>
+        <div v-else-if="flashDealEntries.length" class="flash-deal-grid">
           <article v-for="item in flashDealEntries.slice(0, 5)" :key="item.id" class="flash-deal-card">
               <NuxtLink :to="`/products/${item.product_slug}`" class="flash-deal-card__image">
                 <span
