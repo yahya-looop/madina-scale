@@ -684,3 +684,228 @@ button,input,textarea,select{font:inherit}
 @media (max-width: 767px) {
   .site-header .main-nav__inner > .main-nav__link.is-active { color: var(--brand-700) !important; }
 }
+
+
+/* =========================================================
+   MADINA HEADER STICKY SYSTEM v10
+   Fixed top alignment + independent utility bar collapse
+   ========================================================= */
+
+/* Main sticky header */
+.site-header {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 100;
+  isolation: isolate;
+  width: 100%;
+  overflow: visible;
+  background: #fff;
+}
+
+/* Utility bar: visible initially */
+.site-header .utility-bar {
+  position: relative;
+  z-index: 1;
+  max-height: 34px;
+  height: 34px;
+  overflow: hidden;
+  opacity: 1;
+  visibility: visible;
+  transition:
+    max-height 0.24s ease,
+    height 0.24s ease,
+    opacity 0.18s ease,
+    visibility 0.18s ease;
+}
+
+.site-header .utility-bar__inner {
+  min-height: 34px;
+}
+
+/* Never shift the sticky container above viewport */
+.site-header.is-compact {
+  top: 0 !important;
+}
+
+/* Collapse utility bar independently */
+.site-header.is-compact .utility-bar {
+  max-height: 0 !important;
+  height: 0 !important;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* Header main area */
+.site-header .header-main {
+  position: relative;
+  z-index: 3;
+  background: #fff;
+}
+
+.site-header .header-main__inner {
+  min-height: 76px;
+  transition: min-height 0.24s ease;
+}
+
+/* Search field */
+.site-header .header-search {
+  height: 46px;
+  transition: height 0.24s ease;
+}
+
+.site-header .header-search-wrap {
+  position: relative;
+  z-index: 5;
+  min-width: 0;
+}
+
+/* Search dropdown */
+.site-header .search-suggestions {
+  position: absolute;
+  z-index: 110;
+  top: calc(100% + 8px);
+  left: 0;
+  right: 0;
+}
+
+/* Navigation */
+.site-header .main-nav {
+  position: relative;
+  z-index: 2;
+  background: #fff;
+}
+
+.site-header .main-nav__inner {
+  min-height: 50px;
+  transition: min-height 0.24s ease;
+}
+
+/* Smooth compact transition */
+.site-header .brand-lockup img,
+.site-header .brand-lockup__text,
+.site-header .main-nav__link,
+.site-header .category-toggle {
+  transition:
+    width 0.24s ease,
+    height 0.24s ease,
+    font-size 0.24s ease,
+    min-height 0.24s ease,
+    padding 0.24s ease;
+}
+
+/* Compact desktop state */
+.site-header.is-compact .header-main__inner {
+  min-height: 62px !important;
+}
+
+.site-header.is-compact .brand-lockup img {
+  width: 38px;
+  height: 38px;
+}
+
+.site-header.is-compact .brand-lockup__text {
+  font-size: 18px;
+}
+
+.site-header.is-compact .header-search {
+  height: 39px;
+}
+
+.site-header.is-compact .main-nav__inner {
+  min-height: 43px;
+}
+
+.site-header.is-compact .main-nav__link {
+  min-height: 37px;
+}
+
+.site-header.is-compact .category-toggle {
+  min-height: 35px;
+  padding-block: 7px;
+}
+
+/* Search suggestions remain above page content */
+.site-header .mega-menu {
+  z-index: 10;
+}
+
+/* Anchor navigation offset */
+html {
+  scroll-padding-top: 112px;
+}
+
+#flash-deals,
+#products,
+#categories {
+  scroll-margin-top: 112px;
+}
+
+/* Mobile header */
+@media (max-width: 767px) {
+  .site-header .utility-bar {
+    max-height: 34px;
+    height: 34px;
+  }
+
+  .site-header .header-main__inner {
+    min-height: 0;
+  }
+
+  .site-header .header-search-wrap {
+    margin-bottom: 10px;
+  }
+
+  .site-header.is-compact .header-main__inner {
+    min-height: 0 !important;
+    padding-top: 6px;
+    padding-bottom: 5px;
+    row-gap: 5px;
+  }
+
+  .site-header.is-compact .brand-lockup img {
+    width: 31px;
+    height: 31px;
+  }
+
+  .site-header.is-compact .brand-lockup__text {
+    font-size: 15px;
+  }
+
+  .site-header.is-compact .header-search-wrap {
+    margin-bottom: 0 !important;
+  }
+
+  .site-header.is-compact .header-search {
+    height: 36px;
+  }
+
+  .site-header.is-compact .header-search button {
+    width: 40px;
+    min-width: 40px;
+  }
+
+  .site-header .search-suggestions {
+    top: calc(100% + 6px);
+    max-height: 60vh;
+  }
+
+  html {
+    scroll-padding-top: 100px;
+  }
+
+  #flash-deals,
+  #products,
+  #categories {
+    scroll-margin-top: 100px;
+  }
+}
+
+/* Accessibility */
+@media (prefers-reduced-motion: reduce) {
+  .site-header,
+  .site-header * {
+    transition-duration: 0.01ms !important;
+  }
+}
+
