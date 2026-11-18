@@ -82,8 +82,17 @@ const banners = computed(() => bannerResponse.data.value?.data || [])
 const categories = computed(() => categoryResponse.data.value?.data || [])
 const products = computed(() => productResponse.data.value?.data || [])
 const flashSales = computed(() => flashSaleResponse.data.value?.data || [])
-const powerToolsCategory = computed(() => categories.value.find(category => /power[- ]?tools/i.test(`${category.name} ${category.slug}`)))
-const ladderCategory = computed(() => categories.value.find(category => /ladder/i.test(`${category.name} ${category.slug}`)))
+const powerToolsCategory = computed(() =>
+  categories.value.find(category =>
+    /power[- ]?tools/i.test(`${category.name} ${category.slug}`)
+  )
+)
+const digitalScaleCategory = computed(() =>
+  categories.value.find(category =>
+    category.id !== powerToolsCategory.value?.id &&
+    /digital.*scale|scale.*digital/i.test(`${category.name} ${category.slug}`)
+  )
+)
 const productBySlug = computed(() => new Map(products.value.map(product => [product.slug, product])))
 const flashDealEntries = computed<FlashDealEntry[]>(() => flashSales.value.flatMap(sale =>
   (sale.items || []).map(item => ({
@@ -341,8 +350,11 @@ useSeoMeta({
       </div>
     </section>
 
-    <!-- Collection panels appear only when matching real catalogue categories exist. -->
-    <section v-if="powerToolsCategory || ladderCategory" class="collection-features container">
+    <!-- Collection panels: Power Tools and Digital Scale. -->
+    <section
+      v-if="powerToolsCategory || digitalScaleCategory"
+      class="collection-features container"
+    >
       <NuxtLink
         v-if="powerToolsCategory"
         :to="categoryUrl(powerToolsCategory)"
@@ -365,21 +377,22 @@ useSeoMeta({
           fit="contain"
         />
       </NuxtLink>
+
       <NuxtLink
-        v-if="ladderCategory"
-        :to="categoryUrl(ladderCategory)"
+        v-if="digitalScaleCategory"
+        :to="categoryUrl(digitalScaleCategory)"
         class="collection-feature collection-feature--ladder"
       >
         <div>
           <p class="section-kicker">Explore the range</p>
-          <h2>{{ ladderCategory.name }}</h2>
+          <h2>{{ digitalScaleCategory.name }}</h2>
           <span>Shop collection <b aria-hidden="true">→</b></span>
         </div>
         <StorefrontImage
-          :src="ladderCategory.image_url"
-          :alt="ladderCategory.image_url ? ladderCategory.name : ''"
+          :src="digitalScaleCategory.image_url"
+          :alt="digitalScaleCategory.image_url ? digitalScaleCategory.name : ''"
           kind="banner"
-          label="Ladder Collection"
+          label="Digital Scale Collection"
           dimensions="1200 × 500 px"
           ratio="2.4 / 1"
           :width="1200"
@@ -412,7 +425,7 @@ useSeoMeta({
       <p class="home-track-panel__privacy">Your mobile number is used only to verify the order reference. It is not shown in tracking results.</p>
     </section>
 
-    
+
 
     <section class="container home-newsletter" aria-labelledby="home-newsletter-title">
       <div class="home-newsletter__intro">
@@ -431,7 +444,7 @@ useSeoMeta({
       </form>
     </section>
 
-    
+
 
     <!-- Premium value proposition: placed before order tracking for a clearer page flow. -->
     <section class="value-section">

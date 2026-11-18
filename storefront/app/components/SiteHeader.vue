@@ -380,9 +380,9 @@ function setLocale(value: 'en' | 'bn') {
         </NuxtLink>
 
         <NuxtLink
-          to="/#flash-deals"
+          to="/flash-sales"
           class="main-nav__link main-nav__deals"
-          :class="{ 'is-active': route.path === '/' && route.hash === '#flash-deals' }"
+          :class="{ 'is-active': route.path === '/flash-sales' }"
         >
           <UiIcon name="zap" :size="16" />
           {{ t('Flash Sales', 'ফ্ল্যাশ সেল') }}
@@ -495,7 +495,11 @@ function setLocale(value: 'en' | 'bn') {
           <NuxtLink to="/" @click="closeMenus">{{ t('Home', 'হোম') }}</NuxtLink>
           <NuxtLink to="/products" @click="closeMenus">{{ t('Products', 'পণ্যসমূহ') }}</NuxtLink>
           <NuxtLink to="/pages/special-offers" @click="closeMenus">{{ t('Special Offers', 'বিশেষ অফার') }}</NuxtLink>
-          <NuxtLink to="/#flash-deals" @click="closeMenus">{{ t('Flash Sales', 'ফ্ল্যাশ সেল') }}</NuxtLink>
+          <NuxtLink
+            to="/flash-sales"
+            :class="{ 'is-active': route.path === '/flash-sales' }"
+            @click="closeMenus"
+          >{{ t('Flash Sales', 'ফ্ল্যাশ সেল') }}</NuxtLink>
           <NuxtLink to="/pages/warranty" @click="closeMenus">{{ t('Warranty', 'ওয়ারেন্টি') }}</NuxtLink>
           <NuxtLink to="/pages/contact" @click="closeMenus">{{ t('Contact', 'যোগাযোগ') }}</NuxtLink>
           <NuxtLink to="/track-order" @click="closeMenus">{{ t('Track Order', 'অর্ডার ট্র্যাক') }}</NuxtLink>
