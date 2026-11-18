@@ -402,6 +402,32 @@ useSeoMeta({
       </NuxtLink>
     </section>
 
+    <!-- MADINA value proposition: eight customer benefits, immediately before order tracking. -->
+    <section class="value-section" aria-labelledby="madina-experience-title">
+      <div class="container">
+        <div class="value-section__intro">
+          <p class="section-kicker">THE MADINA EXPERIENCE</p>
+          <div class="section-heading">
+            <div class="section-heading__title">
+              <h2 id="madina-experience-title">Why Choose MADINA™?</h2>
+              <span aria-hidden="true" />
+            </div>
+            <p>Everything you need to choose with confidence, from catalogue discovery to checkout.</p>
+          </div>
+        </div>
+        <div class="value-grid">
+          <article><span class="value-card__number">01</span><UiIcon name="target" :size="25" /><div><h3>Find the right solution</h3><p>Explore weighing equipment through clear product categories.</p></div><UiIcon class="value-card__arrow" name="arrow-up-right" :size="17" /></article>
+          <article><span class="value-card__number">02</span><UiIcon name="layers" :size="25" /><div><h3>Compare product options</h3><p>Review published specifications, variants and pricing.</p></div><UiIcon class="value-card__arrow" name="arrow-up-right" :size="17" /></article>
+          <article><span class="value-card__number">03</span><UiIcon name="shopping-cart" :size="25" /><div><h3>A simpler buying journey</h3><p>Keep selected products together in your online cart.</p></div><UiIcon class="value-card__arrow" name="arrow-up-right" :size="17" /></article>
+          <article><span class="value-card__number">04</span><UiIcon name="headset" :size="25" /><div><h3>Support when you need it</h3><p>Find order tracking and customer support from one place.</p></div><UiIcon class="value-card__arrow" name="arrow-up-right" :size="17" /></article>
+          <article><span class="value-card__number">05</span><UiIcon name="search" :size="25" /><div><h3>Easy catalogue discovery</h3><p>Browse the published catalogue to find suitable products.</p></div><UiIcon class="value-card__arrow" name="arrow-up-right" :size="17" /></article>
+          <article><span class="value-card__number">06</span><UiIcon name="scale" :size="25" /><div><h3>Clear product information</h3><p>Review available product details before making a choice.</p></div><UiIcon class="value-card__arrow" name="arrow-up-right" :size="17" /></article>
+          <article><span class="value-card__number">07</span><UiIcon name="truck" :size="25" /><div><h3>Order progress visibility</h3><p>Use order tracking to check the progress of your purchase.</p></div><UiIcon class="value-card__arrow" name="arrow-up-right" :size="17" /></article>
+          <article><span class="value-card__number">08</span><UiIcon name="shield-check" :size="25" /><div><h3>Warranty information</h3><p>Find warranty details and contact MADINA for assistance.</p></div><UiIcon class="value-card__arrow" name="arrow-up-right" :size="17" /></article>
+        </div>
+      </div>
+    </section>
+
     <section class="container home-track-panel" aria-labelledby="home-track-title">
       <div class="home-track-panel__intro">
         <div class="home-track-panel__icon"><UiIcon name="package-search" :size="28" /></div>
@@ -446,27 +472,7 @@ useSeoMeta({
 
 
 
-    <!-- Premium value proposition: placed before order tracking for a clearer page flow. -->
-    <section class="value-section">
-      <div class="container">
-        <div class="value-section__intro">
-          <p class="section-kicker">THE MADINA EXPERIENCE</p>
-          <div class="section-heading">
-            <div class="section-heading__title">
-              <h2>Why Choose MADINA™?</h2>
-              <span aria-hidden="true" />
-            </div>
-            <p>Everything you need to choose with confidence, from catalogue discovery to checkout.</p>
-          </div>
-        </div>
-        <div class="value-grid">
-          <article><span class="value-card__number">01</span><UiIcon name="target" :size="25" /><div><h3>Find the right solution</h3><p>Explore weighing equipment through clear product categories.</p></div><UiIcon class="value-card__arrow" name="arrow-up-right" :size="17" /></article>
-          <article><span class="value-card__number">02</span><UiIcon name="layers" :size="25" /><div><h3>Compare product options</h3><p>Review published specifications, variants and pricing.</p></div><UiIcon class="value-card__arrow" name="arrow-up-right" :size="17" /></article>
-          <article><span class="value-card__number">03</span><UiIcon name="shopping-cart" :size="25" /><div><h3>A simpler buying journey</h3><p>Keep selected products together in your online cart.</p></div><UiIcon class="value-card__arrow" name="arrow-up-right" :size="17" /></article>
-          <article><span class="value-card__number">04</span><UiIcon name="headset" :size="25" /><div><h3>Support when you need it</h3><p>Find order tracking and customer support from one place.</p></div><UiIcon class="value-card__arrow" name="arrow-up-right" :size="17" /></article>
-        </div>
-      </div>
-    </section>
+
 
     <div v-if="hasHomeDataError" class="container home-data-notice" role="status">
       <span>Some storefront content could not be loaded.</span>
