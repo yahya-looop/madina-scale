@@ -102,25 +102,6 @@ useSeoMeta({
 
 <template>
   <main class="flash-sales-page">
-    <section class="flash-sales-hero">
-      <div class="container">
-        <div class="flash-sales-hero__content">
-          <p class="flash-sales-eyebrow"><UiIcon name="zap" :size="15" /> MADINA LIMITED-TIME OFFERS</p>
-          <h1>{{ t('Flash Sales', 'ফ্ল্যাশ সেল') }}</h1>
-          <p>{{ t('Discover exclusive prices on selected weighing solutions. Offers are available for a limited time.', 'নির্বাচিত ওয়েইং সল্যুশনে বিশেষ ছাড় উপভোগ করুন। অফারগুলো সীমিত সময়ের জন্য প্রযোজ্য।') }}</p>
-          <div class="flash-sales-hero__meta">
-            <span><UiIcon name="zap" :size="16" /> {{ t('Limited-time deals', 'সীমিত সময়ের অফার') }}</span>
-            <span><UiIcon name="shield-check" :size="16" /> {{ t('Special sale prices', 'বিশেষ ছাড়ের মূল্য') }}</span>
-          </div>
-        </div>
-        <div class="flash-sales-hero__art" aria-hidden="true">
-          <span class="flash-sales-hero__bolt"><UiIcon name="zap" :size="74" /></span>
-          <span class="flash-sales-hero__ring flash-sales-hero__ring--one" />
-          <span class="flash-sales-hero__ring flash-sales-hero__ring--two" />
-        </div>
-      </div>
-    </section>
-
     <section class="container flash-sales-content">
       <div class="flash-sales-heading">
         <div>

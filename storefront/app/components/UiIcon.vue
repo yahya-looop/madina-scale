@@ -1,86 +1,45 @@
-
-
 <script setup lang="ts">
+import type { UiIconName } from '../types/icons'
+
 withDefaults(defineProps<{
-  name:
-    | 'search' | 'shopping-cart' | 'menu' | 'x' | 'layout-grid' | 'scale'
-    | 'zap' | 'arrow-right' | 'chevron-down' | 'truck' | 'shield-check'
-    | 'target' | 'layers' | 'headset' | 'package-search' | 'mail' | 'message-circle' | 'phone' | 'user-round' | 'arrow-up-right' | 'send'
+  name: UiIconName
   size?: number
 }>(), { size: 20 })
 </script>
 
 <template>
-  <svg
-    :width="size"
-    :height="size"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    stroke-width="1.8"
-    stroke-linecap="round"
-    stroke-linejoin="round"
-    aria-hidden="true"
-    focusable="false"
-  >
-    <template v-if="name === 'search'">
-      <circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" />
-    </template>
-    <template v-else-if="name === 'shopping-cart'">
-      <circle cx="9" cy="21" r="1" /><circle cx="20" cy="21" r="1" /><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
-    </template>
-    <template v-else-if="name === 'menu'">
-      <path d="M4 6h16M4 12h16M4 18h16" />
-    </template>
-    <template v-else-if="name === 'x'">
-      <path d="m18 6-12 12M6 6l12 12" />
-    </template>
-    <template v-else-if="name === 'layout-grid'">
-      <rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" />
-    </template>
-    <template v-else-if="name === 'scale'">
-      <path d="M12 3v18M5 7h14M7 7l-4 7h8L7 7Zm10 0-4 7h8l-4-7ZM5 21h14" />
-    </template>
-    <template v-else-if="name === 'zap'">
-      <path d="m13 2-3 8H5l6 12 3-8h5L13 2Z" />
-    </template>
-    <template v-else-if="name === 'arrow-right'">
-      <path d="M5 12h14M12 5l7 7-7 7" />
-    </template>
-    <template v-else-if="name === 'chevron-down'">
-      <path d="m6 9 6 6 6-6" />
-    </template>
-    <template v-else-if="name === 'truck'">
-      <path d="M3 6h11v11H3zM14 10h4l3 3v4h-7z" /><circle cx="7.5" cy="19" r="1.8" /><circle cx="18" cy="19" r="1.8" />
-    </template>
-    <template v-else-if="name === 'shield-check'">
-      <path d="M12 22s8-4 8-11V5l-8-3-8 3v6c0 7 8 11 8 11Z" /><path d="m9 12 2 2 4-4" />
-    </template>
-    <template v-else-if="name === 'target'">
-      <circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="5" /><circle cx="12" cy="12" r="1" /><path d="m16 8 5-5" />
-    </template>
-    <template v-else-if="name === 'layers'">
-      <path d="m12 3 9 5-9 5-9-5 9-5Z" /><path d="m3 12 9 5 9-5M3 16l9 5 9-5" />
-    </template>
-    <template v-else-if="name === 'headset'">
-      <path d="M3 13v-2a9 9 0 0 1 18 0v2" /><path d="M3 13h4v7H5a2 2 0 0 1-2-2v-5ZM21 13h-4v7h2a2 2 0 0 0 2-2v-5Z" /><path d="M17 20c-1 1-2.5 1.5-5 1.5" />
-    </template>
-    <template v-else-if="name === 'package-search'">
-      <path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z" /><path d="M4.5 7.7 12 12l7.5-4.3M12 12v9" /><circle cx="17.5" cy="15.5" r="2.5" /><path d="m19.4 17.4 2 2" />
-    </template>
-    <template v-else-if="name === 'mail'">
-      <rect x="3" y="5" width="18" height="14" rx="2" /><path d="m4 7 8 6 8-6" />
-    </template>
-    <template v-else-if="name === 'message-circle'">
-      <path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8A8.5 8.5 0 0 1 8.7 3.9a8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8v.5Z" />
-    </template>
-    <template v-else-if="name === 'phone'">
-      <path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.4 19.4 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 2 .7 2.9a2 2 0 0 1-.5 2.1L8 10a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.5c.9.3 1.9.6 2.9.7a2 2 0 0 1 1.7 2Z" />
-    </template>
-    <template v-else-if="name === 'user-round'">
-      <circle cx="12" cy="8" r="4" /><path d="M5 21a7 7 0 0 1 14 0" />
-    </template>
+  <svg :width="size" :height="size" viewBox="0 0 24 24" fill="none"
+    stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"
+    aria-hidden="true" focusable="false">
+    <template v-if="name === 'search'"><circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" /></template>
+    <template v-else-if="name === 'shopping-cart'"><circle cx="9" cy="21" r="1" /><circle cx="20" cy="21" r="1" /><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" /></template>
+    <template v-else-if="name === 'menu'"><path d="M4 6h16M4 12h16M4 18h16" /></template>
+    <template v-else-if="name === 'x'"><path d="m18 6-12 12M6 6l12 12" /></template>
+    <template v-else-if="name === 'layout-grid'"><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /></template>
+    <template v-else-if="name === 'scale'"><path d="M12 3v18M5 7h14M7 7l-4 7h8L7 7Zm10 0-4 7h8l-4-7ZM5 21h14" /></template>
+    <template v-else-if="name === 'zap'"><path d="m13 2-3 8H5l6 12 3-8h5L13 2Z" /></template>
+    <template v-else-if="name === 'arrow-right' || name === 'arrow-up-right'"><path :d="name === 'arrow-right' ? 'M5 12h14M12 5l7 7-7 7' : 'M7 17 17 7M7 7h10v10'" /></template>
+    <template v-else-if="name === 'chevron-down'"><path d="m6 9 6 6 6-6" /></template>
+    <template v-else-if="name === 'truck'"><path d="M3 6h11v11H3zM14 10h4l3 3v4h-7z" /><circle cx="7.5" cy="19" r="1.8" /><circle cx="18" cy="19" r="1.8" /></template>
+    <template v-else-if="name === 'shield-check'"><path d="M12 22s8-4 8-11V5l-8-3-8 3v6c0 7 8 11 8 11Z" /><path d="m9 12 2 2 4-4" /></template>
+    <template v-else-if="name === 'target'"><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="5" /><circle cx="12" cy="12" r="1" /><path d="m16 8 5-5" /></template>
+    <template v-else-if="name === 'layers'"><path d="m12 3 9 5-9 5-9-5 9-5Z" /><path d="m3 12 9 5 9-5M3 16l9 5 9-5" /></template>
+    <template v-else-if="name === 'headset'"><path d="M3 13v-2a9 9 0 0 1 18 0v2" /><path d="M3 13h4v7H5a2 2 0 0 1-2-2v-5ZM21 13h-4v7h2a2 2 0 0 0 2-2v-5Z" /><path d="M17 20c-1 1-2.5 1.5-5 1.5" /></template>
+    <template v-else-if="name === 'package-search'"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z" /><path d="M4.5 7.7 12 12l7.5-4.3M12 12v9" /><circle cx="17.5" cy="15.5" r="2.5" /><path d="m19.4 17.4 2 2" /></template>
+    <template v-else-if="name === 'mail'"><rect x="3" y="5" width="18" height="14" rx="2" /><path d="m4 7 8 6 8-6" /></template>
+    <template v-else-if="name === 'message-circle'"><path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8A8.5 8.5 0 0 1 8.7 3.9a8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8v.5Z" /></template>
+    <template v-else-if="name === 'phone'"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.4 19.4 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 2 .7 2.9a2 2 0 0 1-.5 2.1L8 10a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.5c.9.3 1.9.6 2.9.7a2 2 0 0 1 1.7 2Z" /></template>
+    <template v-else-if="name === 'user-round'"><circle cx="12" cy="8" r="4" /><path d="M5 21a7 7 0 0 1 14 0" /></template>
+    <template v-else-if="name === 'send'"><path d="m22 2-7 20-4-9-9-4Z" /><path d="M22 2 11 13" /></template>
+    <template v-else-if="name === 'info'"><circle cx="12" cy="12" r="10" /><path d="M12 11v5M12 8h.01" /></template>
+    <template v-else-if="name === 'badge-percent'"><path d="M3.5 7.5 7.5 3.5h9l4 4v9l-4 4h-9l-4-4z" /><path d="m9 15 6-6M9 9h.01M15 15h.01" /></template>
+    <template v-else-if="name === 'handshake'"><path d="m3 12 4-4 4 2 3-2 7 4-4 7-5-2-4 1-5-6Z" /><path d="m7 8 3-3 4 1 3-1 4 4M8 14l4 3 3-2" /></template>
+    <template v-else-if="name === 'briefcase-business'"><rect x="3" y="7" width="18" height="14" rx="2" /><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M3 12h18M10 12v2h4v-2" /></template>
+    <template v-else-if="name === 'building-2'"><path d="M6 22V3h12v19M3 22h18M9 7h1m4 0h1M9 11h1m4 0h1M9 15h1m4 0h1M10 22v-3h4v3" /></template>
+    <template v-else-if="name === 'file-check'"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6m-11 5 2 2 4-4" /></template>
+    <template v-else-if="name === 'circle-help'"><circle cx="12" cy="12" r="10" /><path d="M9.6 9a2.5 2.5 0 1 1 4.2 1.8c-1.2 1-1.8 1.4-1.8 3M12 17h.01" /></template>
+    <template v-else-if="name === 'history'"><path d="M3 12a9 9 0 1 0 2.6-6.4L3 8" /><path d="M3 3v5h5m4-1v5l3 2" /></template>
+    <template v-else-if="name === 'refresh-ccw'"><path d="M3 12a9 9 0 0 1 15.4-6.4L21 8" /><path d="M21 3v5h-5M21 12a9 9 0 0 1-15.4 6.4L3 16" /><path d="M3 21v-5h5" /></template>
+    <template v-else-if="name === 'boxes'"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z" /><path d="m4 7.5 8 4.5 8-4.5M12 12v9M2 5l10-5 10 5" /></template>
   </svg>
 </template>
-
-
