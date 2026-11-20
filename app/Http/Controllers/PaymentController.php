@@ -7,6 +7,7 @@ use App\Models\FinancialTransaction;
 use App\Models\SalesOrder;
 use App\Services\FinancialLedgerService;
 use App\Services\LocationInventoryAccessService;
+use App\Services\SalesOrderService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -19,6 +20,7 @@ class PaymentController extends Controller
     public function __construct(
         private readonly FinancialLedgerService $ledger,
         private readonly LocationInventoryAccessService $locationAccess,
+        private readonly SalesOrderService $orders,
     ) {}
 
     public function index(Request $request): JsonResponse
@@ -212,6 +214,126 @@ class PaymentController extends Controller
             ->get(['allocations.id', 'allocations.amount', 'allocations.created_at', 'orders.id as sales_order_id', 'orders.order_number']);
 
         return response()->json(['data' => $rows]);
+    }
+
+
+    public function storefrontBankTransfers(Request $request): JsonResponse
+    {
+        $orders = SalesOrder::query()
+            ->with('location:id,name')
+            ->where('channel', 'storefront')
+            ->where('payment_method', 'bank_transfer')
+            ->whereIn('payment_status', ['awaiting_verification', 'approved'])
+            ->when($request->filled('location_id'), function ($query) use ($request): void {
+                $id = $request->integer('location_id');
+                $this->locationAccess->assertView($request->user(), $id);
+                $query->where('location_id', $id);
+            }, fn ($query) => $this->locationAccess->scopeViewable($query, $request->user()))
+            ->latest('id')->get();
+
+        return response()->json(['data' => $orders->map(fn (SalesOrder $order): array => [
+            'id' => $order->id,
+            'order_number' => $order->order_number,
+            'customer_name' => $order->customer_name,
+            'customer_phone' => $order->customer_phone,
+            'grand_total' => (string) $order->grand_total,
+            'payment_status' => $order->payment_status,
+            'payment_details' => $order->payment_details ?? [],
+            'location' => $order->location?->name,
+            'created_at' => $order->created_at?->toDateTimeString(),
+        ])]);
+    }
+
+    public function approveStorefrontBankTransfer(Request $request, SalesOrder $order): JsonResponse
+    {
+        $this->locationAccess->assertManage($request->user(), (int) $order->location_id);
+
+        return DB::transaction(function () use ($request, $order): JsonResponse {
+            $locked = SalesOrder::query()->lockForUpdate()->findOrFail($order->id);
+            if ($locked->channel !== 'storefront' || $locked->payment_method !== 'bank_transfer') {
+                throw ValidationException::withMessages(['order' => 'This is not a storefront bank-transfer order.']);
+            }
+            if ($locked->payment_status !== 'awaiting_verification') {
+                throw ValidationException::withMessages(['payment_status' => 'Only submissions awaiting verification can be approved.']);
+            }
+            $details = $locked->payment_details ?? [];
+            $declared = (string) ($details['declared_amount'] ?? '0');
+            if (bccomp($declared, (string) $locked->grand_total, 2) !== 0) {
+                throw ValidationException::withMessages(['amount' => 'The customer-declared transfer amount does not match the order total. Verify the bank statement before approval.']);
+            }
+            $locked->payment_status = 'approved';
+            $locked->payment_details = array_merge($details, [
+                'approved_at' => now()->toIso8601String(),
+                'approved_by' => $request->user()->id,
+            ]);
+            $locked->save();
+
+            return response()->json(['message' => 'Bank transfer approved. Mark it as received only after the funds are visible in the bank account.', 'data' => $locked]);
+        }, 3);
+    }
+
+    public function receiveStorefrontBankTransfer(Request $request, SalesOrder $order): JsonResponse
+    {
+        $data = $request->validate([
+            'cash_account_id' => ['required', 'integer', 'exists:financial_accounts,id'],
+            'transaction_date' => ['required', 'date'],
+        ]);
+        $this->locationAccess->assertManage($request->user(), (int) $order->location_id);
+
+        return DB::transaction(function () use ($request, $order, $data): JsonResponse {
+            $locked = SalesOrder::query()->lockForUpdate()->findOrFail($order->id);
+            if ($locked->channel !== 'storefront' || $locked->payment_method !== 'bank_transfer' || $locked->payment_status !== 'approved') {
+                throw ValidationException::withMessages(['payment_status' => 'Approve the bank transfer before marking it received.']);
+            }
+            if ($locked->status !== 'pending') {
+                throw ValidationException::withMessages(['status' => 'Only pending storefront orders can be confirmed through this payment review.']);
+            }
+            $details = $locked->payment_details ?? [];
+            $assessment = $locked->riskAssessments()->latest('id')->first();
+            if ($assessment && in_array($assessment->decision, ['manual_review', 'reject'], true)) {
+                throw ValidationException::withMessages(['risk' => 'This order requires an approved risk review before confirmation.']);
+            }
+            if ($assessment && $assessment->decision === 'verify' && ! \App\Models\SalesOrderPhoneVerification::query()->where('sales_order_id', $locked->id)->whereNotNull('verified_at')->exists()) {
+                throw ValidationException::withMessages(['risk' => 'Verify the customer phone before confirming this order.']);
+            }
+
+            $receipt = $this->ledger->recordTransaction([
+                'idempotency_key' => 'ST-BANK-'.$locked->order_number,
+                'transaction_date' => $data['transaction_date'],
+                'amount' => (string) $locked->grand_total,
+                'payment_method' => 'bank',
+                'cash_account_id' => (int) $data['cash_account_id'],
+                'customer_id' => (int) $locked->customer_id,
+                'reference' => (string) ($details['transaction_reference'] ?? $locked->order_number),
+                'description' => 'Verified storefront bank transfer for '.$locked->order_number,
+                'location_id' => (int) $locked->location_id,
+                'type' => 'customer_receipt',
+            ], $request->user());
+
+            DB::table('payment_allocations')->insertOrIgnore([
+                'financial_transaction_id' => $receipt->id,
+                'sales_order_id' => $locked->id,
+                'amount' => (string) $locked->grand_total,
+                'allocated_by' => $request->user()->id,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            $locked->payment_status = 'received';
+            $locked->payment_details = array_merge($details, [
+                'received_at' => now()->toIso8601String(),
+                'received_by' => $request->user()->id,
+                'financial_transaction_id' => $receipt->id,
+            ]);
+            $locked->save();
+
+            $confirmed = $this->orders->confirm($locked, $request->user());
+
+            return response()->json([
+                'message' => 'Payment received, allocated to the order, and the order is confirmed.',
+                'data' => ['order' => $confirmed, 'payment' => $receipt],
+            ]);
+        }, 3);
     }
 
     /**

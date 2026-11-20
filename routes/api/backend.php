@@ -208,6 +208,9 @@ Route::middleware(['web', 'auth'])->group(function () {
 
     Route::get('/payments', [PaymentController::class, 'index'])->middleware('permission:system.payments.view');
     Route::get('/payments/options', [PaymentController::class, 'options'])->middleware('permission:system.payments.view');
+    Route::get('/payments/storefront-bank-transfers', [PaymentController::class, 'storefrontBankTransfers'])->middleware('permission:system.payments.view');
+    Route::post('/payments/storefront-bank-transfers/{order}/approve', [PaymentController::class, 'approveStorefrontBankTransfer'])->middleware('permission:system.payments.update');
+    Route::post('/payments/storefront-bank-transfers/{order}/receive', [PaymentController::class, 'receiveStorefrontBankTransfer'])->middleware('permission:system.payments.create');
     Route::post('/payments/receipts', [PaymentController::class, 'storeReceipt'])->middleware('permission:system.payments.create');
     Route::get('/payments/{payment}/allocations', [PaymentController::class, 'allocations'])->middleware('permission:system.payments.view');
     Route::post('/payments/{payment}/allocations', [PaymentController::class, 'allocate'])->middleware('permission:system.payments.update');

@@ -34,6 +34,7 @@ class SalesOrder extends Model
         'customer_name', 'customer_email', 'customer_phone',
         'currency', 'subtotal', 'discount_total', 'tax_total', 'grand_total', 'pricing_snapshot', 'credit_snapshot', 'payment_due_at',
         'notes', 'created_by', 'confirmed_at', 'cancelled_at', 'cancellation_reason',
+        'payment_method', 'payment_status', 'payment_details',
         'idempotency_key',
     ];
 
@@ -45,6 +46,7 @@ class SalesOrder extends Model
             'tax_total' => 'decimal:2',
             'grand_total' => 'decimal:2',
             'pricing_snapshot' => 'array',
+            'payment_details' => 'array',
             'credit_snapshot' => 'array',
             'payment_due_at' => 'datetime',
             'confirmed_at' => 'datetime',

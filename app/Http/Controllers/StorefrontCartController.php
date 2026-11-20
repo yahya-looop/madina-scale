@@ -11,6 +11,7 @@ use App\Services\PricingEngine;
 use App\Services\SalesOrderService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
@@ -49,6 +50,10 @@ class StorefrontCartController extends Controller
             'area' => ['nullable', 'string', 'max:120'],
             'address_line' => ['nullable', 'string', 'max:500'],
             'notes' => ['nullable', 'string', 'max:1000'],
+            'payment_method' => ['required', 'string', 'in:cash_on_delivery,bank_transfer'],
+            'bank_sender_account' => ['required_if:payment_method,bank_transfer', 'nullable', 'string', 'max:80'],
+            'bank_transaction_reference' => ['required_if:payment_method,bank_transfer', 'nullable', 'string', 'max:120'],
+            'bank_transfer_amount' => ['required_if:payment_method,bank_transfer', 'nullable', 'numeric', 'gt:0', 'decimal:0,2'],
             'idempotency_key' => ['required', 'string', 'max:100'],
         ]);
         $cart = $this->resolvedCart($request);
@@ -96,6 +101,13 @@ class StorefrontCartController extends Controller
             ])->save();
         }
 
+        $paymentDetails = $data['payment_method'] === 'bank_transfer' ? [
+            'sender_account' => trim((string) $data['bank_sender_account']),
+            'transaction_reference' => trim((string) $data['bank_transaction_reference']),
+            'declared_amount' => number_format((float) $data['bank_transfer_amount'], 2, '.', ''),
+            'submitted_at' => now()->toIso8601String(),
+        ] : null;
+
         $order = $orders->create([
             'location_id' => $location->id,
             'customer_id' => $customer->id,
@@ -103,6 +115,9 @@ class StorefrontCartController extends Controller
             'customer_phone' => $phone,
             'notes' => mb_substr(trim(implode("\n", array_filter([$data['notes'] ?? null, $addressLine !== '' ? 'Delivery address: '.implode(', ', array_filter([$addressLine, $data['area'] ?? null, $district, $data['division'] ?? null])) : null]))), 0, 1000) ?: null,
             'channel' => 'storefront',
+            'payment_method' => $data['payment_method'],
+            'payment_status' => $data['payment_method'] === 'bank_transfer' ? 'awaiting_verification' : 'unpaid',
+            'payment_details' => $paymentDetails,
             'idempotency_key' => $data['idempotency_key'],
             'items' => collect($cart)->map(fn (array $item): array => [
                 'product_variant_id' => $item['variant_id'],
@@ -115,6 +130,8 @@ class StorefrontCartController extends Controller
             'order_number' => $order->order_number,
             'customer_phone' => $phone,
             'grand_total' => $order->grand_total,
+            'payment_method' => $order->payment_method,
+            'payment_status' => $order->payment_status,
             'idempotency_key' => $data['idempotency_key'],
         ]);
 
@@ -122,6 +139,8 @@ class StorefrontCartController extends Controller
             'order_number' => $order->order_number,
             'customer_phone' => $phone,
             'grand_total' => $order->grand_total,
+            'payment_method' => $order->payment_method,
+            'payment_status' => $order->payment_status,
         ]], 201);
     }
 

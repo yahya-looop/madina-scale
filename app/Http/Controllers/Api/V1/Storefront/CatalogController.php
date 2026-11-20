@@ -58,12 +58,19 @@ class CatalogController extends Controller
             'alt' => $media->alt_text ?: $product->name,
         ])->values();
         $data['variants'] = $product->activeVariants->map(fn ($variant) => [
-            'id' => $variant->id, 'name' => $variant->name ?: 'Standard',
+            'id' => $variant->id,
+            'name' => $variant->name ?: 'Standard',
+            'sku' => $variant->sku ?: $product->sku,
             'price' => app(PricingEngine::class)->flashSalePriceForVariant($variant->id) ?? $variant->effectiveSellingPrice(),
             'regular_price' => $variant->effectiveSellingPrice(),
             'has_flash_sale' => app(PricingEngine::class)->flashSalePriceForVariant($variant->id) !== null,
             'has_wholesale_pricing' => $variant->wholesale_price !== null,
             'is_default' => $variant->is_default,
+            'attributes' => $variant->attributeValues->map(fn ($mapping) => [
+                'name' => $mapping->attribute?->name,
+                'value' => $mapping->attributeValue?->name ?: $mapping->attributeValue?->value,
+                'color_code' => $mapping->attributeValue?->color_code,
+            ])->filter(fn ($attribute) => filled($attribute['name']) && filled($attribute['value']))->values(),
         ])->values();
         return response()->json(['data' => $data]);
     }
@@ -74,8 +81,25 @@ class CatalogController extends Controller
             ->whereHas('category', fn (Builder $q) => $q->where('status', 'active')->where('visibility', 'visible'))
             ->whereHas('unit', fn (Builder $q) => $q->where('status', 'active'))
             ->whereHas('activeVariants')
-            ->with(['category:id,name,slug', 'brand:id,name,slug', 'unit:id,name,short_name,slug', 'primaryMedia',
-                'activeVariants' => fn ($q) => $q->select(['id','product_id','name','selling_price','wholesale_price','promotional_price','promotion_starts_at','promotion_ends_at','is_default','sort_order'])->orderByDesc('is_default')->orderBy('sort_order')]);
+            ->with([
+                'category:id,name,slug',
+                'brand:id,name,slug',
+                'unit:id,name,short_name,slug',
+                'primaryMedia',
+                'activeVariants' => fn ($q) => $q
+                    ->select(['id','product_id','name','sku','selling_price','wholesale_price','promotional_price','promotion_starts_at','promotion_ends_at','is_default','sort_order'])
+                    ->with([
+                        'attributeValues' => fn ($attributes) => $attributes
+                            ->whereHas('attribute', fn ($query) => $query->where('status', 'active'))
+                            ->whereHas('attributeValue', fn ($query) => $query->where('status', 'active'))
+                            ->with([
+                                'attribute:id,name,type',
+                                'attributeValue:id,name,value,color_code',
+                            ]),
+                    ])
+                    ->orderByDesc('is_default')
+                    ->orderBy('sort_order'),
+            ]);
     }
 
     private function present(Product $product): array
@@ -85,8 +109,15 @@ class CatalogController extends Controller
         $image = $media ? (preg_match('/^https?:\/\//i', $media->path) === 1 ? $media->path : Storage::disk($media->disk ?: 'public')->url($media->path)) : null;
         return [
             'id' => $product->id, 'name' => $product->name, 'slug' => $product->slug,
-            'short_description' => $product->short_description, 'category' => $product->category?->name,
-            'brand' => $product->brand?->name, 'unit' => $product->unit?->short_name,
+            'short_description' => $product->short_description,
+            'category' => $product->category?->name,
+            'category_slug' => $product->category?->slug,
+            'brand' => $product->brand?->name,
+            'unit' => $product->unit?->short_name,
+            'sku' => $product->sku,
+            'model_number' => $product->model_number,
+            'barcode' => $product->barcode,
+            'product_type' => $product->product_type,
             'image_url' => $image,
             'price' => $variant ? (app(PricingEngine::class)->flashSalePriceForVariant($variant->id) ?? $variant->effectiveSellingPrice()) : null,
             'regular_price' => $variant?->effectiveSellingPrice(),

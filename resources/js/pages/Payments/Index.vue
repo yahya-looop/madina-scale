@@ -28,6 +28,21 @@ interface Order {
     due_amount: string;
     location_id: number;
 }
+interface BankTransfer {
+    id: number;
+    order_number: string;
+    customer_name: string;
+    customer_phone: string | null;
+    grand_total: string;
+    payment_status: string;
+    payment_details: {
+        sender_account?: string;
+        transaction_reference?: string;
+        declared_amount?: string;
+    };
+    location?: string;
+    created_at?: string;
+}
 interface Payment {
     id: number;
     transaction_number: string;
@@ -51,6 +66,8 @@ const saving = ref(false);
 const error = ref('');
 const success = ref('');
 const payments = ref<Payment[]>([]);
+const bankTransfers = ref<BankTransfer[]>([]);
+const bankReceiveAccountId = ref('');
 const locations = ref<Location[]>([]);
 const cashAccounts = ref<CashAccount[]>([]);
 const orders = ref<Order[]>([]);
@@ -110,7 +127,7 @@ async function load(): Promise<void> {
         if (filterLocation.value)
             query.set('location_id', filterLocation.value);
         if (search.value.trim()) query.set('search', search.value.trim());
-        const [list, options] = await Promise.all([
+        const [list, options, bankQueue] = await Promise.all([
             api<{ data: Payment[] }>(
                 `/api/v1/backend/payments?${query.toString()}`,
             ),
@@ -123,10 +140,15 @@ async function load(): Promise<void> {
             }>(
                 `/api/v1/backend/payments/options${filterLocation.value ? `?location_id=${filterLocation.value}` : ''}`,
             ),
+            api<{ data: BankTransfer[] }>(
+                `/api/v1/backend/payments/storefront-bank-transfers${filterLocation.value ? `?location_id=${filterLocation.value}` : ''}`,
+            ),
         ]);
         payments.value = list.data;
+        bankTransfers.value = bankQueue.data;
         locations.value = options.data.locations;
         cashAccounts.value = options.data.cash_accounts;
+        if (!bankReceiveAccountId.value && cashAccounts.value.length) bankReceiveAccountId.value = String(cashAccounts.value[0].id);
         orders.value = options.data.orders;
     } catch (e) {
         error.value =
@@ -207,6 +229,35 @@ async function saveReceipt(): Promise<void> {
             e instanceof Error ? e.message : 'Unable to record payment.';
     } finally {
         saving.value = false;
+    }
+}
+async function approveBankTransfer(order: BankTransfer): Promise<void> {
+    error.value = '';
+    success.value = '';
+    try {
+        await api(`/api/v1/backend/payments/storefront-bank-transfers/${order.id}/approve`, { method: 'POST', body: JSON.stringify({}) });
+        success.value = `Bank transfer for ${order.order_number} approved. Verify the bank statement, then mark it received.`;
+        await load();
+    } catch (e) {
+        error.value = e instanceof Error ? e.message : 'Unable to approve bank transfer.';
+    }
+}
+async function receiveBankTransfer(order: BankTransfer): Promise<void> {
+    if (!cashAccounts.value.length) {
+        error.value = 'Create or activate a bank/cash financial account before receiving this payment.';
+        return;
+    }
+    error.value = '';
+    success.value = '';
+    try {
+        await api(`/api/v1/backend/payments/storefront-bank-transfers/${order.id}/receive`, {
+            method: 'POST',
+            body: JSON.stringify({ cash_account_id: Number(bankReceiveAccountId.value), transaction_date: new Date().toISOString().slice(0, 10) }),
+        });
+        success.value = `Payment received and order ${order.order_number} confirmed.`;
+        await load();
+    } catch (e) {
+        error.value = e instanceof Error ? e.message : 'Unable to receive bank transfer.';
     }
 }
 const filteredPayments = computed(() => payments.value);
@@ -307,6 +358,43 @@ onMounted(load);
                     </p>
                 </div>
             </div>
+
+            <section class="overflow-hidden rounded-2xl border border-amber-200 bg-white">
+                <div class="border-b border-amber-100 bg-amber-50/60 p-4">
+                    <h2 class="font-semibold text-slate-900">Storefront bank transfer review</h2>
+                    <p class="mt-1 text-xs text-slate-600">Review customer-submitted transfer references. Approve first, then mark as received only after funds are visible in the bank account.</p>
+                </div>
+                <div class="flex flex-col gap-2 border-b border-slate-100 bg-slate-50 p-4 sm:flex-row sm:items-center">
+                    <label class="text-xs font-semibold text-slate-600" for="bank-receive-account">Bank/cash account receiving funds</label>
+                    <select id="bank-receive-account" v-model="bankReceiveAccountId" class="min-h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm sm:min-w-64">
+                        <option value="" disabled>Select financial account</option>
+                        <option v-for="account in cashAccounts" :key="account.id" :value="String(account.id)">{{ account.code }} · {{ account.name }}</option>
+                    </select>
+                </div>
+                <div v-if="!bankTransfers.length" class="p-6 text-center text-sm text-slate-500">No bank transfers are waiting for review.</div>
+                <div v-else class="divide-y divide-slate-100">
+                    <article v-for="transfer in bankTransfers" :key="transfer.id" class="grid gap-4 p-4 lg:grid-cols-[1fr_auto] lg:items-center">
+                        <div class="min-w-0">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <strong class="text-sm text-slate-900">{{ transfer.order_number }}</strong>
+                                <span class="rounded-full bg-amber-100 px-2 py-1 text-[10px] font-bold uppercase text-amber-800">{{ transfer.payment_status.replace('_', ' ') }}</span>
+                            </div>
+                            <p class="mt-1 text-sm text-slate-700">{{ transfer.customer_name }} · {{ transfer.customer_phone || 'No phone' }}</p>
+                            <div class="mt-2 grid gap-1 text-xs text-slate-500 sm:grid-cols-2">
+                                <span>Sender account: <strong class="text-slate-700">{{ transfer.payment_details.sender_account || '—' }}</strong></span>
+                                <span>Transaction ref: <strong class="text-slate-700">{{ transfer.payment_details.transaction_reference || '—' }}</strong></span>
+                                <span>Declared amount: <strong class="text-slate-700">{{ money(transfer.payment_details.declared_amount || 0) }}</strong></span>
+                                <span>Order amount: <strong class="text-slate-700">{{ money(transfer.grand_total) }}</strong></span>
+                                <span>Location: {{ transfer.location || '—' }}</span>
+                            </div>
+                        </div>
+                        <div class="flex flex-wrap gap-2">
+                            <button v-if="transfer.payment_status === 'awaiting_verification'" class="rounded-lg bg-amber-600 px-3 py-2 text-xs font-bold text-white hover:bg-amber-700" @click="approveBankTransfer(transfer)">Approve</button>
+                            <button v-else class="rounded-lg bg-emerald-700 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-800" @click="receiveBankTransfer(transfer)">Mark received + confirm</button>
+                        </div>
+                    </article>
+                </div>
+            </section>
 
             <section
                 class="overflow-hidden rounded-2xl border border-slate-200 bg-white"

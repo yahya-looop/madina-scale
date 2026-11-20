@@ -121,6 +121,9 @@ class SalesOrderService
                 'notes' => $data['notes'] ?? null,
                 'created_by' => $actor?->id,
                 'idempotency_key' => $data['idempotency_key'] ?? null,
+                'payment_method' => $data['payment_method'] ?? 'cash_on_delivery',
+                'payment_status' => $data['payment_status'] ?? 'unpaid',
+                'payment_details' => $data['payment_details'] ?? null,
             ]);
 
             $subtotal = '0.00';
@@ -296,6 +299,7 @@ class SalesOrderService
             && $normalizeText($existing->customer_phone) === $normalizeText($data['customer_phone'] ?? null)
             && (string) $existing->channel === (string) ($data['channel'] ?? 'backoffice')
             && $normalizeText($existing->notes) === $normalizeText($data['notes'] ?? null)
+            && (string) ($existing->payment_method ?? 'cash_on_delivery') === (string) ($data['payment_method'] ?? 'cash_on_delivery')
             && $requestedItems === $existingItems
             && $requestedManualDiscount === $existingManualDiscount
             && $requestedPromotionCode === $existingPromotionCode;
@@ -814,6 +818,9 @@ class SalesOrderService
             }
             if ($locked->status !== 'pending') {
                 throw ValidationException::withMessages(['status' => 'Only pending orders can be confirmed.']);
+            }
+            if ($locked->payment_method === 'bank_transfer' && $locked->payment_status !== 'received') {
+                throw ValidationException::withMessages(['payment' => 'Bank transfer must be approved and marked as received before this order can be confirmed.']);
             }
 
             $this->assertFinancialIntegrity($locked);
