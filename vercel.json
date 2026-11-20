@@ -1,0 +1,48 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "services": {
+    "backend": {
+      "root": ".",
+      "runtime": "container",
+      "entrypoint": "Dockerfile.vercel"
+    },
+    "storefront": {
+      "root": "storefront",
+      "framework": "nuxtjs"
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": { "service": "backend" }
+    },
+    {
+      "source": "/backend(.*)",
+      "destination": { "service": "backend" }
+    },
+    {
+      "source": "/build/(.*)",
+      "destination": { "service": "backend" }
+    },
+    {
+      "source": "/storage/(.*)",
+      "destination": { "service": "backend" }
+    },
+    {
+      "source": "/robots.txt",
+      "destination": { "service": "backend" }
+    },
+    {
+      "source": "/sitemap.xml",
+      "destination": { "service": "backend" }
+    },
+    {
+      "source": "/up",
+      "destination": { "service": "backend" }
+    },
+    {
+      "source": "/(.*)",
+      "destination": { "service": "storefront" }
+    }
+  ]
+}
