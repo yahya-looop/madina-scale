@@ -26,5 +26,6 @@ const categories = computed(() => data.value?.data || [])
     </div>
     <SiteFooter />
     <StorefrontChatLauncher />
+    <MobileBottomNavigation />
   </div>
 </template>

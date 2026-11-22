@@ -1070,3 +1070,85 @@ html {
   background: transparent !important;
   border-color: transparent !important;
 }
+
+
+/* =========================================================
+   MADINA MOBILE-FIRST NAVIGATION & SAFE-AREA SUPPORT
+   Mobile-only additions; desktop/laptop layout is untouched.
+   ========================================================= */
+@media (max-width: 767px) {
+  .storefront-shell {
+    padding-bottom: calc(66px + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* Keep the existing chat launcher clear of the fixed bottom bar. */
+  .chat-launcher {
+    right: 12px;
+    bottom: calc(78px + env(safe-area-inset-bottom, 0px));
+    z-index: 85;
+  }
+
+  .chat-panel {
+    max-height: min(65vh, 520px);
+    overflow-y: auto;
+  }
+
+  /* Keep the expanded More menu above page content and below the sticky header. */
+  .site-header .mobile-navigation {
+    position: relative;
+    z-index: 4;
+    max-height: min(68vh, 620px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .site-header .mobile-navigation__inner {
+    padding-bottom: 18px;
+  }
+
+  /* Prevent long labels and wide content from forcing horizontal page scroll. */
+  .storefront-content,
+  .storefront-content > * {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  img,
+  video,
+  iframe {
+    max-width: 100%;
+  }
+
+  input,
+  select,
+  textarea,
+  button {
+    max-width: 100%;
+  }
+
+  html {
+    scroll-padding-top: 96px;
+  }
+}
+
+/* Tablet navigation remains in the existing desktop header, with safe horizontal scrolling. */
+@media (min-width: 768px) and (max-width: 1100px) {
+  .site-header .main-nav__inner {
+    overflow-x: auto;
+    overflow-y: visible;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .site-header .main-nav__inner::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* Avoid hover-only affordances on touch-first devices. */
+@media (hover: none) {
+  .btn-primary:hover,
+  .site-header .main-nav__inner > .main-nav__link:hover {
+    transform: none;
+  }
+}

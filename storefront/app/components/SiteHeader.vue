@@ -36,7 +36,7 @@ const searchCategories = computed(() =>
 let searchTimer: ReturnType<typeof setTimeout> | undefined
 
 const config = useRuntimeConfig()
-const mobileOpen = ref(false)
+const mobileOpen = useState<boolean>('storefront-mobile-navigation-open', () => false)
 const categoriesOpen = ref(false)
 const isCompact = ref(false)
 
@@ -489,7 +489,7 @@ function setLocale(value: 'en' | 'bn') {
       </template>
     </nav>
 
-    <div v-if="mobileOpen" class="mobile-navigation">
+    <div v-if="mobileOpen" id="mobile-navigation" class="mobile-navigation">
       <div class="container mobile-navigation__inner">
         <nav class="mobile-navigation__primary" aria-label="Mobile primary navigation">
           <NuxtLink to="/" @click="closeMenus">{{ t('Home', 'হোম') }}</NuxtLink>
