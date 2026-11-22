@@ -1,146 +1,331 @@
-# Madina Scale --- Architecture & Design System
+# Madina Scale — Architecture & Engineering Blueprint
 
-**Project:** Madina Scale\
-**Project Type:** Modern, advanced, analytics-driven commerce / business
-management platform\
-**Status:** Architecture & Design System Locked --- Foundation Phase\
-**Author:** Yahya Al Mahmood
+**Project:** Madina Scale  
+**Document type:** Living architecture, engineering and design reference  
+**Architecture decision:** Modular Laravel backend + independent Nuxt storefront in a monorepo  
+**Status:** Existing application retained; architecture is being formalized and incrementally hardened
 
 ---
 
 ## 1. Product Vision
 
-Madina Scale is designed as a modern, secure, extensible business
-platform with:
+Madina Scale is a centralized commerce and business operations platform. It combines an internal ERP/admin workspace with customer-facing digital channels.
 
-- World-class enterprise architecture
-- Premium, modern and futuristic UI/UX
-- Strong security and granular authorization
-- Deep sales, order and customer management
-- Full analytics and business intelligence
-- Marketing analytics and attribution
-- Meta, Google, TikTok and future marketing integrations
-- Real-time live chat and support
-- Modular architecture for easy feature addition/removal/modification
-- API-first backend architecture
-- Responsive web experiences
-- Bangladesh-first operational considerations with future
-  international scalability
+The platform is intended to provide:
 
-The system must remain maintainable as the product grows. New modules
-should be added through defined contracts and conventions rather than by
-changing unrelated modules.
+- Product, category, brand, variant and media management
+- Customer, CRM, lead and B2B management
+- Sales, orders, returns, payments and shipping operations
+- Inventory, warehouse, stock movement and procurement workflows
+- CMS, SEO and public website content management
+- Marketing integrations and campaign analytics
+- Business intelligence, reporting and operational dashboards
+- Identity, access control, auditability and system configuration
+- Future customer mobile apps, partner portals and additional websites
 
----
+The platform must grow through explicit domain boundaries and stable contracts. New applications must reuse central business capabilities without duplicating business rules or transactional data.
 
-# 2. Core Technology Stack
+## 2. Architecture Decision Record
 
-## Backend
+### 2.1 Chosen architecture
 
-- PHP 8.5+
-- Laravel 13
-- PostgreSQL 18+
-- Redis
-- Laravel Queue
-- Laravel Events / Listeners
-- Laravel Notifications
-- Laravel Policies / Gates
-- REST API
-- WebSocket/realtime layer for chat and realtime events
+Madina Scale will use:
 
-## Backend Dashboard
+**One Git monorepo + one central Laravel modular-monolith backend + independently deployable frontend applications.**
 
-- Vue.js
-- Vite
-- Component-driven UI
-- API-driven data loading
-- Permission-aware navigation
-- Light / Dark / System themes
+Current applications:
 
-## Customer / Public Frontend
+1. **Laravel application at repository root**
+   - Staff ERP/admin interface (Laravel + Inertia + Vue)
+   - Backend business logic, database access, authentication and authorization
+   - Versioned APIs for the Storefront and future clients
+   - CMS, SEO, media and public infrastructure endpoints
 
-- Nuxt.js
-- Vue.js
-- SSR/SEO support
-- API-driven commerce functionality
+2. **Nuxt application in `storefront/`**
+   - Customer-facing public website
+   - SSR/SEO-capable pages and customer experience
+   - Reads and mutates business data through Laravel APIs
+   - Does not own authoritative product, price, stock, order or customer records
 
-## Development
+This is a monorepo, not a single frontend application. Laravel and Nuxt have separate runtime/build processes and separate dependency manifests.
 
-- Composer
-- npm
-- Pest / PHPUnit
-- Git
-- Laravel Boost / AI-assisted development tooling
+### 2.2 What this architecture is not
 
----
+- It is not a microservices architecture.
+- It does not require Laravel to be moved into a `backend/` directory.
+- It does not require separate Git repositories for the current applications.
+- It does not mean that all applications share one frontend build or one deployment process.
 
-# 3. High-Level Architecture
+A modular monolith is the appropriate current backend style. Microservices or separate repositories should be considered only when team ownership, deployment independence, scaling or operational requirements justify the additional complexity.
+
+### 2.3 Repository structure — current and intended
+
+Keep the existing Laravel-at-root structure. Do not move Laravel directories solely to make the tree look symmetrical.
 
 ```text
-                         MADINA SCALE
-                              |
-                    +---------+---------+
-                    |                   |
-              Backend Platform      Public Frontend
-                    |                   |
-                 Laravel              Nuxt.js
-                    |                   |
-              REST / Realtime          Vue.js
-                    |
-        +-----------+-----------+
-        |           |           |
-   PostgreSQL     Redis      Storage
-        |
-   Domain Data
+madina-scale/
+├── app/                         # Laravel backend application
+│   ├── Http/
+│   │   ├── Controllers/
+│   │   ├── Middleware/
+│   │   └── Requests/
+│   ├── Jobs/
+│   ├── Models/
+│   ├── Notifications/
+│   ├── Policies/
+│   ├── Providers/
+│   └── Services/
+├── bootstrap/
+├── config/
+├── database/
+├── public/
+├── resources/                   # Staff ERP Inertia/Vue UI
+│   ├── css/
+│   ├── js/
+│   └── views/
+├── routes/
+│   ├── api.php
+│   ├── api/
+│   │   └── backend.php
+│   ├── backend.php
+│   ├── console.php
+│   └── web.php
+├── storage/
+├── tests/
+├── storefront/                  # Independent Nuxt customer website
+│   ├── app/
+│   │   ├── assets/
+│   │   ├── components/
+│   │   ├── composables/
+│   │   ├── layouts/
+│   │   ├── pages/
+│   │   ├── plugins/
+│   │   └── types/
+│   ├── public/
+│   ├── package.json
+│   ├── package-lock.json
+│   ├── nuxt.config.ts
+│   ├── .env.example
+│   └── README.md
+├── docs/                         # Architecture decisions, API and operations docs
+├── .github/
+├── composer.json                 # Laravel/PHP dependencies
+├── composer.lock
+├── package.json                  # Laravel ERP/Vite frontend dependencies
+├── package-lock.json
+├── pnpm-workspace.yaml           # Existing workspace configuration; review its role
+├── .gitignore
+└── README.md
 ```
 
-### Architectural principles
+Generated directories such as `vendor/`, root `node_modules/`, `storefront/node_modules/`, `storefront/.nuxt/` and `storefront/.output/` are local/build artifacts and must not be committed.
 
-1.  Backend is the source of truth.
-2.  Frontend never replaces backend authorization.
-3.  Modules must be independently maintainable.
-4.  Domain/business rules stay out of controllers.
-5.  External integrations must be isolated behind adapters/services.
-6.  Database writes must be transactional where business consistency
-    requires it.
-7.  Critical actions must be auditable.
-8.  API contracts must be versionable.
-9.  UI visibility is not security.
-10. New features should minimize changes to existing modules.
+### 2.4 Application boundaries
+
+| Concern | Owner |
+|---|---|
+| Staff ERP pages and navigation | Laravel Inertia/Vue in `resources/` |
+| Public customer website | Nuxt in `storefront/` |
+| Business rules and validation | Laravel |
+| Authoritative transactional database | Laravel/PostgreSQL |
+| Product, price and inventory truth | Laravel |
+| Cart and checkout rules | Laravel |
+| Customer identity and authorization | Laravel |
+| CMS content and publishing state | Laravel |
+| Public page rendering and UX | Nuxt |
+| API contracts | Laravel, documented for all clients |
+| Future mobile/partner clients | Independent applications consuming Laravel APIs |
+
+The Laravel Inertia application is the internal staff ERP. It must not be confused with the Nuxt Storefront. Do not remove Inertia, staff routes, ERP pages, or staff authentication as part of Storefront work.
 
 ---
 
-# 4. Backend Architectural Style
+## 3. High-Level System Architecture
 
-Madina Scale will use a **modular domain-oriented Laravel
-architecture**.
+```text
+                         MADINA SCALE MONOREPO
+                                  |
+             +--------------------+--------------------+
+             |                                         |
+      LARAVEL APPLICATION                         NUxt STOREFRONT
+      Repository root                             /storefront
+             |                                         |
+      +------+----------------+                 Public customer UI
+      |                       |                 SSR / SEO / pages
+ Staff ERP (Inertia/Vue)   Laravel API                  |
+      |                       |                         |
+      |               /api/v1/storefront                |
+      |               /api/v1/backend                   |
+      |               /api/v1/head-office               |
+      |               /api/v1/webhooks                  |
+      |                       |                         |
+      +-----------------------+-------------------------+
+                              |
+                  Laravel application/domain logic
+                              |
+             +----------------+----------------+
+             |                |                |
+         PostgreSQL         Redis           Storage
+      transactional DB   cache/queue      public/private media
+                              |
+                       Queue workers
+                              |
+                 External provider adapters
+          (payment, courier, SMS, marketing, email)
+```
 
-Recommended conceptual structure:
+### 3.1 Core principles
+
+1. Laravel is the system of record and final security authority.
+2. Frontends never enforce authorization by hiding UI alone.
+3. Business rules stay in Laravel, not in Nuxt pages or Vue components.
+4. The Storefront consumes stable APIs; it does not connect directly to PostgreSQL.
+5. Each frontend has its own dependencies, environment and build.
+6. Backend and frontend can be developed and deployed independently.
+7. Domain boundaries are explicit; avoid unnecessary abstractions.
+8. Critical writes are transactional and auditable.
+9. External integrations are isolated behind contracts/adapters.
+10. API changes are versioned and compatibility is considered.
+11. Analytics is derived from operational data and must not overwrite it.
+12. Background work is queued rather than blocking user-facing requests.
+
+---
+
+## 4. Technology Stack and Verified Baseline
+
+### 4.1 Backend
+
+- PHP: Composer constraint currently declares `^8.3`
+- Laravel: lockfile resolves `v13.34.0`
+- Laravel Sanctum: lockfile resolves `v4.3.3`
+- Inertia Laravel: `^3.0`
+- PostgreSQL: configured as the intended primary database
+- Redis: intended for cache, queue and realtime infrastructure
+- Laravel Queue, Events, Listeners, Notifications, Policies/Gates
+- Pest/PHPUnit, Pint and Larastan
+
+Do not describe a PHP patch version or PostgreSQL server version as verified merely from a project configuration file. Record the actual installed runtime versions from the development/production environment when updating the infrastructure baseline.
+
+### 4.2 Staff ERP frontend
+
+- Vue 3
+- Inertia.js 3
+- Vite
+- Tailwind CSS 4
+- TypeScript
+- Laravel Wayfinder
+- Root `package.json` and root `package-lock.json`
+
+### 4.3 Public Storefront
+
+- Nuxt 4 (lockfile resolves `4.6.4`)
+- Vue 3
+- Tailwind integration
+- TypeScript
+- GSAP
+- Separate `storefront/package.json` and `storefront/package-lock.json`
+
+The Storefront package declares supported Node.js ranges in its `engines` field. Follow that declaration and the lockfile rather than assuming every Node 22 release is supported.
+
+### 4.4 Dependency ownership
+
+- `composer.json` / `composer.lock`: Laravel/PHP dependencies.
+- Root `package.json` / `package-lock.json`: staff ERP/Vite dependencies.
+- `storefront/package.json` / `storefront/package-lock.json`: Nuxt Storefront dependencies.
+
+Do not combine Storefront packages into the root package manifest merely for convenience. Do not delete lockfiles to reduce repository size.
+
+---
+
+## 5. Backend Architecture — Modular Monolith
+
+The backend should evolve toward domain-oriented modules while retaining Laravel's conventional application structure where it is already working.
+
+The current codebase contains conventional `app/Http/Controllers`, `app/Models`, `app/Jobs`, `app/Policies`, `app/Services` and related directories. The domain-oriented structure below is the target organization, not a claim that every domain folder already exists.
+
+### 5.1 Target domain map
+
+```text
+Identity & Access
+├── users, authentication, sessions, customer identity
+├── roles, permissions, policies, API credentials
+└── security and access audit
+
+Catalog
+├── products, variants, categories, brands, attributes
+└── product media and publication state
+
+Customers & CRM
+├── customer profiles, groups, addresses
+├── leads, activities, assignment and conversion
+└── segmentation
+
+Sales & Orders
+├── orders, order items, lifecycle and status
+├── discounts, taxes, returns and refunds
+└── order operations
+
+Inventory & Procurement
+├── stock, warehouses/locations, movements
+├── reservations, transfers and adjustments
+└── procurement and goods receipt
+
+Pricing & Promotions
+├── price rules, promotions, coupons
+└── flash sales
+
+Payments & Shipping
+├── payment abstraction and provider adapters
+├── courier/shipping adapters and tracking
+└── delivery lifecycle
+
+CMS & SEO
+├── pages, sections, banners, media
+├── revisions/publication and SEO metadata
+└── sitemap and robots endpoints
+
+Marketing & Analytics
+├── campaign/provider integrations
+├── normalized campaign metrics and attribution
+└── operational and analytical reporting
+
+Communication & Support
+├── customer support and live chat
+├── internal staff chat
+└── notifications, presence and attachments
+
+System & Developer
+├── module/menu registry and feature flags
+├── system settings, audit and security events
+└── integration configuration and health
+```
+
+### 5.2 Suggested organization as the codebase grows
+
+Do not perform a large folder migration now. Extract domain classes incrementally when a module is actively refactored.
+
+A possible future organization:
 
 ```text
 app/
 ├── Actions/
-├── Console/
 ├── Contracts/
 ├── Domains/
 │   ├── Identity/
 │   ├── Access/
 │   ├── Catalog/
-│   ├── Customer/
+│   ├── Customers/
+│   ├── CRM/
 │   ├── Sales/
-│   ├── Order/
 │   ├── Inventory/
 │   ├── Pricing/
-│   ├── Payment/
+│   ├── Payments/
 │   ├── Shipping/
+│   ├── CMS/
+│   ├── SEO/
 │   ├── Marketing/
 │   ├── Analytics/
 │   ├── Communication/
-│   ├── Support/
-│   ├── CMS/
-│   ├── SEO/
-│   ├── Reporting/
-│   ├── Notification/
 │   └── System/
 ├── Events/
 ├── Exceptions/
@@ -157,291 +342,149 @@ app/
 └── Support/
 ```
 
-The exact physical folder structure may evolve as implementation begins.
-The domain boundaries and responsibilities are the important
-architectural constraints.
+This is a direction, not a mandatory directory checklist. Keep Laravel conventions where they remain clear. Avoid moving stable classes without a concrete benefit and tests.
+
+### 5.3 Domain dependency rules
+
+- A domain owns its business rules and defines its public operations.
+- Cross-domain workflows should use explicit Actions, Services, Events or Contracts.
+- Avoid circular dependencies.
+- Avoid controllers calling unrelated models to implement business workflows.
+- Keep persistence details out of frontend applications.
+- Shared abstractions belong in stable contracts/support areas, not in a generic dumping ground.
 
 ---
 
-# 5. Domain Boundaries
+## 6. Design Patterns and Application Flow
 
-## Identity
+Use patterns only when they solve a real problem.
 
-Responsible for:
+### Action pattern
 
-- Users
-- Authentication
-- Sessions
-- Password security
-- 2FA
-- Login security
-- Account recovery
-- API credentials/tokens
+Use a focused Action for one meaningful business operation, for example:
 
-## Access
+- `CreateOrder`
+- `CancelOrder`
+- `RefundOrder`
+- `ConvertLead`
+- `TransferInventory`
+- `AssignRole`
+- `SyncMarketingCampaigns`
 
-Responsible for:
+### Service pattern
 
-- Developer role
-- Roles
-- Permissions
-- Policies
-- Module access
-- Feature access
-- Menu visibility
-- User access restrictions
-- Access audit
+Use Services to coordinate multi-step operations or infrastructure that does not belong in a single model/controller.
 
-## Catalog
+### Repository pattern
 
-Responsible for:
+Use only when persistence abstraction or query complexity materially benefits from it. Do not create wrappers that merely repeat Eloquent methods.
 
-- Products
-- Product variants
-- Categories
-- Brands
-- Attributes
-- Product media
-- Product status
+### Strategy and Adapter patterns
 
-## Customers
+Use provider contracts for interchangeable external systems such as payment, courier, SMS and marketing providers. Provider-specific request/response details must not leak throughout business domains.
 
-Responsible for:
+### Event and Job patterns
 
-- Customer profiles
-- Customer groups
-- Customer addresses
-- Customer activity
-- Customer segmentation
+Use events for decoupled side effects and queue jobs for slow or retryable work, such as campaign synchronization, notification fan-out, report generation, exports and media processing.
 
-## Sales / Orders
-
-Responsible for:
-
-- Orders
-- Order lifecycle
-- Order items
-- Order status
-- Discounts
-- Taxes
-- Order notes
-- Returns/refunds where applicable
-
-## Inventory
-
-Responsible for:
-
-- Stock
-- Stock movements
-- Warehouses
-- Inventory adjustments
-- Low-stock rules
-- Inventory analytics
-
-## Marketing
-
-Responsible for:
-
-- Campaigns
-- Marketing channels
-- Meta Ads
-- Google Ads
-- TikTok Ads
-- Future advertising providers
-- Campaign metrics
-- Spend
-- Attribution inputs
-
-## Analytics
-
-Responsible for:
-
-- Business KPIs
-- Sales analytics
-- Customer analytics
-- Product analytics
-- Marketing analytics
-- Traffic analytics
-- Attribution
-- Reporting
-- Aggregations
-
-## Communication
-
-Responsible for:
-
-- Internal chat
-- Customer live chat
-- Support conversations
-- Attachments
-- Presence/status
-- Notifications
-
-## System
-
-Responsible for:
-
-- Settings
-- Feature flags
-- Module configuration
-- Audit logs
-- Security events
-- System health
-- Developer controls
-
----
-
-# 6. Design Patterns
-
-The project should use patterns deliberately, not mechanically.
-
-## Repository Pattern
-
-Use only where persistence abstraction materially improves the domain.
-
-Avoid creating meaningless repositories that simply duplicate Eloquent
-methods.
-
-## Service Pattern
-
-Services coordinate domain operations that span multiple models or
-infrastructure components.
-
-## Action Pattern
-
-Use Actions for focused business operations.
-
-Examples:
+### Preferred request flow
 
 ```text
-CreateOrder
-CancelOrder
-RefundOrder
-CreateUser
-AssignRole
-SyncMetaCampaigns
-SyncGoogleCampaigns
-SendSupportMessage
-```
-
-Actions should generally represent one meaningful business operation.
-
-## Strategy Pattern
-
-Use for interchangeable providers/algorithms.
-
-Examples:
-
-```text
-Marketing Provider
-├── Meta
-├── Google
-├── TikTok
-└── Future Providers
-```
-
-## Adapter Pattern
-
-External APIs must not leak provider-specific implementation details
-throughout the application.
-
-Example:
-
-```text
-MarketingProviderInterface
-        |
-   +----+----+------+
-   |         |      |
- Meta     Google   TikTok
-Adapter   Adapter  Adapter
-```
-
-## Factory Pattern
-
-Use for creating provider-specific services, notifications, reports,
-etc.
-
-## Observer / Event Pattern
-
-Use events for side effects that should not be tightly coupled to the
-main transaction.
-
-Examples:
-
-```text
-OrderCreated
-OrderCancelled
-PaymentCompleted
-UserLoggedIn
-CampaignSynced
-SupportMessageCreated
-```
-
-## Job Pattern
-
-Heavy/background work should use queues.
-
-Examples:
-
-- Campaign synchronization
-- Analytics aggregation
-- Report generation
-- Email sending
-- Notification fan-out
-- Large exports
-- Media processing
-
-## Policy Pattern
-
-Every protected business resource must have backend authorization rules.
-
----
-
-# 7. API Architecture
-
-API-first approach.
-
-Recommended structure:
-
-```text
-/api/v1/...
-```
-
-Future breaking API changes:
-
-```text
-/api/v2/...
-```
-
-Controllers should remain thin.
-
-Preferred flow:
-
-```text
-Request
-  ↓
-Form Request / Validation
-  ↓
-Controller
-  ↓
+HTTP Request
+    ↓
+Authentication / Middleware
+    ↓
+Form Request validation
+    ↓
+Thin Controller
+    ↓
 Action / Domain Service
-  ↓
-Domain Rules
-  ↓
-Model / Repository where justified
-  ↓
+    ↓
+Domain rules + transaction
+    ↓
+Eloquent model / query
+    ↓
 Event / Job where appropriate
-  ↓
-Resource / Response
+    ↓
+API Resource / predictable response
 ```
 
 ---
 
-# 8. Authentication & Authorization
+## 7. API Architecture
 
-Authorization must be backend-enforced.
+Laravel exposes versioned APIs for first-party and future applications.
 
-Core model:
+### 7.1 Current API surfaces
+
+The inspected route configuration includes:
+
+- `/api/v1/storefront/*` — public catalogue, CMS, customer session, cart and checkout endpoints
+- `/api/v1/backend/*` — staff ERP API namespace
+- `/api/v1/head-office/*` — existing Sanctum-protected integration contract
+- `/api/v1/webhooks/*` — provider callback routes
+
+Legacy endpoints/aliases may remain for compatibility. New first-party API development should use the appropriate versioned namespace.
+
+### 7.2 API rules
+
+- Use `/api/v1/...` for current contracts.
+- Introduce `/api/v2/...` for breaking changes when required.
+- Keep controllers thin.
+- Validate with Form Requests or equivalent dedicated validators.
+- Authorize on the backend for every protected operation.
+- Use API Resources/DTOs for stable output.
+- Use consistent pagination and validation error structures.
+- Never expose SQL, stack traces, secrets or internal exception details.
+- Document endpoint purpose, authentication, request/response shape and error cases.
+- Add API and authorization tests for critical endpoints.
+
+### 7.3 Response philosophy
+
+A predictable response shape should be used consistently where appropriate:
+
+```json
+{
+  "data": {},
+  "meta": {},
+  "message": null
+}
+```
+
+Do not force this exact envelope on every response if framework conventions or an existing public contract require another shape. Consistency and backward compatibility matter more than a mechanical wrapper.
+
+### 7.4 API ownership
+
+Laravel owns:
+- Validation and business rules
+- Pricing and stock calculations
+- Cart and checkout rules
+- Order state transitions
+- Customer identity and authorization
+- CMS publication state
+- Integration credentials and provider calls
+
+Nuxt owns:
+- Page rendering and navigation
+- Client-side presentation state
+- Form interaction and UX
+- SEO rendering based on backend-provided content
+- API consumption and graceful loading/error/empty states
+
+---
+
+## 8. Authentication, Authorization and Developer Role
+
+### 8.1 Separate user contexts
+
+The current Storefront documentation describes:
+- Staff ERP authentication through Laravel's `web` guard.
+- Customer authentication through a separate `customer` guard.
+- Storefront API routes using Laravel's `web` middleware to preserve session and CSRF behavior.
+
+Preserve this separation unless an explicit migration plan and tests justify changing it.
+
+### 8.2 Authorization model
 
 ```text
 User
@@ -450,7 +493,7 @@ Role
   ↓
 Permission
   ↓
-Policy
+Policy / Gate
   ↓
 Resource
   ↓
@@ -470,53 +513,20 @@ sales.orders.view
 sales.orders.create
 sales.orders.update
 sales.orders.cancel
-sales.orders.refund
-sales.orders.export
-
-marketing.meta.view
+inventory.transfers.create
 marketing.meta.manage
-
-marketing.google.view
-marketing.google.manage
-
 analytics.sales.view
-analytics.marketing.view
 ```
 
----
+Use the existing permission namespace consistently; do not rename permissions casually because persisted role assignments and middleware may depend on them.
 
-# 9. Developer Role
+### 8.3 Developer role
 
-The highest-privilege role is named:
+The highest product role is named **Developer**. Product terminology intentionally does not use “Super Admin”.
 
-**Developer**
+Developer capabilities may include managing users, roles, permissions, modules, feature flags, system settings, integrations and critical controls. Sensitive Developer actions must remain auditable.
 
-There is intentionally no `Super Admin` role in the product terminology.
-
-Developer has the highest system privileges.
-
-Developer capabilities include:
-
-- Manage users
-- Manage roles
-- Manage permissions
-- Manage modules
-- Lock modules
-- Hide modules
-- Configure feature flags
-- Manage system settings
-- Access security logs
-- Access audit logs
-- Configure integrations
-- Manage critical system controls
-
-Even Developer actions on sensitive resources should be auditable.
-
----
-
-# 10. Module Visibility & Locking
-
-Module state is separate from authorization.
+### 8.4 Module state versus authorization
 
 Possible module states:
 
@@ -527,268 +537,376 @@ LOCKED
 HIDDEN
 ```
 
-Important rule:
-
-> Hidden UI does not mean unauthorized access.
-
-The backend remains the final authority.
-
-Conceptually:
-
-```text
-Module Configuration
-        +
-User Permission
-        +
-Policy
-        ↓
-Final Access Decision
-```
-
-This prevents security from depending on Vue navigation.
+Module visibility is not authorization. Hiding a menu item never replaces backend middleware, policies or permission checks.
 
 ---
 
-# 11. Security Architecture
+## 9. Security Architecture
 
-Security is a cross-cutting concern.
+Security is cross-cutting and must be enforced by Laravel and deployment infrastructure.
 
-Required areas:
+Required controls:
 
-- Password hashing
-- Secure authentication
-- Session security
-- 2FA
-- Login throttling
-- Rate limiting
-- CSRF protection where applicable
-- API authentication
-- Authorization policies
-- Input validation
-- Output/resource transformation
-- SQL injection protection through framework/database abstractions
-- File upload validation
-- MIME/type/size validation
-- Secure storage
-- Audit logs
-- Security event logs
-- Secret management
-- Environment separation
-- Least privilege database access
-- Sensitive-action confirmation where appropriate
+- Secure password hashing and session configuration
+- Login throttling and account recovery protection
+- 2FA where enabled
+- CSRF protection for session-authenticated browser mutations
+- Correct CORS, cookie, SameSite and Secure settings for production topology
+- Backend authorization on every protected resource/action
+- Request validation and output transformation
+- Rate limits for sensitive/public endpoints
+- File upload MIME/type/size validation and safe storage
+- Secret management and environment separation
+- Least-privilege database and infrastructure credentials
+- Audit logs and security events
+- Secure webhook verification
+- Safe error messages and structured internal logs
+- Dependency and vulnerability review
 
-Production rules:
+Production:
 
-```text
+```dotenv
 APP_ENV=production
 APP_DEBUG=false
 ```
 
-Secrets must never be committed to Git.
+Never commit `.env`, credentials, API tokens, OAuth secrets, private keys, payment credentials or webhook secrets. If a secret is exposed, rotate it.
 
 ---
 
-# 12. Audit & Security Events
+## 10. Database and Data Ownership
 
-Important operations must be auditable.
+### 10.1 Transactional source of truth
 
-Audit data should capture, where appropriate:
+PostgreSQL is the intended primary transactional database.
 
-- Actor
-- Action
-- Resource
-- Resource identifier
-- Timestamp
-- IP address
-- User agent/device context
-- Before state where appropriate
-- After state where appropriate
-- Result/status
-- Correlation/request identifier
-
-Examples:
-
-```text
-User role changed
-Permission changed
-Developer locked module
-Order cancelled
-Refund approved
-Marketing integration connected
-API credential rotated
-Security setting changed
-```
-
----
-
-# 13. Database Architecture
-
-Primary database:
-
-**PostgreSQL**
-
-Principles:
-
-- UUID/ULID strategy to be decided per entity based on requirements
-- Foreign keys
-- Proper indexes
-- Unique constraints
-- Check constraints where valuable
-- Transactions for multi-step business operations
-- Soft deletes only where business requirements justify them
+Use:
+- Foreign keys and unique constraints
+- Indexes based on actual query patterns
+- Transactions for multi-step business writes
+- Explicit ownership/scoping
 - UTC timestamps
-- Explicit data ownership/scoping
-- No unnecessary denormalization
-- Reporting/analytics optimizations should not compromise
-  transactional integrity
+- Soft deletes only when business requirements justify them
+- UUID/ULID only where entity requirements justify the choice
 
-Database migrations are version-controlled.
+Do not introduce a second authoritative Storefront database.
+
+### 10.2 Data ownership
+
+| Data | Owner |
+|---|---|
+| Products, variants, categories, brands | Laravel Catalog |
+| Prices and promotions | Laravel Pricing |
+| Inventory and reservations | Laravel Inventory |
+| Customers and identity | Laravel Customer/Identity |
+| Cart and checkout | Laravel Commerce |
+| Orders and payments | Laravel Sales/Payments |
+| CMS pages, banners and SEO | Laravel CMS/SEO |
+| Marketing source data | Provider adapters + Laravel |
+| Analytics aggregates | Laravel analytics/reporting layer |
+
+Nuxt may cache or temporarily hold presentation data, but Laravel remains authoritative.
+
+### 10.3 Analytics separation
+
+Operational records:
+- Orders
+- Payments
+- Products
+- Customers
+- Inventory
+
+Derived analytical data:
+- Revenue trends
+- Conversion rates
+- Customer cohorts
+- Campaign performance
+- ROAS
+- Product performance
+- Traffic and attribution
+
+Aggregations must not overwrite transactional records or compromise financial/order integrity.
 
 ---
 
-# 14. Caching / Queue Architecture
+## 11. Cache, Queue, Events and Realtime
 
-Redis will be used for:
+Redis is the planned shared infrastructure for cache, queues, rate limiting where appropriate and realtime support.
 
-- Cache
-- Queue
-- Rate limiting where appropriate
-- Temporary state
-- Realtime infrastructure support
+Use queues for slow or retryable workloads:
+- Marketing provider synchronization
+- Report generation and exports
+- Email/SMS/notification delivery
+- Media processing
+- Large imports
+- Notification fan-out
 
-Heavy work must not block HTTP requests.
+Realtime chat/support should use an explicit event/broadcasting design. Do not make HTTP requests wait for non-critical external integrations.
 
-Example:
+Before production workloads depend on Redis, configure and test Redis, queue workers, retries, failed-job handling, monitoring and deployment supervision.
+
+---
+
+## 12. Storefront Architecture
+
+### 12.1 Responsibility
+
+The Nuxt Storefront is an independent customer-facing application located at `storefront/`.
+
+It owns:
+- Public page routes and layouts
+- Responsive navigation and page components
+- Product/category presentation
+- Cart and checkout UX
+- Customer login/account UX
+- CMS page rendering
+- SEO metadata rendering
+- Loading, empty and error states
+
+It does not own authoritative business rules or transactional records.
+
+### 12.2 Current source structure
+
+The inspected Storefront includes:
 
 ```text
-HTTP Request
-   ↓
-Validate
-   ↓
-Create Job
-   ↓
-Redis Queue
-   ↓
-Worker
-   ↓
-External API / Processing
+storefront/app/
+├── app.vue
+├── assets/
+├── components/
+├── composables/
+├── layouts/
+├── pages/
+├── plugins/
+└── types/
 ```
+
+Current source includes homepage, product catalogue/detail, cart, checkout, login, registration, account, order-success, order-tracking, flash-sales and CMS/static information page routes. The presence of a route file does not by itself prove that its complete workflow is production-ready; verify each flow with integration/E2E tests.
+
+### 12.3 API communication
+
+The Storefront uses the Laravel versioned Storefront API. Its configured public API base is intended to remain same-origin:
+
+```dotenv
+NUXT_PUBLIC_API_BASE=/api/v1/storefront
+```
+
+The current Laravel Storefront API route group uses `web` middleware for session-backed customer authentication, cart and CSRF behavior. Browser requests must include credentials and state-changing requests must send the CSRF token.
+
+Do not expose private backend credentials through `NUXT_PUBLIC_*` variables.
+
+### 12.4 Current proxy configuration issue to resolve
+
+The Storefront `.env.example` and Storefront README describe:
+
+```dotenv
+NUXT_LARAVEL_PROXY_TARGET=http://127.0.0.1:8001
+```
+
+However, the inspected `storefront/nuxt.config.ts` currently hardcodes `http://127.0.0.1:8001` in its proxy route rules rather than reading `NUXT_LARAVEL_PROXY_TARGET`.
+
+Therefore the documentation and actual configuration are not fully synchronized. Update the Nuxt config to read the private runtime/environment variable, or update the documented configuration to match the chosen implementation. Prefer a private runtime config/environment variable so development and production upstreams can differ without source edits.
+
+### 12.5 CMS content safety
+
+CMS content is authored in Laravel and rendered by Nuxt. Before enabling untrusted or broadly delegated HTML publishing, enforce an allow-list HTML sanitizer and test unsafe markup handling. Content authorization and publication status must be enforced by Laravel.
 
 ---
 
-# 15. Marketing Analytics Architecture
+## 13. Development, Runtime and Deployment Architecture
+
+### 13.1 Local development
+
+The inspected Storefront documentation currently describes:
+
+Terminal 1 — Laravel root:
+
+```powershell
+php artisan serve --host=127.0.0.1 --port=8001
+```
+
+Terminal 2 — Storefront:
+
+```powershell
+Set-Location storefront
+if (-not (Test-Path .env)) { Copy-Item .env.example .env }
+npm ci
+npm run dev
+```
+
+Nuxt development server is configured for `127.0.0.1:8000`.
+
+Run the Laravel ERP Vite process separately when working on staff UI. Run queue workers when testing queued workflows. Database, Redis and other services must be running according to the local environment configuration.
+
+### 13.2 Independent build/deploy
+
+The two applications must have independent build and release steps:
+
+**Laravel**
+- Composer install from `composer.lock`
+- Laravel environment and key configuration
+- Database migrations under controlled release procedure
+- Laravel asset build from root package scripts
+- Queue worker and scheduler deployment as needed
+
+**Nuxt Storefront**
+- `npm ci` inside `storefront/`
+- Build with `npm run build`
+- Run Nuxt Nitro as a Node service
+- Configure private Laravel upstream and public API base
+- Deploy without requiring a Laravel frontend build
+
+A Storefront-only change should not force an unnecessary Laravel release. A Laravel-only backend change should not force a Nuxt rebuild unless the frontend contract or its build inputs changed.
+
+### 13.3 Example production topology
+
+The current Nginx example describes:
+- Laravel upstream on internal port `8001`
+- Nuxt Nitro upstream on internal port `3000`
+- Public page requests proxied to Nuxt
+- `/api/*`, `/backend/*`, `/build/*`, `/storage/*`, `/robots.txt` and `/sitemap.xml` proxied to Laravel
+
+This is an example topology, not a verified live deployment. Hostnames, TLS, trusted proxy settings, cookie domain, CSRF, CORS and upstream ports must be reviewed for the actual hosting environment.
+
+Recommended logical hostnames (illustrative only):
+
+```text
+www.example.com       → Nuxt Storefront
+admin.example.com     → Laravel ERP
+api.example.com       → Laravel API (if a separate API host is adopted)
+```
+
+A same-origin reverse-proxy arrangement can simplify browser session and CSRF behavior for the current Storefront. If API and frontend are placed on different subdomains, explicitly configure and test cookie domain, SameSite, Secure, CORS, CSRF and trusted proxy behavior.
+
+### 13.4 Deployment independence is not repository separation
+
+Keeping Laravel and Nuxt in one Git repository does not prevent independent deployment. CI/CD should detect changes and run the relevant application checks/builds. Use separate release jobs or pipelines while retaining one source repository.
+
+---
+
+## 14. Future Applications and Scaling Strategy
+
+Future clients should consume Laravel APIs rather than duplicate backend business logic.
+
+```text
+                   CENTRAL LARAVEL PLATFORM
+                Identity / Commerce / CMS / ERP
+                              |
+                         Versioned APIs
+                              |
+          +-------------------+--------------------+
+          |                   |                    |
+    Nuxt Storefront      Customer Mobile       Partner Portal
+       Existing             Future                Future
+          |
+    Additional Websites / Channels
+```
+
+Possible future applications:
+- Customer mobile app (Flutter/React Native/native)
+- B2B customer portal
+- Vendor/partner portal
+- Additional branded websites
+- Internal operational apps
+
+Each client may have its own UI, release cycle, domain and frontend technology while consuming central backend capabilities.
+
+### 14.1 Multi-store/multi-channel readiness
+
+When multiple public websites or apps are actually planned, design explicit concepts for:
+- Store/channel identity
+- Domain-to-store mapping
+- Brand/theme configuration
+- Channel-specific CMS content
+- Catalog availability and visibility
+- Pricing rules and customer groups
+- SEO metadata per channel
+- Analytics attribution by channel
+- Permission and content publishing scopes
+
+Do not implement a broad multi-tenant system prematurely. First document concrete business requirements and data ownership. Avoid assuming that every future app needs a separate database.
+
+### 14.2 When to split repositories
+
+Remain in the monorepo while:
+- One team or closely coordinated contributors own the applications
+- Backend and frontend changes are often related
+- Shared API contract changes need coordinated review
+- Centralized issue tracking and CI are useful
+
+Consider separate repositories when:
+- Independent teams need separate access controls
+- Release and version lifecycles are genuinely independent
+- Repository CI/build costs become material
+- Different products need independent governance or ownership
+- Shared API contracts have a clear versioning/release process
+
+Do not split repositories solely because the repository contains multiple applications or because local dependency folders make a ZIP large.
+
+### 14.3 When to consider microservices
+
+Do not introduce microservices as a default growth step. Reassess only when a domain has a strong need for independent scaling, deployment, fault isolation, ownership or technology choices, and the team can operate distributed infrastructure. Until then, keep a modular monolith with clear domain contracts.
+
+---
+
+## 15. Identity, Roles, Module Registry and Feature Flags
+
+The platform uses backend-enforced permissions and a Developer role.
+
+Module state and user authorization are separate dimensions. Feature flags control rollout, not access.
+
+Example feature flags:
+
+```text
+marketing.meta.enabled
+marketing.google.enabled
+support.live_chat.enabled
+analytics.attribution.enabled
+new_dashboard.enabled
+storefront.checkout.enabled
+```
+
+Every sensitive backend operation must still pass authorization and policy checks even when its UI is hidden or its module is visible.
+
+---
+
+## 16. Marketing Integrations and Analytics
 
 Marketing integrations must be provider-agnostic.
 
 ```text
-                Marketing Engine
-                       |
-          +------------+------------+
-          |            |            |
-         Meta        Google       TikTok
-          |            |            |
-       Adapter       Adapter      Adapter
-          +------------+------------+
-                       |
-                 Normalized Data
-                       |
-                  Analytics
-                       |
-             Dashboard / Reports
+Marketing Domain
+      |
+Provider Contract
+      |
++-----+------+------+
+|            |      |
+Meta        Google  TikTok
+Adapter     Adapter Adapter
+      |
+Normalized campaign data
+      |
+Analytics / Attribution / Reports
 ```
 
-## Meta metrics
+Potential normalized metrics include spend, impressions, reach, clicks, CTR, CPC, CPM, conversions, conversion value, ROAS and cost per conversion. Final metrics must follow provider API availability, attribution windows and explicit definitions.
 
-Potential metrics include:
-
-- Campaigns
-- Ad sets
-- Ads
-- Spend
-- Impressions
-- Reach
-- Clicks
-- CTR
-- CPC
-- CPM
-- Conversions
-- Conversion value
-- ROAS
-- Cost per conversion
-
-## Google metrics
-
-Potential metrics include:
-
-- Campaigns
-- Campaign type
-- Spend
-- Impressions
-- Clicks
-- CTR
-- CPC
-- CPM
-- Conversions
-- Conversion value
-- ROAS
-- Cost per conversion
-
-The final metric list should follow the provider APIs and the platform's
-normalized analytics model.
+Provider-specific tokens and payloads remain in integration infrastructure. Normalize data before it reaches shared analytics and reporting.
 
 ---
 
-# 16. Analytics Architecture
+## 17. Communication, Chat and Support
 
-Analytics should distinguish:
+The backend dashboard uses one combined floating Chats/Support entry point.
 
-### Operational data
-
-Transactional source of truth:
-
-```text
-Orders
-Payments
-Products
-Customers
-Inventory
-```
-
-### Analytical data
-
-Derived/aggregated data:
-
-```text
-Revenue trends
-Conversion rates
-Customer cohorts
-Campaign performance
-ROAS
-Product performance
-Traffic
-```
-
-Do not overwrite transactional source-of-truth data with analytics
-aggregates.
-
----
-
-# 17. Live Chat & Support
-
-The dashboard uses a **single combined floating Chats/Support entry
-point**.
-
-It can provide:
-
+Planned capabilities:
 - Customer live chat
 - Internal staff chat
-- Support conversations
 - Conversation assignment
 - Unread counts
 - Presence/status
 - Attachments
-- Search
-- Conversation history
+- Search and history
 - Notifications
 - Realtime message delivery
 
@@ -796,77 +914,50 @@ Conceptual flow:
 
 ```text
 Customer / Staff
-       ↓
-Chat API
-       ↓
-Conversation Domain
-       ↓
-Message
-       ↓
-Event
-       ↓
-Realtime Broadcast
-       ↓
-Vue Chat UI
+      ↓
+Conversation API
+      ↓
+Conversation and Message domain
+      ↓
+Event / Queue
+      ↓
+Realtime broadcast
+      ↓
+Nuxt or ERP chat UI
 ```
 
----
-
-# 18. Backend Dashboard --- Locked UI Direction
-
-The user-provided dashboard reference is the visual source of truth.
-
-The design direction is:
-
-- Premium
-- Modern
-- Smooth
-- Futuristic
-- Enterprise
-- Clean
-- Data-rich without clutter
-- High information hierarchy
-- Strong spacing system
-- Rounded cards
-- Subtle depth
-- Professional charts
-- Responsive layout
-
-The dashboard must not drift into a generic admin-template appearance.
+Authorization must verify that the current user can access the specific conversation and attachments.
 
 ---
 
-# 19. Dashboard Main Sections
+## 18. Backend Dashboard Design System
 
-The locked dashboard concept includes:
+The user-provided backend dashboard reference is the visual source of truth. Preserve its premium enterprise direction rather than drifting into a generic admin template.
 
-- Overview / KPI section
+Design goals:
+- Premium, modern, clean and data-rich without clutter
+- Clear information hierarchy and consistent spacing
+- Rounded cards and subtle depth
+- Professional charts and tables
+- Responsive navigation and layouts
+- Light, Dark and System themes
+- Strong keyboard, focus and screen-reader support
+
+### 18.1 Main dashboard areas
+
+- Overview and KPIs
 - Sales analytics
-- Order analytics
-- Order status
+- Order analytics and status
 - Inventory status
-- Top selling products
+- Top-selling products
 - Recent orders
 - Traffic sources
 - Marketing performance
 - Customer growth
-- Quick actions
-- Today's tasks
-- Combined Chats / Support bubble
+- Quick actions and today's tasks
+- Combined Chats/Support entry point
 
-Marketing performance must support:
-
-```text
-Meta Campaign Insights
-Google Campaign Insights
-Future Marketing Channels
-```
-
----
-
-# 20. Theme System
-
-Three theme modes:
+### 18.2 Theme system
 
 ```text
 Light
@@ -874,44 +965,33 @@ Dark
 System
 ```
 
-System mode follows the operating-system preference.
-
-Theme preference should persist per user/device according to the final
-settings architecture.
-
-Do not hardcode component-specific colors. Use semantic design tokens.
-
----
-
-# 21. Typography System
-
-Primary UI typography should use a modern sans-serif stack.
-
-Recommended:
+Use semantic design tokens, not hardcoded component-specific colors:
 
 ```text
-Inter
+--background
+--surface
+--surface-elevated
+--surface-muted
+--text-primary
+--text-secondary
+--text-muted
+--text-inverse
+--border
+--border-strong
+--primary
+--primary-hover
+--success
+--warning
+--danger
+--info
 ```
 
-Fallback:
+### 18.3 Typography
 
-```text
-system-ui, -apple-system, BlinkMacSystemFont,
-"Segoe UI", sans-serif
-```
+Preferred primary typeface: Inter.  
+Fallback: `system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`.
 
-## Font weights
-
-```text
-400 — Regular
-500 — Medium
-600 — Semibold
-700 — Bold
-```
-
-Avoid excessive use of 700.
-
-## Desktop type scale
+Suggested desktop scale:
 
 ```text
 Display XL     36px / 44px / 700
@@ -920,177 +1000,45 @@ H1             28px / 36px / 700
 H2             24px / 32px / 600
 H3             20px / 28px / 600
 H4             18px / 24px / 600
-
 Body Large     16px / 24px / 400
 Body           14px / 20px / 400
 Body Medium    14px / 20px / 500
 Small          13px / 18px / 400
-Caption        12px / 16px / 400
+Caption         12px / 16px / 400
 ```
 
-## KPI numbers
+Use tabular numerals for financial and analytical values where supported.
 
-Recommended:
+### 18.4 Spacing and radius
+
+Use a 4px-based spacing scale:
 
 ```text
-KPI value: 28–36px
-KPI label: 13–14px
-KPI change: 12–13px
+4, 8, 12, 16, 20, 24, 32, 40, 48, 64px
 ```
 
-Use tabular/lining numerals for financial and analytical values where
-supported.
+Suggested card padding: 20–24px.  
+Section gap: 24–32px.  
+Grid gap: 16–24px.  
+Input/button height: 40–44px.
 
----
-
-# 22. Spacing System
-
-Use a consistent 4px-based spacing scale.
+Radius scale:
 
 ```text
-4px
-8px
-12px
-16px
-20px
-24px
-32px
-40px
-48px
-64px
+XS 6px | SM 8px | MD 10px | LG 12px
+XL 16px | 2XL 20px | Pill 999px
 ```
 
-Common component spacing:
+### 18.5 Motion and accessibility
 
-```text
-Card padding: 20–24px
-Section gap: 24–32px
-Grid gap: 16–24px
-Input height: 40–44px
-Button height: 40–44px
-```
+- Fast feedback: 120–160ms
+- Standard: 160–220ms
+- Complex transitions: 220–300ms
+- Respect `prefers-reduced-motion`
+- Target WCAG 2.2 AA
+- Provide keyboard navigation, visible focus, semantic HTML, accessible labels, contrast, accessible dialogs/tables/charts
 
-Exact values may be tuned during implementation while preserving the
-design system.
-
----
-
-# 23. Border Radius
-
-Recommended scale:
-
-```text
-XS      6px
-SM      8px
-MD      10px
-LG      12px
-XL      16px
-2XL     20px
-Pill    999px
-```
-
-Cards should generally use:
-
-```text
-12–16px
-```
-
-Avoid excessive rounded UI that makes the enterprise interface look
-playful.
-
----
-
-# 24. Color System
-
-Use semantic tokens rather than direct colors.
-
-Conceptual tokens:
-
-```text
---background
---surface
---surface-elevated
---surface-muted
-
---text-primary
---text-secondary
---text-muted
---text-inverse
-
---border
---border-strong
-
---primary
---primary-hover
-
---success
---warning
---danger
---info
-```
-
-Dark and light themes must map the same semantic tokens to different
-values.
-
----
-
-# 25. Motion & Interaction
-
-The UI should feel smooth but not animated for the sake of animation.
-
-Recommended:
-
-```text
-Fast feedback:    120–160ms
-Standard:         160–220ms
-Complex transition: 220–300ms
-```
-
-Use motion for:
-
-- Navigation transitions
-- Dropdowns
-- Dialogs
-- Hover/focus feedback
-- Chart transitions
-- Chat notifications
-- Loading states
-
-Respect:
-
-```text
-prefers-reduced-motion
-```
-
----
-
-# 26. Accessibility
-
-Target:
-
-**WCAG 2.2 AA**
-
-Requirements include:
-
-- Keyboard navigation
-- Visible focus states
-- Semantic HTML
-- Accessible labels
-- Screen-reader support
-- Sufficient contrast
-- Reduced motion support
-- Accessible dialogs
-- Accessible tables
-- Accessible charts with supporting text/data
-
----
-
-# 27. Responsive Strategy
-
-Dashboard breakpoints should be designed around content, not device
-names.
-
-Conceptual ranges:
+### 18.6 Responsive strategy
 
 ```text
 Mobile:       < 640px
@@ -1099,542 +1047,317 @@ Desktop:      1024–1439px
 Large:        1440px+
 ```
 
-The desktop dashboard is the primary operational workspace, but critical
-workflows must remain usable on smaller screens.
+The desktop dashboard is the primary operational workspace, but critical workflows must remain usable on smaller screens.
 
----
+### 18.7 Component and state architecture
 
-# 28. Component Architecture
+Staff ERP components are currently organized under `resources/js/` with components, composables, layouts, pages, config and icons. Keep components responsibility-focused.
 
-Vue components should be organized by responsibility.
-
-```text
-components/
-├── ui/
-├── layout/
-├── navigation/
-├── dashboard/
-├── charts/
-├── tables/
-├── forms/
-├── dialogs/
-├── chat/
-├── support/
-└── marketing/
-```
-
-Do not place business logic inside generic UI components.
-
-Preferred:
+Preferred flow:
 
 ```text
 UI Component
     ↓
-Composable / Store
+Composable / Store (when shared state is justified)
     ↓
 API Client
     ↓
 Laravel API
 ```
 
----
-
-# 29. State Management
-
-Use centralized state only when state is genuinely shared.
-
-Potential categories:
-
-```text
-Auth State
-User State
-Permission State
-Theme State
-Notification State
-Chat State
-Dashboard Filters
-```
-
-Do not put every API response into global state.
+Centralize only genuinely shared state such as auth, user, permissions, theme, notifications, chat and dashboard filters. Do not put every API response into global state.
 
 ---
 
-# 30. API Response Philosophy
-
-Responses should be predictable and consistent.
-
-Conceptually:
-
-```json
-{
-    "data": {},
-    "meta": {},
-    "message": null
-}
-```
-
-Validation errors should have a consistent structure.
-
-Pagination must expose predictable metadata.
-
-Error responses should not leak internal exceptions, SQL, stack traces
-or secrets.
-
----
-
-# 31. Error Handling
-
-Application errors should be categorized.
-
-Examples:
-
-```text
-ValidationError
-AuthenticationError
-AuthorizationError
-NotFoundError
-ConflictError
-BusinessRuleError
-IntegrationError
-RateLimitError
-SystemError
-```
-
-Users receive useful messages.
-
-Developers receive structured logs.
-
-Production users never receive stack traces.
-
----
-
-# 32. Observability
-
-The platform should eventually include:
-
-- Structured logging
-- Request IDs
-- Correlation IDs
-- Queue monitoring
-- Failed job monitoring
-- API latency monitoring
-- Integration failure tracking
-- Security event monitoring
-- Application health checks
-
----
-
-# 33. Testing Strategy
+## 19. Testing and Quality Strategy
 
 Testing layers:
+- Unit tests
+- Laravel feature tests
+- API tests
+- Domain/business-rule tests
+- Authorization tests
+- Integration tests
+- Browser/E2E tests for critical user journeys
+- Concurrency tests for race-sensitive operations
 
-```text
-Unit Tests
-Feature Tests
-Integration Tests
-API Tests
-Authorization Tests
-Domain Tests
-Browser/E2E Tests
-```
+The current project includes `tests/Unit`, `tests/Feature` and a separate `tests/Concurrency` suite. Preserve the special PostgreSQL configuration and requirements for concurrency tests.
 
-Critical business rules must have automated tests.
-
-Especially:
-
-- Cross-user authorization
-- Cross-account/business access
-- Role/permission boundaries
-- Developer-only actions
+Critical scenarios:
+- Cross-user and cross-customer authorization
+- Role/permission boundaries and Developer-only actions
 - Financial calculations
 - Order state transitions
-- Marketing synchronization
-- Chat authorization
+- Inventory reservations/transfers and concurrent stock changes
+- Checkout and payment state
+- CMS publishing and unsafe HTML handling
+- Marketing synchronization and provider failures
+- Customer session and CSRF behavior
+- Storefront API integration and error/empty states
+
+Do not mark a feature complete based only on the presence of a route or page file. Verify its complete behavior and authorization.
 
 ---
 
-# 34. Git & Code Quality
+## 20. Observability and Operations
 
-Commit style should be clear and focused.
+Production readiness should include:
+- Structured logs
+- Request/correlation IDs
+- API latency and error monitoring
+- Queue and failed-job monitoring
+- Integration failure tracking
+- Security event monitoring
+- Health checks
+- Database backup and restore testing
+- Storage backup/retention
+- Deployment rollback procedure
+- Load/performance testing for critical flows
 
-Examples:
+Operational and security events should capture actor, action, resource, timestamp, outcome and request context where appropriate. Avoid logging secrets or unnecessary personal data.
+
+---
+
+## 21. Git, Repository Hygiene and CI/CD
+
+### 21.1 Never commit
+
+```text
+.env
+.env.production
+credentials and private keys
+vendor/
+node_modules/
+storefront/node_modules/
+storefront/.nuxt/
+storefront/.output/
+generated local data and temporary backups
+```
+
+Keep:
+- `composer.lock`
+- Root `package-lock.json`
+- `storefront/package-lock.json`
+- `.env.example` files containing placeholders only
+- Source code, tests, migrations and documentation
+
+The repository `.gitignore` should be reviewed whenever a new generated directory or local secret file is introduced.
+
+### 21.2 Commit convention
 
 ```text
 feat: add role permission management
 fix: prevent unauthorized order access
 refactor: extract campaign sync action
-test: cover developer module locking
+test: cover inventory reservation concurrency
+docs: update storefront API contract
 chore: update dependencies
 ```
 
-Do not commit:
+### 21.3 CI/CD
 
-```text
-.env
-credentials
-API secrets
-private keys
-generated local data
-```
+Use application-aware checks:
+- Laravel changes: Composer validation, Pint, static analysis and Laravel tests
+- Root ERP UI changes: type/lint checks and Vite build
+- Storefront changes: Nuxt typecheck and Nuxt production build
+- API contract changes: relevant Laravel API tests and Storefront integration/E2E checks
 
----
+The repository currently contains a GitHub Actions workflow that sets up PHP and Node and runs the root Composer CI script. Review that workflow as the Storefront grows so Nuxt typecheck/build are also run when appropriate.
 
-# 35. Configuration & Environment
-
-Environment-specific configuration must stay outside source code.
-
-Examples:
-
-```text
-.env
-.env.example
-```
-
-Production must use secure secret management.
-
-Never hardcode:
-
-- Database passwords
-- API keys
-- OAuth secrets
-- Webhook secrets
-- Encryption keys
+Do not assume one root CI command automatically validates every application.
 
 ---
 
-# 36. Feature Flags
+## 22. Current Repository Audit — Snapshot of Supplied Project
 
-Feature flags should be used for controlled rollout of major features.
+This section records what was observed in the supplied project archive. It is not a claim that all roadmap capabilities are already complete.
 
-Examples:
+### 22.1 Confirmed structure and configuration
 
-```text
-marketing.meta.enabled
-marketing.google.enabled
-support.live_chat.enabled
-analytics.attribution.enabled
-new_dashboard.enabled
-```
+- Laravel application is at repository root.
+- Nuxt customer website is in `storefront/`.
+- Laravel staff UI uses Inertia/Vue under `resources/`.
+- Separate root and Storefront Node package manifests/lockfiles exist.
+- Laravel Composer manifest and lockfile exist.
+- Storefront has its own Nuxt config, README and environment example.
+- Laravel route configuration contains versioned Storefront, backend, head-office and webhook API groups.
+- Storefront API uses Laravel `web` middleware for session/CSRF-dependent endpoints.
+- Storefront deployment Nginx example routes public pages to Nuxt and selected Laravel paths to Laravel.
+- GitHub Actions currently runs a root Laravel-oriented CI command.
 
-Feature flags are not a replacement for authorization.
+### 22.2 Differences between the original architecture document and current implementation
 
----
+1. **Domain folders:** The original README describes `app/Domains/*` as a conceptual target. The supplied code currently uses conventional `app/Http`, `app/Models`, `app/Jobs`, `app/Policies`, `app/Services` and related folders. Treat domain extraction as incremental future refactoring, not an existing completed structure.
+2. **Nuxt proxy target:** `storefront/.env.example` and `storefront/README.md` document `NUXT_LARAVEL_PROXY_TARGET`, but `storefront/nuxt.config.ts` currently hardcodes the Laravel upstream URL. Synchronize implementation and documentation.
+3. **Storefront route readiness:** Nuxt page files exist for login, registration and account routes. Their existence does not prove full workflows are implemented. Replace blanket “not implemented” statements with route-by-route verification.
+4. **Storefront README freshness:** Its feature/readiness statements should be reviewed against the current page and API implementation before being treated as authoritative.
+5. **PHP baseline:** Composer currently declares PHP `^8.3`; the lockfile resolves Laravel `v13.34.0`. Record the exact PHP runtime from the target environment separately.
+6. **Database/Redis baseline:** Configuration and tests indicate PostgreSQL is intended and the test suite targets PostgreSQL. Redis is described as planned/core infrastructure; verify actual environment and production services before calling it deployed.
+7. **Workspace configuration:** A root `pnpm-workspace.yaml` currently lists only `.`. The project also uses npm lockfiles and a separate Storefront package manifest. Decide whether this pnpm workspace file is actively required; do not assume it manages the Nuxt app.
+8. **Generated files and archive size:** `vendor`, `node_modules`, Nuxt cache/output and local runtime data make project archives heavy. They are not source architecture and should be excluded from normal source handoff archives. Do not delete required source lockfiles.
+9. **Secrets in archives:** The supplied archive includes a root `.env` and Git metadata. Exclude secrets from future handoff archives; verify repository tracking and rotate any credentials that may have been exposed.
 
-# 37. Integration Architecture
+### 22.3 Immediate architecture cleanup backlog
 
-External integrations should follow:
+Priority order:
 
-```text
-Provider Contract
-       ↓
-Adapter
-       ↓
-Integration Service
-       ↓
-Domain Action
-       ↓
-Normalized Domain Data
-```
-
-External provider names should not leak through every domain class.
-
-This makes future integrations easier to add/remove/replace.
-
----
-
-# 38. Data Ownership
-
-Each domain owns its business rules and data responsibilities.
-
-Avoid circular dependencies.
-
-Preferred dependency direction:
-
-```text
-Infrastructure
-      ↓
-Application
-      ↓
-Domain
-```
-
-Where practical, shared abstractions should live in stable
-contracts/support areas rather than creating domain-to-domain coupling.
+1. Synchronize Nuxt proxy configuration with its environment example and documentation.
+2. Verify `.gitignore` and ensure generated dependency/build folders and secrets are not tracked.
+3. Create a safe project archive/export procedure that excludes generated folders, `.env`, local backups and secrets while retaining lockfiles and source.
+4. Bring root README and Storefront README into agreement about actual routes, features, runtime and deployment.
+5. Add Storefront typecheck/build and relevant integration checks to CI.
+6. Document API contracts and authentication/CSRF requirements.
+7. Add route-by-route E2E coverage for Storefront journeys.
+8. Extract domain classes incrementally when meaningful; do not undertake a large namespace/folder migration now.
 
 ---
 
-# 39. Development Workflow
+## 23. Implementation Roadmap
 
-For every major feature:
+### Phase 0 — Architecture and Repository Hygiene
+- Keep the current monorepo and Laravel-at-root layout.
+- Confirm environment configuration and secret handling.
+- Review generated files and archive exclusions.
+- Synchronize root and Storefront documentation.
+- Fix proxy target configuration.
+- Establish app-specific local run/build/test commands.
 
-```text
-Requirement
-   ↓
-Architecture
-   ↓
-Domain Design
-   ↓
-Database Design
-   ↓
-API Contract
-   ↓
-Authorization Rules
-   ↓
-Tests
-   ↓
-Implementation
-   ↓
-Integration
-   ↓
-UI
-   ↓
-E2E Verification
-   ↓
-Documentation
-```
+### Phase 1 — Identity and Security
+- Staff and customer identity separation
+- Developer role, roles and permissions
+- Policies and access audit
+- Session, CSRF and API security
+- 2FA and account recovery where required
 
-The backend must be ready and stable before the corresponding frontend
-workflow is finalized.
-
----
-
-# 40. Implementation Roadmap
-
-## Phase 0 --- Foundation
-
-- Laravel
-- PostgreSQL
-- Git
-- Environment configuration
-- Storage
-- Redis
-- Queue
-- Base testing
-
-## Phase 1 --- Identity & Security
-
-- Users
-- Authentication
-- Developer
-- Roles
-- Permissions
-- Policies
-- Sessions
-- 2FA
-- Audit
-- Security events
-- Module access
-
-## Phase 2 --- System / Developer Console
-
-- Module registry
-- Module states
+### Phase 2 — System and Developer Controls
+- Module registry and module states
 - Feature flags
 - Menu registry
-- Developer controls
 - System settings
+- Security and audit events
 
-## Phase 3 --- Catalog
+### Phase 3 — Catalog and CMS
+- Products, variants, categories, brands and media
+- CMS pages, banners, sections and revisions
+- SEO metadata and publication workflow
+- Public API contracts and Storefront rendering
 
-- Products
-- Variants
-- Categories
-- Brands
-- Media
+### Phase 4 — Customers and CRM
+- Customer profiles, groups and addresses
+- Leads, activities, assignment and conversion
+- Customer segmentation
 
-## Phase 4 --- Customers
+### Phase 5 — Sales, Orders and Inventory
+- Orders and lifecycle
+- Pricing, promotions and discounts
+- Inventory, reservations, transfers and adjustments
+- Returns and refunds
 
-- Customers
-- Groups
-- Addresses
-- Segmentation
+### Phase 6 — Payments, Shipping and Procurement
+- Payment provider contracts/adapters
+- Courier/shipping provider contracts/adapters
+- Tracking and delivery lifecycle
+- Procurement and goods receipt
 
-## Phase 5 --- Sales / Orders
+### Phase 7 — Storefront Completion
+- Product and category journeys
+- Cart and checkout
+- Customer authentication and account
+- Order tracking and order history
+- CMS pages and SEO
+- Accessibility, responsive UX and E2E verification
 
-- Orders
-- Order items
-- Status lifecycle
-- Discounts
-- Taxes
-- Returns/refunds
-
-## Phase 6 --- Inventory
-
-- Stock
-- Warehouses
-- Movements
-- Adjustments
-
-## Phase 7 --- Payments & Shipping
-
-- Payment abstraction
-- Payment providers
-- Shipping providers
-- Tracking
-- Delivery lifecycle
-
-## Phase 8 --- Marketing
-
-- Meta
-- Google
-- TikTok
-- Campaign sync
+### Phase 8 — Marketing and Analytics
+- Meta, Google, TikTok provider adapters
+- Campaign synchronization
 - Normalized metrics
+- Attribution and business reporting
 
-## Phase 9 --- Analytics
-
-- Business analytics
-- Marketing analytics
-- Attribution
-- Dashboards
-- Reports
-
-## Phase 10 --- Communication
-
-- Customer chat
+### Phase 9 — Communication
+- Customer support/live chat
 - Internal chat
-- Support
-- Notifications
-- Realtime infrastructure
+- Notifications and realtime delivery
 
-## Phase 11 --- Frontend
-
-- Backend dashboard
-- Nuxt public frontend
-- Theme system
-- Responsive UX
-- Accessibility
-
-## Phase 12 --- Production Hardening
-
-- Security audit
-- Performance
+### Phase 10 — Production Hardening
+- Security and dependency audit
+- Performance and load tests
 - Observability
-- Backup
-- Disaster recovery
-- Deployment
-- Load testing
-- E2E verification
+- Queue/Redis operations
+- Backups and disaster recovery
+- Independent application deployment
+- Rollback and release verification
+
+### Phase 11 — Future Channels
+- Customer mobile application
+- B2B/vendor/partner portals
+- Multi-store/channel CMS and catalog capabilities
+- Reassess monorepo/polyrepo only when operational needs justify it
 
 ---
 
-# 41. Non-Negotiable Architecture Rules
+## 24. Definition of Done for Major Features
 
-1.  Backend is the final security authority.
-2.  UI hiding is never authorization.
-3.  Developer is the highest product role.
-4.  Secrets never enter Git.
-5.  External integrations use adapters/contracts.
-6.  Business rules do not live in controllers.
-7.  Critical workflows are tested.
-8.  Financial and order operations are auditable.
-9.  PostgreSQL is the transactional source of truth.
-10. Analytics must not corrupt operational data.
-11. Background work uses queues.
-12. Realtime features use dedicated event/broadcasting architecture.
-13. New modules should be independently extensible.
-14. Avoid premature abstraction.
-15. Avoid unnecessary repository/service layers.
-16. Prefer explicit domain boundaries.
-17. Maintain backward-compatible API contracts where possible.
-18. Accessibility is part of the definition of done.
-19. Light, Dark and System themes are first-class modes.
-20. The locked dashboard visual direction must remain the UI source of
-    truth.
+A major feature is not complete until:
+
+1. Domain ownership and business rules are clear.
+2. Database changes are migrated and constrained appropriately.
+3. API contract and validation are documented.
+4. Backend authorization is implemented and tested.
+5. Failure, empty and boundary cases are handled.
+6. Audit/event/queue behavior is included where required.
+7. Frontend behavior is responsive and accessible.
+8. Integration/E2E tests cover the critical user journey.
+9. Logs do not expose secrets or sensitive information.
+10. Documentation and deployment requirements are updated.
 
 ---
 
-# 42. Current Infrastructure Baseline
+## 25. Non-Negotiable Architecture Rules
 
-At the beginning of implementation:
-
-```text
-Laravel:       13.34.0
-PHP:           8.5.9
-Composer:      2.10.2
-Node:          24.19.0
-npm:           11.17.0
-PostgreSQL:    18.6
-Database:      madina_scale
-Frontend:      Vue
-Public Frontend: Nuxt.js
-```
-
-Development database configuration:
-
-```text
-Database engine: PostgreSQL
-Database name:   madina_scale
-Application DB user: madina_scale
-```
-
-Redis is planned as a core infrastructure component and should be
-configured before production workloads that require cache/queue/realtime
-scaling.
+1. Laravel is the source of truth for business data and rules.
+2. Backend authorization is mandatory; UI visibility is not security.
+3. Developer is the highest product role.
+4. Secrets never enter Git.
+5. Storefront and ERP remain separate frontend applications.
+6. Storefront consumes Laravel APIs; it does not access the database directly.
+7. External integrations use contracts/adapters.
+8. Business rules do not live in controllers or frontend components.
+9. Critical workflows are tested.
+10. Financial, order and inventory operations are transactional and auditable.
+11. Analytics must not corrupt operational data.
+12. Background work uses queues when appropriate.
+13. Realtime features use explicit event/broadcasting infrastructure.
+14. New modules should be independently maintainable.
+15. Avoid premature abstractions and unnecessary repositories.
+16. Preserve API compatibility where possible.
+17. Accessibility is part of the definition of done.
+18. Light, Dark and System themes remain first-class modes.
+19. The locked dashboard visual direction remains the UI source of truth.
+20. Keep the monorepo until there is a concrete operational reason to split it.
+21. Do not introduce microservices merely because more frontend clients are added.
+22. Do not move Laravel into a new directory unless a specific migration benefit justifies the risk.
 
 ---
 
-# 43. Design System Source of Truth
+## 26. Architecture Documentation Rule
 
-The user-provided backend dashboard reference image is the visual source
-of truth for the backend dashboard.
-
-Implementation should preserve its:
-
-- Overall layout
-- Navigation hierarchy
-- Premium enterprise visual language
-- Dashboard information hierarchy
-- KPI presentation
-- Analytics presentation
-- Quick Actions / Tasks area
-- Combined Chats / Support bubble
-- Light / Dark / System theme concept
-
-Additional Meta and Google campaign analytics must be integrated without
-breaking the locked visual language.
-
----
-
-# 44. Documentation Rule
-
-Every major architectural decision should be documented here.
+This README is the living architecture reference.
 
 When architecture changes:
 
-1.  Update this README.
-2.  Explain why the change was made.
-3.  Update affected diagrams/conventions.
-4.  Update implementation guidance.
-5.  Add/adjust tests where necessary.
+1. Update the relevant architecture decision and diagram.
+2. Explain why the change was made.
+3. Update affected API, data ownership and deployment guidance.
+4. Update environment examples and application READMEs.
+5. Add or adjust tests.
+6. Record migration and rollback considerations.
 
-This file is intended to remain a living architectural reference
-throughout the project.
+Keep verified current implementation separate from target architecture and roadmap items. Never document a planned capability as already implemented.
 
 ---
 
 ## Final Principle
 
-Madina Scale should be built as a **secure, modular, analytics-driven
-platform**, not as a collection of unrelated CRUD screens.
+**One central Laravel platform. Multiple independent frontend applications. One authoritative business data layer. Stable versioned APIs. Independent builds and deployments.**
 
-The goal is:
-
-```text
-Simple to extend
-        +
-Hard to break
-        +
-Easy to audit
-        +
-Secure by default
-        +
-Consistent UX
-        +
-Provider-independent integrations
-        +
-Strong analytics foundation
-```
-
-**Architecture first. Implementation second. UI on top of stable
-contracts.**
+Architecture first. Contracts second. Implementation and UI on top of stable boundaries.
