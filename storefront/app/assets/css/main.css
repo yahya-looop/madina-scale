@@ -1152,3 +1152,563 @@ html {
     transform: none;
   }
 }
+
+
+/* =========================================================
+   MADINA RESPONSIVE REFINEMENT v2
+   Utility alignment, viewport overflow protection and compact
+   homepage trust indicators. Desktop layout is intentionally kept.
+   ========================================================= */
+
+/* Prevent flex/grid children and media from imposing a wider page. */
+html,
+body {
+  max-width: 100%;
+}
+
+body {
+  overflow-x: clip;
+}
+
+.storefront-shell,
+.storefront-content {
+  width: 100%;
+  min-width: 0;
+}
+
+.storefront-content :where(section, article, aside, header, footer, main, form, ul, ol) {
+  min-width: 0;
+}
+
+.storefront-content :where(img, video, iframe, canvas, svg) {
+  max-width: 100%;
+}
+
+.storefront-content :where(table, pre) {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.storefront-content :where(h1, h2, h3, h4, p, a, button, label, small, strong) {
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 767px) {
+  /* Utility row: Track Order stays left; language switcher stays right. */
+  .site-header .utility-bar__inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    min-height: 36px;
+    padding-inline: 0;
+  }
+
+  .site-header .utility-login-link {
+    display: none !important;
+  }
+
+  .site-header .utility-bar__actions {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    min-width: 0;
+  }
+
+  .site-header .utility-track-link {
+    flex: 0 1 auto;
+    min-width: 0;
+    margin-right: auto;
+    white-space: nowrap;
+  }
+
+  .site-header .language-switcher {
+    flex: 0 0 auto;
+    margin-left: auto;
+  }
+
+  /* Four trust signals share one compact row; text remains screen-reader accessible. */
+  .service-highlights {
+    display: grid;
+    width: 100%;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    align-items: center;
+    gap: 4px;
+    padding: 10px 0;
+    margin-inline: auto;
+  }
+
+  .service-highlights article {
+    display: flex;
+    min-width: 0;
+    min-height: 42px;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    padding: 4px 0;
+    border-right: 1px solid #edf1ee;
+    text-align: center;
+  }
+
+  .service-highlights article:last-child {
+    border-right: 0;
+  }
+
+  .service-highlights .trust-highlight__icon {
+    display: grid;
+    width: 100%;
+    min-width: 0;
+    place-items: center;
+    color: var(--brand-700);
+  }
+
+  .service-highlights .trust-highlight__icon svg {
+    width: 23px;
+    height: 23px;
+  }
+
+  .service-highlights .trust-highlight__copy {
+    position: absolute !important;
+    width: 1px !important;
+    height: 1px !important;
+    overflow: hidden !important;
+    clip: rect(0, 0, 0, 0) !important;
+    clip-path: inset(50%) !important;
+    white-space: nowrap !important;
+  }
+
+  /* Keep all common responsive grids within the available viewport width. */
+  .container {
+    width: calc(100% - 28px);
+    max-width: 100%;
+  }
+
+  .storefront-content,
+  .storefront-content > *,
+  .storefront-content .container,
+  .storefront-content .content-section,
+  .storefront-content .section-heading,
+  .storefront-content .home-hero,
+  .storefront-content .home-hero__panel,
+  .storefront-content .product-grid,
+  .storefront-content .category-grid,
+  .storefront-content .value-grid,
+  .storefront-content .service-highlights {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .storefront-content :where(.product-grid, .category-grid, .value-grid, .flash-sale-items) > * {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .storefront-content :where(input, select, textarea) {
+    width: 100%;
+    min-width: 0;
+  }
+}
+
+@media (max-width: 360px) {
+  .site-header .utility-track-link {
+    gap: 4px;
+    font-size: 8px;
+  }
+
+  .site-header .utility-track-link svg {
+    width: 12px;
+    height: 12px;
+  }
+
+  .site-header .language-switcher button {
+    min-width: 25px;
+    padding-inline: 5px;
+    font-size: 9px;
+  }
+
+  .service-highlights {
+    gap: 2px;
+  }
+
+  .service-highlights .trust-highlight__icon svg {
+    width: 21px;
+    height: 21px;
+  }
+}
+
+/* Tablet: constrain page width while preserving the existing tablet navigation. */
+@media (min-width: 768px) and (max-width: 1100px) {
+  .container {
+    width: calc(100% - 40px);
+    max-width: 100%;
+  }
+
+  .storefront-content,
+  .storefront-content > *,
+  .storefront-content :where(section, article, form, main) {
+    min-width: 0;
+    max-width: 100%;
+  }
+}
+
+
+/* =========================================================
+   MADINA HOMEPAGE MOBILE REFINEMENT v3
+   Mobile-only trust indicator row and responsive hero.
+   Desktop/Laptop (1024px and above) remains unchanged.
+   ========================================================= */
+
+@media (min-width: 768px) and (max-width: 1023px) {
+  .home-page .home-hero__panel {
+    min-height: 290px;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 0.9fr);
+  }
+
+  .home-page .home-hero__copy {
+    min-width: 0;
+    padding: 28px clamp(18px, 3vw, 32px);
+  }
+
+  .home-page .home-hero h1 {
+    max-width: 100%;
+    font-size: clamp(27px, 3.4vw, 36px);
+    line-height: 1.1;
+    overflow-wrap: break-word;
+  }
+
+  .home-page .home-hero__description {
+    max-width: 100%;
+    font-size: 13px;
+    line-height: 1.55;
+  }
+
+  .home-page .home-hero__actions {
+    gap: 8px;
+    margin-top: 14px;
+  }
+
+  .home-page .home-hero .button-solid,
+  .home-page .home-hero .button-outline {
+    min-height: 40px;
+    padding-inline: 14px;
+    font-size: 11px;
+  }
+
+  .home-page .home-hero__art {
+    min-width: 0;
+    min-height: 0;
+    max-height: none;
+    padding: 14px;
+  }
+
+  .home-page .home-hero__art > .storefront-image,
+  .home-page .home-hero__art > .image-placeholder {
+    width: 100%;
+    height: auto;
+    max-height: 250px;
+    aspect-ratio: 4 / 3;
+    object-fit: contain;
+  }
+}
+
+@media (max-width: 767px) {
+  /* Four trust icons must stay side-by-side on one single row. */
+  .home-page > .service-highlights.container {
+    display: grid !important;
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    grid-auto-flow: row;
+    align-items: center;
+    justify-items: stretch;
+    column-gap: 0;
+    row-gap: 0;
+    width: calc(100% - 28px);
+    max-width: calc(100% - 28px);
+    padding: 9px 0;
+    margin-inline: auto;
+  }
+
+  .home-page > .service-highlights.container > .trust-highlight {
+    display: flex !important;
+    width: auto;
+    min-width: 0;
+    min-height: 44px;
+    grid-column: auto !important;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    padding: 4px 0;
+    border-right: 1px solid #e5eee8;
+    border-bottom: 0;
+    text-align: center;
+  }
+
+  .home-page > .service-highlights.container > .trust-highlight:last-child {
+    border-right: 0;
+  }
+
+  .home-page .trust-highlight__icon {
+    display: grid;
+    width: 100%;
+    min-width: 0;
+    height: 36px;
+    flex: 0 1 auto;
+    place-items: center;
+    margin: 0;
+    padding: 0;
+  }
+
+  .home-page .trust-highlight__icon svg {
+    display: block;
+    width: 22px;
+    height: 22px;
+    max-width: 22px;
+  }
+
+  /* Keep the descriptions available to assistive technology, not visually displayed. */
+  .home-page .trust-highlight__copy {
+    position: absolute !important;
+    width: 1px !important;
+    height: 1px !important;
+    padding: 0 !important;
+    margin: -1px !important;
+    overflow: hidden !important;
+    clip: rect(0, 0, 0, 0) !important;
+    clip-path: inset(50%) !important;
+    white-space: nowrap !important;
+    border: 0 !important;
+  }
+
+  /* Stack the hero content deliberately on narrow screens. */
+  .home-page .home-hero {
+    width: 100%;
+    min-width: 0;
+    padding: 10px 0 0;
+  }
+
+  .home-page .home-hero > .container {
+    width: calc(100% - 28px);
+    max-width: calc(100% - 28px);
+    min-width: 0;
+  }
+
+  .home-page .home-hero__panel {
+    display: grid;
+    width: 100%;
+    min-width: 0;
+    min-height: 0;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto;
+    align-items: stretch;
+    gap: 0;
+    overflow: hidden;
+    border-radius: 15px;
+  }
+
+  .home-page .home-hero__copy {
+    display: flex;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 22px 18px 12px;
+  }
+
+  .home-page .home-hero .eyebrow {
+    max-width: 100%;
+    font-size: 9px;
+    line-height: 1.4;
+    letter-spacing: 0.13em;
+    overflow-wrap: break-word;
+  }
+
+  .home-page .home-hero h1 {
+    width: 100%;
+    max-width: 100%;
+    margin: 9px 0 8px;
+    font-size: clamp(25px, 7.2vw, 34px);
+    line-height: 1.1;
+    letter-spacing: -0.9px;
+    overflow-wrap: break-word;
+    word-break: normal;
+  }
+
+  .home-page .home-hero__description {
+    width: 100%;
+    max-width: 100%;
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.55;
+    overflow-wrap: break-word;
+  }
+
+  .home-page .home-hero__actions {
+    display: flex;
+    width: 100%;
+    max-width: 100%;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 14px;
+  }
+
+  .home-page .home-hero .button-solid,
+  .home-page .home-hero .button-outline {
+    min-width: 0;
+    min-height: 40px;
+    padding-inline: 14px;
+    font-size: 11px;
+    white-space: normal;
+  }
+
+  .home-page .home-hero__art {
+    display: flex;
+    width: 100%;
+    min-width: 0;
+    min-height: 0;
+    max-height: none;
+    align-items: center;
+    justify-content: center;
+    padding: 8px 12px 30px;
+  }
+
+  .home-page .home-hero__art > .storefront-image,
+  .home-page .home-hero__art > .image-placeholder {
+    display: block;
+    width: 100%;
+    height: auto;
+    max-width: 100%;
+    max-height: none;
+    aspect-ratio: 16 / 9;
+    object-fit: contain;
+    border-radius: 10px;
+  }
+
+  .home-page .home-hero__carousel {
+    right: 50%;
+    bottom: 7px;
+    left: auto;
+    transform: translateX(50%);
+  }
+
+  .home-page .home-hero__carousel > button {
+    width: 25px;
+    height: 25px;
+  }
+}
+
+@media (max-width: 380px) {
+  .home-page .home-hero__copy {
+    padding: 19px 14px 10px;
+  }
+
+  .home-page .home-hero h1 {
+    font-size: clamp(23px, 7.1vw, 28px);
+    letter-spacing: -0.65px;
+  }
+
+  .home-page .home-hero__description {
+    font-size: 12px;
+  }
+
+  .home-page .home-hero__actions {
+    gap: 7px;
+  }
+
+  .home-page .home-hero .button-solid,
+  .home-page .home-hero .button-outline {
+    min-height: 38px;
+    padding-inline: 11px;
+    font-size: 10px;
+  }
+
+  .home-page .trust-highlight__icon svg {
+    width: 20px;
+    height: 20px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-page .home-hero *,
+  .home-page .trust-highlight__icon {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
+
+
+/* Mobile-only: remove the outer KPI card while keeping the icon tile. */
+@media (max-width: 767px) {
+  .home-page > .service-highlights.container > .trust-highlight {
+    background: transparent !important;
+    background-color: transparent !important;
+    background-image: none !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    outline: 0 !important;
+  }
+
+  .home-page > .service-highlights.container > .trust-highlight:not(:last-child) {
+    border-right: 1px solid #e5eee8 !important;
+  }
+
+  .home-page > .service-highlights.container > .trust-highlight:last-child {
+    border-right: 0 !important;
+  }
+
+  /* Preserve the smaller green icon background as the only visible tile. */
+  .home-page .trust-highlight__icon {
+    width: 40px;
+    height: 40px;
+    border: 1px solid #d9eee1;
+    border-radius: 12px;
+    background: #edf7f0;
+  }
+}
+
+
+/* Mobile-only: remove residual green/white decorative gradient outside icon tile. */
+@media (max-width: 767px) {
+  .home-page > .service-highlights.container {
+    background: transparent !important;
+    background-color: transparent !important;
+    background-image: none !important;
+    box-shadow: none !important;
+  }
+
+  .home-page > .service-highlights.container > .trust-highlight,
+  .home-page > .service-highlights.container > .trust-highlight:hover,
+  .home-page > .service-highlights.container > .trust-highlight:focus-within {
+    background: transparent !important;
+    background-color: transparent !important;
+    background-image: none !important;
+    box-shadow: none !important;
+    filter: none !important;
+  }
+
+  .home-page > .service-highlights.container > .trust-highlight::before,
+  .home-page > .service-highlights.container > .trust-highlight::after {
+    display: none !important;
+    content: none !important;
+    background: none !important;
+    box-shadow: none !important;
+  }
+
+  /* Keep only the icon's own compact green tile. */
+  .home-page > .service-highlights.container .trust-highlight__icon {
+    background: #edf7f0 !important;
+    background-image: none !important;
+    box-shadow: none !important;
+    filter: none !important;
+  }
+
+  .home-page > .service-highlights.container .trust-highlight__icon::before,
+  .home-page > .service-highlights.container .trust-highlight__icon::after {
+    display: none !important;
+    content: none !important;
+  }
+}
