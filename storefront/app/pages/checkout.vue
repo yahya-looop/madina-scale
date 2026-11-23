@@ -22,6 +22,20 @@ const cart = computed(() => {
     item_count: Number(value?.item_count || 0),
   }
 })
+
+// Initialize the checkout form before creating delivery composables.
+// Their computed/watch sources can evaluate the location getter immediately.
+const form = reactive<CheckoutForm>({
+  customer_name: '',
+  customer_phone: '',
+  division: '',
+  district: '',
+  area: '',
+  postal_code: '',
+  address_line: '',
+  notes: '',
+})
+
 const {
   courierOptions,
   selectedCourierCode,
@@ -39,17 +53,6 @@ const {
   area: form.area,
 }))
 const payableTotal = computed(() => Number(cart.value.subtotal || 0) + deliveryCharge.value)
-const form = reactive<CheckoutForm>({
-  customer_name: '',
-  customer_phone: '',
-  division: '',
-  district: '',
-  area: '',
-  postal_code: '',
-  address_line: '',
-  notes: '',
-})
-
 const submitting = ref(false)
 const message = ref('')
 const fieldErrors = ref<Record<string, string[]>>({})
