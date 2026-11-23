@@ -10,7 +10,18 @@ type CheckoutForm = {
   notes: string
 }
 
-const { cart, loading, error, refresh } = useStorefrontCart()
+const { cart: cartState, loading, error, refresh } = useStorefrontCart()
+// The cart composable may be undefined briefly during SSR/initial hydration.
+// Normalize it once so the checkout and delivery calculator always receive a safe shape.
+const cart = computed(() => {
+  const value = cartState.value as any
+  return {
+    ...(value && typeof value === 'object' ? value : {}),
+    items: Array.isArray(value?.items) ? value.items : [],
+    subtotal: Number(value?.subtotal || 0),
+    item_count: Number(value?.item_count || 0),
+  }
+})
 const {
   courierOptions,
   selectedCourierCode,
@@ -219,7 +230,7 @@ function clearFieldError(field: string) {
 }
 
 async function placeOrder() {
-  if (submitting.value || !cart.value.items.length) return
+  if (submitting.value || cart.value.items.length === 0) return
 
   message.value = ''
   fieldErrors.value = {}

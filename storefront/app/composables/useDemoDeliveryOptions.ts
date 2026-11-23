@@ -99,18 +99,19 @@ function estimateUnitWeight(item: DemoCartItem) {
 }
 
 export function useDemoDeliveryOptions(
-  cart: { value: { items: DemoCartItem[]; subtotal: number; item_count: number } },
+  cart: { value?: { items?: DemoCartItem[]; subtotal?: number; item_count?: number } | null },
   getLocation: () => LocationInput,
 ) {
   const selectionMode = ref<'no_preference' | 'customer_choice'>('no_preference')
   const selectedCourierCode = ref('')
 
-  const estimatedWeightGrams = computed(() =>
-    Math.max(500, cart.value.items.reduce(
+  const estimatedWeightGrams = computed(() => {
+    const items = Array.isArray(cart.value?.items) ? cart.value.items : []
+    return Math.max(500, items.reduce(
       (total, item) => total + estimateUnitWeight(item) * Math.max(1, Number(item.quantity || 1)),
       0,
-    )),
-  )
+    ))
+  })
 
   const deliveryZone = computed(() => {
     const location = getLocation()
