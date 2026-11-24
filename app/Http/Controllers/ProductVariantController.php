@@ -372,6 +372,7 @@ class ProductVariantController extends Controller
                 'min:0',
                 'max:999999999999.99',
             ],
+            'shipping_weight_override_grams' => ['nullable', 'integer', 'min:1', 'max:100000'],
             'selling_price' => [
                 'sometimes',
                 'numeric',

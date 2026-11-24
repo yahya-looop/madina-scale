@@ -40,6 +40,7 @@ class Product extends Model
         'model_number',
         'barcode',
         'product_type',
+        'shipping_weight_grams',
         'short_description',
         'description',
         'status',

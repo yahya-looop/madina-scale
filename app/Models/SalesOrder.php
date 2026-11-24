@@ -35,6 +35,8 @@ class SalesOrder extends Model
         'currency', 'subtotal', 'discount_total', 'tax_total', 'grand_total', 'pricing_snapshot', 'credit_snapshot', 'payment_due_at',
         'notes', 'created_by', 'confirmed_at', 'cancelled_at', 'cancellation_reason',
         'payment_method', 'payment_status', 'payment_details',
+        'delivery_charge', 'parcel_weight_grams', 'delivery_zone', 'delivery_selection_mode',
+        'customer_preferred_courier_code', 'system_recommended_courier_code', 'assigned_courier_code', 'delivery_quote_snapshot',
         'idempotency_key',
     ];
 
@@ -45,6 +47,9 @@ class SalesOrder extends Model
             'discount_total' => 'decimal:2',
             'tax_total' => 'decimal:2',
             'grand_total' => 'decimal:2',
+            'delivery_charge' => 'decimal:2',
+            'parcel_weight_grams' => 'integer',
+            'delivery_quote_snapshot' => 'array',
             'pricing_snapshot' => 'array',
             'payment_details' => 'array',
             'credit_snapshot' => 'array',

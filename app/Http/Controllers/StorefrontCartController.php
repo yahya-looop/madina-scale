@@ -51,12 +51,22 @@ class StorefrontCartController extends Controller
             'address_line' => ['nullable', 'string', 'max:500'],
             'notes' => ['nullable', 'string', 'max:1000'],
             'payment_method' => ['required', 'string', 'in:cash_on_delivery,bank_transfer'],
+            'customer_preferred_courier_code' => ['nullable', 'string', 'in:steadfast,carrybee,bangladesh_post,pathao,redx'],
+            'delivery_selection_mode' => ['required', 'string', 'in:customer_choice,no_preference'],
             'bank_sender_account' => ['required_if:payment_method,bank_transfer', 'nullable', 'string', 'max:80'],
             'bank_transaction_reference' => ['required_if:payment_method,bank_transfer', 'nullable', 'string', 'max:120'],
             'bank_transfer_amount' => ['required_if:payment_method,bank_transfer', 'nullable', 'numeric', 'gt:0', 'decimal:0,2'],
             'idempotency_key' => ['required', 'string', 'max:100'],
         ]);
         $cart = $this->resolvedCart($request);
+        $parcelWeightGrams = (int) collect($cart)->sum(fn (array $item): int => (int) $item['shipping_weight_grams'] * (int) $item['quantity']);
+        $deliveryZone = $this->resolveDeliveryZone((string) ($data['district'] ?? ''), (string) ($data['area'] ?? ''));
+        $courierCode = $data['delivery_selection_mode'] === 'customer_choice' ? ($data['customer_preferred_courier_code'] ?? null) : null;
+        if ($data['delivery_selection_mode'] === 'customer_choice' && ! $courierCode) {
+            throw ValidationException::withMessages(['customer_preferred_courier_code' => 'Please select an available delivery partner.']);
+        }
+        $deliveryQuote = $this->buildDeliveryQuote($deliveryZone, $parcelWeightGrams, $courierCode);
+        $assignedCourierCode = $courierCode ?: $deliveryQuote['recommended_provider_code'];
         if ($cart === []) {
             $lastOrder = $request->session()->get('storefront_last_order');
             if (is_array($lastOrder) && ($lastOrder['idempotency_key'] ?? null) === $data['idempotency_key']) {
@@ -125,6 +135,19 @@ class StorefrontCartController extends Controller
             ])->values()->all(),
         ], null, true);
 
+        // Delivery amounts are recalculated by Laravel; the storefront's demo quote is never trusted.
+        $order->forceFill([
+            'delivery_charge' => $deliveryQuote['charge'],
+            'parcel_weight_grams' => $parcelWeightGrams,
+            'delivery_zone' => $deliveryZone,
+            'delivery_selection_mode' => $data['delivery_selection_mode'],
+            'customer_preferred_courier_code' => $courierCode,
+            'system_recommended_courier_code' => $deliveryQuote['recommended_provider_code'],
+            'assigned_courier_code' => $assignedCourierCode,
+            'delivery_quote_snapshot' => $deliveryQuote,
+            'grand_total' => bcadd((string) $order->grand_total, (string) $deliveryQuote['charge'], 2),
+        ])->save();
+
         $request->session()->forget('storefront_cart');
         $request->session()->put('storefront_last_order', [
             'order_number' => $order->order_number,
@@ -141,7 +164,57 @@ class StorefrontCartController extends Controller
             'grand_total' => $order->grand_total,
             'payment_method' => $order->payment_method,
             'payment_status' => $order->payment_status,
+            'delivery_charge' => $order->delivery_charge,
+            'assigned_courier_code' => $order->assigned_courier_code,
+            'parcel_weight_grams' => $order->parcel_weight_grams,
         ]], 201);
+    }
+
+    private function resolveDeliveryZone(string $district, string $area): string
+    {
+        $normalized = mb_strtolower(trim($district.' '.$area));
+        if (str_contains($normalized, 'dhaka') || str_contains($normalized, 'ঢাকা')) {
+            return 'inside_dhaka';
+        }
+        $remoteDistricts = ['bandarban', 'khagrachhari', 'rangamati', 'bhola', 'patuakhali', 'barguna', 'sunamganj', 'কক্সবাজার'];
+        foreach ($remoteDistricts as $name) {
+            if (str_contains($normalized, $name)) return 'remote_special';
+        }
+        return 'outside_dhaka';
+    }
+
+    /** Demo rate matrix used only until provider rate APIs and admin-configured tariffs are connected. */
+    private function buildDeliveryQuote(string $zone, int $weightGrams, ?string $preferredCode): array
+    {
+        $providers = [
+            'steadfast' => ['name' => 'Steadfast', 'base' => 70, 'per_kg' => 18],
+            'carrybee' => ['name' => 'CarryBee', 'base' => 75, 'per_kg' => 20],
+            'bangladesh_post' => ['name' => 'Bangladesh Post Office', 'base' => 55, 'per_kg' => 15],
+            'pathao' => ['name' => 'Pathao Courier', 'base' => 70, 'per_kg' => 20],
+            'redx' => ['name' => 'REDX', 'base' => 65, 'per_kg' => 18],
+        ];
+        $zoneMultiplier = match ($zone) { 'inside_dhaka' => 1.0, 'remote_special' => 1.8, default => 1.35 };
+        $weightKg = max(0.5, $weightGrams / 1000);
+        $quotes = [];
+        foreach ($providers as $code => $provider) {
+            $charge = (int) ceil(($provider['base'] + max(0, $weightKg - 0.5) * $provider['per_kg']) * $zoneMultiplier);
+            $quotes[$code] = ['provider_code' => $code, 'provider_name' => $provider['name'], 'charge' => $charge, 'is_demo' => true];
+        }
+        $recommended = collect($quotes)->sortBy('charge')->first();
+        $selected = $preferredCode ? ($quotes[$preferredCode] ?? null) : null;
+        if ($preferredCode && ! $selected) {
+            throw ValidationException::withMessages(['customer_preferred_courier_code' => 'The selected delivery partner is unavailable.']);
+        }
+        return [
+            'zone' => $zone,
+            'parcel_weight_grams' => $weightGrams,
+            'recommended_provider_code' => $recommended['provider_code'],
+            'selected_provider' => $selected,
+            'charge' => (string) ($selected['charge'] ?? $recommended['charge']),
+            'quotes' => array_values($quotes),
+            'is_demo' => true,
+            'calculated_at' => now()->toIso8601String(),
+        ];
     }
 
     /** @return array<int, array<string, mixed>> */
@@ -169,6 +242,7 @@ class StorefrontCartController extends Controller
                 'variant_name' => $variant->name ?: 'Standard',
                 'sku' => $variant->sku ?: $variant->product->sku,
                 'price' => app(PricingEngine::class)->flashSalePriceForVariant($variant->id) ?? $variant->effectiveSellingPrice(),
+                'shipping_weight_grams' => (int) ($variant->shipping_weight_override_grams ?? $variant->product->shipping_weight_grams ?? 500),
                 'quantity' => min(99, max(1, (int) $quantity)),
             ];
         }

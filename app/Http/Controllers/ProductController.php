@@ -799,6 +799,8 @@ class ProductController extends Controller
             'wholesale_price' => ['nullable', 'numeric', 'min:0'],
             'promotional_price' => ['nullable', 'numeric', 'min:0'],
 
+            'shipping_weight_grams' => ['nullable', 'integer', 'min:1', 'max:100000'],
+
             'product_type' => [
                 'required',
                 'string',
