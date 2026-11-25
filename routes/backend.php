@@ -7,6 +7,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\MarketingController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\ShippingDeliveryController;
+use App\Http\Controllers\CourierProviderController;
 use App\Http\Controllers\UserPageController;
 use App\Http\Controllers\WarrantyServiceController;
 use App\Services\AuthorizationService;
@@ -367,6 +368,7 @@ Route::prefix('backend')->middleware('auth')->group(function () {
     })->name('sales-returns.index');
 
     Route::get('/shipping-delivery', [ShippingDeliveryController::class, 'page'])->name('shipping-delivery.index');
+    Route::get('/shipping-delivery/courier-providers', [CourierProviderController::class, 'page'])->name('shipping-delivery.providers');
 
     Route::get('/warranty-service', [WarrantyServiceController::class, 'page'])
         ->name('warranty-service.index');

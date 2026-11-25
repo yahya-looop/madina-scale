@@ -208,6 +208,12 @@ export const primaryNavigation: NavigationItem[] = [
                 icon: 'truck',
                 permission: 'system.shipping.view',
             },
+            {
+                label: 'Courier Providers',
+                href: '/backend/shipping-delivery/courier-providers',
+                icon: 'truck',
+                permission: 'system.shipping.view',
+            },
         ],
     },
 

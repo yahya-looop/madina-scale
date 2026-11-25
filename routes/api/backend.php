@@ -38,6 +38,7 @@ use App\Http\Controllers\SalesOrderController;
 use App\Http\Controllers\SalesReturnController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\ShippingDeliveryController;
+use App\Http\Controllers\CourierProviderController;
 use App\Http\Controllers\UnitController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\WarrantyServiceController;
@@ -234,6 +235,10 @@ Route::middleware(['web', 'auth'])->group(function () {
     Route::post('/finance/controlled-accounting/{entry}/post', [ControlledAccountingController::class, 'post']);
     Route::post('/finance/controlled-accounting/{entry}/reject', [ControlledAccountingController::class, 'reject']);
 
+    Route::get('/shipping/courier-providers', [CourierProviderController::class, 'index'])->middleware('permission:system.shipping.view');
+    Route::post('/shipping/courier-providers', [CourierProviderController::class, 'store'])->middleware('permission:system.shipping.update');
+    Route::put('/shipping/courier-providers/{provider}', [CourierProviderController::class, 'update'])->middleware('permission:system.shipping.update');
+    Route::delete('/shipping/courier-providers/{provider}', [CourierProviderController::class, 'destroy'])->middleware('permission:system.shipping.update');
     Route::get('/shipping/overview', [ShippingDeliveryController::class, 'index'])->middleware('permission:system.shipping.view');
     Route::get('/shipping/shipments/{shipment}/events', [ShippingDeliveryController::class, 'events'])->middleware('permission:system.shipping.view');
     Route::patch('/shipping/shipments/{shipment}/status', [ShippingDeliveryController::class, 'updateStatus'])->middleware('permission:system.shipping.delivery.manage');
