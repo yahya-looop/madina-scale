@@ -49,6 +49,7 @@ class MenuRegistrySeeder extends Seeder
             ]],
             ['label' => 'Shipping & Delivery', 'icon' => 'shipping', 'module' => 'shipping', 'children' => [
                 ['label' => 'Delivery Dashboard', 'route' => '/backend/shipping-delivery', 'icon' => 'truck', 'permission' => 'system.shipping.view', 'module' => 'shipping'],
+                ['label' => 'Delivery Partners', 'route' => '/backend/shipping-delivery/courier-providers', 'icon' => 'truck', 'permission' => 'system.shipping.view', 'module' => 'shipping'],
             ]],
             ['label' => 'Payments', 'route' => '/backend/payments', 'icon' => 'payments', 'permission' => 'system.payments.view', 'module' => 'payments'],
             ['label' => 'Warranty & Service', 'route' => '/backend/warranty-service', 'icon' => 'service', 'permission' => 'system.warranty.view', 'module' => 'warranty'],

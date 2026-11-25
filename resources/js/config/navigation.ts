@@ -209,7 +209,7 @@ export const primaryNavigation: NavigationItem[] = [
                 permission: 'system.shipping.view',
             },
             {
-                label: 'Courier Providers',
+                label: 'Delivery Partners',
                 href: '/backend/shipping-delivery/courier-providers',
                 icon: 'truck',
                 permission: 'system.shipping.view',
