@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Services\FeatureFlagService;
 use App\Services\PricingEngine;
 use App\Services\SalesOrderService;
+use App\Services\CourierRateService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -34,7 +35,30 @@ class StorefrontCartController extends Controller
         );
     }
 
-    public function checkout(Request $request, SalesOrderService $orders): JsonResponse
+    public function deliveryQuotes(Request $request, CourierRateService $courierRates): JsonResponse
+    {
+        $this->ensureStorefrontEnabled($request);
+        $data = $request->validate([
+            'division' => ['nullable', 'string', 'max:120'],
+            'district' => ['nullable', 'string', 'max:120'],
+            'area' => ['nullable', 'string', 'max:120'],
+            'payment_method' => ['nullable', 'string', 'in:cash_on_delivery,bank_transfer'],
+        ]);
+        $cart = $this->resolvedCart($request);
+        if ($cart === []) {
+            return response()->json(['data' => ['zone' => null, 'parcel_weight_grams' => 0, 'quotes' => [], 'recommended_provider_code' => null, 'charge' => '0.00']]);
+        }
+
+        $weight = (int) collect($cart)->sum(fn (array $item): int => (int) $item['shipping_weight_grams'] * (int) $item['quantity']);
+        $codAmount = ($data['payment_method'] ?? 'cash_on_delivery') === 'cash_on_delivery'
+            ? (float) collect($cart)->sum(fn (array $item): float => (float) $item['price'] * (int) $item['quantity'])
+            : 0.0;
+        $zone = $this->resolveDeliveryZone((string) ($data['district'] ?? ''), (string) ($data['area'] ?? ''));
+
+        return response()->json(['data' => $courierRates->quote($zone, $weight, $codAmount)]);
+    }
+
+    public function checkout(Request $request, SalesOrderService $orders, CourierRateService $courierRates): JsonResponse
     {
         $this->ensureStorefrontEnabled($request);
         $phoneInput = (string) $request->input('customer_phone', '');
@@ -59,14 +83,6 @@ class StorefrontCartController extends Controller
             'idempotency_key' => ['required', 'string', 'max:100'],
         ]);
         $cart = $this->resolvedCart($request);
-        $parcelWeightGrams = (int) collect($cart)->sum(fn (array $item): int => (int) $item['shipping_weight_grams'] * (int) $item['quantity']);
-        $deliveryZone = $this->resolveDeliveryZone((string) ($data['district'] ?? ''), (string) ($data['area'] ?? ''));
-        $courierCode = $data['delivery_selection_mode'] === 'customer_choice' ? ($data['customer_preferred_courier_code'] ?? null) : null;
-        if ($data['delivery_selection_mode'] === 'customer_choice' && ! $courierCode) {
-            throw ValidationException::withMessages(['customer_preferred_courier_code' => 'Please select an available delivery partner.']);
-        }
-        $deliveryQuote = $this->buildDeliveryQuote($deliveryZone, $parcelWeightGrams, $courierCode);
-        $assignedCourierCode = $courierCode ?: $deliveryQuote['recommended_provider_code'];
         if ($cart === []) {
             $lastOrder = $request->session()->get('storefront_last_order');
             if (is_array($lastOrder) && ($lastOrder['idempotency_key'] ?? null) === $data['idempotency_key']) {
@@ -74,6 +90,17 @@ class StorefrontCartController extends Controller
             }
             throw ValidationException::withMessages(['cart' => 'আপনার কার্টে কোনো পণ্য নেই।']);
         }
+        $parcelWeightGrams = (int) collect($cart)->sum(fn (array $item): int => (int) $item['shipping_weight_grams'] * (int) $item['quantity']);
+        $deliveryZone = $this->resolveDeliveryZone((string) ($data['district'] ?? ''), (string) ($data['area'] ?? ''));
+        $courierCode = $data['delivery_selection_mode'] === 'customer_choice' ? ($data['customer_preferred_courier_code'] ?? null) : null;
+        if ($data['delivery_selection_mode'] === 'customer_choice' && ! $courierCode) {
+            throw ValidationException::withMessages(['customer_preferred_courier_code' => 'Please select an available delivery partner.']);
+        }
+        $codAmount = $data['payment_method'] === 'cash_on_delivery'
+            ? (float) collect($cart)->sum(fn (array $item): float => (float) $item['price'] * (int) $item['quantity'])
+            : 0.0;
+        $deliveryQuote = $courierRates->quote($deliveryZone, $parcelWeightGrams, $codAmount, $courierCode);
+        $assignedCourierCode = $courierCode ?: $deliveryQuote['recommended_provider_code'];
         $location = Location::query()->active()->orderByDesc('is_primary')->orderBy('id')->first();
         if (! $location) {
             throw ValidationException::withMessages(['cart' => 'এই মুহূর্তে অর্ডার নেওয়া সম্ভব হচ্ছে না। অনুগ্রহ করে পরে চেষ্টা করুন।']);
@@ -135,7 +162,7 @@ class StorefrontCartController extends Controller
             ])->values()->all(),
         ], null, true);
 
-        // Delivery amounts are recalculated by Laravel; the storefront's demo quote is never trusted.
+        // Delivery amounts are recalculated by Laravel from the active Admin rate rules; client prices are never trusted.
         $order->forceFill([
             'delivery_charge' => $deliveryQuote['charge'],
             'parcel_weight_grams' => $parcelWeightGrams,
@@ -181,40 +208,6 @@ class StorefrontCartController extends Controller
             if (str_contains($normalized, $name)) return 'remote_special';
         }
         return 'outside_dhaka';
-    }
-
-    /** Demo rate matrix used only until provider rate APIs and admin-configured tariffs are connected. */
-    private function buildDeliveryQuote(string $zone, int $weightGrams, ?string $preferredCode): array
-    {
-        $providers = [
-            'steadfast' => ['name' => 'Steadfast', 'base' => 70, 'per_kg' => 18],
-            'carrybee' => ['name' => 'CarryBee', 'base' => 75, 'per_kg' => 20],
-            'bangladesh_post' => ['name' => 'Bangladesh Post Office', 'base' => 55, 'per_kg' => 15],
-            'pathao' => ['name' => 'Pathao Courier', 'base' => 70, 'per_kg' => 20],
-            'redx' => ['name' => 'REDX', 'base' => 65, 'per_kg' => 18],
-        ];
-        $zoneMultiplier = match ($zone) { 'inside_dhaka' => 1.0, 'remote_special' => 1.8, default => 1.35 };
-        $weightKg = max(0.5, $weightGrams / 1000);
-        $quotes = [];
-        foreach ($providers as $code => $provider) {
-            $charge = (int) ceil(($provider['base'] + max(0, $weightKg - 0.5) * $provider['per_kg']) * $zoneMultiplier);
-            $quotes[$code] = ['provider_code' => $code, 'provider_name' => $provider['name'], 'charge' => $charge, 'is_demo' => true];
-        }
-        $recommended = collect($quotes)->sortBy('charge')->first();
-        $selected = $preferredCode ? ($quotes[$preferredCode] ?? null) : null;
-        if ($preferredCode && ! $selected) {
-            throw ValidationException::withMessages(['customer_preferred_courier_code' => 'The selected delivery partner is unavailable.']);
-        }
-        return [
-            'zone' => $zone,
-            'parcel_weight_grams' => $weightGrams,
-            'recommended_provider_code' => $recommended['provider_code'],
-            'selected_provider' => $selected,
-            'charge' => (string) ($selected['charge'] ?? $recommended['charge']),
-            'quotes' => array_values($quotes),
-            'is_demo' => true,
-            'calculated_at' => now()->toIso8601String(),
-        ];
     }
 
     /** @return array<int, array<string, mixed>> */

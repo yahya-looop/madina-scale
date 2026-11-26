@@ -36,6 +36,8 @@ const form = reactive<CheckoutForm>({
   notes: '',
 })
 
+const paymentMethod = ref<'cash_on_delivery' | 'bank_transfer'>('cash_on_delivery')
+
 const {
   courierOptions,
   selectedCourierCode,
@@ -45,19 +47,20 @@ const {
   selectedCourier,
   deliveryCharge,
   quoteDisclaimer,
+  quoteLoading,
+  quoteError,
   setSelectionMode,
   setCourier,
-} = useDemoDeliveryOptions(cart, () => ({
+} = useDeliveryOptions(cart, () => ({
   division: form.division,
   district: form.district,
   area: form.area,
-}))
+}), () => paymentMethod.value)
 const payableTotal = computed(() => Number(cart.value.subtotal || 0) + deliveryCharge.value)
 const submitting = ref(false)
 const message = ref('')
 const fieldErrors = ref<Record<string, string[]>>({})
 const orderAttemptKey = ref('')
-const paymentMethod = ref<'cash_on_delivery' | 'bank_transfer'>('cash_on_delivery')
 const bankForm = reactive({
   sender_account: '',
   transaction_reference: '',
@@ -272,19 +275,9 @@ async function placeOrder() {
           }))(form),
           customer_phone: normalizedPhone.value,
           payment_method: paymentMethod.value,
-          // Storefront demo payload: Laravel courier/shipment integration will be added later.
+          // Courier choice is submitted as a preference; Laravel recalculates the charge from Admin rate rules.
           customer_preferred_courier_code: selectionMode.value === 'customer_choice' ? selectedCourierCode.value : null,
           delivery_selection_mode: selectionMode.value,
-          delivery_zone: deliveryZone.value,
-          estimated_parcel_weight_grams: estimatedWeightGrams.value,
-          demo_delivery_quote: {
-            provider_code: selectedCourier.value?.code || null,
-            provider_name: selectedCourier.value?.name || null,
-            charge: deliveryCharge.value,
-            estimated_min_days: selectedCourier.value?.minDays || null,
-            estimated_max_days: selectedCourier.value?.maxDays || null,
-            is_demo: true,
-          },
           ...(paymentMethod.value === 'bank_transfer' ? {
             bank_sender_account: bankForm.sender_account.trim(),
             bank_transaction_reference: bankForm.transaction_reference.trim(),
@@ -409,15 +402,17 @@ async function placeOrder() {
               <div class="rounded-2xl border border-sky-100 bg-sky-50/70 p-4">
                 <div class="flex items-start gap-3">
                   <span class="grid size-9 shrink-0 place-items-center rounded-xl bg-white text-sky-800"><UiIcon name="info" :size="18" /></span>
-                  <div class="min-w-0"><p class="text-sm font-extrabold text-sky-950">Demo delivery options</p><p class="mt-1 text-xs leading-5 text-sky-900/80">{{ quoteDisclaimer }} These sample providers, prices and delivery estimates are illustrative only and do not create a real courier booking.</p></div>
+                  <div class="min-w-0"><p class="text-sm font-extrabold text-sky-950">Delivery options</p><p class="mt-1 text-xs leading-5 text-sky-900/80">{{ quoteDisclaimer }}</p></div>
                 </div>
               </div>
+              <p v-if="quoteLoading" class="text-xs text-slate-500">Calculating delivery rates…</p>
+              <p v-else-if="quoteError" class="rounded-lg bg-amber-50 p-3 text-xs text-amber-800">{{ quoteError }}</p>
 
               <button type="button" class="flex w-full items-start gap-3 rounded-2xl border-2 p-4 text-left transition"
                 :class="selectionMode === 'no_preference' ? 'border-emerald-700 bg-emerald-50/60 shadow-sm' : 'border-slate-200 hover:border-emerald-200'"
                 @click="setSelectionMode('no_preference')">
                 <span class="mt-0.5 grid size-5 shrink-0 place-items-center rounded-full border-2" :class="selectionMode === 'no_preference' ? 'border-emerald-700' : 'border-slate-300'"><span v-if="selectionMode === 'no_preference'" class="size-2.5 rounded-full bg-emerald-700" /></span>
-                <span class="min-w-0 flex-1"><span class="block text-sm font-extrabold text-slate-950">No preference — choose for me</span><span class="mt-1 block text-xs leading-5 text-slate-600">MADINA will recommend a suitable delivery partner based on this demo quote.</span></span>
+                <span class="min-w-0 flex-1"><span class="block text-sm font-extrabold text-slate-950">No preference — choose for me</span><span class="mt-1 block text-xs leading-5 text-slate-600">MADINA will recommend the lowest configured rate for your delivery area and parcel weight.</span></span>
                 <span v-if="selectionMode === 'no_preference'" class="rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wider text-emerald-900">Recommended</span>
               </button>
 
@@ -434,8 +429,8 @@ async function placeOrder() {
                     <span class="grid size-5 shrink-0 place-items-center rounded-full border-2" :class="selectionMode === 'customer_choice' && selectedCourierCode === courier.code ? 'border-emerald-700 bg-emerald-700 text-white' : 'border-slate-300'"><UiIcon v-if="selectionMode === 'customer_choice' && selectedCourierCode === courier.code" name="check" :size="12" /></span>
                   </span>
                   <span class="mt-4 flex items-end justify-between gap-2">
-                    <span><span class="block text-[10px] text-slate-500">Estimated delivery</span><span class="mt-0.5 block text-xs font-bold text-slate-800">{{ courier.minDays }}–{{ courier.maxDays }} business days</span></span>
-                    <span class="text-right"><span class="block text-[10px] text-slate-500">Demo charge</span><strong class="text-lg font-black tabular-nums text-slate-950">{{ money(courier.charge) }}</strong></span>
+                    <span><span class="block text-[10px] text-slate-500">Estimated delivery</span><span class="mt-0.5 block text-xs font-bold text-slate-800">Rate configured by store</span></span>
+                    <span class="text-right"><span class="block text-[10px] text-slate-500">Delivery charge</span><strong class="text-lg font-black tabular-nums text-slate-950">{{ money(courier.charge) }}</strong></span>
                   </span>
                   <span class="mt-3 flex flex-wrap gap-1.5">
                     <span v-for="feature in courier.features" :key="feature" class="rounded-full bg-slate-100 px-2 py-1 text-[9px] font-semibold text-slate-600">{{ feature }}</span>
@@ -482,7 +477,7 @@ async function placeOrder() {
           </section>
 
           <div v-if="message" class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm leading-6 text-red-800" role="alert" aria-live="assertive">{{ message }}</div>
-          <div class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6"><p class="text-xs leading-5 text-slate-500">By placing this order, you confirm that your contact and delivery information is accurate. Our team will use it to process and coordinate this order.</p><button type="submit" :disabled="submitting || !cart.items.length || !form.customer_name.trim() || !phoneLooksValid || !form.address_line.trim()" class="mt-4 flex min-h-14 w-full items-center justify-center gap-2 rounded-xl bg-[#073f31] px-5 py-4 text-sm font-extrabold text-white shadow-lg shadow-emerald-950/10 transition hover:bg-emerald-950 focus:outline-none focus:ring-4 focus:ring-emerald-800/20 disabled:cursor-not-allowed disabled:opacity-50"><span v-if="submitting" class="size-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />{{ submitting ? 'Submitting your order…' : (paymentMethod === 'bank_transfer' ? 'Submit bank transfer details · ' : 'Place order · ') + money(payableTotal) }}</button><p class="mt-3 text-center text-[11px] leading-5 text-slate-500">Please click once. Bank transfer orders remain pending until our team verifies and receives the payment.</p></div>
+          <div class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6"><p class="text-xs leading-5 text-slate-500">By placing this order, you confirm that your contact and delivery information is accurate. Our team will use it to process and coordinate this order.</p><button type="submit" :disabled="submitting || quoteLoading || !courierOptions.length || !cart.items.length || !form.customer_name.trim() || !phoneLooksValid || !form.address_line.trim()" class="mt-4 flex min-h-14 w-full items-center justify-center gap-2 rounded-xl bg-[#073f31] px-5 py-4 text-sm font-extrabold text-white shadow-lg shadow-emerald-950/10 transition hover:bg-emerald-950 focus:outline-none focus:ring-4 focus:ring-emerald-800/20 disabled:cursor-not-allowed disabled:opacity-50"><span v-if="submitting" class="size-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />{{ submitting ? 'Submitting your order…' : (paymentMethod === 'bank_transfer' ? 'Submit bank transfer details · ' : 'Place order · ') + money(payableTotal) }}</button><p class="mt-3 text-center text-[11px] leading-5 text-slate-500">Please click once. Bank transfer orders remain pending until our team verifies and receives the payment.</p></div>
         </form>
 
         <aside class="space-y-4 lg:sticky lg:top-6">
@@ -491,7 +486,7 @@ async function placeOrder() {
             <div class="max-h-[390px] space-y-4 overflow-y-auto p-5 sm:px-6">
               <article v-for="item in cart.items" :key="item.variant_id" class="flex gap-3"><NuxtLink :to="`/products/${item.product_slug}`" class="size-[68px] shrink-0 overflow-hidden rounded-xl border border-slate-100 bg-slate-50"><StorefrontImage :src="item.image_url" :alt="item.product_name" kind="product" label="Checkout Product Image" dimensions="160 × 160 px" ratio="1 / 1" :width="160" :height="160" /></NuxtLink><div class="min-w-0 flex-1"><NuxtLink :to="`/products/${item.product_slug}`" class="line-clamp-2 text-sm font-bold leading-5 text-slate-900 hover:text-emerald-800">{{ item.product_name }}</NuxtLink><p class="mt-1 line-clamp-1 text-xs text-slate-500">{{ item.variant_name }}</p><div class="mt-2 flex items-center justify-between gap-2"><span class="text-xs font-medium text-slate-500">Qty: {{ item.quantity }}</span><strong class="text-sm tabular-nums text-slate-900">{{ money(item.line_total) }}</strong></div></div></article>
             </div>
-            <div class="space-y-3 border-t border-slate-100 px-5 py-5 sm:px-6"><div class="flex justify-between gap-3 text-sm"><span class="text-slate-600">Items subtotal</span><strong class="tabular-nums text-slate-900">{{ money(payableTotal) }}</strong></div><div class="flex justify-between gap-3 text-sm"><span class="text-slate-600">Delivery · {{ selectedCourier?.name || 'Recommended' }}</span><strong class="tabular-nums text-slate-900">{{ money(deliveryCharge) }}</strong></div><div class="border-t border-dashed border-slate-200 pt-4"><div class="flex items-end justify-between gap-3"><span class="font-extrabold text-slate-950">Total payable</span><strong class="text-2xl font-black tracking-tight tabular-nums text-slate-950">{{ money(payableTotal) }}</strong></div><p class="mt-2 text-[11px] leading-5 text-slate-500">Delivery amount shown is demo pricing. Final courier rates will be connected to the backend later.</p></div></div>
+            <div class="space-y-3 border-t border-slate-100 px-5 py-5 sm:px-6"><div class="flex justify-between gap-3 text-sm"><span class="text-slate-600">Items subtotal</span><strong class="tabular-nums text-slate-900">{{ money(payableTotal) }}</strong></div><div class="flex justify-between gap-3 text-sm"><span class="text-slate-600">Delivery · {{ selectedCourier?.name || 'Recommended' }}</span><strong class="tabular-nums text-slate-900">{{ money(deliveryCharge) }}</strong></div><div class="border-t border-dashed border-slate-200 pt-4"><div class="flex items-end justify-between gap-3"><span class="font-extrabold text-slate-950">Total payable</span><strong class="text-2xl font-black tracking-tight tabular-nums text-slate-950">{{ money(payableTotal) }}</strong></div><p class="mt-2 text-[11px] leading-5 text-slate-500">Delivery amount is calculated by the backend using the active rate rules configured in Admin. Live courier API pricing is not implied.</p></div></div>
           </section>
           <section class="rounded-3xl border border-emerald-100 bg-emerald-50/70 p-5"><div class="flex gap-3"><span class="grid size-10 shrink-0 place-items-center rounded-xl bg-white text-emerald-800"><UiIcon name="headset" :size="19" /></span><div><h3 class="text-sm font-extrabold text-slate-950">Order support</h3><p class="mt-1 text-xs leading-5 text-slate-600">Need help before placing your order? Our team is ready to assist.</p><NuxtLink to="/pages/contact" class="mt-2 inline-flex text-xs font-extrabold text-emerald-800 hover:underline">Contact MADINA →</NuxtLink></div></div></section>
           <NuxtLink to="/cart" class="flex min-h-11 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-700 transition hover:border-emerald-700 hover:text-emerald-800">Review or edit cart</NuxtLink>

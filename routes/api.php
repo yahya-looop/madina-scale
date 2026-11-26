@@ -53,6 +53,7 @@ Route::prefix('v1/storefront')->middleware('web')->group(function (): void {
     Route::post('/cart/items', [StorefrontCartApiController::class, 'add'])->middleware('throttle:60,1');
     Route::patch('/cart/items/{variant}', [StorefrontCartApiController::class, 'update'])->whereNumber('variant');
     Route::delete('/cart/items/{variant}', [StorefrontCartApiController::class, 'remove'])->whereNumber('variant');
+    Route::get('/delivery/quotes', [\App\Http\Controllers\StorefrontCartController::class, 'deliveryQuotes'])->middleware('throttle:60,1');
     Route::post('/checkout', [\App\Http\Controllers\StorefrontCartController::class, 'checkout'])->middleware('throttle:10,1');
 });
 
