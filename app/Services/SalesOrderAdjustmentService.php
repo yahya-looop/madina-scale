@@ -110,10 +110,16 @@ class SalesOrderAdjustmentService
                 ]),
             ]);
 
-            $isAlreadyPaid = in_array($locked->payment_status, ['paid', 'partially_paid'], true);
+            // payment_status is a checkout/bank-transfer workflow state, not the
+            // authoritative amount-paid ledger. Use posted payment allocations so
+            // partial receipts and cash/COD reconciliations are not missed.
+            $allocatedPayments = (string) DB::table('payment_allocations')
+                ->where('sales_order_id', $locked->id)
+                ->sum('amount');
+            $hasReceivedPayment = bccomp($allocatedPayments, '0.00', 2) > 0;
             $settlement = bccomp($delta, '0.00', 2) > 0
                 ? 'collection_due'
-                : (bccomp($delta, '0.00', 2) < 0 && $isAlreadyPaid ? 'customer_credit_due' : 'not_required');
+                : (bccomp($delta, '0.00', 2) < 0 && $hasReceivedPayment ? 'customer_credit_due' : 'not_required');
 
             $after = [
                 'subtotal' => $subtotal, 'discount_total' => $discount,
