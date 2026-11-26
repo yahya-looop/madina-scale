@@ -18,7 +18,8 @@ type SettingGroup =
     | 'business'
     | 'security'
     | 'system'
-    | 'crm';
+    | 'crm'
+    | 'shipping';
 
 type SettingType = 'string' | 'boolean' | 'integer' | 'json';
 
@@ -108,6 +109,12 @@ const categories: CategoryDefinition[] = [
         icon: 'users',
     },
     {
+        id: 'shipping',
+        label: 'Shipping & Packaging',
+        description: 'Parcel packaging policy and fixed shipment weight.',
+        icon: 'truck',
+    },
+    {
         id: 'system',
         label: 'System',
         description: 'Core platform behavior and operations.',
@@ -116,6 +123,14 @@ const categories: CategoryDefinition[] = [
 ];
 
 const definitions: SettingDefinition[] = [
+    {
+        key: 'shipping.packaging_weight_grams',
+        label: 'Fixed Packaging Weight',
+        description: 'Weight added once to each order parcel, in grams. Set 0 if packaging weight is not included.',
+        group: 'shipping',
+        type: 'integer',
+        icon: 'truck',
+    },
     {
         key: 'general.site_name',
         label: 'Site Name',
@@ -3300,6 +3315,32 @@ onMounted(() => {
                                     </div>
                                 </fieldset>
                             </div>
+                            <div
+                                v-if="activeCategory === 'shipping'"
+                                class="settings-card setting-group-card"
+                            >
+                                <div class="subsection-heading">
+                                    <div>
+                                        <strong>Parcel Packaging Policy</strong>
+                                        <span>One fixed packaging weight is added once to the combined product weight for each storefront order.</span>
+                                    </div>
+                                </div>
+                                <div class="form-grid">
+                                    <label class="field">
+                                        <span>Fixed Packaging Weight (grams)</span>
+                                        <small>Example: enter 150 to add 150g to every parcel, regardless of the number of products.</small>
+                                        <input
+                                            :value="numberValue('shipping.packaging_weight_grams', 0)"
+                                            type="number"
+                                            min="0"
+                                            max="10000"
+                                            step="1"
+                                            @input="setValue('shipping.packaging_weight_grams', Math.max(0, Math.min(10000, Math.floor(Number(($event.target as HTMLInputElement).value) || 0))))"
+                                        />
+                                    </label>
+                                </div>
+                            </div>
+
                             <div
                                 v-if="activeCategory === 'system'"
                                 class="settings-card setting-group-card"

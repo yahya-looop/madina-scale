@@ -137,6 +137,13 @@ interface Order {
     riskAssessments?: RiskAssessment[];
     shipments?: Shipment[];
     sms_logs?: SmsLog[];
+    adjustments?: Array<{
+        id: number; adjustment_number: string; reason: string;
+        previous_total: string | number; new_total: string | number;
+        financial_delta: string | number; settlement_status: string;
+        created_at: string; actor?: { name?: string | null } | null;
+        settlements?: Array<{ id: number; settlement_type: string; amount: string | number; reference?: string | null; financial_transaction_id?: number | null; created_at: string }>;
+    }>;
     smsLogs?: SmsLog[];
 }
 const props = withDefaults(defineProps<Props>(), {
@@ -185,6 +192,24 @@ const smsPreview = computed(() => {
     return smsDraft.value || templates[smsEvent.value] || templates.confirmed;
 });
 const riskLoading = ref(false);
+const adjustmentReason = ref('');
+const adjustmentDiscount = ref('');
+const adjustmentDelivery = ref('');
+const adjustmentPrices = ref<Record<number, string>>({});
+const adjustmentSaving = ref(false);
+const settlementDrafts = ref<Record<number, { settlement_type: string; amount: string; financial_transaction_id: string; reference: string }>>({});
+const settlementSavingId = ref<number | null>(null);
+function prepareSettlementDrafts(order: Order | null) {
+    if (!order?.adjustments) return;
+    for (const entry of order.adjustments) {
+        if (!settlementDrafts.value[entry.id]) settlementDrafts.value[entry.id] = {
+            settlement_type: Number(entry.financial_delta) > 0 ? 'collection' : 'customer_credit',
+            amount: '', financial_transaction_id: '', reference: '',
+        };
+    }
+}
+
+
 const locationId = ref('');
 const customerName = ref('');
 const customerId = ref<number | null>(null);
@@ -264,6 +289,67 @@ async function api(url: string, init: RequestInit = {}) {
     }
     return payload;
 }
+async function applyOrderAdjustment() {
+    if (!detail.value) return;
+    const payload: Record<string, unknown> = { reason: adjustmentReason.value.trim() };
+    if (adjustmentDiscount.value !== '') payload.discount_total = Number(adjustmentDiscount.value);
+    if (adjustmentDelivery.value !== '') payload.delivery_charge = Number(adjustmentDelivery.value);
+    const itemChanges = (detail.value.items || [])
+        .filter((item) => adjustmentPrices.value[item.id] !== undefined && adjustmentPrices.value[item.id] !== ''
+            && Number(adjustmentPrices.value[item.id]) !== Number(item.unit_price))
+        .map((item) => ({ id: item.id, unit_price: Number(adjustmentPrices.value[item.id]) }));
+    if (itemChanges.length) payload.items = itemChanges;
+    if (payload.discount_total === undefined && payload.delivery_charge === undefined && !itemChanges.length) {
+        error.value = 'Enter at least one changed price, discount or delivery charge.';
+        return;
+    }
+    adjustmentSaving.value = true;
+    error.value = '';
+    try {
+        const result = await api(`/api/v1/backend/orders/${detail.value.id}/adjustments`, {
+            method: 'POST', body: JSON.stringify(payload),
+        });
+        detail.value = result.order;
+        prepareSettlementDrafts(detail.value);
+        adjustmentReason.value = '';
+        adjustmentDiscount.value = '';
+        adjustmentDelivery.value = '';
+        adjustmentPrices.value = {};
+        notice.value = result.message || 'Order adjustment recorded.';
+        await load();
+    } catch (e) {
+        error.value = e instanceof Error ? e.message : 'Could not apply order adjustment.';
+    } finally {
+        adjustmentSaving.value = false;
+    }
+}
+
+async function settleOrderAdjustment(entry: NonNullable<Order['adjustments']>[number]) {
+    if (!detail.value) return;
+    const draft = settlementDrafts.value[entry.id];
+    if (!draft || !draft.amount) { error.value = 'Enter the settlement amount.'; return; }
+    settlementSavingId.value = entry.id;
+    error.value = '';
+    try {
+        await api(`/api/v1/backend/orders/${detail.value.id}/adjustments/${entry.id}/settlements`, {
+            method: 'POST',
+            body: JSON.stringify({
+                settlement_type: draft.settlement_type,
+                amount: Number(draft.amount),
+                financial_transaction_id: draft.financial_transaction_id ? Number(draft.financial_transaction_id) : null,
+                reference: draft.reference || null,
+            }),
+        });
+        const refreshed = await api(`/api/v1/backend/orders/${detail.value.id}`);
+        detail.value = refreshed.data;
+        prepareSettlementDrafts(detail.value);
+        settlementDrafts.value[entry.id] = { ...draft, amount: '', financial_transaction_id: '', reference: '' };
+        notice.value = 'Adjustment settlement recorded.';
+    } catch (e) {
+        error.value = e instanceof Error ? e.message : 'Could not reconcile adjustment.';
+    } finally { settlementSavingId.value = null; }
+}
+
 async function load(target = page.value) {
     loading.value = true;
     error.value = '';
@@ -456,6 +542,7 @@ async function openDetail(order: Order) {
     try {
         const payload = await api(`/api/v1/backend/orders/${order.id}`);
         detail.value = payload.data;
+        prepareSettlementDrafts(detail.value);
         courierAddress.value =
             payload.data.shipments?.[0]?.recipient_address || '';
         courierCod.value = String(payload.data.grand_total ?? '0');
@@ -3084,6 +3171,56 @@ onMounted(async () => {
                                             No shipment has been booked yet.
                                         </div>
                                     </div>
+                                </div>
+                            </section>
+
+                            <section class="orders-detail-card">
+                                <div class="orders-section-heading">
+                                    <span class="orders-section-icon"><Icon name="calculator" :size="17" /></span>
+                                    <div>
+                                        <h3>Financial adjustments</h3>
+                                        <p>Change this order's agreed prices only. Catalogue prices remain unchanged; every adjustment is audited.</p>
+                                    </div>
+                                </div>
+                                <div class="orders-detail-grid">
+                                    <label v-for="item in (detail.items || [])" :key="item.id">
+                                        <span>{{ item.product_name }} — {{ item.variant_name || item.sku || '' }} (current {{ currency(item.unit_price) }})</span>
+                                        <input v-model="adjustmentPrices[item.id]" type="number" min="0" step="0.01" :placeholder="String(item.unit_price)" />
+                                    </label>
+                                    <label>Order discount (leave blank to keep)
+                                        <input v-model="adjustmentDiscount" type="number" min="0" step="0.01" placeholder="No change" />
+                                    </label>
+                                    <label>Delivery charge (leave blank to keep)
+                                        <input v-model="adjustmentDelivery" type="number" min="0" step="0.01" placeholder="No change" />
+                                    </label>
+                                    <label class="orders-span-2">Reason (required)
+                                        <textarea v-model="adjustmentReason" rows="2" maxlength="1000" placeholder="Explain why this commercial adjustment is needed…" />
+                                    </label>
+                                </div>
+                                <div class="orders-detail-actions">
+                                    <button class="orders-primary" :disabled="adjustmentSaving || adjustmentReason.trim().length < 5" @click="applyOrderAdjustment">
+                                        {{ adjustmentSaving ? 'Applying…' : 'Apply audited adjustment' }}
+                                    </button>
+                                </div>
+                                <div class="orders-history-list">
+                                    <article v-for="entry in (detail.adjustments || [])" :key="entry.id">
+                                        <div><strong>{{ entry.adjustment_number }}</strong><small>{{ entry.reason }} · {{ entry.actor?.name || 'System' }} · {{ date(entry.created_at) }}</small></div>
+                                        <div><strong>{{ currency(entry.previous_total) }} → {{ currency(entry.new_total) }}</strong><small>Delta {{ currency(entry.financial_delta) }} · {{ (entry.settlements || []).reduce((sum, x) => sum + Number(x.amount), 0) >= Math.abs(Number(entry.financial_delta)) ? 'settled' : entry.settlement_status.replaceAll('_', ' ') }}</small>
+                                            <small v-for="settlement in (entry.settlements || [])" :key="settlement.id">{{ settlement.settlement_type.replaceAll('_', ' ') }}: {{ currency(settlement.amount) }} · {{ settlement.reference || 'Recorded' }}</small>
+                                            <div v-if="entry.settlement_status !== 'not_required' && (entry.settlements || []).reduce((sum, x) => sum + Number(x.amount), 0) < Math.abs(Number(entry.financial_delta))" class="orders-adjustment-settle">
+                                                <select v-model="settlementDrafts[entry.id].settlement_type">
+                                                    <option v-if="Number(entry.financial_delta) > 0" value="collection">Collection</option>
+                                                    <option v-if="Number(entry.financial_delta) < 0" value="refund">Refund</option>
+                                                    <option v-if="Number(entry.financial_delta) < 0" value="customer_credit">Customer credit</option>
+                                                </select>
+                                                <input v-model="settlementDrafts[entry.id].amount" type="number" min="0.01" step="0.01" placeholder="Amount" />
+                                                <input v-if="(settlementDrafts[entry.id]?.settlement_type || (Number(entry.financial_delta) > 0 ? 'collection' : 'customer_credit')) !== 'customer_credit'" v-model="settlementDrafts[entry.id].financial_transaction_id" type="number" min="1" placeholder="Financial transaction ID" />
+                                                <input v-model="settlementDrafts[entry.id].reference" placeholder="Reference (optional)" />
+                                                <button class="orders-primary" :disabled="settlementSavingId === entry.id" @click="settleOrderAdjustment(entry)">{{ settlementSavingId === entry.id ? 'Saving…' : 'Record settlement' }}</button>
+                                            </div>
+                                        </div>
+                                    </article>
+                                    <p v-if="!(detail.adjustments || []).length" class="orders-detail-empty">No financial adjustments have been recorded.</p>
                                 </div>
                             </section>
 
@@ -7978,4 +8115,13 @@ body:has(.orders-detail-overlay) {
     button:not(.orders-primary):not(.orders-danger) {
     color: var(--ms-text-heading);
 }
+
+.orders-history-list { display:grid; gap:10px; margin-top:16px; }
+.orders-history-list article { display:flex; justify-content:space-between; gap:16px; align-items:flex-start; border:1px solid var(--ms-border); border-radius:12px; padding:12px 14px; }
+.orders-history-list article > div { display:grid; gap:4px; }
+.orders-history-list small { color:var(--ms-text-muted); font-size:12px; }
+.orders-span-2 { grid-column:1 / -1; }
+.orders-adjustment-settle { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+.orders-adjustment-settle input, .orders-adjustment-settle select { min-width:120px; max-width:180px; border:1px solid var(--ms-border); border-radius:8px; padding:7px 9px; font-size:12px; }
+@media (max-width:700px) { .orders-history-list article { flex-direction:column; } }
 </style>

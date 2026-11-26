@@ -25,6 +25,7 @@ interface ProductMedia {
     height: number | null;
     alt_text: string | null;
     sort_order: number;
+
     is_primary: boolean;
 }
 
@@ -50,6 +51,7 @@ interface Product {
     visibility: 'visible' | 'hidden';
 
     sort_order: number;
+    shipping_weight_grams: number | null;
 
     category?: Option | null;
     brand?: Option | null;

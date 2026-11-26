@@ -68,6 +68,8 @@ interface ProductVariant {
 
     promotional_price: string | number | null;
 
+    shipping_weight_override_grams: number | null;
+
     promotion_starts_at: string | null;
 
     promotion_ends_at: string | null;
@@ -95,6 +97,8 @@ interface VariantForm {
     wholesale_price: string;
 
     promotional_price: string;
+
+    shipping_weight_override_grams: string;
 
     promotion_starts_at: string;
 
@@ -157,6 +161,8 @@ function emptyForm(): VariantForm {
         wholesale_price: '',
 
         promotional_price: '',
+
+        shipping_weight_override_grams: '',
 
         promotion_starts_at: '',
 
@@ -357,6 +363,10 @@ function openEdit(variant: ProductVariant): void {
             variant.promotional_price == null
                 ? ''
                 : String(variant.promotional_price),
+
+        shipping_weight_override_grams: variant.shipping_weight_override_grams == null
+            ? ''
+            : String(variant.shipping_weight_override_grams),
 
         promotion_starts_at: toLocalDateTime(variant.promotion_starts_at),
 

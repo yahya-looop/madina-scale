@@ -6,9 +6,9 @@ const page = {
   "title": "Wholesale Purchase",
   "subtitle": "Looking to purchase weighing equipment in quantity? Tell us about your business requirements.",
   "icon": "boxes",
-  "notice": "Demo enquiry guidance only. Wholesale pricing, minimum quantities, delivery terms and credit facilities are not confirmed on this page.",
-  "ctaLabel": "Send an enquiry",
-  "ctaTo": "/pages/contact",
+  "notice": "Submit your requirements through the RFQ form. A quotation is prepared after the corporate sales team reviews your request; submission does not confirm an order.",
+  "ctaLabel": "Submit a corporate RFQ",
+  "ctaTo": "/corporate-rfq",
   "sections": [
     {
       "title": "Who can enquire?",

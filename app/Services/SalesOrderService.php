@@ -151,6 +151,7 @@ class SalesOrderService
                     'product_name' => $variant->product->name,
                     'variant_name' => $variant->name,
                     'sku' => $variant->sku ?: $variant->product->sku,
+                    'shipping_weight_grams' => $variant->shipping_weight_override_grams ?? $variant->product->shipping_weight_grams,
                     'quantity' => $qty,
                     'unit_price' => $unitPrice,
                     'line_total' => $lineTotal,
@@ -401,6 +402,7 @@ class SalesOrderService
                     'product_name' => $variant->product->name,
                     'variant_name' => $variant->name,
                     'sku' => $variant->sku ?: $variant->product->sku,
+                    'shipping_weight_grams' => $variant->shipping_weight_override_grams ?? $variant->product->shipping_weight_grams,
                     'quantity' => $qty,
                     'unit_price' => $unitPrice,
                     'line_total' => $lineTotal,
@@ -803,6 +805,7 @@ class SalesOrderService
             (string) $order->tax_total,
             2
         );
+        $expectedGrand = bcadd($expectedGrand, (string) ($order->delivery_charge ?? '0.00'), 2);
         if (bccomp($expectedGrand, (string) $order->grand_total, 2) !== 0
             || bccomp((string) $order->discount_total, (string) $order->subtotal, 2) > 0) {
             throw ValidationException::withMessages(['pricing' => 'Order subtotal, discount, tax and grand total do not reconcile.']);

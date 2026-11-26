@@ -34,6 +34,7 @@ Route::prefix('v1/storefront')->middleware('web')->group(function (): void {
     Route::get('/cms/pages/{slug}', [PublicCmsPageController::class, 'show'])->where('slug', '[A-Za-z0-9-]+');
     Route::get('/support/contact', [PublicStorefrontSupportController::class, 'contact']);
     Route::post('/orders/track', [PublicOrderTrackingController::class, 'track'])->middleware('throttle:5,1');
+    Route::post('/b2b/rfqs', [\App\Http\Controllers\B2BController::class, 'submitRfq'])->middleware('throttle:5,1');
 
     // Customer session authentication for the Nuxt storefront.
     Route::prefix('auth')->group(function (): void {

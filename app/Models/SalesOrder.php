@@ -37,6 +37,7 @@ class SalesOrder extends Model
         'payment_method', 'payment_status', 'payment_details',
         'delivery_charge', 'parcel_weight_grams', 'delivery_zone', 'delivery_selection_mode',
         'customer_preferred_courier_code', 'system_recommended_courier_code', 'assigned_courier_code', 'delivery_quote_snapshot',
+        'product_weight_grams', 'packaging_weight_grams', 'parcel_weight_snapshot',
         'idempotency_key',
     ];
 
@@ -50,6 +51,9 @@ class SalesOrder extends Model
             'delivery_charge' => 'decimal:2',
             'parcel_weight_grams' => 'integer',
             'delivery_quote_snapshot' => 'array',
+            'product_weight_grams' => 'integer',
+            'packaging_weight_grams' => 'integer',
+            'parcel_weight_snapshot' => 'array',
             'pricing_snapshot' => 'array',
             'payment_details' => 'array',
             'credit_snapshot' => 'array',
@@ -99,6 +103,13 @@ class SalesOrder extends Model
     public function items(): HasMany
     {
         return $this->hasMany(SalesOrderItem::class, 'sales_order_id');
+    }
+
+
+    /** @return HasMany<SalesOrderAdjustment, $this> */
+    public function adjustments(): HasMany
+    {
+        return $this->hasMany(SalesOrderAdjustment::class, 'sales_order_id')->latest('id');
     }
 
     /** @return HasMany<PricingPromotionRedemption, $this> */

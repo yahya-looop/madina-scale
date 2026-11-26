@@ -9,11 +9,17 @@ use App\Models\Location;
 use App\Models\ProductVariant;
 use App\Models\SalesOrder;
 use App\Models\SalesOrderPhoneVerification;
+use App\Models\SalesOrderAdjustment;
+use App\Models\FinancialTransaction;
+use App\Models\SalesOrderAdjustmentSettlement;
 use App\Services\LocationInventoryAccessService;
 use App\Services\OrderSmsService;
 use App\Services\SalesOrderService;
+use App\Services\SalesOrderAdjustmentService;
+use App\Services\ActivityLogService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -248,7 +254,7 @@ class SalesOrderController extends Controller
     public function show(Request $request, SalesOrder $order): JsonResponse
     {
         $this->locationAccess->assertView($request->user(), (int) $order->location_id);
-        $order->load(['location:id,name,code', 'creator:id,name', 'items.fulfillmentItems', 'statusHistory.actor:id,name', 'fulfillments.items.orderItem', 'shipments', 'riskAssessments', 'smsLogs']);
+        $order->load(['location:id,name,code', 'creator:id,name', 'items.fulfillmentItems', 'statusHistory.actor:id,name', 'fulfillments.items.orderItem', 'shipments', 'riskAssessments', 'smsLogs', 'adjustments.actor:id,name', 'adjustments.settlements.actor:id,name', 'adjustments.settlements.transaction']);
         $order->items->each(function ($item): void {
             $done = $item->fulfillmentItems->sum(fn ($line) => (float) $line->quantity);
             $item->setAttribute('fulfilled_quantity', number_format($done, 4, '.', ''));
@@ -256,6 +262,141 @@ class SalesOrderController extends Controller
         });
 
         return response()->json(['data' => $order]);
+    }
+
+    public function adjust(
+        Request $request,
+        SalesOrder $order,
+        SalesOrderAdjustmentService $adjustments,
+    ): JsonResponse {
+        $this->locationAccess->assertManage($request->user(), (int) $order->location_id);
+        $data = $request->validate([
+            'reason' => ['required', 'string', 'min:5', 'max:1000'],
+            'discount_total' => ['sometimes', 'numeric', 'min:0', 'max:999999999999'],
+            'delivery_charge' => ['sometimes', 'numeric', 'min:0', 'max:999999999999'],
+            'items' => ['sometimes', 'array', 'min:1', 'max:100'],
+            'items.*.id' => ['required', 'integer'],
+            'items.*.unit_price' => ['required', 'numeric', 'min:0', 'max:999999999'],
+        ]);
+        if (! array_key_exists('discount_total', $data)
+            && ! array_key_exists('delivery_charge', $data)
+            && empty($data['items'])) {
+            throw ValidationException::withMessages(['adjustment' => 'Provide at least one product price, discount or delivery charge change.']);
+        }
+
+        $adjustment = $adjustments->apply($order, $data, $request->user());
+
+        return response()->json([
+            'message' => 'Order adjustment applied and recorded.',
+            'data' => $adjustment,
+            'order' => $order->fresh(['items', 'adjustments.actor:id,name', 'adjustments.settlements.actor:id,name', 'adjustments.settlements.transaction']),
+        ], 201);
+    }
+
+    public function settleAdjustment(
+        Request $request,
+        SalesOrder $order,
+        SalesOrderAdjustment $adjustment,
+        ActivityLogService $activityLog,
+    ): JsonResponse {
+        $this->locationAccess->assertManage($request->user(), (int) $order->location_id);
+        $data = $request->validate([
+            'settlement_type' => ['required', Rule::in(['collection', 'refund', 'customer_credit'])],
+            'amount' => ['required', 'numeric', 'gt:0', 'max:999999999999'],
+            'financial_transaction_id' => ['nullable', 'integer', 'exists:financial_transactions,id'],
+            'reference' => ['nullable', 'string', 'max:120'],
+        ]);
+
+        $settlement = DB::transaction(function () use ($request, $order, $adjustment, $data, $activityLog): SalesOrderAdjustmentSettlement {
+            $lockedOrder = SalesOrder::query()->lockForUpdate()->findOrFail($order->id);
+            $lockedAdjustment = SalesOrderAdjustment::query()
+                ->where('sales_order_id', $lockedOrder->id)
+                ->lockForUpdate()->findOrFail($adjustment->id);
+
+            $delta = (string) $lockedAdjustment->financial_delta;
+            $type = $data['settlement_type'];
+            if (bccomp($delta, '0.00', 2) > 0 && $type !== 'collection') {
+                throw ValidationException::withMessages(['settlement_type' => 'An increased order balance can only be reconciled as a collection.']);
+            }
+            if (bccomp($delta, '0.00', 2) < 0 && ! in_array($type, ['refund', 'customer_credit'], true)) {
+                throw ValidationException::withMessages(['settlement_type' => 'A reduced paid order can only be reconciled as a refund or customer credit.']);
+            }
+            if (bccomp($delta, '0.00', 2) === 0) {
+                throw ValidationException::withMessages(['settlement_type' => 'This adjustment has no financial balance to reconcile.']);
+            }
+
+            $alreadySettled = (string) SalesOrderAdjustmentSettlement::query()
+                ->where('sales_order_adjustment_id', $lockedAdjustment->id)->sum('amount');
+            $remaining = bcsub(bccomp($delta, '0.00', 2) > 0 ? $delta : bcmul($delta, '-1', 2), $alreadySettled, 2);
+            $amount = number_format((float) $data['amount'], 2, '.', '');
+            if (bccomp($amount, '0.00', 2) <= 0 || bccomp($amount, $remaining, 2) > 0) {
+                throw ValidationException::withMessages(['amount' => 'Settlement amount must be positive and cannot exceed the outstanding adjustment balance of '.$remaining.'.']);
+            }
+
+            $transaction = null;
+            if ($type === 'customer_credit') {
+                if (! empty($data['financial_transaction_id'])) {
+                    throw ValidationException::withMessages(['financial_transaction_id' => 'A customer credit note must not reference a cash transaction.']);
+                }
+            } else {
+                if (empty($data['financial_transaction_id'])) {
+                    throw ValidationException::withMessages(['financial_transaction_id' => 'Select the posted financial transaction that records this collection or refund.']);
+                }
+                $transaction = FinancialTransaction::query()->lockForUpdate()->findOrFail($data['financial_transaction_id']);
+                $expectedType = $type === 'collection' ? 'customer_receipt' : 'expense';
+                if ($transaction->type !== $expectedType
+                    || (int) $transaction->customer_id !== (int) $lockedOrder->customer_id
+                    || (int) $transaction->location_id !== (int) $lockedOrder->location_id) {
+                    throw ValidationException::withMessages(['financial_transaction_id' => 'The financial transaction must match this order customer and location.']);
+                }
+                if (bccomp((string) $transaction->amount, $amount, 2) < 0) {
+                    throw ValidationException::withMessages(['financial_transaction_id' => 'The financial transaction amount is smaller than this settlement.']);
+                }
+                if ($type === 'collection') {
+                    if (! in_array($lockedOrder->status, ['confirmed', 'processing', 'fulfilled', 'completed'], true)) {
+                        throw ValidationException::withMessages(['order' => 'Confirm the order before allocating a customer receipt.']);
+                    }
+                    $paymentAllocated = (string) DB::table('payment_allocations')->where('financial_transaction_id', $transaction->id)->sum('amount');
+                    $orderPaid = (string) DB::table('payment_allocations')->where('sales_order_id', $lockedOrder->id)->sum('amount');
+                    $paymentRemaining = bcsub((string) $transaction->amount, $paymentAllocated, 2);
+                    $orderDue = bcsub((string) $lockedOrder->grand_total, $orderPaid, 2);
+                    if (bccomp($amount, $paymentRemaining, 2) > 0 || bccomp($amount, $orderDue, 2) > 0) {
+                        throw ValidationException::withMessages(['amount' => 'Collection exceeds the unallocated receipt amount or the order balance due.']);
+                    }
+                    DB::table('payment_allocations')->insert([
+                        'financial_transaction_id' => $transaction->id,
+                        'sales_order_id' => $lockedOrder->id,
+                        'amount' => $amount,
+                        'allocated_by' => $request->user()->id,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+                }
+            }
+
+            $record = SalesOrderAdjustmentSettlement::query()->create([
+                'sales_order_adjustment_id' => $lockedAdjustment->id,
+                'settlement_type' => $type,
+                'amount' => $amount,
+                'financial_transaction_id' => $transaction?->id,
+                'reference' => $data['reference'] ?? ($type === 'customer_credit' ? $lockedAdjustment->adjustment_number.'-CREDIT' : $transaction?->transaction_number),
+                'created_by' => $request->user()->id,
+                'created_at' => now(),
+            ]);
+            $activityLog->record(
+                'reconciled', 'orders',
+                'Reconciled '.$type.' of '.$amount.' for '.$lockedAdjustment->adjustment_number,
+                $record,
+                null,
+                ['settlement_type' => $type, 'amount' => $amount, 'financial_transaction_id' => $transaction?->id],
+                ['remaining_before' => $remaining],
+                $request->user(),
+            );
+
+            return $record->load(['actor:id,name', 'transaction']);
+        }, 3);
+
+        return response()->json(['message' => 'Adjustment settlement recorded.', 'data' => $settlement], 201);
     }
 
     public function confirm(Request $request, SalesOrder $order): JsonResponse

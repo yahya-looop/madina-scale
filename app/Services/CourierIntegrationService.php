@@ -189,7 +189,7 @@ class CourierIntegrationService
             'customer_name' => $shipment->recipient_name, 'customer_phone' => $this->bdPhone($shipment->recipient_phone),
             'delivery_area' => isset($shipment->metadata['delivery_area']) ? (int) $shipment->metadata['delivery_area'] : null,
             'customer_address' => $shipment->recipient_address, 'merchant_invoice_id' => $order->order_number,
-            'cash_collection_amount' => (int) round((float) $shipment->cod_amount), 'parcel_weight' => 500,
+            'cash_collection_amount' => (int) round((float) $shipment->cod_amount), 'parcel_weight' => max(1, (int) ($order->parcel_weight_grams ?: 500)),
             'instruction' => 'Madina Scale order '.$order->order_number, 'pickup_store_id' => (int) $config['pickup_store_id'],
         ]);
         if (! $response->successful()) {

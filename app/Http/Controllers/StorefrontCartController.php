@@ -55,13 +55,18 @@ class StorefrontCartController extends Controller
             ]);
         }
 
-        $weight = (int) collect($cart)->sum(fn (array $item): int => (int) $item['shipping_weight_grams'] * (int) $item['quantity']);
+        $productWeight = (int) collect($cart)->sum(fn (array $item): int => (int) $item['shipping_weight_grams'] * (int) $item['quantity']);
+        $packagingWeight = max(0, (int) app(\App\Services\SettingsService::class)->get('shipping.packaging_weight_grams', 0));
+        $weight = $productWeight + $packagingWeight;
         $codAmount = ($data['payment_method'] ?? 'cash_on_delivery') === 'cash_on_delivery'
             ? (float) collect($cart)->sum(fn (array $item): float => (float) $item['price'] * (int) $item['quantity'])
             : 0.0;
         $zone = $this->resolveDeliveryZone((string) ($data['district'] ?? ''), (string) ($data['area'] ?? ''));
 
-        return response()->json(['data' => $courierRates->quote($zone, $weight, $codAmount)]);
+        $quote = $courierRates->quote($zone, $weight, $codAmount);
+        $quote['product_weight_grams'] = $productWeight;
+        $quote['packaging_weight_grams'] = $packagingWeight;
+        return response()->json(['data' => $quote]);
     }
 
     public function checkout(Request $request, SalesOrderService $orders, CourierRateService $courierRates): JsonResponse
@@ -102,7 +107,9 @@ class StorefrontCartController extends Controller
                 'delivery' => 'অর্ডার করার আগে Admin থেকে প্রতিটি পণ্যের packed weight (grams) যোগ করতে হবে: '.$missingWeightItems->pluck('product_name')->unique()->implode(', '),
             ]);
         }
-        $parcelWeightGrams = (int) collect($cart)->sum(fn (array $item): int => (int) $item['shipping_weight_grams'] * (int) $item['quantity']);
+        $productWeightGrams = (int) collect($cart)->sum(fn (array $item): int => (int) $item['shipping_weight_grams'] * (int) $item['quantity']);
+        $packagingWeightGrams = max(0, (int) app(\App\Services\SettingsService::class)->get('shipping.packaging_weight_grams', 0));
+        $parcelWeightGrams = $productWeightGrams + $packagingWeightGrams;
         $deliveryZone = $this->resolveDeliveryZone((string) ($data['district'] ?? ''), (string) ($data['area'] ?? ''));
         $courierCode = $data['delivery_selection_mode'] === 'customer_choice' ? ($data['customer_preferred_courier_code'] ?? null) : null;
         if ($data['delivery_selection_mode'] === 'customer_choice' && ! $courierCode) {
@@ -178,6 +185,19 @@ class StorefrontCartController extends Controller
         $order->forceFill([
             'delivery_charge' => $deliveryQuote['charge'],
             'parcel_weight_grams' => $parcelWeightGrams,
+            'product_weight_grams' => $productWeightGrams,
+            'packaging_weight_grams' => $packagingWeightGrams,
+            'parcel_weight_snapshot' => [
+                'calculation' => 'sum(item_weight_grams * quantity) + fixed_packaging_weight',
+                'product_weight_grams' => $productWeightGrams,
+                'packaging_weight_grams' => $packagingWeightGrams,
+                'parcel_weight_grams' => $parcelWeightGrams,
+                'items' => collect($cart)->map(fn (array $item): array => [
+                    'variant_id' => $item['variant_id'], 'product_name' => $item['product_name'],
+                    'unit_weight_grams' => (int) $item['shipping_weight_grams'], 'quantity' => (int) $item['quantity'],
+                ])->values()->all(),
+                'snapshotted_at' => now()->toIso8601String(),
+            ],
             'delivery_zone' => $deliveryZone,
             'delivery_selection_mode' => $data['delivery_selection_mode'],
             'customer_preferred_courier_code' => $courierCode,
@@ -206,6 +226,8 @@ class StorefrontCartController extends Controller
             'delivery_charge' => $order->delivery_charge,
             'assigned_courier_code' => $order->assigned_courier_code,
             'parcel_weight_grams' => $order->parcel_weight_grams,
+            'product_weight_grams' => $order->product_weight_grams,
+            'packaging_weight_grams' => $order->packaging_weight_grams,
         ]], 201);
     }
 

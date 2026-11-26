@@ -55,6 +55,15 @@ type Account = {
         utilization_percent: string;
     };
 };
+type Rfq = {
+    id: number; rfq_number: string; company_name: string; contact_name: string;
+    email: string | null; phone: string; status: string; required_by: string | null;
+    delivery_location: string | null; requirements: string | null; admin_notes: string | null;
+    b2b_account_id: number | null;
+    items: Array<{ id: number; description: string; sku: string | null; quantity: string | number; unit: string | null; specifications: string | null }>;
+    account?: { id: number; company_name: string } | null;
+    quotes?: Array<{ id: number; quote_number: string; status: string; total: string | number }>;
+};
 type Quote = {
     id: number;
     quote_number: string;
@@ -89,7 +98,7 @@ type Api<T> = {
     leads?: any[];
     variants?: Variant[];
 };
-const tab = ref<'accounts' | 'quotes'>('accounts'),
+const tab = ref<'accounts' | 'quotes' | 'rfqs'>('accounts'),
     loading = ref(false),
     saving = ref(false),
     search = ref(''),
@@ -101,6 +110,7 @@ const tab = ref<'accounts' | 'quotes'>('accounts'),
     viewMode = ref<'list' | 'grid'>('list');
 const accounts = ref<Account[]>([]),
     quotes = ref<Quote[]>([]),
+    rfqs = ref<Rfq[]>([]),
     stats = ref({
         accounts: 0,
         active: 0,
@@ -120,7 +130,8 @@ const formOpen = ref(false),
     detail = ref<Account | null>(null),
     deleteTarget = ref<Account | null>(null),
     quoteOpen = ref(false),
-    quoteDetail = ref<any | null>(null);
+    quoteDetail = ref<any | null>(null),
+    revisionQuoteId = ref<number | null>(null);
 const emptyAccount = () => ({
     company_name: '',
     legal_name: '',
@@ -166,6 +177,7 @@ const quoteForm = reactive({
     tax_amount: 0,
     terms: 'Prices are valid until the date shown. Supply is subject to stock availability.',
     notes: '',
+    b2b_rfq_id: null as number | null,
     items: [
         {
             product_variant_id: null,
@@ -316,12 +328,49 @@ async function loadQuotes() {
         loading.value = false;
     }
 }
+async function loadRfqs() {
+    loading.value = true;
+    try {
+        const q = new URLSearchParams({ search: search.value, status: statusFilter.value, page: String(page.value) });
+        const r = await fetch(`/api/v1/backend/b2b/rfqs?${q}`, { credentials: 'same-origin', headers: headers() });
+        if (!r.ok) throw new Error(await requestError(r, 'Could not load RFQs.'));
+        const p = await r.json();
+        rfqs.value = p.data?.data ?? p.data ?? [];
+        lastPage.value = p.data?.last_page ?? p.last_page ?? 1;
+        total.value = p.data?.total ?? p.total ?? rfqs.value.length;
+    } catch (e) { notify(e instanceof Error ? e.message : 'Could not load RFQs.', 'error'); }
+    finally { loading.value = false; }
+}
+async function updateRfqStatus(rfq: Rfq, status: string) {
+    try {
+        const r = await fetch(`/api/v1/backend/b2b/rfqs/${rfq.id}`, {
+            method: 'PATCH', credentials: 'same-origin', headers: headers(),
+            body: JSON.stringify({ status, b2b_account_id: rfq.b2b_account_id, admin_notes: rfq.admin_notes }),
+        });
+        if (!r.ok) throw new Error(await requestError(r, 'Could not update RFQ.'));
+        notify((await r.json()).message || 'RFQ updated.');
+        await loadRfqs();
+    } catch (e) { notify(e instanceof Error ? e.message : 'Could not update RFQ.', 'error'); }
+}
+function startQuoteForRfq(rfq: Rfq) {
+    if (!rfq.b2b_account_id) { notify('Link this RFQ to a B2B account before creating its quotation.', 'error'); return; }
+    openQuote();
+    quoteForm.b2b_account_id = rfq.b2b_account_id;
+    quoteForm.b2b_rfq_id = rfq.id;
+    quoteForm.items = rfq.items.map((item) => ({
+        product_variant_id: null, description: item.description, sku: item.sku || '',
+        quantity: Number(item.quantity), unit_price: 0, discount_percent: 0,
+    }));
+}
+
 function refresh() {
     page.value = 1;
     if (tab.value === 'accounts') {
         loadAccounts();
-    } else {
+    } else if (tab.value === 'quotes') {
         loadQuotes();
+    } else {
+        loadRfqs();
     }
 }
 watch([search, statusFilter, tierFilter], refresh);
@@ -332,8 +381,10 @@ watch(tab, () => {
     page.value = 1;
     if (tab.value === 'accounts') {
         loadAccounts();
-    } else {
+    } else if (tab.value === 'quotes') {
         loadQuotes();
+    } else {
+        loadRfqs();
     }
 });
 function openCreate() {
@@ -457,6 +508,7 @@ function selectVariant(line: QuoteLine) {
     line.unit_price = Number(v.wholesale_price ?? v.selling_price ?? 0);
 }
 function openQuote() {
+    revisionQuoteId.value = null;
     Object.assign(quoteForm, {
         b2b_account_id:
             accounts.value.find((a) => a.status === 'active')?.id ??
@@ -468,6 +520,7 @@ function openQuote() {
         tax_amount: 0,
         terms: 'Prices are valid until the date shown. Supply is subject to stock availability.',
         notes: '',
+        b2b_rfq_id: null,
         items: [
             {
                 product_variant_id: null,
@@ -482,11 +535,43 @@ function openQuote() {
     errors.value = {};
     quoteOpen.value = true;
 }
+async function beginQuoteRevision(q: any) {
+    try {
+        const r = await fetch(`/api/v1/backend/b2b/quotes/${q.id}`, { credentials: 'same-origin', headers: headers() });
+        if (!r.ok) throw new Error(await requestError(r, 'Could not load quotation.'));
+        const quote = (await r.json()).data;
+        Object.assign(quoteForm, {
+            b2b_account_id: quote.b2b_account_id,
+            b2b_rfq_id: quote.b2b_rfq_id,
+            currency: quote.currency,
+            valid_until: quote.valid_until || '',
+            discount_amount: Number(quote.discount_amount) || 0,
+            tax_amount: Number(quote.tax_amount) || 0,
+            terms: quote.terms || '',
+            notes: quote.notes || '',
+            items: quote.items.map((line: any) => ({
+                product_variant_id: line.product_variant_id,
+                description: line.description,
+                sku: line.sku || '',
+                quantity: Number(line.quantity),
+                unit_price: Number(line.unit_price),
+                discount_percent: Number(line.discount_percent) || 0,
+            })),
+        });
+        revisionQuoteId.value = quote.id;
+        quoteDetail.value = null;
+        errors.value = {};
+        quoteOpen.value = true;
+    } catch (e) { notify(e instanceof Error ? e.message : 'Could not start quotation revision.', 'error'); }
+}
 async function saveQuote() {
     saving.value = true;
     errors.value = {};
     try {
-        const r = await fetch('/api/v1/backend/b2b/quotes', {
+        const endpoint = revisionQuoteId.value
+            ? `/api/v1/backend/b2b/quotes/${revisionQuoteId.value}/revisions`
+            : '/api/v1/backend/b2b/quotes';
+        const r = await fetch(endpoint, {
             method: 'POST',
             credentials: 'same-origin',
             headers: headers(),
@@ -498,6 +583,7 @@ async function saveQuote() {
             );
         const p = await r.json();
         quoteOpen.value = false;
+        revisionQuoteId.value = null;
         tab.value = 'quotes';
         notify(p.message ?? 'Quotation created.');
         await loadQuotes();
@@ -718,8 +804,39 @@ onMounted(() => {
                 >
                     <Icon name="file-text" :size="15" /> Quotations
                     <span>{{ quoteStats.total }}</span>
+                </button><button
+                    :class="{ active: tab === 'rfqs' }"
+                    @click="tab = 'rfqs'"
+                >
+                    <Icon name="clipboard-list" :size="15" /> RFQs
+                    <span>{{ rfqs.length }}</span>
                 </button>
             </nav>
+            <section v-if="tab === 'rfqs'" class="panel">
+                <header class="directory-head"><div><h2>Corporate RFQ inbox</h2><p>Review customer requirements and move each request through quotation.</p></div></header>
+                <div v-if="loading" class="state">Loading RFQs…</div>
+                <div v-else-if="!rfqs.length" class="state">No RFQ requests found.</div>
+                <div v-else class="table-wrap"><table class="data-table">
+                    <thead><tr><th>RFQ / Company</th><th>Contact</th><th>Requirements</th><th>Status</th><th>Actions</th></tr></thead>
+                    <tbody><tr v-for="rfq in rfqs" :key="rfq.id">
+                        <td><strong>{{ rfq.rfq_number }}</strong><small>{{ rfq.company_name }}</small><small>{{ rfq.required_by ? 'Required by ' + rfq.required_by : 'No required date' }}</small></td>
+                        <td>{{ rfq.contact_name }}<small>{{ rfq.phone }}</small><small>{{ rfq.email || '—' }}</small></td>
+                        <td><strong>{{ rfq.items.length }} line(s)</strong><small v-for="line in rfq.items.slice(0, 3)" :key="line.id">{{ line.description }} · Qty {{ line.quantity }} {{ line.unit || '' }}</small><small v-if="rfq.items.length > 3">+{{ rfq.items.length - 3 }} more</small></td>
+                        <td><span class="status" :class="rfq.status">{{ pretty(rfq.status) }}</span>
+                            <select v-model="rfq.b2b_account_id" @change="updateRfqStatus(rfq, rfq.status)" aria-label="Link business account">
+                                <option :value="null">Link account…</option>
+                                <option v-for="account in accounts.filter(a => a.status === 'active')" :key="account.id" :value="account.id">{{ account.company_name }}</option>
+                            </select>
+                            <small>{{ rfq.account?.company_name || 'Account not linked' }}</small></td>
+                        <td class="actions">
+                            <button v-if="rfq.status === 'submitted'" class="btn secondary" @click="updateRfqStatus(rfq, 'under_review')">Start review</button>
+                            <button v-if="rfq.status === 'under_review' && rfq.b2b_account_id" class="btn primary" @click="startQuoteForRfq(rfq)">Create quote</button>
+                            <button v-if="['submitted','under_review','quoted'].includes(rfq.status)" class="btn danger" @click="updateRfqStatus(rfq, 'rejected')">Reject</button>
+                            <button v-if="rfq.status !== 'closed' && ['accepted','rejected','quoted'].includes(rfq.status)" class="btn ghost" @click="updateRfqStatus(rfq, 'closed')">Close</button>
+                        </td>
+                    </tr></tbody>
+                </table></div>
+            </section>
             <section v-if="tab === 'accounts'" class="stats">
                 <article>
                     <div class="metric-top">
@@ -804,7 +921,7 @@ onMounted(() => {
                     ><small>Commercially accepted</small>
                 </article>
             </section>
-            <section class="panel">
+            <section v-if="tab !== 'rfqs'" class="panel">
                 <header class="directory-head">
                     <div class="directory-title">
                         <span class="directory-icon"
@@ -929,7 +1046,8 @@ onMounted(() => {
                         </option>
                         <option v-if="tab === 'quotes'" value="expired">
                             Expired
-                        </option></select
+                        </option>
+                        <option v-if="tab === 'quotes'" value="superseded">Superseded</option>
                     ><select
                         v-if="tab === 'accounts'"
                         v-model="tierFilter"
@@ -1568,7 +1686,7 @@ onMounted(() => {
                 <header class="modal-head">
                     <div>
                         <span class="eyebrow">COMMERCIAL DOCUMENT</span>
-                        <h2>Create quotation</h2>
+                        <h2>{{ revisionQuoteId ? "Create quotation revision" : "Create quotation" }}</h2>
                         <p>
                             Build a priced proposal for a business account. The
                             quote is saved as a draft.
@@ -1722,7 +1840,8 @@ onMounted(() => {
                                 type="number"
                                 min="0"
                                 step="0.01" /></label
-                        ><label class="field span2"
+                        ><label class="field"
+                            ><span>Linked RFQ</span><select v-model="quoteForm.b2b_rfq_id"><option :value="null">No RFQ</option><option v-for="rfq in rfqs.filter(x => x.b2b_account_id === quoteForm.b2b_account_id)" :key="rfq.id" :value="rfq.id">{{ rfq.rfq_number }}</option></select></label><label class="field span2"
                             ><span>Commercial terms</span
                             ><textarea
                                 v-model="quoteForm.terms"
@@ -2017,6 +2136,12 @@ onMounted(() => {
                 <footer class="modal-foot">
                     <button class="btn ghost" @click="quoteDetail = null">
                         Close</button
+                    ><button
+                        v-if="['draft', 'sent', 'under_review'].includes(quoteDetail.status)"
+                        class="btn secondary"
+                        @click="beginQuoteRevision(quoteDetail)"
+                    >
+                        <Icon name="copy" :size="15" /> Create revision</button
                     ><button
                         v-if="quoteDetail.status === 'draft'"
                         class="btn primary"

@@ -28,7 +28,7 @@ class SalesOrderItem extends Model
 {
     protected $fillable = [
         'sales_order_id', 'product_id', 'product_variant_id',
-        'product_name', 'variant_name', 'sku', 'quantity', 'unit_price',
+        'product_name', 'variant_name', 'sku', 'shipping_weight_grams', 'quantity', 'unit_price',
         'line_total', 'reservation_id', 'pricing_snapshot', 'fulfilled_cost_quantity', 'fulfilled_cost_value',
     ];
 

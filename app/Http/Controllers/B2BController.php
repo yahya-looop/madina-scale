@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\B2BAccount;
 use App\Models\B2BQuote;
 use App\Models\B2BQuoteItem;
+use App\Models\B2BRfq;
 use App\Models\Customer;
 use App\Models\Lead;
 use App\Models\Location;
@@ -118,7 +119,7 @@ class B2BController extends Controller
                 ->orWhereHas('account', fn (Builder $a) => $a->where('company_name', 'like', "%{$term}%")));
         }
         if ($request->filled('status') && $request->input('status') !== 'all') {
-            $query->where('status', $request->validate(['status' => ['required', Rule::in(['draft', 'sent', 'under_review', 'accepted', 'rejected', 'expired'])]])['status']);
+            $query->where('status', $request->validate(['status' => ['required', Rule::in(['draft', 'sent', 'under_review', 'accepted', 'rejected', 'expired', 'superseded'])]])['status']);
         }
 
         return response()->json(array_merge($query->latest('id')->paginate(15)->withQueryString()->toArray(), [
@@ -130,6 +131,7 @@ class B2BController extends Controller
     {
         $data = $request->validate([
             'b2b_account_id' => ['required', 'integer', Rule::exists('b2b_accounts', 'id')->where(fn ($q) => $q->where('status', 'active'))],
+            'b2b_rfq_id' => ['nullable', 'integer', 'exists:b2b_rfqs,id'],
             'currency' => ['required', 'string', 'size:3'],
             'valid_until' => ['nullable', 'date', 'after_or_equal:today'],
             'discount_amount' => ['nullable', 'numeric', 'min:0'],
@@ -145,8 +147,21 @@ class B2BController extends Controller
             'items.*.discount_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
         ]);
         $quote = DB::transaction(function () use ($data, $request): B2BQuote {
+            if (! empty($data['b2b_rfq_id'])) {
+                $rfq = B2BRfq::query()->lockForUpdate()->findOrFail($data['b2b_rfq_id']);
+                if ($rfq->b2b_account_id !== null && (int) $rfq->b2b_account_id !== (int) $data['b2b_account_id']) {
+                    throw ValidationException::withMessages(['b2b_rfq_id' => 'The selected RFQ belongs to a different corporate account.']);
+                }
+                if (! in_array($rfq->status, ['under_review', 'quoted'], true)) {
+                    throw ValidationException::withMessages(['b2b_rfq_id' => 'Only an RFQ under review or already quoted can be linked to a quotation.']);
+                }
+                if ($rfq->b2b_account_id === null) {
+                    $rfq->b2b_account_id = $data['b2b_account_id'];
+                    $rfq->save();
+                }
+            }
             $quote = B2BQuote::create([
-                'quote_number' => $this->newQuoteNumber(), 'b2b_account_id' => $data['b2b_account_id'],
+                'quote_number' => $this->newQuoteNumber(), 'b2b_account_id' => $data['b2b_account_id'], 'b2b_rfq_id' => $data['b2b_rfq_id'] ?? null,
                 'status' => 'draft', 'currency' => strtoupper($data['currency']), 'valid_until' => $data['valid_until'] ?? null,
                 'discount_amount' => $data['discount_amount'] ?? 0, 'tax_amount' => $data['tax_amount'] ?? 0,
                 'terms' => $data['terms'] ?? null, 'notes' => $data['notes'] ?? null, 'created_by' => $request->user()->id,
@@ -187,7 +202,86 @@ class B2BController extends Controller
 
     public function showQuote(B2BQuote $quote): JsonResponse
     {
-        return response()->json(['data' => $quote->load(['account', 'items'])]);
+        return response()->json(['data' => $quote->load(['account', 'items', 'rfq', 'revisionOf', 'revisions.items'])]);
+    }
+
+    public function reviseQuote(Request $request, B2BQuote $quote): JsonResponse
+    {
+        $data = $request->validate([
+            'valid_until' => ['nullable', 'date', 'after_or_equal:today'],
+            'discount_amount' => ['nullable', 'numeric', 'min:0'],
+            'tax_amount' => ['nullable', 'numeric', 'min:0'],
+            'terms' => ['nullable', 'string', 'max:5000'],
+            'notes' => ['nullable', 'string', 'max:5000'],
+            'items' => ['required', 'array', 'min:1', 'max:100'],
+            'items.*.product_variant_id' => ['nullable', 'integer', 'exists:product_variants,id'],
+            'items.*.description' => ['required', 'string', 'max:240'],
+            'items.*.sku' => ['nullable', 'string', 'max:100'],
+            'items.*.quantity' => ['required', 'numeric', 'gt:0', 'max:1000000'],
+            'items.*.unit_price' => ['required', 'numeric', 'min:0', 'max:999999999'],
+            'items.*.discount_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
+        ]);
+
+        $revision = DB::transaction(function () use ($request, $quote, $data): B2BQuote {
+            $original = B2BQuote::query()->with('items')->lockForUpdate()->findOrFail($quote->id);
+            if ($original->converted_order_id || in_array($original->status, ['accepted', 'rejected', 'expired', 'superseded'], true)) {
+                throw ValidationException::withMessages(['quote' => 'This quotation is already finalized or converted and cannot be revised.']);
+            }
+            $rootId = $original->revision_of_id ?: $original->id;
+            $currentRevision = (int) B2BQuote::query()->whereKey($rootId)->value('revision_number');
+            $latestChildRevision = (int) B2BQuote::query()->where('revision_of_id', $rootId)->max('revision_number');
+            $nextRevision = max($currentRevision, $latestChildRevision) + 1;
+            $revision = B2BQuote::query()->create([
+                'quote_number' => $this->newQuoteNumber(),
+                'b2b_account_id' => $original->b2b_account_id,
+                'b2b_rfq_id' => $original->b2b_rfq_id,
+                'revision_of_id' => $rootId,
+                'revision_number' => $nextRevision,
+                'status' => 'draft',
+                'currency' => $original->currency,
+                'valid_until' => $data['valid_until'] ?? $original->valid_until,
+                'discount_amount' => $data['discount_amount'] ?? $original->discount_amount,
+                'tax_amount' => $data['tax_amount'] ?? $original->tax_amount,
+                'terms' => $data['terms'] ?? $original->terms,
+                'notes' => $data['notes'] ?? $original->notes,
+                'created_by' => $request->user()->id,
+            ]);
+            $subtotal = '0.00';
+            foreach ($data['items'] as $line) {
+                $qty = number_format((float) $line['quantity'], 3, '.', '');
+                $price = number_format((float) $line['unit_price'], 2, '.', '');
+                $percent = number_format((float) ($line['discount_percent'] ?? 0), 2, '.', '');
+                $gross = bcmul($qty, $price, 2);
+                $raw = bcdiv(bcmul($gross, $percent, 4), '100', 4);
+                $discount = bcdiv(bcadd($raw, '0.0050', 4), '1', 2);
+                $lineTotal = bcsub($gross, $discount, 2);
+                $subtotal = bcadd($subtotal, $lineTotal, 2);
+                $revision->items()->create([
+                    'product_variant_id' => $line['product_variant_id'] ?? null,
+                    'sku' => $line['sku'] ?? null,
+                    'description' => $line['description'],
+                    'quantity' => $qty,
+                    'unit_price' => $price,
+                    'discount_percent' => $percent,
+                    'line_total' => $lineTotal,
+                ]);
+            }
+            $discountAmount = number_format((float) ($data['discount_amount'] ?? $original->discount_amount), 2, '.', '');
+            $taxAmount = number_format((float) ($data['tax_amount'] ?? $original->tax_amount), 2, '.', '');
+            if (bccomp($discountAmount, $subtotal, 2) > 0) {
+                throw ValidationException::withMessages(['discount_amount' => 'The quote discount cannot exceed the item subtotal.']);
+            }
+            $revision->update([
+                'subtotal' => $subtotal,
+                'discount_amount' => $discountAmount,
+                'tax_amount' => $taxAmount,
+                'total' => bcadd(bcsub($subtotal, $discountAmount, 2), $taxAmount, 2),
+            ]);
+            $original->update(['status' => 'superseded']);
+            return $revision->load(['account', 'items', 'rfq', 'revisionOf']);
+        }, 3);
+
+        return response()->json(['message' => 'Quotation revision created as a new draft. The previous version is preserved.', 'data' => $revision], 201);
     }
 
     public function updateQuoteStatus(Request $request, B2BQuote $quote): JsonResponse
@@ -222,8 +316,14 @@ class B2BController extends Controller
                 $locked->accepted_at = now();
             }
             $locked->save();
+            if ($data['status'] === 'sent' && $locked->b2b_rfq_id) {
+                $rfq = B2BRfq::query()->lockForUpdate()->find($locked->b2b_rfq_id);
+                if ($rfq && $rfq->status === 'under_review') {
+                    $rfq->forceFill(['status' => 'quoted', 'reviewed_by' => request()->user()?->id, 'reviewed_at' => now()])->save();
+                }
+            }
 
-            return $locked->fresh(['account', 'items']);
+            return $locked->fresh(['account', 'items', 'rfq']);
         }, 3);
 
         return response()->json(['message' => 'Quotation status updated.', 'data' => $updated]);
@@ -430,6 +530,100 @@ class B2BController extends Controller
     }
 
     /** @return array<string, mixed> */
+    /** Public B2B RFQ intake; customer-submitted prices are never accepted. */
+    public function submitRfq(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'company_name' => ['required', 'string', 'max:180'],
+            'contact_name' => ['required', 'string', 'max:160'],
+            'email' => ['nullable', 'email', 'max:190'],
+            'phone' => ['required', 'string', 'max:40'],
+            'required_by' => ['nullable', 'date', 'after_or_equal:today'],
+            'delivery_location' => ['nullable', 'string', 'max:500'],
+            'requirements' => ['nullable', 'string', 'max:5000'],
+            'items' => ['required', 'array', 'min:1', 'max:100'],
+            'items.*.product_variant_id' => ['nullable', 'integer', 'exists:product_variants,id'],
+            'items.*.description' => ['required', 'string', 'max:240'],
+            'items.*.sku' => ['nullable', 'string', 'max:100'],
+            'items.*.quantity' => ['required', 'numeric', 'gt:0', 'max:1000000'],
+            'items.*.unit' => ['nullable', 'string', 'max:40'],
+            'items.*.specifications' => ['nullable', 'string', 'max:2000'],
+        ]);
+        $rfq = DB::transaction(function () use ($data): B2BRfq {
+            $rfq = B2BRfq::create([
+                'rfq_number' => 'RFQ-'.now()->format('ymd').'-'.Str::upper(Str::random(6)),
+                'company_name' => trim($data['company_name']), 'contact_name' => trim($data['contact_name']),
+                'email' => $data['email'] ?? null, 'phone' => trim($data['phone']),
+                'status' => 'submitted', 'required_by' => $data['required_by'] ?? null,
+                'delivery_location' => $data['delivery_location'] ?? null, 'requirements' => $data['requirements'] ?? null,
+            ]);
+            foreach ($data['items'] as $item) {
+                $rfq->items()->create([
+                    'product_variant_id' => $item['product_variant_id'] ?? null,
+                    'description' => $item['description'], 'sku' => $item['sku'] ?? null,
+                    'quantity' => $item['quantity'], 'unit' => $item['unit'] ?? null,
+                    'specifications' => $item['specifications'] ?? null,
+                ]);
+            }
+            return $rfq->load('items');
+        });
+        return response()->json(['message' => 'RFQ submitted successfully. Our corporate sales team will review it.', 'data' => $rfq], 201);
+    }
+
+    public function rfqs(Request $request): JsonResponse
+    {
+        $query = B2BRfq::query()->with(['items', 'account:id,account_code,company_name', 'quotes:id,quote_number,b2b_rfq_id,status,total'])
+            ->when($request->filled('status') && $request->input('status') !== 'all', fn ($q) => $q->where('status', $request->input('status')))
+            ->when($request->filled('search'), function ($q) use ($request): void {
+                $term = trim($request->string('search')->toString());
+                $q->where(fn ($w) => $w->where('rfq_number', 'like', "%{$term}%")
+                    ->orWhere('company_name', 'like', "%{$term}%")
+                    ->orWhere('contact_name', 'like', "%{$term}%")
+                    ->orWhere('phone', 'like', "%{$term}%"));
+            });
+        return response()->json($query->latest('id')->paginate(20)->withQueryString());
+    }
+
+    public function updateRfq(Request $request, B2BRfq $rfq): JsonResponse
+    {
+        $data = $request->validate([
+            'status' => ['required', Rule::in(['submitted', 'under_review', 'quoted', 'accepted', 'rejected', 'closed'])],
+            'b2b_account_id' => ['nullable', 'integer', 'exists:b2b_accounts,id'],
+            'admin_notes' => ['nullable', 'string', 'max:5000'],
+        ]);
+        $allowed = [
+            'submitted' => ['under_review', 'rejected', 'closed'],
+            'under_review' => ['quoted', 'rejected', 'closed'],
+            'quoted' => ['accepted', 'rejected', 'closed'],
+            'accepted' => ['closed'], 'rejected' => ['closed'], 'closed' => [],
+        ];
+        $updated = DB::transaction(function () use ($rfq, $data, $request): B2BRfq {
+            $locked = B2BRfq::query()->lockForUpdate()->findOrFail($rfq->id);
+            if ($data['status'] !== $locked->status
+                && ! in_array($data['status'], $allowed[$locked->status] ?? [], true)) {
+                throw ValidationException::withMessages(['status' => "Cannot move RFQ from {$locked->status} to {$data['status']}."]);
+            }
+            if (! empty($data['b2b_account_id'])) {
+                $account = B2BAccount::query()->whereKey($data['b2b_account_id'])->where('status', 'active')->first();
+                if (! $account) {
+                    throw ValidationException::withMessages(['b2b_account_id' => 'Link the RFQ to an active business account.']);
+                }
+                if ($locked->b2b_account_id && (int) $locked->b2b_account_id !== (int) $account->id && $locked->quotes()->exists()) {
+                    throw ValidationException::withMessages(['b2b_account_id' => 'The RFQ account cannot be changed after a quotation has been created.']);
+                }
+            }
+            $locked->fill([
+                'status' => $data['status'],
+                'b2b_account_id' => $data['b2b_account_id'] ?? $locked->b2b_account_id,
+                'admin_notes' => $data['admin_notes'] ?? $locked->admin_notes,
+                'reviewed_by' => $request->user()->id,
+                'reviewed_at' => now(),
+            ])->save();
+            return $locked->fresh(['items', 'account', 'quotes']);
+        }, 3);
+        return response()->json(['message' => 'RFQ updated.', 'data' => $updated]);
+    }
+
     private function validated(Request $request, ?B2BAccount $account = null): array
     {
         return $request->validate([

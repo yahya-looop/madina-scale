@@ -26,6 +26,10 @@ class SettingsUpdateRequest extends FormRequest
                 'group' => 'crm',
                 'type' => 'integer',
             ],
+            'shipping.packaging_weight_grams' => [
+                'group' => 'shipping',
+                'type' => 'integer',
+            ],
             /*
             |--------------------------------------------------------------------------
             | General
@@ -789,6 +793,7 @@ class SettingsUpdateRequest extends FormRequest
                     'security.password_min_length' => [8, 128],
                     'security.password_expiry_days' => [0, 3650],
                     'crm.default_follow_up_hours' => [1, 720],
+                    'shipping.packaging_weight_grams' => [0, 10000],
                 ];
 
                 foreach ($integerRanges as $key => [$minimum, $maximum]) {

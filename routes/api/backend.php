@@ -89,9 +89,12 @@ Route::middleware(['web', 'auth'])->group(function () {
     Route::get('/b2b/accounts/{account}', [B2BController::class, 'show'])->middleware('permission:system.b2b.view');
     Route::put('/b2b/accounts/{account}', [B2BController::class, 'update'])->middleware('permission:system.b2b.update');
     Route::delete('/b2b/accounts/{account}', [B2BController::class, 'destroy'])->middleware('permission:system.b2b.delete');
+    Route::get('/b2b/rfqs', [B2BController::class, 'rfqs'])->middleware('permission:system.b2b.view');
+    Route::patch('/b2b/rfqs/{rfq}', [B2BController::class, 'updateRfq'])->middleware('permission:system.b2b.update');
     Route::get('/b2b/quotes', [B2BController::class, 'quotes'])->middleware('permission:system.b2b.view');
     Route::post('/b2b/quotes', [B2BController::class, 'storeQuote'])->middleware('permission:system.b2b.create');
     Route::get('/b2b/quotes/{quote}', [B2BController::class, 'showQuote'])->middleware('permission:system.b2b.view');
+    Route::post('/b2b/quotes/{quote}/revisions', [B2BController::class, 'reviseQuote'])->middleware('permission:system.b2b.update');
     Route::patch('/b2b/quotes/{quote}/status', [B2BController::class, 'updateQuoteStatus'])->middleware('permission:system.b2b.update');
     Route::post('/b2b/quotes/{quote}/convert-to-order', [B2BController::class, 'convertQuoteToOrder'])->middleware(['permission:system.b2b.update', 'permission:system.orders.create']);
 
@@ -126,6 +129,10 @@ Route::middleware(['web', 'auth'])->group(function () {
         ->middleware('permission:system.orders.update');
     Route::get('/orders/{order}', [SalesOrderController::class, 'show'])
         ->middleware('permission:system.orders.view');
+    Route::post('/orders/{order}/adjustments', [SalesOrderController::class, 'adjust'])
+        ->middleware('permission:system.orders.update');
+    Route::post('/orders/{order}/adjustments/{adjustment}/settlements', [SalesOrderController::class, 'settleAdjustment'])
+        ->middleware('permission:system.orders.update');
     Route::post('/orders/{order}/confirm', [SalesOrderController::class, 'confirm'])
         ->middleware('permission:system.orders.confirm');
     Route::post('/orders/{order}/process', [SalesOrderController::class, 'process'])
