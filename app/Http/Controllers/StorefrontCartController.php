@@ -46,7 +46,13 @@ class StorefrontCartController extends Controller
         ]);
         $cart = $this->resolvedCart($request);
         if ($cart === []) {
-            return response()->json(['data' => ['zone' => null, 'parcel_weight_grams' => 0, 'quotes' => [], 'available_quotes' => [], 'recommended_provider_code' => null, 'charge' => '0.00']]);
+            return response()->json(['data' => ['zone' => null, 'parcel_weight_grams' => 0, 'quotes' => [], 'recommended_provider_code' => null, 'charge' => '0.00']]);
+        }
+        $missingWeightItems = collect($cart)->filter(fn (array $item): bool => (int) ($item['shipping_weight_grams'] ?? 0) <= 0);
+        if ($missingWeightItems->isNotEmpty()) {
+            throw ValidationException::withMessages([
+                'delivery' => 'প্রকৃত delivery charge হিসাব করতে Admin থেকে প্রতিটি পণ্যের packed weight (grams) যোগ করুন: '.$missingWeightItems->pluck('product_name')->unique()->implode(', '),
+            ]);
         }
 
         $weight = (int) collect($cart)->sum(fn (array $item): int => (int) $item['shipping_weight_grams'] * (int) $item['quantity']);
@@ -90,6 +96,12 @@ class StorefrontCartController extends Controller
             }
             throw ValidationException::withMessages(['cart' => 'আপনার কার্টে কোনো পণ্য নেই।']);
         }
+        $missingWeightItems = collect($cart)->filter(fn (array $item): bool => (int) ($item['shipping_weight_grams'] ?? 0) <= 0);
+        if ($missingWeightItems->isNotEmpty()) {
+            throw ValidationException::withMessages([
+                'delivery' => 'অর্ডার করার আগে Admin থেকে প্রতিটি পণ্যের packed weight (grams) যোগ করতে হবে: '.$missingWeightItems->pluck('product_name')->unique()->implode(', '),
+            ]);
+        }
         $parcelWeightGrams = (int) collect($cart)->sum(fn (array $item): int => (int) $item['shipping_weight_grams'] * (int) $item['quantity']);
         $deliveryZone = $this->resolveDeliveryZone((string) ($data['district'] ?? ''), (string) ($data['area'] ?? ''));
         $courierCode = $data['delivery_selection_mode'] === 'customer_choice' ? ($data['customer_preferred_courier_code'] ?? null) : null;
@@ -100,11 +112,6 @@ class StorefrontCartController extends Controller
             ? (float) collect($cart)->sum(fn (array $item): float => (float) $item['price'] * (int) $item['quantity'])
             : 0.0;
         $deliveryQuote = $courierRates->quote($deliveryZone, $parcelWeightGrams, $codAmount, $courierCode);
-        if (empty($deliveryQuote['available_quotes'])) {
-            throw ValidationException::withMessages([
-                'delivery' => 'No active courier has a configured rate for this delivery zone and parcel weight. Please contact the store or try again later.',
-            ]);
-        }
         $assignedCourierCode = $courierCode ?: $deliveryQuote['recommended_provider_code'];
         $location = Location::query()->active()->orderByDesc('is_primary')->orderBy('id')->first();
         if (! $location) {
@@ -240,7 +247,7 @@ class StorefrontCartController extends Controller
                 'variant_name' => $variant->name ?: 'Standard',
                 'sku' => $variant->sku ?: $variant->product->sku,
                 'price' => app(PricingEngine::class)->flashSalePriceForVariant($variant->id) ?? $variant->effectiveSellingPrice(),
-                'shipping_weight_grams' => (int) ($variant->shipping_weight_override_grams ?? $variant->product->shipping_weight_grams ?? 500),
+                'shipping_weight_grams' => $variant->shipping_weight_override_grams ?? $variant->product->shipping_weight_grams,
                 'quantity' => min(99, max(1, (int) $quantity)),
             ];
         }

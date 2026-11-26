@@ -141,6 +141,8 @@ const form = ref({
 
     product_type: 'simple' as 'simple' | 'variable',
 
+    shipping_weight_grams: '',
+
     short_description: '',
     description: '',
 
@@ -451,6 +453,8 @@ async function loadProduct(): Promise<void> {
             barcode: data.barcode ?? '',
 
             product_type: data.product_type ?? 'simple',
+
+            shipping_weight_grams: data.shipping_weight_grams == null ? '' : String(data.shipping_weight_grams),
 
             short_description: data.short_description ?? '',
 
@@ -793,6 +797,8 @@ async function updateProduct(): Promise<void> {
             barcode: normalizeNullable(form.value.barcode),
 
             product_type: form.value.product_type,
+
+            shipping_weight_grams: form.value.shipping_weight_grams === '' ? null : Number(form.value.shipping_weight_grams),
 
             short_description: normalizeNullable(form.value.short_description),
 
@@ -1634,6 +1640,32 @@ onBeforeUnmount(() => {
                                 </p>
                             </div>
                         </section>
+
+                    <!-- Shipping weight: used by delivery rate calculation -->
+                    <section class="card shipping-weight-card">
+                        <div class="section-heading">
+                            <div class="section-icon">
+                                <Icon name="package" :size="18" />
+                            </div>
+                            <div>
+                                <h2>Shipping &amp; Parcel Weight</h2>
+                                <p>Enter the packed weight. This is used to calculate accurate delivery charges.</p>
+                            </div>
+                            <span class="section-badge">Delivery</span>
+                        </div>
+                        <div class="form-grid">
+                            <div class="field">
+                                <label>Default product weight (grams)</label>
+                                <input v-model="form.shipping_weight_grams" type="number" min="1" max="100000" step="1" inputmode="numeric" placeholder="e.g. 2500" />
+                                <small class="field-hint">Enter the product weight including its shipping packaging. 1 kg = 1000 g.</small>
+                                <small v-if="errors.shipping_weight_grams" class="field-error">{{ errors.shipping_weight_grams?.[0] }}</small>
+                            </div>
+                        </div>
+                        <div v-if="form.product_type === 'variable'" class="price-summary">
+                            <Icon name="info-circle" :size="16" />
+                            <span>For variable products, you can set a separate weight for each variant below. A variant weight overrides this product default; blank variant weight uses this default.</span>
+                        </div>
+                    </section>
 
                         <!-- PRODUCT IDENTITY -->
 

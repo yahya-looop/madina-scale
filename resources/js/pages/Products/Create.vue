@@ -21,6 +21,7 @@ interface VariantDraft {
     selling_price: string;
     wholesale_price: string;
     promotional_price: string;
+    shipping_weight_override_grams: string;
     is_default: boolean;
 }
 
@@ -33,6 +34,7 @@ function emptyVariantDraft(index = 0): VariantDraft {
         selling_price: '',
         wholesale_price: '',
         promotional_price: '',
+        shipping_weight_override_grams: '',
         is_default: index === 0,
     };
 }
@@ -99,6 +101,8 @@ const form = ref({
     barcode: '',
 
     product_type: 'simple',
+
+    shipping_weight_grams: '',
 
     short_description: '',
 
@@ -544,6 +548,10 @@ async function createProduct() {
         }
 
         payload.append('product_type', form.value.product_type);
+
+        if (form.value.shipping_weight_grams !== '') {
+            payload.append('shipping_weight_grams', form.value.shipping_weight_grams);
+        }
 
         // Product-level identifiers belong only to simple products.
         // Variable products send identifiers with each variant below.
@@ -1506,6 +1514,11 @@ onBeforeUnmount(() => {
                                             >
                                         </div>
                                         <div class="field">
+                                            <label>Variant shipping weight (grams) <em>Optional</em></label>
+                                            <input v-model="variant.shipping_weight_override_grams" type="number" min="1" max="100000" step="1" placeholder="Use product default" />
+                                            <small class="field-hint">Overrides the product weight for this variant.</small>
+                                        </div>
+                                        <div class="field">
                                             <label
                                                 >Wholesale price
                                                 <em>Optional</em></label
@@ -1565,6 +1578,32 @@ onBeforeUnmount(() => {
                             </div>
                         </section>
                     </Transition>
+
+                    <!-- Shipping weight: used by delivery rate calculation -->
+                    <section class="card shipping-weight-card">
+                        <div class="section-heading">
+                            <div class="section-icon">
+                                <Icon name="package" :size="18" />
+                            </div>
+                            <div>
+                                <h2>Shipping &amp; Parcel Weight</h2>
+                                <p>Enter the packed weight. This is used to calculate accurate delivery charges.</p>
+                            </div>
+                            <span class="section-badge">Delivery</span>
+                        </div>
+                        <div class="form-grid">
+                            <div class="field">
+                                <label>Default product weight (grams)</label>
+                                <input v-model="form.shipping_weight_grams" type="number" min="1" max="100000" step="1" inputmode="numeric" placeholder="e.g. 2500" />
+                                <small class="field-hint">Enter the product weight including its shipping packaging. 1 kg = 1000 g.</small>
+                                <small v-if="errors.shipping_weight_grams" class="field-error">{{ errors.shipping_weight_grams }}</small>
+                            </div>
+                        </div>
+                        <div v-if="form.product_type === 'variable'" class="price-summary">
+                            <Icon name="info-circle" :size="16" />
+                            <span>For variable products, you can set a separate weight for each variant below. A variant weight overrides this product default; blank variant weight uses this default.</span>
+                        </div>
+                    </section>
 
                     <!-- Product Identity: only applicable to simple products -->
 

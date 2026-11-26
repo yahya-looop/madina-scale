@@ -919,6 +919,22 @@ watch(
                 >
 
                 <label class="field"
+                    ><span>Variant shipping weight (grams) <em>Optional</em></span
+                    ><input
+                        v-model="form.shipping_weight_override_grams"
+                        type="number"
+                        min="1"
+                        max="100000"
+                        step="1"
+                        placeholder="Use product default"
+                    /><small class="field-hint">Overrides the product default packed weight for this variant.</small><small
+                        v-if="fieldError('shipping_weight_override_grams')"
+                        class="field-error"
+                        >{{ fieldError('shipping_weight_override_grams') }}</small
+                    ></label
+                >
+
+                <label class="field"
                     ><span>Wholesale price <em>Optional</em></span
                     ><input
                         v-model="form.wholesale_price"

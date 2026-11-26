@@ -1,3 +1,4 @@
+
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 
@@ -61,6 +62,11 @@ interface Product {
     barcode: string | null;
 
     product_type: 'simple' | 'variable';
+
+    shipping_weight_grams: number | null;
+
+    default_variant?: { shipping_weight_override_grams: number | null } | null;
+    active_variants?: Array<{ id: number; name: string | null; sku: string | null; shipping_weight_override_grams: number | null; is_default: boolean }>;
 
     short_description: string | null;
 
@@ -317,6 +323,12 @@ function previousMedia(): void {
 
 function selectMedia(index: number): void {
     activeMediaIndex.value = index;
+}
+
+function formatWeight(grams: number | null | undefined): string {
+    if (grams == null || !Number.isFinite(Number(grams)) || Number(grams) <= 0) return 'Not set';
+    const value = Number(grams);
+    return value >= 1000 ? `${(value / 1000).toLocaleString('en-BD', { maximumFractionDigits: 3 })} kg (${value.toLocaleString('en-BD')} g)` : `${value.toLocaleString('en-BD')} g`;
 }
 
 function formatDateTime(value: string): string {
@@ -740,6 +752,18 @@ onMounted(() => {
                                 </strong>
                             </div>
 
+                            <div class="summary-row summary-weight-row">
+                                <span>{{ product.product_type === 'variable' ? 'Default variant weight' : 'Shipping weight' }}</span>
+                                <strong>{{ formatWeight(product.product_type === 'variable' ? (product.default_variant?.shipping_weight_override_grams ?? product.shipping_weight_grams) : product.shipping_weight_grams) }}</strong>
+                            </div>
+
+                            <div v-if="product.product_type === 'variable' && product.active_variants?.some((variant) => variant.shipping_weight_override_grams != null)" class="summary-variant-weights">
+                                <div v-for="variant in product.active_variants.filter((item) => item.shipping_weight_override_grams != null)" :key="variant.id">
+                                    <span>{{ variant.name || variant.sku || `Variant #${variant.id}` }}</span>
+                                    <strong>{{ formatWeight(variant.shipping_weight_override_grams) }}</strong>
+                                </div>
+                            </div>
+
                             <div class="summary-row">
                                 <span>Visibility</span>
 
@@ -782,13 +806,7 @@ onMounted(() => {
 
              ======================================================= -->
 
-                <div
-                    class="details-grid"
-                    :class="{
-                        'details-grid-variable':
-                            product.product_type === 'variable',
-                    }"
-                >
+                <div class="details-grid">
                     <!-- Identity -->
 
                     <section
@@ -2151,6 +2169,42 @@ onMounted(() => {
     color: #8250e8;
 }
 
+.summary-variant-weights {
+    display: grid;
+    gap: 7px;
+    padding: 0 16px 10px;
+}
+
+.summary-variant-weights > div {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 7px 9px;
+    border-radius: 7px;
+    background: var(--surface-muted);
+}
+
+.summary-variant-weights span {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--text-muted);
+    font-size: 9px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.summary-variant-weights strong {
+    flex: 0 0 auto;
+    color: var(--text-secondary);
+    font-size: 9px;
+    font-weight: 650;
+}
+
+.summary-weight-row strong {
+    color: var(--primary);
+}
+
 .summary-actions {
     padding: 13px 16px;
 }
@@ -2287,10 +2341,6 @@ onMounted(() => {
     gap: 14px;
 
     margin-bottom: 14px;
-}
-
-.details-grid-variable {
-    grid-template-columns: minmax(0, 1fr);
 }
 
 .detail-card {
@@ -2844,4 +2894,37 @@ onMounted(() => {
         min-height: 40px;
     }
 }
+
+.weight-variant-list {
+    display: grid;
+    gap: 10px;
+    margin-top: 18px;
+}
+.weight-variant-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 12px 14px;
+    border: 1px solid var(--border-color, #e5e7eb);
+    border-radius: 12px;
+}
+.weight-variant-row > div,
+.weight-variant-value {
+    display: grid;
+    gap: 4px;
+}
+.weight-variant-row small,
+.weight-help {
+    color: var(--text-muted, #64748b);
+    font-size: 12px;
+}
+.weight-variant-value {
+    text-align: right;
+}
+.weight-help {
+    margin-top: 14px;
+    line-height: 1.6;
+}
 </style>
+

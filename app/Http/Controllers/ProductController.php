@@ -118,6 +118,7 @@ class ProductController extends Controller
             'media',
             'primaryMedia',
             'defaultVariant',
+            'activeVariants:id,product_id,name,sku,shipping_weight_override_grams,status,is_default,sort_order',
         ]);
 
         return response()->json([
@@ -857,6 +858,7 @@ class ProductController extends Controller
             'variants.*.selling_price' => ['required', 'numeric', 'min:0'],
             'variants.*.wholesale_price' => ['nullable', 'numeric', 'min:0'],
             'variants.*.promotional_price' => ['nullable', 'numeric', 'min:0'],
+            'variants.*.shipping_weight_override_grams' => ['nullable', 'integer', 'min:1', 'max:100000'],
             'variants.*.is_default' => ['sometimes', 'boolean'],
             'variants.*.status' => ['sometimes', Rule::in(['active', 'inactive', 'archived'])],
             'variants.*.sort_order' => ['sometimes', 'integer', 'min:0', 'max:4294967295'],
@@ -933,6 +935,7 @@ class ProductController extends Controller
                 'selling_price' => $variant['selling_price'],
                 'wholesale_price' => $this->normalizeNullableValue(isset($variant['wholesale_price']) ? (string) $variant['wholesale_price'] : null),
                 'promotional_price' => $this->normalizeNullableValue(isset($variant['promotional_price']) ? (string) $variant['promotional_price'] : null),
+                'shipping_weight_override_grams' => isset($variant['shipping_weight_override_grams']) && $variant['shipping_weight_override_grams'] !== '' ? (int) $variant['shipping_weight_override_grams'] : null,
                 'is_default' => $isDefault,
                 'status' => $status,
                 'sort_order' => $variant['sort_order'] ?? $index,
