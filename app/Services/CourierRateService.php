@@ -26,12 +26,22 @@ class CourierRateService
 
         $quotes = [];
         foreach ($providers as $provider) {
-            if (! in_array($zone, $provider->service_zones ?? [], true)) {
-                continue;
-            }
-
-            $rule = $provider->rates->first();
-            if (! $rule) {
+            $servesZone = in_array($zone, $provider->service_zones ?? [], true);
+            $rule = $servesZone ? $provider->rates->first() : null;
+            if (! $servesZone || ! $rule) {
+                $quotes[] = [
+                    'provider_code' => $provider->code,
+                    'provider_name' => $provider->name,
+                    'charge' => null,
+                    'priority' => (int) $provider->priority,
+                    'rate_rule_id' => null,
+                    'is_available' => false,
+                    'unavailable_reason' => $servesZone
+                        ? 'No matching rate configured for this zone and parcel weight.'
+                        : 'This courier does not serve the selected delivery zone.',
+                    'is_demo' => false,
+                    'is_live_quote' => false,
+                ];
                 continue;
             }
 
@@ -52,23 +62,20 @@ class CourierRateService
                 'charge' => number_format($charge, 2, '.', ''),
                 'priority' => (int) $provider->priority,
                 'rate_rule_id' => $rule->id,
+                'is_available' => true,
+                'unavailable_reason' => null,
                 'is_demo' => false,
                 'is_live_quote' => false,
             ];
         }
 
-        if ($quotes === []) {
-            throw ValidationException::withMessages([
-                'delivery' => 'No active courier rate is configured for this delivery zone and parcel weight. Please contact the store or try again later.',
-            ]);
-        }
-
-        usort($quotes, fn (array $a, array $b): int => ((float) $a['charge'] <=> (float) $b['charge']) ?: ($a['priority'] <=> $b['priority']));
-        $recommended = $quotes[0];
+        $availableQuotes = array_values(array_filter($quotes, fn (array $quote): bool => $quote['is_available']));
+        usort($availableQuotes, fn (array $a, array $b): int => ((float) $a['charge'] <=> (float) $b['charge']) ?: ($a['priority'] <=> $b['priority']));
+        $recommended = $availableQuotes[0] ?? null;
         $selected = null;
 
         if ($preferredCode !== null) {
-            foreach ($quotes as $quote) {
+            foreach ($availableQuotes as $quote) {
                 if ($quote['provider_code'] === $preferredCode) {
                     $selected = $quote;
                     break;
@@ -81,13 +88,18 @@ class CourierRateService
             }
         }
 
+        // Keep active providers visible to the storefront even when their
+        // current zone/weight has no configured tariff. Unavailable providers
+        // are display-only; checkout must use an available quote.
+
         return [
             'zone' => $zone,
             'parcel_weight_grams' => max(1, $weightGrams),
-            'recommended_provider_code' => $recommended['provider_code'],
+            'recommended_provider_code' => $recommended['provider_code'] ?? null,
             'selected_provider' => $selected,
-            'charge' => $selected['charge'] ?? $recommended['charge'],
+            'charge' => $selected['charge'] ?? $recommended['charge'] ?? '0.00',
             'quotes' => $quotes,
+            'available_quotes' => $availableQuotes,
             'is_demo' => false,
             'is_live_quote' => false,
             'pricing_source' => 'admin_configured_rate_rules',

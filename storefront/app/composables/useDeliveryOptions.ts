@@ -13,13 +13,22 @@ type CourierOption = {
   maxDays: null
   features: string[]
   charge: number
+  isAvailable: boolean
+  unavailableReason: string | null
 }
 type QuoteResponse = {
   zone: string
   parcel_weight_grams: number
   recommended_provider_code: string | null
   charge: string
-  quotes: Array<{ provider_code: string; provider_name: string; charge: string }>
+  quotes: Array<{
+    provider_code: string
+    provider_name: string
+    charge: string | null
+    is_available: boolean
+    unavailable_reason: string | null
+  }>
+  available_quotes: Array<{ provider_code: string; provider_name: string; charge: string }>
 }
 
 const PRESENTATION: Record<string, Pick<CourierOption, 'shortName' | 'serviceLabel' | 'brandClass'>> = {
@@ -30,7 +39,7 @@ const PRESENTATION: Record<string, Pick<CourierOption, 'shortName' | 'serviceLab
   steadfast: { shortName: 'STEADFAST', serviceLabel: 'Configured delivery partner', brandClass: 'bg-[#fef3c7] text-[#92400e]' },
 }
 
-export function useDemoDeliveryOptions(
+export function useDeliveryOptions(
   cart: { value?: { items?: CartItem[]; subtotal?: number; item_count?: number } | null },
   getLocation: () => LocationInput,
   getPaymentMethod: () => PaymentMethod = () => 'cash_on_delivery',
@@ -63,15 +72,17 @@ export function useDemoDeliveryOptions(
     }),
     minDays: null,
     maxDays: null,
-    features: ['Admin-configured tariff'],
-    charge: Number(item.charge || 0),
+    features: item.is_available ? ['Admin-configured tariff'] : [],
+    charge: item.is_available ? Number(item.charge || 0) : 0,
+    isAvailable: item.is_available,
+    unavailableReason: item.unavailable_reason,
   })))
 
   const recommendedCourier = computed(() =>
-    courierOptions.value.find(item => item.code === quote.value?.recommended_provider_code) || courierOptions.value[0] || null,
+    courierOptions.value.find(item => item.isAvailable && item.code === quote.value?.recommended_provider_code) || courierOptions.value.find(item => item.isAvailable) || null,
   )
   const selectedCourier = computed(() => selectionMode.value === 'customer_choice'
-    ? courierOptions.value.find(item => item.code === selectedCourierCode.value) || null
+    ? courierOptions.value.find(item => item.isAvailable && item.code === selectedCourierCode.value) || null
     : recommendedCourier.value)
   const deliveryCharge = computed(() => selectedCourier.value?.charge || 0)
 
@@ -110,7 +121,7 @@ export function useDemoDeliveryOptions(
       quote.value = null
       quoteError.value = error?.data?.errors?.delivery?.[0]
         || error?.data?.message
-        || 'Delivery rates are not configured for this destination yet.'
+        || 'Could not load active courier providers. Please try again.'
     } finally {
       if (sequence === requestSequence) quoteLoading.value = false
     }
@@ -134,7 +145,7 @@ export function useDemoDeliveryOptions(
   }
 
   function setCourier(code: string) {
-    if (!courierOptions.value.some(item => item.code === code)) return
+    if (!courierOptions.value.some(item => item.code === code && item.isAvailable)) return
     selectedCourierCode.value = code
     selectionMode.value = 'customer_choice'
   }
@@ -147,6 +158,7 @@ export function useDemoDeliveryOptions(
     deliveryZone,
     selectedCourier,
     deliveryCharge,
+    hasAvailableCourier: computed(() => courierOptions.value.some(item => item.isAvailable)),
     quoteLoading,
     quoteError,
     quoteDisclaimer: 'Delivery charges are calculated by Laravel from active courier rate rules configured in Admin. These are administrative tariffs, not live courier API quotes.',

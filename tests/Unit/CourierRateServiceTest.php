@@ -48,6 +48,35 @@ class CourierRateServiceTest extends TestCase
         }
     }
 
+
+    public function test_it_keeps_active_providers_visible_when_no_matching_rate_is_configured(): void
+    {
+        $provider = CourierProvider::query()->updateOrCreate(
+            ['code' => 'carrybee'],
+            [
+                'name' => 'CarryBee',
+                'is_enabled' => true,
+                'priority' => 20,
+                'environment' => 'sandbox',
+                'capabilities' => ['booking', 'tracking', 'cod'],
+                'service_zones' => ['inside_dhaka', 'outside_dhaka', 'remote_special'],
+                'settings' => [],
+            ],
+        );
+        $provider->rates()->delete();
+        CourierProvider::query()->where('id', '!=', $provider->id)->update(['is_enabled' => false]);
+
+        $quote = app(CourierRateService::class)->quote('inside_dhaka', 500);
+
+        $this->assertCount(1, $quote['quotes']);
+        $this->assertSame('carrybee', $quote['quotes'][0]['provider_code']);
+        $this->assertFalse($quote['quotes'][0]['is_available']);
+        $this->assertNull($quote['quotes'][0]['charge']);
+        $this->assertSame([], $quote['available_quotes']);
+        $this->assertNull($quote['recommended_provider_code']);
+        $this->assertSame('0.00', $quote['charge']);
+    }
+
     private function provider(
         string $code,
         string $name,

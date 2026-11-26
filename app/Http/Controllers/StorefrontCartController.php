@@ -46,7 +46,7 @@ class StorefrontCartController extends Controller
         ]);
         $cart = $this->resolvedCart($request);
         if ($cart === []) {
-            return response()->json(['data' => ['zone' => null, 'parcel_weight_grams' => 0, 'quotes' => [], 'recommended_provider_code' => null, 'charge' => '0.00']]);
+            return response()->json(['data' => ['zone' => null, 'parcel_weight_grams' => 0, 'quotes' => [], 'available_quotes' => [], 'recommended_provider_code' => null, 'charge' => '0.00']]);
         }
 
         $weight = (int) collect($cart)->sum(fn (array $item): int => (int) $item['shipping_weight_grams'] * (int) $item['quantity']);
@@ -100,6 +100,11 @@ class StorefrontCartController extends Controller
             ? (float) collect($cart)->sum(fn (array $item): float => (float) $item['price'] * (int) $item['quantity'])
             : 0.0;
         $deliveryQuote = $courierRates->quote($deliveryZone, $parcelWeightGrams, $codAmount, $courierCode);
+        if (empty($deliveryQuote['available_quotes'])) {
+            throw ValidationException::withMessages([
+                'delivery' => 'No active courier has a configured rate for this delivery zone and parcel weight. Please contact the store or try again later.',
+            ]);
+        }
         $assignedCourierCode = $courierCode ?: $deliveryQuote['recommended_provider_code'];
         $location = Location::query()->active()->orderByDesc('is_primary')->orderBy('id')->first();
         if (! $location) {
