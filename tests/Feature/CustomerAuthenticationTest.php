@@ -5,7 +5,7 @@ use Illuminate\Support\Facades\Http;
 
 it('keeps staff login separate and retires the Laravel customer login page', function (): void {
     $this->get('/backend/login')->assertOk();
-    $this->get('/login')->assertNotFound();
+    $this->get('/login')->assertRedirect('/backend/login');
     $this->get('/account')->assertNotFound();
 });
 

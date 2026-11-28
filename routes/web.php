@@ -18,6 +18,9 @@ Route::get('/sitemap.xml', [PublicSeoController::class, 'sitemap'])->name('seo.s
 
 require __DIR__.'/backend.php';
 
+// Legacy staff login URL; the canonical login page remains /backend/login.
+Route::redirect('/login', '/backend/login', 301)->name('login.legacy');
+
 Route::redirect('/products/create', '/backend/products/create', 301);
 
 // -------------------------------------------------------------------------

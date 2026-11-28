@@ -32,6 +32,7 @@ function createStorefrontProduct(array $overrides = []): Product
         'name' => 'Platform Scale',
         'slug' => 'platform-scale',
         'product_type' => 'variable',
+        'shipping_weight_grams' => 500,
         'sku' => null,
         'short_description' => 'A platform weighing scale.',
         'status' => 'active',
@@ -169,6 +170,8 @@ it('places a guest storefront order through the Nuxt checkout API and defers sto
 
     $this->postJson('/api/v1/storefront/checkout', [
         'customer_phone' => '০১৭১২৩৪৫৬৭৮',
+        'payment_method' => 'cash_on_delivery',
+        'delivery_selection_mode' => 'no_preference',
         'idempotency_key' => 'storefront-phone-only-checkout-001',
     ])->assertCreated()
         ->assertJsonPath('data.customer_phone', '01712345678');

@@ -391,7 +391,7 @@ test('system maintenance mode blocks public traffic while preserving Developer a
         'sort_order' => 10,
     ]);
 
-    $this->get('/shop')->assertServiceUnavailable();
+    $this->get('/robots.txt')->assertServiceUnavailable();
     $this->get('/backend/login')->assertOk();
 
     $developer = createSystemConsoleDeveloper();

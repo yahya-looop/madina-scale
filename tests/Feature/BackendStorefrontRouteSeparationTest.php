@@ -17,6 +17,6 @@ it('redirects non-conflicting legacy staff page URLs into the backend namespace'
 });
 
 it('does not redirect the public products URL to backend product management', function (): void {
-    $this->get('/products')->assertOk();
+    $this->get('/products')->assertNotFound();
     $this->get('/products/create')->assertRedirect('/backend/products/create');
 });

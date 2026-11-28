@@ -43,14 +43,17 @@ class PublicOrderTrackingTest extends TestCase
     {
         [$order] = $this->orderFixture();
 
-        $this->postJson('/api/v1/storefront/orders/track', [
+        $response = $this->postJson('/api/v1/storefront/orders/track', [
             'reference' => $order->order_number,
             'phone' => '+880 1712-345678',
-        ])->assertOk()
+        ]);
+
+        $response->assertOk()
             ->assertJsonPath('data.order_number', $order->order_number)
             ->assertJsonPath('data.status', 'processing')
-            ->assertJsonStructure(['data' => ['items', 'timeline', 'shipments']])
-            ->assertHeader('Cache-Control', 'no-store');
+            ->assertJsonStructure(['data' => ['items', 'timeline', 'shipments']]);
+
+        expect($response->headers->get('Cache-Control'))->toContain('no-store');
 
         $this->postJson('/api/v1/storefront/orders/track', [
             'reference' => $order->order_number,

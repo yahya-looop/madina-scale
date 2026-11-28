@@ -173,7 +173,8 @@ class PricingPromotionController extends Controller
                 'banner_image' => $sale->banner_image, 'accent_color' => $sale->accent_color,
                 'starts_at' => $sale->starts_at->toIso8601String(), 'ends_at' => $sale->ends_at->toIso8601String(),
                 'items' => $sale->items->filter(fn (FlashSaleItem $item) => $item->variant !== null && $item->variant->getRelation('product') !== null && ($item->quantity_limit === null || $item->quantity_sold < $item->quantity_limit))->map(fn (FlashSaleItem $item): array => [
-                    'id' => $item->id, 'product_name' => $item->variant->product->name,
+                    'id' => $item->id, 'product_variant_id' => $item->variant->id,
+                    'product_name' => $item->variant->product->name,
                     'product_slug' => $item->variant->product->slug, 'variant_name' => $item->variant->name,
                     'sku' => $item->variant->sku,
                     'image_url' => $item->variant->product->primaryMedia
