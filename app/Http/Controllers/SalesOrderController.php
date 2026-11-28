@@ -16,6 +16,7 @@ use App\Services\LocationInventoryAccessService;
 use App\Services\OrderSmsService;
 use App\Services\SalesOrderService;
 use App\Services\SalesOrderAdjustmentService;
+use App\Services\SalesOrderAdjustmentSettlementRules;
 use App\Services\ActivityLogService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -272,11 +273,11 @@ class SalesOrderController extends Controller
         $this->locationAccess->assertManage($request->user(), (int) $order->location_id);
         $data = $request->validate([
             'reason' => ['required', 'string', 'min:5', 'max:1000'],
-            'discount_total' => ['sometimes', 'numeric', 'min:0', 'max:999999999999'],
-            'delivery_charge' => ['sometimes', 'numeric', 'min:0', 'max:999999999999'],
+            'discount_total' => ['sometimes', 'numeric', 'min:0', 'decimal:0,2', 'max:999999999999'],
+            'delivery_charge' => ['sometimes', 'numeric', 'min:0', 'decimal:0,2', 'max:999999999999'],
             'items' => ['sometimes', 'array', 'min:1', 'max:100'],
             'items.*.id' => ['required', 'integer'],
-            'items.*.unit_price' => ['required', 'numeric', 'min:0', 'max:999999999'],
+            'items.*.unit_price' => ['required', 'numeric', 'min:0', 'decimal:0,2', 'max:999999999'],
         ]);
         if (! array_key_exists('discount_total', $data)
             && ! array_key_exists('delivery_charge', $data)
@@ -298,16 +299,17 @@ class SalesOrderController extends Controller
         SalesOrder $order,
         SalesOrderAdjustment $adjustment,
         ActivityLogService $activityLog,
+        SalesOrderAdjustmentSettlementRules $settlementRules,
     ): JsonResponse {
         $this->locationAccess->assertManage($request->user(), (int) $order->location_id);
         $data = $request->validate([
             'settlement_type' => ['required', Rule::in(['collection', 'refund', 'customer_credit'])],
-            'amount' => ['required', 'numeric', 'gt:0', 'max:999999999999'],
+            'amount' => ['required', 'numeric', 'gt:0', 'decimal:0,2', 'max:999999999999'],
             'financial_transaction_id' => ['nullable', 'integer', 'exists:financial_transactions,id'],
             'reference' => ['nullable', 'string', 'max:120'],
         ]);
 
-        $settlement = DB::transaction(function () use ($request, $order, $adjustment, $data, $activityLog): SalesOrderAdjustmentSettlement {
+        $settlement = DB::transaction(function () use ($request, $order, $adjustment, $data, $activityLog, $settlementRules): SalesOrderAdjustmentSettlement {
             $lockedOrder = SalesOrder::query()->lockForUpdate()->findOrFail($order->id);
             $lockedAdjustment = SalesOrderAdjustment::query()
                 ->where('sales_order_id', $lockedOrder->id)
@@ -328,12 +330,34 @@ class SalesOrderController extends Controller
             $alreadySettled = (string) SalesOrderAdjustmentSettlement::query()
                 ->where('sales_order_adjustment_id', $lockedAdjustment->id)->sum('amount');
             $remaining = bcsub(bccomp($delta, '0.00', 2) > 0 ? $delta : bcmul($delta, '-1', 2), $alreadySettled, 2);
-            $amount = number_format((float) $data['amount'], 2, '.', '');
+            $amount = bcadd((string) $data['amount'], '0', 2);
             if (bccomp($amount, '0.00', 2) <= 0 || bccomp($amount, $remaining, 2) > 0) {
                 throw ValidationException::withMessages(['amount' => 'Settlement amount must be positive and cannot exceed the outstanding adjustment balance of '.$remaining.'.']);
             }
 
             $transaction = null;
+            if (in_array($type, ['refund', 'customer_credit'], true)) {
+                // Cash refunds and customer-credit notes are alternative forms of
+                // the same customer benefit. Their combined total cannot exceed
+                // receipts actually allocated to this order.
+                $paidAmount = (string) DB::table('payment_allocations')
+                    ->where('sales_order_id', $lockedOrder->id)
+                    ->sum('amount');
+                $previousRefunds = (string) DB::table('sales_order_adjustment_settlements as settlements')
+                    ->join('sales_order_adjustments as adjustments', 'adjustments.id', '=', 'settlements.sales_order_adjustment_id')
+                    ->where('adjustments.sales_order_id', $lockedOrder->id)
+                    ->where('settlements.settlement_type', 'refund')
+                    ->sum('settlements.amount');
+                $previousCustomerCredits = (string) DB::table('sales_order_adjustment_settlements as settlements')
+                    ->join('sales_order_adjustments as adjustments', 'adjustments.id', '=', 'settlements.sales_order_adjustment_id')
+                    ->where('adjustments.sales_order_id', $lockedOrder->id)
+                    ->where('settlements.settlement_type', 'customer_credit')
+                    ->sum('settlements.amount');
+                $settlementRules->assertCustomerBenefitWithinPaidBalance(
+                    $amount, $paidAmount, $previousRefunds, $previousCustomerCredits,
+                );
+            }
+
             if ($type === 'customer_credit') {
                 if (! empty($data['financial_transaction_id'])) {
                     throw ValidationException::withMessages(['financial_transaction_id' => 'A customer credit note must not reference a cash transaction.']);
@@ -342,14 +366,31 @@ class SalesOrderController extends Controller
                 if (empty($data['financial_transaction_id'])) {
                     throw ValidationException::withMessages(['financial_transaction_id' => 'Select the posted financial transaction that records this collection or refund.']);
                 }
-                $transaction = FinancialTransaction::query()->lockForUpdate()->findOrFail($data['financial_transaction_id']);
+                $transaction = FinancialTransaction::query()->with('journalEntry')->lockForUpdate()->findOrFail($data['financial_transaction_id']);
                 $expectedType = $type === 'collection' ? 'customer_receipt' : 'expense';
                 if ($transaction->type !== $expectedType
                     || (int) $transaction->customer_id !== (int) $lockedOrder->customer_id
                     || (int) $transaction->location_id !== (int) $lockedOrder->location_id) {
                     throw ValidationException::withMessages(['financial_transaction_id' => 'The financial transaction must match this order customer and location.']);
                 }
-                if (bccomp((string) $transaction->amount, $amount, 2) < 0) {
+                if (! $transaction->journalEntry || $transaction->journalEntry->status !== 'posted') {
+                    throw ValidationException::withMessages(['financial_transaction_id' => 'Only a transaction backed by a posted journal entry can be used for settlement.']);
+                }
+                if ($type === 'refund') {
+                    // A posted expense can back several partial refunds, but its total
+                    // referenced refund settlements must never exceed the transaction.
+                    $alreadyRefundedFromTransaction = (string) SalesOrderAdjustmentSettlement::query()
+                        ->where('financial_transaction_id', $transaction->id)
+                        ->where('settlement_type', 'refund')
+                        ->sum('amount');
+                    $transactionRemaining = bcsub((string) $transaction->amount, $alreadyRefundedFromTransaction, 2);
+                    $settlementRules->assertWithinRemainingBalance(
+                        $amount,
+                        $transactionRemaining,
+                        'financial_transaction_id',
+                        'Refund settlements already recorded against this expense leave only '.$transactionRemaining.' available.',
+                    );
+                } elseif (bccomp((string) $transaction->amount, $amount, 2) < 0) {
                     throw ValidationException::withMessages(['financial_transaction_id' => 'The financial transaction amount is smaller than this settlement.']);
                 }
                 if ($type === 'collection') {

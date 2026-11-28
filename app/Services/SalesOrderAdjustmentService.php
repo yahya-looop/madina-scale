@@ -12,15 +12,12 @@ use Illuminate\Validation\ValidationException;
 
 class SalesOrderAdjustmentService
 {
-    public function __construct(private readonly ActivityLogService $activityLog) {}
+    public function __construct(
+        private readonly ActivityLogService $activityLog,
+        private readonly SalesOrderAdjustmentPricingRules $pricingRules,
+    ) {}
 
-    /**
-     * Apply a controlled, order-specific price/discount/delivery adjustment.
-     * Product catalogue prices are never touched. Every applied change creates
-     * a permanent before/after snapshot and a reconciliation obligation.
-     *
-     * @param array<string, mixed> $data
-     */
+    /** Apply an audited order-specific commercial adjustment. */
     public function apply(SalesOrder $order, array $data, User $actor): SalesOrderAdjustment
     {
         return DB::transaction(function () use ($order, $data, $actor): SalesOrderAdjustment {
@@ -29,8 +26,7 @@ class SalesOrderAdjustmentService
                 throw ValidationException::withMessages(['order' => 'Cancelled orders cannot receive commercial adjustments.']);
             }
             if ($locked->b2b_quote_id && $locked->b2bQuote()->whereNotNull('converted_order_id')->exists()) {
-                // A converted quote is the commercial source document. An order adjustment
-                // remains possible only through this explicit audited workflow.
+                // Adjustments to converted quotes remain possible only through this audited workflow.
             }
 
             $items = $locked->items()->orderBy('id')->lockForUpdate()->get();
@@ -66,36 +62,87 @@ class SalesOrderAdjustmentService
                 if (! $item) {
                     throw ValidationException::withMessages(['items' => 'An adjusted order item does not belong to this order.']);
                 }
-                $unitPrice = number_format((float) $line['unit_price'], 2, '.', '');
-                $lineTotal = bcmul((string) $item->quantity, $unitPrice, 2);
+                $unitPrice = bcadd((string) $line['unit_price'], '0', 2);
+                $itemSnapshot = $item->pricing_snapshot ?? [];
+                $lineDiscount = bcadd((string) ($itemSnapshot['line_discount'] ?? '0.00'), '0', 2);
+                $gross = bcmul((string) $item->quantity, $unitPrice, 2);
+                if (bccomp($lineDiscount, $gross, 2) > 0) {
+                    throw ValidationException::withMessages(['items' => 'An adjusted product price cannot be lower than its already-applied line discount.']);
+                }
+                $itemSnapshot = array_merge($itemSnapshot, [
+                    'last_order_adjustment_at' => now()->toIso8601String(),
+                    'last_order_adjustment_by' => $actor->id,
+                    'catalogue_price_unchanged' => true,
+                ]);
                 $item->update([
                     'unit_price' => $unitPrice,
-                    'line_total' => $lineTotal,
-                    'pricing_snapshot' => array_merge($item->pricing_snapshot ?? [], [
-                        'last_order_adjustment_at' => now()->toIso8601String(),
-                        'last_order_adjustment_by' => $actor->id,
-                        'catalogue_price_unchanged' => true,
-                    ]),
+                    'line_total' => bcsub($gross, $lineDiscount, 2),
+                    'pricing_snapshot' => $itemSnapshot,
                 ]);
             }
 
             $items = $locked->items()->orderBy('id')->get();
-            $subtotal = '0.00';
-            foreach ($items as $item) {
-                $subtotal = bcadd($subtotal, (string) $item->line_total, 2);
+            $pricingSnapshot = $locked->pricing_snapshot ?? [];
+            $pricingLines = $items->map(fn ($item) => [
+                'id' => (int) $item->id,
+                'quantity' => (string) $item->quantity,
+                'unit_price' => (string) $item->unit_price,
+                'line_discount' => (string) (($item->pricing_snapshot ?? [])['line_discount'] ?? '0.00'),
+            ])->values()->all();
+            $reconciled = $this->pricingRules->reconcile(
+                $pricingLines,
+                $pricingSnapshot,
+                (string) $locked->discount_total,
+                array_key_exists('discount_total', $data) ? (string) $data['discount_total'] : null,
+            );
+
+            foreach ($reconciled['lines'] as $line) {
+                $item = $items->firstWhere('id', $line['id']);
+                if (! $item) {
+                    throw new \LogicException('A reconciled order line could not be matched to its order item.');
+                }
+                $itemSnapshot = $item->pricing_snapshot ?? [];
+                $itemSnapshot['allocated_order_discount'] = $line['allocated_order_discount'];
+                $itemSnapshot['final_line_total'] = $line['line_total'];
+                if (($pricingSnapshot['price_basis'] ?? null) === 'b2b_quote') {
+                    $itemSnapshot['accepted_line_total'] = $line['line_total'];
+                }
+                $item->update([
+                    'line_total' => $line['line_total'],
+                    'pricing_snapshot' => $itemSnapshot,
+                ]);
             }
-            $discount = array_key_exists('discount_total', $data)
-                ? number_format((float) $data['discount_total'], 2, '.', '')
-                : (string) $locked->discount_total;
-            if (bccomp($discount, $subtotal, 2) > 0) {
-                throw ValidationException::withMessages(['discount_total' => 'Discount cannot exceed the adjusted item subtotal.']);
-            }
+
+            $items = $locked->items()->orderBy('id')->get();
+            $subtotal = $reconciled['subtotal'];
+            $discount = $reconciled['discount_total'];
+            $pricingSnapshot = $reconciled['snapshot'];
             $delivery = array_key_exists('delivery_charge', $data)
-                ? number_format((float) $data['delivery_charge'], 2, '.', '')
-                : number_format((float) ($locked->delivery_charge ?? 0), 2, '.', '');
-            $tax = number_format((float) $locked->tax_total, 2, '.', '');
-            $newTotal = bcadd(bcadd(bcsub($subtotal, $discount, 2), $tax, 2), $delivery, 2);
-            $previousTotal = number_format((float) $locked->grand_total, 2, '.', '');
+                ? bcadd((string) $data['delivery_charge'], '0', 2)
+                : bcadd((string) ($locked->delivery_charge ?? '0.00'), '0', 2);
+            $tax = bcadd((string) $locked->tax_total, '0', 2);
+
+            $lineTotals = $items->reduce(
+                fn (string $sum, $item): string => bcadd($sum, (string) $item->line_total, 2),
+                '0.00',
+            );
+            $newTotal = bcadd(bcadd($lineTotals, $tax, 2), $delivery, 2);
+            $expectedTotal = bcadd(bcadd(bcsub($subtotal, $discount, 2), $tax, 2), $delivery, 2);
+            if (bccomp($newTotal, $expectedTotal, 2) !== 0) {
+                throw new \LogicException('Sales order line totals do not reconcile with the order grand total.');
+            }
+
+            $pricingSnapshot = array_merge($pricingSnapshot, [
+                'last_adjustment_at' => now()->toIso8601String(),
+                'last_adjustment_by' => $actor->id,
+                'adjustment_reason' => trim($data['reason']),
+                'total_discount' => $discount,
+            ]);
+            if (($pricingSnapshot['price_basis'] ?? null) === 'b2b_quote') {
+                $pricingSnapshot['accepted_tax'] = $tax;
+                $pricingSnapshot['accepted_total'] = $newTotal;
+            }
+            $previousTotal = bcadd((string) $locked->grand_total, '0', 2);
             $delta = bcsub($newTotal, $previousTotal, 2);
 
             $locked->update([
@@ -103,16 +150,9 @@ class SalesOrderAdjustmentService
                 'discount_total' => $discount,
                 'delivery_charge' => $delivery,
                 'grand_total' => $newTotal,
-                'pricing_snapshot' => array_merge($locked->pricing_snapshot ?? [], [
-                    'last_adjustment_at' => now()->toIso8601String(),
-                    'last_adjustment_by' => $actor->id,
-                    'adjustment_reason' => trim($data['reason']),
-                ]),
+                'pricing_snapshot' => $pricingSnapshot,
             ]);
 
-            // payment_status is a checkout/bank-transfer workflow state, not the
-            // authoritative amount-paid ledger. Use posted payment allocations so
-            // partial receipts and cash/COD reconciliations are not missed.
             $allocatedPayments = (string) DB::table('payment_allocations')
                 ->where('sales_order_id', $locked->id)
                 ->sum('amount');
